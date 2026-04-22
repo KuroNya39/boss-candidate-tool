@@ -338,8 +338,13 @@ document.querySelectorAll('.geek-item')[i].click()
    - 执行提取脚本
    - 若返回脚本执行错误（仅限 `Uncaught` 等异常）：等待 500ms → 重新点击 → 等待 300ms → 再次提取
    - 记录结果
-7. 汇总 N 个候选人的信息，输出 JSON
+7. 汇总数据，保存到文件 `data/raw_candidates.json`
 8. 关闭 tab：`curl -s "http://localhost:3456/close?target=xxx"`
+9. 向用户简要报告：提取成功，已保存到 `data/raw_candidates.json`
+
+**输出方式**：
+- 数据保存到文件，不在聊天中输出完整 JSON
+- 后续筛选、打分、导出等操作基于该文件进行
 
 ## 已知陷阱
 
