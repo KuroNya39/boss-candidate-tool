@@ -350,7 +350,6 @@ document.querySelectorAll('.geek-item')[i].click()
    - 若有，保存到 `./output/{outputFile}`
    - 向用户输出完整 JSON 结果，并告知文件路径
 8. 关闭 tab：`curl -s "http://localhost:3456/close?target=xxx"`
-9. 向用户输出完整 JSON 结果
 
 ## 已知陷阱
 
