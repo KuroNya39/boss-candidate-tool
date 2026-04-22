@@ -1,6 +1,7 @@
 ---
 domain: zhipin.com
 aliases: [Boss直聘, BOSS直聘, boss直聘, boss]
+outputFile: zhipin-candidates.json
 updated: 2026-04-22
 ---
 
@@ -345,6 +346,9 @@ document.querySelectorAll('.geek-item')[i].click()
    - 若返回脚本执行错误（仅限 `Uncaught` 等异常）：等待 500ms → 重新点击 → 等待 300ms → 再次提取
    - 记录结果
 7. 汇总数据，输出 JSON 结果
+   - 检查站点经验 frontmatter 是否定义 `outputFile`
+   - 若有，保存到 `./output/{outputFile}`
+   - 向用户输出完整 JSON 结果，并告知文件路径
 8. 关闭 tab：`curl -s "http://localhost:3456/close?target=xxx"`
 9. 向用户输出完整 JSON 结果
 
