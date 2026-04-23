@@ -153,19 +153,19 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
 
 ## 候选人筛选评分
 
-当用户在对话中描述筛选条件时（如"按本科+2年经验筛选候选人"），执行筛选评分流程。
+当用户要求筛选候选人时（如"帮我筛选本科以上、2年经验的"），**自动完成以下全部步骤**，无需用户手动运行脚本：
 
-### 流程
+### 执行步骤
 
-1. 根据用户描述，生成或更新 `config/filter-rules.json`
-2. 执行评分脚本：
+1. **生成规则配置**：根据用户描述的筛选条件，生成或更新 `config/filter-rules.json`
+2. **运行评分脚本**：
    ```bash
    node scripts/score-candidates.mjs \
      --input output/zhipin-candidates.json \
      --rules config/filter-rules.json \
      --output output/scored-candidates.json
    ```
-3. 向用户展示筛选结果摘要
+3. **展示结果摘要**：向用户展示通过/未通过人数、Top 候选人列表（姓名、分数、等级）
 
 ### 规则配置
 
@@ -194,6 +194,17 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
 - **数组字段**：`workExperience[].position` 遍历数组，任一匹配即满足
 - **学历排序**：高中 < 中专 < 大专 < 本科 < 硕士 < 博士
 - **工作年限**：从 "3年" 提取数字 3，应届生为 0，"1年以内"为 0.5，"10年以上"为 10
+
+### 用户描述到规则的映射示例
+
+| 用户说 | 规则 |
+|--------|------|
+| "本科以上" | mustHave: `basicInfo.education` >= "本科" |
+| "不要大专及以下" | exclude: `basicInfo.education` in ["高中","中专","大专"] |
+| "2年经验优先" | preferred: `basicInfo.workYears` >= "2年", weight=20 |
+| "有Java经验" | preferred: `workExperience[].position` contains "Java", weight=15 |
+| "期望深圳" | preferred: `positionInfo.expectCity` equals "深圳", weight=10 |
+| "有支付相关经验" | preferred: `workExperience[].position` contains "支付", weight=15 |
 
 ## 站点经验
 
