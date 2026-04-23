@@ -1,0 +1,46 @@
+{
+  "name": "AI应用开发工程师-初筛",
+  "version": "1.0",
+  "rules": {
+    "mustHave": [
+      {
+        "field": "basicInfo.education",
+        "operator": ">=",
+        "value": "本科",
+        "reason": "学历要求本科及以上"
+      }
+    ],
+    "preferred": [
+      {
+        "field": "basicInfo.workYears",
+        "operator": ">=",
+        "value": "2年",
+        "weight": 20,
+        "reason": "2年以上工作经验加分"
+      },
+      {
+        "field": "positionInfo.expectCity",
+        "operator": "equals",
+        "value": "深圳",
+        "weight": 10,
+        "reason": "期望城市匹配加分"
+      },
+      {
+        "field": "workExperience[].position",
+        "operator": "contains",
+        "value": "Java",
+        "weight": 15,
+        "reason": "Java经验加分"
+      }
+    ],
+    "exclude": [
+      {
+        "field": "basicInfo.education",
+        "operator": "in",
+        "value": ["高中", "中专", "初中"],
+        "reason": "学历不符合最低要求"
+      }
+    ],
+    "threshold": 60
+  }
+}
