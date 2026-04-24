@@ -165,7 +165,13 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
      --rules config/filter-rules.json \
      --output output/scored-candidates.json
    ```
-3. **展示结果摘要**：向用户展示通过/未通过人数、Top 候选人列表（姓名、分数、等级）
+3. **导出 Excel 文件**：
+   ```bash
+   node scripts/export-candidates.mjs \
+     --input output/scored-candidates.json
+   ```
+   Excel 文件保存到 `output/candidates.xlsx`
+4. **展示结果摘要**：向用户展示通过/未通过人数、Top 候选人列表（姓名、分数、等级）、Excel 文件路径
 
 ### 规则配置
 

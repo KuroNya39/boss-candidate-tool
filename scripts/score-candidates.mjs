@@ -146,7 +146,7 @@ function parseWorkYears(value) {
 }
 
 // ===== 操作符比较 =====
-function compareValues(actual, operator, expected) {
+function compareValues(actual, operator, expected, flags) {
   if (actual === null || actual === undefined) {
     if (operator === 'exists') return false;
     return false;
@@ -177,12 +177,18 @@ function compareValues(actual, operator, expected) {
     case '<':
       return compareOrdered(actual, expected) < 0;
 
-    case 'regex':
+    case 'regex': {
+      const reFlags = flags || '';
       try {
-        return new RegExp(expected).test(String(actual));
+        const re = new RegExp(expected, reFlags);
+        if (Array.isArray(actual)) {
+          return actual.some(item => re.test(String(item)));
+        }
+        return re.test(String(actual));
       } catch {
         return false;
       }
+    }
 
     case 'exists':
       return actual !== null && actual !== undefined && actual !== '';
@@ -230,7 +236,7 @@ function scoreCandidate(candidate, rules) {
   // 1. exclude 检查（最高优先级）
   for (const rule of rules.exclude || []) {
     const actual = resolveField(candidate, rule.field);
-    const result = compareValues(actual, rule.operator, rule.value);
+    const result = compareValues(actual, rule.operator, rule.value, rule.flags);
     if (result === true) {
       reasons.push({
         rule: rule.reason,
@@ -255,7 +261,7 @@ function scoreCandidate(candidate, rules) {
   // 2. mustHave 检查
   for (const rule of rules.mustHave || []) {
     const actual = resolveField(candidate, rule.field);
-    const result = compareValues(actual, rule.operator, rule.value);
+    const result = compareValues(actual, rule.operator, rule.value, rule.flags);
     if (result === false) {
       reasons.push({
         rule: rule.reason,
@@ -286,7 +292,7 @@ function scoreCandidate(candidate, rules) {
   // 3. preferred 计算
   for (const rule of rules.preferred || []) {
     const actual = resolveField(candidate, rule.field);
-    const result = compareValues(actual, rule.operator, rule.value);
+    const result = compareValues(actual, rule.operator, rule.value, rule.flags);
     totalWeight += rule.weight || 0;
 
     if (result === true) {
@@ -308,7 +314,17 @@ function scoreCandidate(candidate, rules) {
   }
 
   // 4. 归一化分数
-  const score = totalWeight > 0 ? Math.round((rawScore / totalWeight) * 100) : 0;
+  // mustHave 全通过给 60 分基础分，preferred 在 60-100 之间加分
+  // 无 preferred 规则时，mustHave 全通过给 100 分
+  let score;
+  if (!passed) {
+    score = 0;
+  } else if (totalWeight === 0) {
+    score = 100;
+  } else {
+    const bonusRatio = rawScore / totalWeight; // 0~1
+    score = Math.round(60 + bonusRatio * 40);
+  }
 
   // 5. threshold 判定
   const threshold = rules.threshold ?? 60;
@@ -340,8 +356,11 @@ function main() {
   // 按 score 降序排列
   scoredCandidates.sort((a, b) => b.score - a.score);
 
+  // 只保留通过的候选人
+  const passedCandidates = scoredCandidates.filter(c => c.passed);
+
   // 统计
-  const passedCount = scoredCandidates.filter(c => c.passed).length;
+  const passedCount = passedCandidates.length;
 
   const output = {
     filterName: rulesConfig.name,
@@ -351,7 +370,7 @@ function main() {
     totalCandidates: scoredCandidates.length,
     passedCount,
     threshold: rules.threshold ?? 60,
-    candidates: scoredCandidates,
+    candidates: passedCandidates,
   };
 
   // 输出
