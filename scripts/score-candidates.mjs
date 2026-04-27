@@ -382,12 +382,18 @@ function scoreCandidateDefault(candidate) {
   // 从 rawVisibleText 解析学历和年限
   const raw = candidate.rawVisibleText;
   const education = resolveEducationFromRaw(raw) || candidate.basicInfo?.education || null;
-  const workYearsStr = resolveWorkYearsFromRaw(raw) !== null
-    ? `${resolveWorkYearsFromRaw(raw)}年`
+
+  const rawYears = resolveWorkYearsFromRaw(raw);
+  // 保留原始文本用于应届生检测（rawVisibleText 或 basicInfo.workYears）
+  const workYearsStr = rawYears !== null
+    ? `${rawYears}年`
     : candidate.basicInfo?.workYears || null;
+  const isFresh = rawYears === 0 && /应届/.test(raw || '');
+  const workYearsScore = rawYears !== null
+    ? Math.min(rawYears * 3, 30) + (isFresh ? 3 : 0)
+    : calcWorkYearsScore(workYearsStr);
 
   const educationScore = calcEducationScore(education);
-  const workYearsScore = calcWorkYearsScore(workYearsStr);
   const baseScore = educationScore + workYearsScore;
 
   return {
@@ -398,7 +404,7 @@ function scoreCandidateDefault(candidate) {
     score: baseScore, // 暂时只含基础分，LLM 岗位分后续补充
     passed: true, // 默认模式下全部通过
     reasons: [],
-    recommendationLevel: getRecommendationLevel(baseScore),
+    recommendationLevel: null, // 待 LLM 岗位分合并后再计算
   };
 }
 
