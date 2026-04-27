@@ -10,12 +10,20 @@ function parseArgs() {
   for (let i = 0; i < args.length; i++) {
     if (args[i].startsWith('--')) {
       const key = args[i].slice(2);
-      opts[key] = args[i + 1];
-      i++;
+      if (key === 'default') {
+        opts.default = true;
+      } else {
+        opts[key] = args[i + 1];
+        i++;
+      }
     }
   }
-  if (!opts.input || !opts.rules) {
-    console.error('Usage: node score-candidates.mjs --input <file> --rules <file> [--output <file>]');
+  if (!opts.input) {
+    console.error('Usage: node score-candidates.mjs --input <file> [--rules <file> | --default] [--position <name>] [--output <file>]');
+    process.exit(1);
+  }
+  if (!opts.default && !opts.rules) {
+    console.error('Error: must specify --rules <file> or --default');
     process.exit(1);
   }
   return opts;
@@ -28,6 +36,31 @@ function educationRank(value) {
   if (!value) return -1;
   const idx = EDUCATION_ORDER.indexOf(value);
   return idx >= 0 ? idx : -1;
+}
+
+// ===== 学历分映射 =====
+const EDUCATION_SCORES = {
+  '博士': 20,
+  '硕士': 17,
+  '本科': 14,
+  '大专': 8,
+  '中专': 4,
+  '高中': 4,
+};
+
+function calcEducationScore(education) {
+  if (!education) return 0;
+  return EDUCATION_SCORES[education] ?? 0;
+}
+
+// ===== 工作年限分计算 =====
+function calcWorkYearsScore(workYearsStr) {
+  const years = parseWorkYears(workYearsStr);
+  if (years === null) return 0;
+  // 应届生额外 +3
+  const isFresh = /应届/.test(workYearsStr || '');
+  const base = Math.min(years * 3, 30);
+  return isFresh ? base + 3 : base;
 }
 
 // ===== rawVisibleText 字段解析 =====
@@ -344,46 +377,84 @@ function scoreCandidate(candidate, rules) {
   };
 }
 
+// ===== 默认评分（无筛选条件） =====
+function scoreCandidateDefault(candidate) {
+  // 从 rawVisibleText 解析学历和年限
+  const raw = candidate.rawVisibleText;
+  const education = resolveEducationFromRaw(raw) || candidate.basicInfo?.education || null;
+  const workYearsStr = resolveWorkYearsFromRaw(raw) !== null
+    ? `${resolveWorkYearsFromRaw(raw)}年`
+    : candidate.basicInfo?.workYears || null;
+
+  const educationScore = calcEducationScore(education);
+  const workYearsScore = calcWorkYearsScore(workYearsStr);
+  const baseScore = educationScore + workYearsScore;
+
+  return {
+    ...candidate,
+    educationScore,
+    workYearsScore,
+    baseScore,
+    score: baseScore, // 暂时只含基础分，LLM 岗位分后续补充
+    passed: true, // 默认模式下全部通过
+    reasons: [],
+    recommendationLevel: getRecommendationLevel(baseScore),
+  };
+}
+
 // ===== 主流程 =====
 function main() {
   const opts = parseArgs();
 
-  // 读取输入
   const candidates = JSON.parse(readFileSync(resolve(opts.input), 'utf-8'));
-  const rulesConfig = JSON.parse(readFileSync(resolve(opts.rules), 'utf-8'));
-
   const candidateList = candidates.candidates || candidates;
-  const rules = rulesConfig.rules;
 
-  // 评分
-  const scoredCandidates = candidateList.map(c => scoreCandidate(c, rules));
+  let scoredCandidates;
+  let output;
 
-  // 按 score 降序排列
-  scoredCandidates.sort((a, b) => b.score - a.score);
+  if (opts.default) {
+    // 默认评分模式
+    scoredCandidates = candidateList.map(c => scoreCandidateDefault(c));
+    scoredCandidates.sort((a, b) => b.score - a.score);
 
-  // 只保留通过的候选人
-  const passedCandidates = scoredCandidates.filter(c => c.passed);
+    output = {
+      mode: 'default',
+      position: opts.position || '',
+      filteredAt: new Date().toISOString(),
+      inputFile: resolve(opts.input),
+      totalCandidates: scoredCandidates.length,
+      candidates: scoredCandidates, // 保留全部候选人
+    };
+  } else {
+    // 条件筛选模式（沿用现有逻辑）
+    const rulesConfig = JSON.parse(readFileSync(resolve(opts.rules), 'utf-8'));
+    const rules = rulesConfig.rules;
 
-  // 统计
-  const passedCount = passedCandidates.length;
+    scoredCandidates = candidateList.map(c => scoreCandidate(c, rules));
+    scoredCandidates.sort((a, b) => b.score - a.score);
+    const passedCandidates = scoredCandidates.filter(c => c.passed);
 
-  const output = {
-    filterName: rulesConfig.name,
-    filterVersion: rulesConfig.version,
-    filteredAt: new Date().toISOString(),
-    inputFile: resolve(opts.input),
-    totalCandidates: scoredCandidates.length,
-    passedCount,
-    threshold: rules.threshold ?? 60,
-    candidates: passedCandidates,
-  };
+    output = {
+      filterName: rulesConfig.name,
+      filterVersion: rulesConfig.version,
+      filteredAt: new Date().toISOString(),
+      inputFile: resolve(opts.input),
+      totalCandidates: scoredCandidates.length,
+      passedCount: passedCandidates.length,
+      threshold: rules.threshold ?? 60,
+      candidates: passedCandidates,
+    };
+  }
 
-  // 输出
   const outputPath = opts.output || resolve(dirname(resolve(opts.input)), 'scored-candidates.json');
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, JSON.stringify(output, null, 2), 'utf-8');
 
-  console.log(`Scored ${scoredCandidates.length} candidates, ${passedCount} passed`);
+  if (opts.default) {
+    console.log(`Default scored ${scoredCandidates.length} candidates`);
+  } else {
+    console.log(`Scored ${scoredCandidates.length} candidates, ${output.passedCount} passed`);
+  }
   console.log(`Output: ${outputPath}`);
 }
 
@@ -406,5 +477,9 @@ export {
   compareOrdered,
   getRecommendationLevel,
   scoreCandidate,
+  scoreCandidateDefault,
+  calcEducationScore,
+  calcWorkYearsScore,
   EDUCATION_ORDER,
+  EDUCATION_SCORES,
 };
