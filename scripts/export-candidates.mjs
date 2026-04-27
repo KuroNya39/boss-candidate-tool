@@ -62,13 +62,32 @@ const FIELD_CONFIG = {
     header: '学历',
     extract: (c) => c.basicInfo?.education || '',
   },
+  educationScore: {
+    header: '学历分',
+    extract: (c) => c.educationScore ?? '',
+  },
+  workYearsScore: {
+    header: '年限分',
+    extract: (c) => c.workYearsScore ?? '',
+  },
+  jobRelevanceScore: {
+    header: '岗位相关性分',
+    extract: (c) => c.jobRelevanceScore ?? '',
+  },
+  jobRelevanceComment: {
+    header: '岗位评语',
+    extract: (c) => c.jobRelevanceComment || '',
+  },
   score: {
     header: '分数',
     extract: (c) => c.score ?? 0,
   },
   passed: {
     header: '是否通过',
-    extract: (c) => c.passed ? '是' : '否',
+    extract: (c) => {
+      if (c._defaultMode) return '-';
+      return c.passed ? '是' : '否';
+    },
   },
   recommendationLevel: {
     header: '推荐等级',
@@ -109,6 +128,10 @@ const DEFAULT_FIELDS = [
   'workYears',
   'school',
   'education',
+  'educationScore',
+  'workYearsScore',
+  'jobRelevanceScore',
+  'jobRelevanceComment',
   'score',
   'passed',
   'recommendationLevel',
@@ -120,11 +143,15 @@ const DEFAULT_FIELDS = [
 ];
 
 // ===== 数据转换 =====
-function transformCandidates(candidates, fields) {
+function transformCandidates(candidates, fields, mode = 'filter') {
+  const enriched = candidates.map(c => ({
+    ...c,
+    _defaultMode: mode === 'default',
+  }));
   const selectedConfig = fields.map(f => FIELD_CONFIG[f] || { header: f, extract: () => '' });
 
   const headers = selectedConfig.map(cfg => cfg.header);
-  const rows = candidates.map(c =>
+  const rows = enriched.map(c =>
     selectedConfig.map(cfg => cfg.extract(c))
   );
 
@@ -165,8 +192,8 @@ function main() {
     ? opts.fields.split(',').map(f => f.trim())
     : DEFAULT_FIELDS;
 
-  // 转换数据
-  const data = transformCandidates(candidates, fields);
+  const mode = input.mode === 'default' ? 'default' : 'filter';
+  const data = transformCandidates(candidates, fields, mode);
 
   // 创建工作簿
   const wb = XLSX.utils.book_new();
@@ -191,6 +218,8 @@ function main() {
   if (input.totalCandidates && input.passedCount) {
     console.log(`筛选规则: ${input.filterName || '未知'} (v${input.filterVersion || '?'})`);
     console.log(`通过率: ${input.passedCount}/${input.totalCandidates} (${Math.round(input.passedCount / input.totalCandidates * 100)}%)`);
+  } else if (input.mode === 'default') {
+    console.log(`评分模式: 默认评分 (全量)`);
   }
 }
 
