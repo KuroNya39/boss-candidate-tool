@@ -389,9 +389,15 @@ const EXTRACT_BASIC_INFO_SCRIPT = `(function() {
       var nameEl = basicDetail.querySelector('.base-name');
       var nameText = safeText(nameEl);
       if (nameText) basicInfo.name = nameText;
-      if (divs.length >= 2) { var t = safeText(divs[1]); if (t) basicInfo.age = t; }
-      if (divs.length >= 3) { var t = safeText(divs[2]); if (t) basicInfo.workYears = t; }
-      if (divs.length >= 4) { var t = safeText(divs[3]); if (t) basicInfo.education = t; }
+      // 语义匹配替代固定索引（避免"刚刚活跃"标签缺失导致偏移）
+      var EDUCATION_WORDS = ['博士','硕士','本科','大专','中专','高中'];
+      for (var di = 0; di < divs.length; di++) {
+        var t = safeText(divs[di]);
+        if (!t) continue;
+        if (!basicInfo.age && /^\d+岁$/.test(t)) { basicInfo.age = t; continue; }
+        if (!basicInfo.workYears && (/^\d+年$/.test(t) || /应届/.test(t) || t === '1年以内' || /^\d+年以上$/.test(t))) { basicInfo.workYears = t; continue; }
+        if (!basicInfo.education && EDUCATION_WORDS.indexOf(t) >= 0) { basicInfo.education = t; continue; }
+      }
       if (Object.keys(basicInfo).length > 0) result.basicInfo = basicInfo;
     }
   } catch (e) {}
