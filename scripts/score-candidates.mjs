@@ -128,6 +128,11 @@ function resolveField(candidate, fieldPath) {
     return candidate.basicInfo?.workYears || null;
   }
 
+  // resumeText 字段：直接返回简历全文（支持 contains/regex 等操作符匹配）
+  if (fieldPath === 'resumeText') {
+    return candidate.resumeText || null;
+  }
+
   // 数组路径：返回所有值的数组
   if (fieldPath.includes('[]')) {
     return getFieldValues(candidate, fieldPath);

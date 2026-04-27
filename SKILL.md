@@ -201,16 +201,71 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
 - **学历排序**：高中 < 中专 < 大专 < 本科 < 硕士 < 博士
 - **工作年限**：从 "3年" 提取数字 3，应届生为 0，"1年以内"为 0.5，"10年以上"为 10
 
+| `resumeText` | 简历全文搜索 |
+
 ### 用户描述到规则的映射示例
 
 | 用户说 | 规则 |
 |--------|------|
-| "本科以上" | mustHave: `basicInfo.education` >= "本科" |
-| "不要大专及以下" | exclude: `basicInfo.education` in ["高中","中专","大专"] |
-| "2年经验优先" | preferred: `basicInfo.workYears` >= "2年", weight=20 |
-| "有Java经验" | preferred: `workExperience[].position` contains "Java", weight=15 |
-| "期望深圳" | preferred: `positionInfo.expectCity` equals "深圳", weight=10 |
-| "有支付相关经验" | preferred: `workExperience[].position` contains "支付", weight=15 |
+| “本科以上” | mustHave: `basicInfo.education` >= "本科" |
+| “不要大专及以下” | exclude: `basicInfo.education` in ["高中","中专","大专"] |
+| “2年经验优先” | preferred: `basicInfo.workYears` >= "2年", weight=20 |
+| “有Java经验” | preferred: `workExperience[].position` contains "Java", weight=15 |
+| “期望深圳” | preferred: `positionInfo.expectCity` equals "深圳", weight=10 |
+| “有支付相关经验” | preferred: `workExperience[].position` contains "支付", weight=15 |
+| “985/211优先” | preferred: `resumeText` regex "985\|211", weight=15 |
+| “简历中有Python” | preferred: `resumeText` contains "Python", weight=10 |
+
+## 在线简历提取
+
+在第一轮提取中即完成基础信息 + 在线简历的全量提取。
+
+### 触发条件
+
+- 用户要求提取候选人信息（包含在线简历）
+
+### 执行步骤
+
+1. **确定提取范围**：
+   - "提取前 N 个" → `--count N`
+   - "提取全部" / "提取所有" → `--all`
+   - 未指定数量 → `--count 10`（默认）
+2. **后台运行全量提取脚本**（必须使用 `run_in_background`，因提取耗时可能超过 10 分钟）：
+   ```bash
+   node scripts/extract-candidates-full.mjs \
+     --all \
+     --output output/zhipin-candidates.json
+   ```
+   > **重要**：此脚本必须后台运行（Bash 工具的 `run_in_background: true`），不要同步等待。脚本完成后会自动通知。
+3. **运行期间主动报告进度**：脚本后台运行后，设置定时任务每 2 分钟读取进度文件并向用户报告：
+   ```bash
+   node -e "const p=JSON.parse(require('fs').readFileSync('output/.extract-progress.json','utf8')); console.log(`进度: ${p.processedCount} 人已完成, 更新于 ${p.updatedAt}`)"
+   ```
+   使用 CronCreate 设置定时进度报告（`recurring: true`），脚本完成后用 CronDelete 取消定时任务。
+4. 脚本自动完成（两阶段提取）：
+   - **扫描阶段**：逐步滚动列表收集所有 geekId（`--all` 模式）
+   - **提取阶段**：逐个处理候选人（通过 geekId 精准定位）
+   - 提取基础信息 + 打开在线简历弹窗 + 截图 + OCR
+   - 保存到 `output/zhipin-candidates.json`（含 `resumeText` 字段）
+   - 同时保存单独简历 txt 到 `output/resumes/`
+5. **脚本完成后**：取消进度定时任务，读取输出文件，向用户展示提取数量、有简历数量、文件路径
+
+### 中断恢复
+
+如果提取过程中中断（如网络断开、手动停止）：
+```bash
+node scripts/extract-candidates-full.mjs --all --resume
+```
+脚本将从上次进度继续，跳过已扫描和已提取的候选人。
+
+### 注意事项
+
+- Boss 直聘的在线简历通过 Canvas 渲染（反爬），采用截图 + OCR 方案
+- 并非所有候选人都有在线简历，脚本会自动跳过
+- OCR 识别结果可能包含少量误字，但技术关键词识别率较高
+- `resumeText` 字段可用于筛选评分（如筛选 985/211 院校）
+- 依赖 `tesseract.js`（已在 package.json 中）
+- 全量提取大量候选人时耗时较长（每人约 10-15 秒），使用 `--resume` 可中断后继续
 
 ## 站点经验
 

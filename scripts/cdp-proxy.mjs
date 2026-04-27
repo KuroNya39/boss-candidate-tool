@@ -500,13 +500,22 @@ const server = http.createServer(async (req, res) => {
     }
 
     // GET /screenshot?target=xxx&file=/tmp/x.png - 截图
+    // 可选区域裁剪: &clip=x,y,w,h（设备像素坐标）
     else if (pathname === '/screenshot') {
       const sid = await ensureSession(q.target);
       const format = q.format || 'png';
-      const resp = await sendCDP('Page.captureScreenshot', {
+      const ssParams = {
         format,
         quality: format === 'jpeg' ? 80 : undefined,
-      }, sid);
+      };
+      // 支持区域截图: clip=x,y,width,height
+      if (q.clip) {
+        const parts = q.clip.split(',').map(Number);
+        if (parts.length === 4 && parts.every(n => !isNaN(n))) {
+          ssParams.clip = { x: parts[0], y: parts[1], width: parts[2], height: parts[3], scale: 1 };
+        }
+      }
+      const resp = await sendCDP('Page.captureScreenshot', ssParams, sid);
       if (q.file) {
         fs.writeFileSync(q.file, Buffer.from(resp.result.data, 'base64'));
         res.end(JSON.stringify({ saved: q.file }));

@@ -51,7 +51,7 @@ const FIELD_CONFIG = {
     extract: (c) => c.basicInfo?.age || '',
   },
   workYears: {
-    header: '年限',
+    header: '工作年限',
     extract: (c) => c.basicInfo?.workYears || '',
   },
   school: {
