@@ -173,7 +173,7 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
      --input output/zhipin-candidates.json \
      --output output/scored-candidates.json
    ```
-3. **LLM 岗位相关性评分**：逐个阅读候选人的 `resumeText`，使用以下 prompt 评分：
+3. **LLM 岗位相关性评分**：读取 `output/scored-candidates.json`，注意候选人列表在 `d.candidates` 字段中（不是 `d` 本身）。逐个阅读候选人的 `resumeText`，使用以下 prompt 评分：
    ```
    你是一位技术招聘专家。请根据以下候选人简历，评估其与目标岗位的匹配度。
 
@@ -192,7 +192,7 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
    - 无 `resumeText` 的候选人：`jobRelevanceScore = 0`，`jobRelevanceComment = “无在线简历”`
    - 每评完 5 人，将结果写入 `output/scored-candidates.json`（防丢失）
    - 每评完 5 人，向用户报告进度
-4. **合并总分**：`totalScore = educationScore + workYearsScore + jobRelevanceScore`，更新 JSON 中每个候选人的 `score` 和 `recommendationLevel`
+4. **合并总分**：`totalScore = educationScore + workYearsScore + jobRelevanceScore`，更新 `d.candidates` 中每个候选人的 `score` 和 `recommendationLevel`，然后写回整个 `d` 对象到 JSON 文件
 5. **导出 Excel**：
    ```bash
    node scripts/export-candidates.mjs \
