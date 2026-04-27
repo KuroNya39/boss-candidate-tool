@@ -151,11 +151,56 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
    - 将 JSON 写入 `./output/{outputFile}`
 4. 向用户输出结果，并告知文件路径
 
-## 候选人筛选评分
+## 候选人评分
 
-当用户要求筛选候选人时（如"帮我筛选本科以上、2年经验的"），**自动完成以下全部步骤**，无需用户手动运行脚本：
+当用户要求对候选人评分或筛选时，**自动完成以下全部步骤**，无需用户手动运行脚本。
 
-### 执行步骤
+### 两种模式
+
+- **默认评分**：用户未给筛选条件（如”帮我评分”、”给这些候选人打分”）
+- **条件筛选**：用户给了筛选条件（如”帮我筛选本科以上、2年经验的”）
+
+### 默认评分流程
+
+评分维度：**总分 = 学历分(0-20) + 工作年限分(0-30) + 岗位相关性分(0-50)**
+
+1. **确定目标岗位**：优先用户指定（如”按AI应用开发岗位评分”），否则从候选人数据的 `positionInfo.appliedJob` 提取
+2. **运行默认评分脚本**：
+   ```bash
+   node scripts/score-candidates.mjs \
+     --default \
+     --position “目标岗位名称” \
+     --input output/zhipin-candidates.json \
+     --output output/scored-candidates.json
+   ```
+3. **LLM 岗位相关性评分**：逐个阅读候选人的 `resumeText`，使用以下 prompt 评分：
+   ```
+   你是一位技术招聘专家。请根据以下候选人简历，评估其与目标岗位的匹配度。
+
+   目标岗位：{positionName}
+
+   候选人简历：
+   {resumeText}
+
+   请给出：
+   1. 岗位相关性分数（0-50分）：基于技术栈匹配度、项目经验相关性、行业经验等
+   2. 简短评语（一句话）：说明评分理由
+
+   请严格按以下 JSON 格式输出：
+   {“jobRelevanceScore”: <0-50>, “jobRelevanceComment”: “<评语>”}
+   ```
+   - 无 `resumeText` 的候选人：`jobRelevanceScore = 0`，`jobRelevanceComment = “无在线简历”`
+   - 每评完 5 人，将结果写入 `output/scored-candidates.json`（防丢失）
+   - 每评完 5 人，向用户报告进度
+4. **合并总分**：`totalScore = educationScore + workYearsScore + jobRelevanceScore`，更新 JSON 中每个候选人的 `score` 和 `recommendationLevel`
+5. **导出 Excel**：
+   ```bash
+   node scripts/export-candidates.mjs \
+     --input output/scored-candidates.json
+   ```
+6. **展示结果摘要**：向用户展示 Top 候选人列表（姓名、总分、各维度分、评语）、Excel 文件路径
+
+### 条件筛选流程
 
 1. **生成规则配置**：根据用户描述的筛选条件，生成或更新 `config/filter-rules.json`
 2. **运行评分脚本**：
@@ -165,15 +210,39 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
      --rules config/filter-rules.json \
      --output output/scored-candidates.json
    ```
-3. **导出 Excel 文件**：
+3. **LLM 岗位相关性评分**：同默认评分流程第 3 步
+4. **合并总分**：同默认评分流程第 4 步
+5. **导出 Excel**：
    ```bash
    node scripts/export-candidates.mjs \
      --input output/scored-candidates.json
    ```
-   Excel 文件保存到 `output/candidates.xlsx`
-4. **展示结果摘要**：向用户展示通过/未通过人数、Top 候选人列表（姓名、分数、等级）、Excel 文件路径
+6. **展示结果摘要**：向用户展示通过/未通过人数、Top 候选人列表、Excel 文件路径
 
-### 规则配置
+### 评分规则
+
+#### 学历分（0-20）
+
+| 学历 | 分数 |
+|------|------|
+| 博士 | 20 |
+| 硕士 | 17 |
+| 本科 | 14 |
+| 大专 | 8 |
+| 中专/高中 | 4 |
+| 未知 | 0 |
+
+#### 工作年限分（0-30）
+
+- 公式：`min(years * 3, 30)`
+- 应届生额外 +3 分
+
+#### 岗位相关性分（0-50）
+
+- LLM 阅读简历文本评估，基于技术栈匹配度、项目经验相关性、行业经验
+- 无在线简历的候选人：0 分
+
+### 规则配置（条件筛选模式）
 
 规则存放在 `config/filter-rules.json`，包含三类规则：
 
@@ -199,7 +268,7 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
 - **学历/工作年限**：从 `rawVisibleText` 提取（避免 basicInfo 偏移问题）
 - **数组字段**：`workExperience[].position` 遍历数组，任一匹配即满足
 - **学历排序**：高中 < 中专 < 大专 < 本科 < 硕士 < 博士
-- **工作年限**：从 "3年" 提取数字 3，应届生为 0，"1年以内"为 0.5，"10年以上"为 10
+- **工作年限**：从 “3年” 提取数字 3，应届生为 0，”1年以内”为 0.5，”10年以上”为 10
 
 | `resumeText` | 简历全文搜索 |
 
@@ -207,14 +276,14 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
 
 | 用户说 | 规则 |
 |--------|------|
-| “本科以上” | mustHave: `basicInfo.education` >= "本科" |
-| “不要大专及以下” | exclude: `basicInfo.education` in ["高中","中专","大专"] |
-| “2年经验优先” | preferred: `basicInfo.workYears` >= "2年", weight=20 |
-| “有Java经验” | preferred: `workExperience[].position` contains "Java", weight=15 |
-| “期望深圳” | preferred: `positionInfo.expectCity` equals "深圳", weight=10 |
-| “有支付相关经验” | preferred: `workExperience[].position` contains "支付", weight=15 |
-| “985/211优先” | preferred: `resumeText` regex "985\|211", weight=15 |
-| “简历中有Python” | preferred: `resumeText` contains "Python", weight=10 |
+| “本科以上” | mustHave: `basicInfo.education` >= “本科” |
+| “不要大专及以下” | exclude: `basicInfo.education` in [“高中”,”中专”,”大专”] |
+| “2年经验优先” | preferred: `basicInfo.workYears` >= “2年”, weight=20 |
+| “有Java经验” | preferred: `workExperience[].position` contains “Java”, weight=15 |
+| “期望深圳” | preferred: `positionInfo.expectCity` equals “深圳”, weight=10 |
+| “有支付相关经验” | preferred: `workExperience[].position` contains “支付”, weight=15 |
+| “985/211优先” | preferred: `resumeText` regex “985\|211”, weight=15 |
+| “简历中有Python” | preferred: `resumeText` contains “Python”, weight=10 |
 
 ## 在线简历提取
 
