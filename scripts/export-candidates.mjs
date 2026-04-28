@@ -187,6 +187,9 @@ function main() {
   const input = JSON.parse(readFileSync(inputPath, 'utf-8'));
   const candidates = input.candidates || input;
 
+  // 按总分降序排序
+  candidates.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
   // 字段选择（支持 --fields 参数）
   const fields = opts.fields
     ? opts.fields.split(',').map(f => f.trim())
