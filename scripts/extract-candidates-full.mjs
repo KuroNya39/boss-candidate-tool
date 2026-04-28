@@ -476,23 +476,24 @@ async function extractJobDescription(targetId) {
     if (!dialog) return JSON.stringify(null);
     var info = {};
     try {
-      var nameEl = dialog.querySelector('.name');
+      var nameEl = dialog.querySelector('.job-title-wrap .title');
       if (nameEl) info.jobName = nameEl.textContent.trim();
     } catch(e) {}
     try {
-      var salaryEl = dialog.querySelector('.salary');
+      var salaryEl = dialog.querySelector('.job-title-wrap .salary');
       if (salaryEl) info.salary = salaryEl.textContent.trim();
     } catch(e) {}
     try {
-      var detailContent = dialog.querySelector('.job-detail-content')
+      var detailContent = dialog.querySelector('.job-details')
+        || dialog.querySelector('.job-detail-content')
         || dialog.querySelector('.detail-content')
         || dialog.querySelector('.job-sec');
       if (detailContent) info.description = detailContent.textContent.trim();
       else info.description = dialog.textContent.trim();
     } catch(e) {}
     try {
-      var tags = dialog.querySelectorAll('.job-tags span, .tag-list span');
-      if (tags.length) info.tags = Array.from(tags).map(function(t){return t.textContent.trim()});
+      var tagItems = dialog.querySelectorAll('.job-summary-wrap .info-item');
+      if (tagItems.length) info.tags = Array.from(tagItems).map(function(t){return t.textContent.trim()});
     } catch(e) {}
     return JSON.stringify(info);
   })()`);
@@ -1029,10 +1030,10 @@ async function main() {
               jobDescCache.set(appliedJob, jd);
               console.log(`  ✓ 岗位描述: ${jd.jobName || appliedJob}`);
             } else {
-              console.log('  ℹ 未找到岗位描述弹窗');
+              console.log(' 未找到岗位描述弹窗');
             }
           } catch (e) {
-            console.warn(`  ⚠ 岗位描述提取失败: ${e.message}`);
+            console.warn(` 岗位描述提取失败: ${e.message}`);
           }
         }
 
