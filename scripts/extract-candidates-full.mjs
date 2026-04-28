@@ -498,12 +498,27 @@ async function extractJobDescription(targetId) {
     return JSON.stringify(info);
   })()`);
 
-  // 关闭弹窗
+  // 关闭弹窗（尝试多种选择器，确保关闭）
   await cdpEval(targetId, `(function(){
-    var closeBtn = document.querySelector('.job-details-dialog .boss-popup__close');
+    var closeBtn = document.querySelector('.job-details-dialog .boss-popup__close')
+      || document.querySelector('.job-details-dialog .close-btn')
+      || document.querySelector('.job-details-dialog [class*="close"]');
     if (closeBtn) closeBtn.click();
   })()`);
   await randomDelay(500, 800);
+  // 二次确认：如果弹窗仍存在，再次尝试关闭
+  const dialogStillExists = await cdpEval(targetId, `(function(){
+    var dialog = document.querySelector('.job-details-dialog');
+    if (dialog && dialog.offsetParent !== null) return 'still-visible';
+    return 'closed';
+  })()`);
+  if (dialogStillExists === 'still-visible') {
+    await cdpEval(targetId, `(function(){
+      var dialog = document.querySelector('.job-details-dialog');
+      if (dialog) dialog.remove();
+    })()`);
+    await randomDelay(300, 500);
+  }
 
   try {
     return JSON.parse(detail);
@@ -1036,6 +1051,13 @@ async function main() {
             console.warn(` 岗位描述提取失败: ${e.message}`);
           }
         }
+
+        // 安全检查：确保没有残留弹窗
+        await cdpEval(targetId, `(function(){
+          var dialogs = document.querySelectorAll('.job-details-dialog');
+          dialogs.forEach(function(d){ if(d.offsetParent !== null) d.remove(); });
+        })()`);
+        await randomDelay(300, 500);
 
         // 3. 提取在线简历
         console.log('  → 打开在线简历...');
