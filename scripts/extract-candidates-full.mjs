@@ -498,27 +498,8 @@ async function extractJobDescription(targetId) {
     return JSON.stringify(info);
   })()`);
 
-  // 关闭弹窗（尝试多种选择器，确保关闭）
-  await cdpEval(targetId, `(function(){
-    var closeBtn = document.querySelector('.job-details-dialog .boss-popup__close')
-      || document.querySelector('.job-details-dialog .close-btn')
-      || document.querySelector('.job-details-dialog [class*="close"]');
-    if (closeBtn) closeBtn.click();
-  })()`);
-  await randomDelay(500, 800);
-  // 二次确认：如果弹窗仍存在，再次尝试关闭
-  const dialogStillExists = await cdpEval(targetId, `(function(){
-    var dialog = document.querySelector('.job-details-dialog');
-    if (dialog && dialog.offsetParent !== null) return 'still-visible';
-    return 'closed';
-  })()`);
-  if (dialogStillExists === 'still-visible') {
-    await cdpEval(targetId, `(function(){
-      var dialog = document.querySelector('.job-details-dialog');
-      if (dialog) dialog.remove();
-    })()`);
-    await randomDelay(300, 500);
-  }
+  // 关闭弹窗
+  await closeBossPopup(targetId, '.job-details-dialog', 'JD弹窗');
 
   try {
     return JSON.parse(detail);
@@ -698,12 +679,67 @@ async function scrollResume(targetId, scrollTop) {
   await randomDelay(800, 1200);
 }
 
-async function closeResumeDialog(targetId) {
-  await cdpEval(targetId, `(function(){
-    var btn = document.querySelector('.boss-popup__close');
-    if (btn) btn.click();
+// ===== 通用弹窗关闭 =====
+
+async function closeBossPopup(targetId, popupSelector, label = '弹窗') {
+  // 尝试多种关闭按钮选择器
+  const closed = await cdpEval(targetId, `(function(){
+    var popup = document.querySelector('${popupSelector}');
+    if (!popup) return 'not-exist';
+    var closeBtn = popup.querySelector('.boss-popup__close')
+      || popup.querySelector('.close-btn')
+      || popup.querySelector('[class*="close"]');
+    if (closeBtn) { closeBtn.click(); return 'clicked'; }
+    // 兜底：尝试页面级别的关闭按钮
+    var pageClose = document.querySelector('.boss-popup__close');
+    if (pageClose) { pageClose.click(); return 'clicked-page'; }
+    return 'no-close-btn';
   })()`);
   await randomDelay(800, 1500);
+
+  if (closed === 'not-exist') return true;
+
+  // 确认弹窗是否已关闭
+  const stillVisible = await cdpEval(targetId, `(function(){
+    var popup = document.querySelector('${popupSelector}');
+    if (popup && popup.offsetParent !== null) return 'still-visible';
+    return 'closed';
+  })()`);
+
+  if (stillVisible === 'still-visible') {
+    // 重试一次
+    await cdpEval(targetId, `(function(){
+      var popup = document.querySelector('${popupSelector}');
+      var closeBtn = popup && (popup.querySelector('.boss-popup__close')
+        || popup.querySelector('.close-btn')
+        || popup.querySelector('[class*="close"]'));
+      if (closeBtn) closeBtn.click();
+    })()`);
+    await randomDelay(800, 1500);
+
+    const retryCheck = await cdpEval(targetId, `(function(){
+      var popup = document.querySelector('${popupSelector}');
+      if (popup && popup.offsetParent !== null) return 'still-visible';
+      return 'closed';
+    })()`);
+
+    if (retryCheck === 'still-visible') {
+      // 强制移除 DOM
+      await cdpEval(targetId, `(function(){
+        var popup = document.querySelector('${popupSelector}');
+        if (popup) popup.remove();
+      })()`);
+      console.warn(`  ⚠ ${label}关闭失败，已强制移除DOM`);
+      await randomDelay(300, 500);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function closeResumeDialog(targetId) {
+  return closeBossPopup(targetId, '.resume-detail', '简历弹窗');
 }
 
 async function captureResumeScreenshots(targetId, safename, tempDir) {
@@ -1052,13 +1088,6 @@ async function main() {
           }
         }
 
-        // 安全检查：确保没有残留弹窗
-        await cdpEval(targetId, `(function(){
-          var dialogs = document.querySelectorAll('.job-details-dialog');
-          dialogs.forEach(function(d){ if(d.offsetParent !== null) d.remove(); });
-        })()`);
-        await randomDelay(300, 500);
-
         // 3. 提取在线简历
         console.log('  → 打开在线简历...');
         const hasResume = await clickOnlineResume(targetId);
@@ -1084,13 +1113,23 @@ async function main() {
           }
 
           // 关闭弹窗
-          try { await closeResumeDialog(targetId); } catch {}
+          try {
+            const closed = await closeResumeDialog(targetId);
+            if (!closed) console.warn('  ⚠ 简历弹窗关闭异常');
+          } catch (e) {
+            console.warn(`  ⚠ 简历弹窗关闭失败: ${e.message}`);
+          }
         } else {
           console.log('  ℹ 该候选人无在线简历');
         }
       } catch (err) {
         console.error(`  ✗ 处理失败: ${err.message}`);
-        try { await closeResumeDialog(targetId); } catch {}
+        try {
+          const closed = await closeResumeDialog(targetId);
+          if (!closed) console.warn('  ⚠ 简历弹窗关闭异常');
+        } catch (e) {
+          console.warn(`  ⚠ 简历弹窗关闭失败: ${e.message}`);
+        }
       }
 
       processedGeekIds.add(geekId);
