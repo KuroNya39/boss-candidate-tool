@@ -455,6 +455,62 @@ const EXTRACT_BASIC_INFO_SCRIPT = `(function() {
   return JSON.stringify(result);
 })()`;
 
+// ===== 岗位描述提取 =====
+
+async function extractJobDescription(targetId) {
+  // 点击岗位名称
+  const clickResult = await cdpEval(targetId, `(function(){
+    var nameEl = document.querySelector('.position-name');
+    if (!nameEl) return 'not-found';
+    nameEl.click();
+    return 'clicked';
+  })()`);
+  if (clickResult === 'not-found') return null;
+
+  // 等待弹窗出现
+  await randomDelay(1000, 1500);
+
+  // 提取岗位描述
+  const detail = await cdpEval(targetId, `(function(){
+    var dialog = document.querySelector('.job-details-dialog');
+    if (!dialog) return JSON.stringify(null);
+    var info = {};
+    try {
+      var nameEl = dialog.querySelector('.name');
+      if (nameEl) info.jobName = nameEl.textContent.trim();
+    } catch(e) {}
+    try {
+      var salaryEl = dialog.querySelector('.salary');
+      if (salaryEl) info.salary = salaryEl.textContent.trim();
+    } catch(e) {}
+    try {
+      var detailContent = dialog.querySelector('.job-detail-content')
+        || dialog.querySelector('.detail-content')
+        || dialog.querySelector('.job-sec');
+      if (detailContent) info.description = detailContent.textContent.trim();
+      else info.description = dialog.textContent.trim();
+    } catch(e) {}
+    try {
+      var tags = dialog.querySelectorAll('.job-tags span, .tag-list span');
+      if (tags.length) info.tags = Array.from(tags).map(function(t){return t.textContent.trim()});
+    } catch(e) {}
+    return JSON.stringify(info);
+  })()`);
+
+  // 关闭弹窗
+  await cdpEval(targetId, `(function(){
+    var closeBtn = document.querySelector('.job-details-dialog .boss-popup__close');
+    if (closeBtn) closeBtn.click();
+  })()`);
+  await randomDelay(500, 800);
+
+  try {
+    return JSON.parse(detail);
+  } catch {
+    return null;
+  }
+}
+
 // ===== 在线简历弹窗操作 =====
 
 async function clickOnlineResume(targetId) {
@@ -909,6 +965,9 @@ async function main() {
   const listCount = await waitForCandidateList(targetId, 15000);
   console.log(`页面已加载，候选人列表: ${listCount} 项\n`);
 
+  // 岗位描述缓存（同一岗位只提取一次）
+  const jobDescCache = new Map();
+
   // 筛选待处理的候选人
   const toProcess = candidateList.filter(c => !processedGeekIds.has(c.geekId));
   const totalCount = candidateList.length;
@@ -953,6 +1012,27 @@ async function main() {
             console.log(`  ✓ 重试成功`);
           } catch {
             console.warn(`  ⚠ 重试仍然失败，跳过基础信息`);
+          }
+        }
+
+        // 2.5 提取岗位描述（同一岗位只提取一次）
+        const appliedJob = candidateData.positionInfo?.appliedJob || '';
+        if (appliedJob && jobDescCache.has(appliedJob)) {
+          candidateData.jobDescription = jobDescCache.get(appliedJob);
+          console.log(`  ✓ 岗位描述(缓存): ${appliedJob}`);
+        } else if (appliedJob) {
+          console.log('  → 提取岗位描述...');
+          try {
+            const jd = await extractJobDescription(targetId);
+            if (jd) {
+              candidateData.jobDescription = jd;
+              jobDescCache.set(appliedJob, jd);
+              console.log(`  ✓ 岗位描述: ${jd.jobName || appliedJob}`);
+            } else {
+              console.log('  ℹ 未找到岗位描述弹窗');
+            }
+          } catch (e) {
+            console.warn(`  ⚠ 岗位描述提取失败: ${e.message}`);
           }
         }
 

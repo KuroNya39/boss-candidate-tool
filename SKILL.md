@@ -174,6 +174,26 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
      --output output/scored-candidates.json
    ```
 3. **LLM 岗位相关性评分**：读取 `output/scored-candidates.json`，注意候选人列表在 `d.candidates` 字段中（不是 `d` 本身）。逐个阅读候选人的 `resumeText`，使用以下 prompt 评分：
+
+   **有岗位描述时**（候选人数据中有 `jobDescription.description`）：
+   ```
+   你是一位技术招聘专家。请根据以下岗位描述和候选人简历，评估其与目标岗位的匹配度。
+
+   岗位描述：
+   {jobDescription.description}
+
+   候选人简历：
+   {resumeText}
+
+   请给出：
+   1. 岗位相关性分数（0-50分）：基于技术栈匹配度、项目经验相关性、行业经验等
+   2. 简短评语（一句话）：说明评分理由
+
+   请严格按以下 JSON 格式输出：
+   {“jobRelevanceScore”: <0-50>, “jobRelevanceComment”: “<评语>”}
+   ```
+
+   **无岗位描述时**（仅有岗位名称）：
    ```
    你是一位技术招聘专家。请根据以下候选人简历，评估其与目标岗位的匹配度。
 

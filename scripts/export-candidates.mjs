@@ -78,6 +78,15 @@ const FIELD_CONFIG = {
     header: '岗位评语',
     extract: (c) => c.jobRelevanceComment || '',
   },
+  jobDescription: {
+    header: '岗位描述',
+    extract: (c) => {
+      const jd = c.jobDescription;
+      if (!jd) return '';
+      const desc = jd.description || '';
+      return desc.length > 100 ? desc.substring(0, 100) + '...' : desc;
+    },
+  },
   score: {
     header: '分数',
     extract: (c) => c.score ?? 0,
@@ -132,6 +141,7 @@ const DEFAULT_FIELDS = [
   'workYearsScore',
   'jobRelevanceScore',
   'jobRelevanceComment',
+  'jobDescription',
   'score',
   'passed',
   'recommendationLevel',
