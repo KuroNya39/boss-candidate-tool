@@ -173,45 +173,26 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
      --input output/zhipin-candidates.json \
      --output output/scored-candidates.json
    ```
-3. **LLM 岗位相关性评分**：读取 `output/scored-candidates.json`，注意候选人列表在 `d.candidates` 字段中（不是 `d` 本身）。逐个阅读候选人的 `resumeText`，使用以下 prompt 评分：
+3. **LLM 岗位相关性评分**：
 
-   **有岗位描述时**（候选人数据中有 `jobDescription.description`）：
-   ```
-   你是一位技术招聘专家。请根据以下岗位描述和候选人简历，评估其与目标岗位的匹配度。
+   <MUST> 以下步骤必须逐一执行，不得跳过、合并或简化。评分 prompt 必须逐字使用 config/ 下的模板文件，不得改写或用自己的措辞替代。 </MUST>
 
-   岗位描述：
-   {jobDescription.description}
+   **Step 3.1**: 读取 `output/scored-candidates.json`，获取候选人列表（注意：列表在 `d.candidates` 字段中，不是 `d` 本身）
 
-   候选人简历：
-   {resumeText}
+   **Step 3.2**: 判断是否有岗位描述 — 检查 `d.candidates[0].jobDescription.description` 是否存在
 
-   请给出：
-   1. 岗位相关性分数（0-50分）：基于技术栈匹配度、项目经验相关性、行业经验等
-   2. 简短评语（一句话）：说明评分理由
+   **Step 3.3**: 读取对应的 prompt 模板文件：
+   - 有岗位描述 → 读取 `config/scoring-prompt-with-jd.txt`
+   - 无岗位描述 → 读取 `config/scoring-prompt-no-jd.txt`
 
-   请严格按以下 JSON 格式输出：
-   {“jobRelevanceScore”: <0-50>, “jobRelevanceComment”: “<评语>”}
-   ```
+   **Step 3.4**: 逐个评分候选人：
+   - 对有 `resumeText` 的候选人：使用 prompt 模板（替换 `{positionName}`/`{jobDescription.description}` 和 `{resumeText}`）进行评分
+   - 对无 `resumeText` 的候选人：直接设置 `jobRelevanceScore = 0`，`jobRelevanceComment = “无在线简历”`（不消耗 LLM 调用）
 
-   **无岗位描述时**（仅有岗位名称）：
-   ```
-   你是一位技术招聘专家。请根据以下候选人简历，评估其与目标岗位的匹配度。
-
-   目标岗位：{positionName}
-
-   候选人简历：
-   {resumeText}
-
-   请给出：
-   1. 岗位相关性分数（0-50分）：基于技术栈匹配度、项目经验相关性、行业经验等
-   2. 简短评语（一句话）：说明评分理由
-
-   请严格按以下 JSON 格式输出：
-   {“jobRelevanceScore”: <0-50>, “jobRelevanceComment”: “<评语>”}
-   ```
-   - 无 `resumeText` 的候选人：`jobRelevanceScore = 0`，`jobRelevanceComment = “无在线简历”`
-   - 每评完 5 人，将结果写入 `output/scored-candidates.json`（防丢失）
-   - 每评完 5 人，向用户报告进度
+   **Step 3.5**: 每评完 10 人，执行以下操作：
+   - 更新 `d.candidates` 中已评分候选人的 `jobRelevanceScore` 和 `jobRelevanceComment`
+   - 将整个 `d` 对象写回 `output/scored-candidates.json`
+   - 向用户报告：”已评分 X/Y 人”
 4. **合并总分**：`totalScore = educationScore + workYearsScore + jobRelevanceScore`，更新 `d.candidates` 中每个候选人的 `score` 和 `recommendationLevel`，然后写回整个 `d` 对象到 JSON 文件
 5. **导出 Excel**：
    ```bash
