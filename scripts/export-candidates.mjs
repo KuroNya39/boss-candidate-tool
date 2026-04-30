@@ -75,7 +75,7 @@ const FIELD_CONFIG = {
     extract: (c) => c.jobRelevanceScore ?? '',
   },
   jobRelevanceComment: {
-    header: '岗位评语',
+    header: '评语',
     extract: (c) => c.jobRelevanceComment || '',
   },
   jobDescription: {
@@ -137,19 +137,17 @@ const DEFAULT_FIELDS = [
   'workYears',
   'school',
   'education',
+  'score',
   'educationScore',
   'workYearsScore',
   'jobRelevanceScore',
   'jobRelevanceComment',
-  'jobDescription',
-  'score',
   'passed',
   'recommendationLevel',
   'currentPosition',
   'currentCompany',
   'expectCity',
   'expectSalary',
-  'recommendationReasons',
 ];
 
 // ===== 数据转换 =====
