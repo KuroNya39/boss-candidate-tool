@@ -16,13 +16,14 @@
  *   - Chrome 已登录 Boss 直聘招聘端
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync, readdirSync, renameSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROXY_PORT = 3456;
+const startTime = new Date().toLocaleString('sv-SE', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }).replace(' ', 'T') + new Date().toISOString().slice(19, 23);
 
 // ===== CLI 参数解析 =====
 function parseArgs() {
@@ -100,6 +101,25 @@ function proxyPost(path, data) {
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+// ===== 统计数据上报 =====
+async function reportStats({ resume_count, start_time, status }) {
+  const url = process.env.STATS_API_URL || 'http://192.168.64.42:8101/ai_efficiency/api/submit_screening_record/';
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resume_count, start_time, status }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    console.log('Stats reported successfully');
+  } catch (e) {
+    console.warn(`Stats report failed: ${e.message}`);
+  }
 }
 
 function randomDelay(minMs, maxMs) {
@@ -519,9 +539,12 @@ async function clickOnlineResume(targetId) {
   })()`);
   if (result === 'not-found') return false;
 
-  // 等待弹窗出现（不一定有 iframe，可能是纯 DOM 简历）
-  const maxWait = 10000;
+  // 等待弹窗出现且尺寸稳定（Boss弹窗有展开动画，需等动画完成）
+  const maxWait = 15000;
   const start = Date.now();
+  let lastWidth = 0, lastHeight = 0;
+  let stableCount = 0;
+  
   while (Date.now() - start < maxWait) {
     try {
       const dialogState = await cdpEval(targetId, `(function(){
@@ -529,39 +552,91 @@ async function clickOnlineResume(targetId) {
         if (!detail) return JSON.stringify({found: false});
         var rect = detail.getBoundingClientRect();
         var iframe = detail.querySelector('iframe');
+        var idoc = null, hasResume = false, hasCanvas = false;
+        if (iframe) {
+          try {
+            idoc = iframe.contentDocument || iframe.contentWindow.document;
+            hasResume = !!idoc.querySelector('#resume');
+            hasCanvas = !!idoc.querySelector('canvas#resume');
+          } catch(e) {}
+        }
         return JSON.stringify({
           found: true,
           width: Math.round(rect.width),
           height: Math.round(rect.height),
           hasIframe: !!iframe,
-          iframeLoaded: iframe ? !!iframe.contentWindow : false
+          iframeLoaded: iframe ? !!iframe.contentWindow : false,
+          hasResume: hasResume,
+          hasCanvas: hasCanvas
         });
       })()`);
       const state = JSON.parse(dialogState);
-      // 弹窗存在且有尺寸
+      
       if (state.found && state.width > 0 && state.height > 0) {
-        console.log(`    弹窗状态: ${state.width}x${state.height}, iframe=${state.hasIframe}, loaded=${state.iframeLoaded}`);
-        // 等待渲染完成
-        await randomDelay(2500, 3500);
-        return true;
+        // 检测尺寸是否稳定（连续两次相同，说明动画已完成）
+        // sizeOk 仅用于日志警告，尺寸一旦稳定就返回（避免 Boss 渲染窄版时死等超时）
+        const sizeOk = state.width >= 600 && state.height >= 500;
+        if (state.width === lastWidth && state.height === lastHeight) {
+          stableCount++;
+          if (stableCount >= 2) {
+            // 尺寸已稳定，再等 iframe 内容渲染
+            const waitForIframe = state.hasIframe && state.hasResume && state.hasCanvas ? 2000 : 4000;
+            const sizeWarn = sizeOk ? '' : ' ⚠尺寸偏小';
+            console.log(`    弹窗尺寸稳定: ${state.width}x${state.height}, iframe=${state.hasIframe}, resume=${state.hasResume}, canvas=${state.hasCanvas}, 额外等待 ${waitForIframe}ms${sizeWarn}`);
+            await sleep(waitForIframe);
+            return true;
+          }
+        } else {
+          stableCount = 0;
+          lastWidth = state.width;
+          lastHeight = state.height;
+        }
       }
     } catch {}
-    await sleep(600);
+    await sleep(400);
   }
   
-  // 超时了，检查 .resume-detail 是否存在但无尺寸
   console.log('    ⚠ 等待弹窗超时');
   return false;
 }
 
 async function getDialogClip(targetId) {
   const raw = await cdpEval(targetId, `(function(){
-    var el = document.querySelector('.boss-popup__wrapper') ||
-             document.querySelector('.dialog-wrap') ||
-             document.querySelector('.resume-detail');
-    if (!el) return JSON.stringify(null);
-    var rect = el.getBoundingClientRect();
-    return JSON.stringify({ x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) });
+    var detail = document.querySelector('.resume-detail');
+    if (!detail) {
+      var fallback = document.querySelector('.boss-popup__wrapper') || document.querySelector('.dialog-wrap');
+      if (!fallback) return JSON.stringify(null);
+      var r = fallback.getBoundingClientRect();
+      return JSON.stringify({ x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height), source: 'fallback' });
+    }
+
+    var detailRect = detail.getBoundingClientRect();
+    var iframe = detail.querySelector('iframe');
+    
+    // 优先用 iframe 的实际宽度（有些候选人的简历 iframe 比容器窄）
+    if (iframe) {
+      var iframeRect = iframe.getBoundingClientRect();
+      // iframe 有有效宽度时，取 iframe 宽 + detail 高（detail 负责滚动，高度是可视区）
+      if (iframeRect.width >= 300 && iframeRect.height > 0) {
+        // x,y 以 iframe 为准，高度以 detail 可视区为准
+        return JSON.stringify({
+          x: Math.round(iframeRect.x),
+          y: Math.round(detailRect.y),
+          width: Math.round(iframeRect.width),
+          height: Math.round(detailRect.height),
+          source: 'iframe',
+          detailWidth: Math.round(detailRect.width)
+        });
+      }
+    }
+    
+    return JSON.stringify({
+      x: Math.round(detailRect.x),
+      y: Math.round(detailRect.y),
+      width: Math.round(detailRect.width),
+      height: Math.round(detailRect.height),
+      source: 'detail'
+    });
   })()`);
   return JSON.parse(raw);
 }
@@ -683,15 +758,21 @@ async function scrollResume(targetId, scrollTop) {
 
 async function closeBossPopup(targetId, popupSelector, label = '弹窗') {
   // 尝试多种关闭按钮选择器
+  // 注意：关闭按钮 .close-btn 在 .dialog-wrap 内、popupSelector 元素外部
+  // 所以需要从 dialog-wrap 层级查找，而不能仅从 popup 内部查找
   const closed = await cdpEval(targetId, `(function(){
     var popup = document.querySelector('${popupSelector}');
     if (!popup) return 'not-exist';
-    var closeBtn = popup.querySelector('.boss-popup__close')
-      || popup.querySelector('.close-btn')
-      || popup.querySelector('[class*="close"]');
+    // 优先从 dialog-wrap 查找关闭按钮（.close-btn 在 popup 外层）
+    var dialogWrap = document.querySelector('.dialog-wrap.active');
+    var closeBtn = dialogWrap && dialogWrap.querySelector('.close-btn');
+    if (!closeBtn) closeBtn = popup.querySelector('.close-btn');
+    if (!closeBtn) closeBtn = popup.querySelector('.boss-popup__close');
+    if (!closeBtn) closeBtn = popup.querySelector('[class*="close"]');
     if (closeBtn) { closeBtn.click(); return 'clicked'; }
     // 兜底：尝试页面级别的关闭按钮
-    var pageClose = document.querySelector('.boss-popup__close');
+    var pageClose = document.querySelector('.dialog-wrap.active .close-btn')
+      || document.querySelector('.boss-popup__close');
     if (pageClose) { pageClose.click(); return 'clicked-page'; }
     return 'no-close-btn';
   })()`);
@@ -709,10 +790,14 @@ async function closeBossPopup(targetId, popupSelector, label = '弹窗') {
   if (stillVisible === 'still-visible') {
     // 重试一次
     await cdpEval(targetId, `(function(){
-      var popup = document.querySelector('${popupSelector}');
-      var closeBtn = popup && (popup.querySelector('.boss-popup__close')
-        || popup.querySelector('.close-btn')
-        || popup.querySelector('[class*="close"]'));
+      var dialogWrap = document.querySelector('.dialog-wrap.active');
+      var closeBtn = dialogWrap && dialogWrap.querySelector('.close-btn');
+      if (!closeBtn) {
+        var popup = document.querySelector('${popupSelector}');
+        closeBtn = popup && (popup.querySelector('.close-btn')
+          || popup.querySelector('.boss-popup__close')
+          || popup.querySelector('[class*="close"]'));
+      }
       if (closeBtn) closeBtn.click();
     })()`);
     await randomDelay(800, 1500);
@@ -724,10 +809,10 @@ async function closeBossPopup(targetId, popupSelector, label = '弹窗') {
     })()`);
 
     if (retryCheck === 'still-visible') {
-      // 强制移除 DOM
+      // 强制移除 DOM（移除整个 dialog-wrap）
       await cdpEval(targetId, `(function(){
-        var popup = document.querySelector('${popupSelector}');
-        if (popup) popup.remove();
+        var dialogWrap = document.querySelector('.dialog-wrap.active');
+        if (dialogWrap) dialogWrap.remove();
       })()`);
       console.warn(`  ⚠ ${label}关闭失败，已强制移除DOM`);
       await randomDelay(300, 500);
@@ -749,7 +834,7 @@ async function captureResumeScreenshots(targetId, safename, tempDir) {
   
   // 如果 scrollHeight == clientHeight 且 iframe 存在，可能内容还没渲染完，等待重试
   if (info.scrollHeight <= info.clientHeight && (info.source?.includes('fallback') || info.source?.includes('debug'))) {
-    for (let retry = 0; retry < 3; retry++) {
+    for (let retry = 0; retry < 5; retry++) {
       console.log(`    等待内容渲染... (第${retry + 1}次)`);
       await sleep(2000);
       info = await getResumeScrollInfo(targetId);
@@ -764,7 +849,7 @@ async function captureResumeScreenshots(targetId, safename, tempDir) {
 
   const clip = await getDialogClip(targetId);
   if (clip) {
-    console.log(`    弹窗区域: x=${clip.x}, y=${clip.y}, ${clip.width}x${clip.height}`);
+    console.log(`    弹窗区域: x=${clip.x}, y=${clip.y}, ${clip.width}x${clip.height} (source=${clip.source}${clip.detailWidth ? ', detailW=' + clip.detailWidth : ''})`);
   }
   console.log(`    检测源: ${source || 'unknown'}${canvasSize ? ', Canvas: ' + canvasSize : ''}${info.heights ? ', ' + info.heights : ''}${info.debug ? ', debug: ' + info.debug : ''}`);
   console.log(`    简历高度: ${scrollHeight}px, 可视: ${clientHeight}px, 步进: ${step}px, 需截 ${pages} 页`);
@@ -814,14 +899,113 @@ async function captureResumeScreenshots(targetId, safename, tempDir) {
   return screenshots;
 }
 
+// ===== OCR 文本清洗 =====
+
+// 常见 OCR 错字字典（可根据实际效果补充）
+const OCR_TYPO_MAP = {
+  '沟 通': '沟通',
+  '管 理': '管理',
+  '研 发': '研发',
+  '项 目': '项目',
+  '公 司': '公司',
+  '工 作': '工作',
+  '技 术': '技术',
+  '教 育': '教育',
+  '经 验': '经验',
+  '学 校': '学校',
+  '专 业': '专业',
+  '职 位': '职位',
+  '能 力': '能力',
+};
+
+function cleanOcrText(raw) {
+  if (!raw) return '';
+  let text = raw;
+
+  // 1. 全角字符 → 半角（保留中文标点）
+  text = text.replace(/：/g, '：').replace(/，/g, '，');
+
+  // 2. 去除中文字符之间的多余空格（OCR 常见问题）
+  // 中文+空格+中文 → 中文+中文
+  const CJK = '[\u4e00-\u9fa5\uff00-\uffef\u3000-\u303f]';
+  const cjkSpaceRe = new RegExp(`(${CJK})\\s+(${CJK})`, 'g');
+  // 执行多次确保连续中文间多个空格被清理
+  for (let i = 0; i < 3; i++) {
+    text = text.replace(cjkSpaceRe, '$1$2');
+  }
+
+  // 3. 中文与标点符号之间的空格
+  text = text.replace(/([\u4e00-\u9fa5])\s+([\uff0c\u3002\uff1f\uff01\uff1b\uff1a\u201d\u2019\uff09])/g, '$1$2');
+  text = text.replace(/([\uff0c\u3002\uff1a\u201c\u2018\uff08])\s+([\u4e00-\u9fa5])/g, '$1$2');
+
+  // 4. 多个空格/制表符 → 单个空格
+  text = text.replace(/[ \t]+/g, ' ');
+
+  // 5. 行首行尾空白去除
+  text = text.split('\n').map(l => l.trim()).join('\n');
+
+  // 6. 压缩连续空行：3个以上空行 → 1个空行
+  text = text.replace(/\n{3,}/g, '\n\n');
+
+  // 7. 常见错字修正
+  for (const [wrong, right] of Object.entries(OCR_TYPO_MAP)) {
+    text = text.split(wrong).join(right);
+  }
+
+  // 8. 去除孤立的单字符行（OCR 噪声，如单个 · . ` 等）
+  text = text.split('\n').filter(l => {
+    const t = l.trim();
+    if (!t) return true;
+    if (t.length === 1 && /[^\u4e00-\u9fa5\w]/.test(t)) return false;
+    return true;
+  }).join('\n');
+
+  return text.trim();
+}
+
+// 相邻页内容去重：月叠行移除
+function dedupePages(pages) {
+  if (pages.length <= 1) return pages.join('\n\n');
+  const result = [pages[0]];
+  for (let i = 1; i < pages.length; i++) {
+    const prevLines = result[result.length - 1].split('\n').map(l => l.trim()).filter(Boolean);
+    const curLines = pages[i].split('\n');
+    // 找到 curLines 开头与 prevLines 结尾的最长重叠
+    const prevTail = prevLines.slice(-10);
+    let overlapEnd = 0;
+    for (let n = Math.min(prevTail.length, 10); n > 0; n--) {
+      const tail = prevTail.slice(prevTail.length - n);
+      const head = curLines.slice(0, n).map(l => l.trim()).filter(Boolean).slice(0, n);
+      if (head.length < n) continue;
+      let match = true;
+      for (let k = 0; k < n; k++) {
+        if (tail[k] !== head[k]) { match = false; break; }
+      }
+      if (match) {
+        // 计算 curLines 中前 n 行非空对应的原始下标
+        let kept = 0;
+        for (let k = 0; k < curLines.length; k++) {
+          if (curLines[k].trim()) kept++;
+          if (kept === n) { overlapEnd = k + 1; break; }
+        }
+        break;
+      }
+    }
+    result.push(curLines.slice(overlapEnd).join('\n'));
+  }
+  return result.join('\n\n');
+}
+
 async function ocrScreenshots(screenshots, worker) {
   const texts = [];
   for (let i = 0; i < screenshots.length; i++) {
     console.log(`    OCR 第 ${i + 1}/${screenshots.length} 页...`);
     const { data: { text } } = await worker.recognize(screenshots[i]);
-    texts.push(text.trim());
+    texts.push(cleanOcrText(text));
   }
-  return texts.join('\n\n');
+  // 先跨页去重，再整体清洗一次
+  const merged = dedupePages(texts);
+  return cleanOcrText(merged);
 }
 
 function safeName(name) {
@@ -892,9 +1076,44 @@ function cleanupCacheFiles(outputPath) {
 }
 
 // ===== 主流程 =====
+
+/**
+ * 归档旧的 output 目录：把 output/ 挪到 output-YYYYMMDD-HHMM/
+ * resume 模式下跳过（要恢复上次进度）
+ */
+function archiveOldOutput(outputDir, isResume) {
+  if (isResume) {
+    console.log('恢复模式：保留现有 output 目录');
+    return;
+  }
+  if (!existsSync(outputDir)) return;
+  let entries;
+  try {
+    entries = readdirSync(outputDir);
+  } catch {
+    return;
+  }
+  if (entries.length === 0) return;
+
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+  const archived = `${outputDir}-${stamp}`;
+  try {
+    renameSync(outputDir, archived);
+    console.log(`已归档旧 output 目录: ${archived}`);
+  } catch (e) {
+    console.warn(`归档 output 目录失败: ${e.message}（将继续在原目录上运行）`);
+  }
+}
+
 async function main() {
   const opts = parseArgs();
   const outputPath = resolve(opts.output);
+  const outputDir = dirname(outputPath);
+
+  // 自动归档：运行前把老 output/ 挪到 output-YYYYMMDD-HHMM/
+  archiveOldOutput(outputDir, opts.resume);
 
   const modeLabel = opts.extractAll ? '全部' : `前 ${opts.count} 个`;
   console.log(`\n========== Boss直聘候选人全量提取 ==========`);
@@ -925,6 +1144,12 @@ async function main() {
     const newTab = await proxyGet('/new?url=https://www.zhipin.com/web/chat');
     const targetId = newTab.targetId;
     console.log(`Tab 已创建: ${targetId}`);
+
+    // [试验] 改用真实窗口尺寸：暂时注释 /emulate 调用，避免 1920 过宽触发 Boss max-width 居中布局导致的左侧 gap
+    // 若出现后台 tab 变窄/响应式窄版问题，恢复下方这段即可
+    // try {
+    //   await proxyGet(`/emulate?target=${targetId}&width=1920&height=1080`);
+    // } catch { /* 非致命 */ }
 
     // 等待列表加载
     console.log('等待页面加载...');
@@ -1003,7 +1228,17 @@ async function main() {
   // 初始化 OCR
   console.log('初始化 OCR 引擎...');
   const { createWorker } = await import('tesseract.js');
-  const worker = await createWorker('chi_sim+eng');
+  // 优先使用本地预置语言包（ocr-lang/），找不到再回退到 jsDelivr CDN
+  const localLangDir = resolve(__dirname, '..', 'ocr-lang');
+  const workerOpts = {};
+  if (existsSync(resolve(localLangDir, 'chi_sim.traineddata.gz'))) {
+    workerOpts.langPath = localLangDir;
+    workerOpts.gzip = true;
+    console.log(`  使用本地语言包: ${localLangDir}`);
+  } else {
+    console.log('  本地未找到语言包，将从 CDN 下载');
+  }
+  const worker = await createWorker('chi_sim+eng', 1, workerOpts);
   console.log('OCR 引擎就绪\n');
 
   // 创建新 tab 用于提取
@@ -1011,6 +1246,16 @@ async function main() {
   const newTab = await proxyGet('/new?url=https://www.zhipin.com/web/chat');
   const targetId = newTab.targetId;
   console.log(`Tab 已创建: ${targetId}`);
+
+  // [试验] 改用真实窗口尺寸：暂时注释 /emulate 调用，避免 1920 过宽触发 Boss max-width 居中布局导致的左侧 gap
+  // 若简历出现窄版/截图窄问题，恢复下方这段即可
+  // try {
+  //   await proxyGet(`/emulate?target=${targetId}&width=1920&height=1080`);
+  //   console.log('已设置 viewport: 1920x1080');
+  // } catch (e) {
+  //   console.warn(`设置 viewport 失败: ${e.message}`);
+  // }
+  console.log('[试验] 未强制 viewport，使用真实窗口尺寸');
 
   // 等待列表加载
   console.log('等待页面加载...');
@@ -1187,9 +1432,21 @@ async function main() {
   if (withResume > 0) {
     console.log(`简历目录: ${resolve(dirname(outputPath), 'resumes')}`);
   }
+
+  // 上报统计数据
+  await reportStats({
+    resume_count: candidates.length,
+    start_time: startTime,
+    status: 'success',
+  });
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error('致命错误:', err.message);
+  await reportStats({
+    resume_count: 0,
+    start_time: startTime,
+    status: 'error',
+  });
   process.exit(1);
 });

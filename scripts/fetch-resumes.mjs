@@ -235,6 +235,49 @@ async function getResumeScrollInfo(targetId) {
   return JSON.parse(raw);
 }
 
+// 探测简历容器的真实可滚动高度
+// 思路：不信任 DOM 瞬时 scrollHeight（canvas 懒加载会让它在加载中虚低），
+// 改用浏览器原生的 scrollTop 自动 clamp 行为：
+//   设 scrollTop = 极大值 → 浏览器会把它截断到真实 maxScrollTop
+//   读回 scrollTop 即得真实可滚动边界，再 + clientHeight 得真实总高
+// 多轮稳定探测：连续 stableRounds 轮结果一致才认定为稳定高度，避免懒加载中途取值。
+async function probeRealScrollHeight(targetId, { maxRounds = 6, stableRounds = 2 } = {}) {
+  let lastH = -1;
+  let stable = 0;
+  let clientHeight = 0;
+  let realScrollHeight = 0;
+  let rounds = 0;
+  for (let round = 0; round < maxRounds; round++) {
+    rounds = round + 1;
+    const raw = await cdpEval(targetId, `(function(){
+      var d = document.querySelector('.resume-detail');
+      if (!d) return JSON.stringify({error:'no .resume-detail'});
+      var prev = d.scrollTop;
+      d.scrollTop = 1e9;                // 故意越界
+      var maxTop = d.scrollTop;         // 浏览器 clamp 后 = maxScrollTop
+      d.scrollTop = prev;               // 恢复原位
+      return JSON.stringify({
+        clientHeight: d.clientHeight,
+        maxScrollTop: maxTop,
+        real: maxTop + d.clientHeight
+      });
+    })()`);
+    const info = JSON.parse(raw);
+    if (info.error) throw new Error(info.error);
+    clientHeight = info.clientHeight;
+    realScrollHeight = info.real;
+    if (realScrollHeight === lastH) {
+      stable++;
+      if (stable >= stableRounds) break;
+    } else {
+      stable = 1;
+      lastH = realScrollHeight;
+    }
+    await randomDelay(400, 700); // 给懒加载留时间
+  }
+  return { scrollHeight: realScrollHeight, clientHeight, rounds, stable };
+}
+
 // 滚动简历容器
 async function scrollResume(targetId, scrollTop) {
   await cdpEval(targetId, `document.querySelector('.resume-detail').scrollTop = ${scrollTop}`);
@@ -253,10 +296,11 @@ async function closeResumeDialog(targetId) {
 // ===== 截图与 OCR =====
 
 async function captureResumeScreenshots(targetId, candidateName, index, tempDir) {
-  const info = await getResumeScrollInfo(targetId);
-  if (info.error) throw new Error(info.error);
-
+  // 探测优先：用 scrollTop 自动 clamp 行为 + 多轮稳定探测拿到真实滚动高度
+  const info = await probeRealScrollHeight(targetId, { maxRounds: 6, stableRounds: 2 });
   const { scrollHeight, clientHeight } = info;
+  if (!scrollHeight || !clientHeight) throw new Error('无法探测简历容器尺寸');
+
   // 使用 75% 步进 (25% 重叠)，确保不遗漏内容
   const step = Math.floor(clientHeight * 0.75);
   const pages = Math.ceil((scrollHeight - clientHeight) / step) + 1;
@@ -268,7 +312,7 @@ async function captureResumeScreenshots(targetId, candidateName, index, tempDir)
     console.log(`    弹窗区域: x=${clip.x}, y=${clip.y}, ${clip.width}x${clip.height}`);
   }
 
-  console.log(`    简历高度: ${scrollHeight}px, 可视: ${clientHeight}px, 步进: ${step}px, 需截 ${pages} 页`);
+  console.log(`    简历高度(探测): ${scrollHeight}px, 可视: ${clientHeight}px, 步进: ${step}px, 需截 ${pages} 页 (探测${info.rounds}轮/稳定${info.stable})`);
 
   for (let page = 0; page < pages; page++) {
     const scrollTop = Math.min(page * step, scrollHeight - clientHeight);
