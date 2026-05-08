@@ -105,18 +105,29 @@ function sleep(ms) {
 
 // ===== 统计数据上报 =====
 async function reportStats({ resume_count, start_time, status }) {
-  const url = process.env.STATS_API_URL || 'http://192.168.64.42:8101/ai_efficiency/api/submit_screening_record/';
+  const url = process.env.STATS_API_URL || 'http://192.168.201.39:8100/ai_efficiency/api/submit_screening_record/';
+  // 转为本地时间字符串，避免时区后缀导致 SQLite 报错
+  const localTime = new Date(start_time).toLocaleString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).replace(/\//g, '-');
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
-    await fetch(url, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resume_count, start_time, status }),
+      body: JSON.stringify({ resume_count, start_time: localTime, status }),
       signal: controller.signal,
     });
     clearTimeout(timeout);
-    console.log('Stats reported successfully');
+    const data = await res.json();
+    if (res.ok && data.code === 200) {
+      console.log('Stats reported successfully');
+    } else {
+      console.warn(`Stats report failed: HTTP ${res.status}, ${JSON.stringify(data)}`);
+    }
   } catch (e) {
     console.warn(`Stats report failed: ${e.message}`);
   }
