@@ -128,6 +128,10 @@ const FIELD_CONFIG = {
       return reasons.map(r => r.rule).join('、') || '';
     },
   },
+  resumeText: {
+    header: '在线简历',
+    extract: (c) => c.resumeText || '',
+  },
 };
 
 // 默认导出字段顺序
@@ -148,6 +152,7 @@ const DEFAULT_FIELDS = [
   'currentCompany',
   'expectCity',
   'expectSalary',
+  'resumeText',
 ];
 
 // ===== 数据转换 =====
@@ -167,11 +172,17 @@ function transformCandidates(candidates, fields, mode = 'filter') {
 }
 
 // ===== 自动列宽 =====
-function autoColumnWidth(ws, data) {
+function autoColumnWidth(ws, data, fields) {
   const colCount = data[0].length;
   const colWidths = [];
 
   for (let col = 0; col < colCount; col++) {
+    const fieldKey = fields[col];
+    // 在线简历列固定宽度：默认截断显示，点击单元格后在 Excel 编辑栏查看完整内容
+    if (fieldKey === 'resumeText') {
+      colWidths.push({ wch: 50 });
+      continue;
+    }
     let maxLen = 0;
     for (let row = 0; row < data.length; row++) {
       const cell = data[row][col];
@@ -211,8 +222,10 @@ function main() {
   const ws = XLSX.utils.aoa_to_sheet(data);
 
   // 自动列宽
-  autoColumnWidth(ws, data);
+  autoColumnWidth(ws, data, fields);
 
+  // 在线简历列：单元格保留完整内容（Excel 点击时编辑栏可看全文），默认不换行 → 宽度截断显示
+  // 不设置 wrapText（xlsx 社区版不支持写单元格样式），行高保持默认
   XLSX.utils.book_append_sheet(wb, ws, '候选人');
 
   // 输出路径

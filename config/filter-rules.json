@@ -1,40 +1,9 @@
 {
-  "name": "AI应用开发工程师-本科2年经验+AI加分",
-  "version": "2.0",
+  "name": "",
+  "version": "1.0",
   "rules": {
-    "mustHave": [
-      {
-        "field": "basicInfo.education",
-        "operator": ">=",
-        "value": "本科",
-        "reason": "学历要求本科及以上"
-      }
-    ],
-    "preferred": [
-      {
-        "field": "basicInfo.workYears",
-        "operator": ">=",
-        "value": "2年",
-        "weight": 25,
-        "reason": "2年以上工作经验优先"
-      },
-      {
-        "field": "workExperience[].position",
-        "operator": "regex",
-        "value": "(ai应用|ai开发|人工智能应用|大模型应用|llm应用|智能体开发|agent开发|aigc应用|生成式ai|ai工程)",
-        "flags": "i",
-        "weight": 35,
-        "reason": "有AI应用开发工作经历加分"
-      },
-      {
-        "field": "workExperience[].position",
-        "operator": "regex",
-        "value": "(机器学习|深度学习|nlp|自然语言|大模型算法|算法工程师|算法开发)",
-        "flags": "i",
-        "weight": 20,
-        "reason": "有AI/算法相关经历加分"
-      }
-    ],
+    "mustHave": [],
+    "preferred": [],
     "exclude": [],
     "threshold": 0
   }

@@ -525,6 +525,25 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // GET /emulate?target=xxx&width=1440&height=900 - 强制设置 tab 的 viewport（适用于后台 tab 避免响应式窄版）
+    else if (pathname === '/emulate') {
+      const sid = await ensureSession(q.target);
+      const width = parseInt(q.width || '1440');
+      const height = parseInt(q.height || '900');
+      const reset = q.reset === '1' || q.reset === 'true';
+      if (reset) {
+        await sendCDP('Emulation.clearDeviceMetricsOverride', {}, sid);
+        res.end(JSON.stringify({ reset: true }));
+      } else {
+        await sendCDP('Emulation.setDeviceMetricsOverride', {
+          width, height,
+          deviceScaleFactor: 1,
+          mobile: false,
+        }, sid);
+        res.end(JSON.stringify({ width, height, applied: true }));
+      }
+    }
+
     // GET /info?target=xxx - 获取页面信息
     else if (pathname === '/info') {
       const sid = await ensureSession(q.target);
@@ -551,6 +570,7 @@ const server = http.createServer(async (req, res) => {
           '/click?target=': 'POST body=CSS选择器 - 点击元素',
           '/scroll?target=&y=&direction=': 'GET - 滚动页面',
           '/screenshot?target=&file=': 'GET - 截图',
+          '/emulate?target=&width=&height=': 'GET - 强制设置 viewport（reset=1 清除）',
         },
       }));
     }

@@ -286,6 +286,20 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
 | “985/211优先” | preferred: `resumeText` regex “985\|211”, weight=15 |
 | “简历中有Python” | preferred: `resumeText` contains “Python”, weight=10 |
 
+## 打开候选人详情
+
+当用户要求打开某位候选人的详情页时（如"帮我打开贺涛的详情页"、"打开某某某的信息"），自动执行以下步骤：
+
+1. **运行打开脚本**：
+   ```bash
+   node scripts/open-candidate.mjs --name "候选人姓名"
+   ```
+2. 脚本自动完成：
+   - 查找已有 Boss 聊天页 tab，没有则新建
+   - 在候选人列表中滚动搜索匹配姓名的候选人
+   - 点击候选人卡片，等待详情面板显示
+3. 向用户报告结果
+
 ## 在线简历提取
 
 在第一轮提取中即完成基础信息 + 在线简历的全量提取。

@@ -448,8 +448,8 @@ document.querySelectorAll('.geek-item')[i].click()
 | 在线简历按钮 | `a.btn.resume-btn-online` |
 | 简历弹窗容器 | `.resume-detail` |
 | Canvas iframe | `.resume-detail iframe` |
-| 关闭按钮 | `.boss-popup__close` |
-| 弹窗层级 | `.dialog-wrap > .boss-popup__wrapper > .boss-popup__close` |
+| 关闭按钮 | `.dialog-wrap.active .close-btn`（注意：在 `.resume-detail` 外层） |
+| 弹窗层级 | `.dialog-wrap.active > .boss-popup__wrapper > .boss-popup__content > .boss-dialog__body > ... > .close-btn` |
 
 ### 全量提取脚本（基础信息 + 在线简历）
 
