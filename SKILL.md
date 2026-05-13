@@ -177,20 +177,37 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
 
    <MUST> 以下步骤必须逐一执行，不得跳过、合并或简化。评分 prompt 必须逐字使用 config/ 下的模板文件，不得改写或用自己的措辞替代。 </MUST>
 
+   <MUST 评分执行硬约束（违反任意一条即视为无效评分，必须重评）>
+   1. **单人节奏**：每一轮 Agent 回复最多处理 **1 位**候选人，禁止在同一回复内同时读入或产出多人评分。禁止先把多份 `resumeText` 汇入上下文再批量给分。
+   2. **模板现读现用**：每评一位候选人都必须**重新读取** `config/scoring-prompt-with-jd.txt` 或 `config/scoring-prompt-no-jd.txt`（不得凭上下文记忆复用），并在回复中**原样输出替换完成后的完整 prompt 文本**（证明模板被逐字使用、变量已被替换）。
+   3. **简历现读现用**：每评一位候选人都必须从 `output/scored-candidates.json` 的 `d.candidates[i].resumeText` 字段**实时读取**简历全文，禁止从先前消息复述或总结。
+   4. **单人立即回写**：每评完 **1 位** 候选人立即将整个 `d` 对象写回 `output/scored-candidates.json`，再处理下一位，不得积压。
+   5. **输出格式硬约束**：
+      - 严格输出 JSON：`{"jobRelevanceScore": <0-50 整数>, "jobRelevanceComment": "..."}`
+      - 评语必须是三段结构：`技术栈匹配：... | 项目经验相关性：... | 行业经验：...`（三段之间用 ` | ` 分隔并且换行）
+      - 评语**禁用年限描述**：不得出现 `\d+年经验`、`\d+年工作`、`\d+年从业`、`\d+年开发`、`应届`、`毕业\d+年` 等任何工作年限相关表述
+   6. **违规自检**：每产出一条评分后，Agent 必须在同一回复内**逐条对照上述 5 条规则做自检并显式声明通过**；若自检未通过，必须当轮重写，**不得将未通过的结果写回 JSON**。
+   </MUST>
+
    **Step 3.1**: 读取 `output/scored-candidates.json`，获取候选人列表（注意：列表在 `d.candidates` 字段中，不是 `d` 本身）
 
    **Step 3.2**: 判断是否有岗位描述 — 检查 `d.candidates[0].jobDescription.description` 是否存在
 
-   **Step 3.3**: 读取对应的 prompt 模板文件：
-   - 有岗位描述 → 读取 `config/scoring-prompt-with-jd.txt`
-   - 无岗位描述 → 读取 `config/scoring-prompt-no-jd.txt`
+   **Step 3.3**: 确定模板文件路径（仅确定路径，实际读取在 Step 3.4 每人一次）：
+   - 有岗位描述 → `config/scoring-prompt-with-jd.txt`
+   - 无岗位描述 → `config/scoring-prompt-no-jd.txt`
 
-   **Step 3.4**: 逐个评分候选人：
-   - 对有 `resumeText` 的候选人：使用 prompt 模板（替换 `{positionName}`/`{jobDescription.description}` 和 `{resumeText}`）进行评分
-   - 对无 `resumeText` 的候选人：直接设置 `jobRelevanceScore = 0`，`jobRelevanceComment = “无在线简历”`（不消耗 LLM 调用）
+   **Step 3.4**: 逐个评分候选人（**一轮一人**）：
+   - 对有 `resumeText` 的候选人：
+     1. 重新读取 Step 3.3 确定的模板文件
+     2. 将模板中的 `{positionName}` / `{jobDescription.description}` 和 `{resumeText}` 替换为当前候选人对应值
+     3. 在回复中原样展示替换后的完整 prompt
+     4. 基于该 prompt 产出评分 JSON
+     5. 执行规则 6 的自检并声明通过
+   - 对无 `resumeText` 的候选人：直接设置 `jobRelevanceScore = 0`，`jobRelevanceComment = “无在线简历”`（不消耗 LLM 调用，无需模板）
 
-   **Step 3.5**: 每评完 10 人，执行以下操作：
-   - 更新 `d.candidates` 中已评分候选人的 `jobRelevanceScore` 和 `jobRelevanceComment`
+   **Step 3.5**: 每评完 **1 人** 立即执行以下操作（原“每 10 人一次”已作废）：
+   - 更新 `d.candidates` 中该候选人的 `jobRelevanceScore` 和 `jobRelevanceComment`
    - 将整个 `d` 对象写回 `output/scored-candidates.json`
    - 向用户报告：”已评分 X/Y 人”
 4. **合并总分**：`totalScore = educationScore + workYearsScore + jobRelevanceScore`，更新 `d.candidates` 中每个候选人的 `score` 和 `recommendationLevel`，然后写回整个 `d` 对象到 JSON 文件
@@ -242,6 +259,7 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
 
 - LLM 阅读简历文本评估，基于技术栈匹配度、项目经验相关性、行业经验
 - 无在线简历的候选人：0 分
+- **此部分由 Agent 逐位调用模板完成，违反 Step 3.4 的单人节奏或模板透明约束即视为无效评分，须重评**
 
 ### 规则配置（条件筛选模式）
 
