@@ -175,41 +175,89 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
    ```
 3. **LLM 岗位相关性评分**：
 
-   <MUST> 以下步骤必须逐一执行，不得跳过、合并或简化。评分 prompt 必须逐字使用 config/ 下的模板文件，不得改写或用自己的措辞替代。 </MUST>
-
    <MUST 评分执行硬约束（违反任意一条即视为无效评分，必须重评）>
-   1. **单人节奏**：每一轮 Agent 回复最多处理 **1 位**候选人，禁止在同一回复内同时读入或产出多人评分。禁止先把多份 `resumeText` 汇入上下文再批量给分。
-   2. **模板现读现用**：每评一位候选人都必须**重新读取** `config/scoring-prompt-with-jd.txt` 或 `config/scoring-prompt-no-jd.txt`（不得凭上下文记忆复用），并在回复中**原样输出替换完成后的完整 prompt 文本**（证明模板被逐字使用、变量已被替换）。
-   3. **简历现读现用**：每评一位候选人都必须从 `output/scored-candidates.json` 的 `d.candidates[i].resumeText` 字段**实时读取**简历全文，禁止从先前消息复述或总结。
-   4. **单人立即回写**：每评完 **1 位** 候选人立即将整个 `d` 对象写回 `output/scored-candidates.json`，再处理下一位，不得积压。
+   1. **小批量节奏**：一轮 Agent 回复最多处理 **5 位**候选人。每批 3-5 人，批内逐人在 prompt 中填充简历。
+   2. **模板透明**：`config/scoring-prompt-with-jd.txt` 或 `config/scoring-prompt-no-jd.txt` 在 Step 3.2 读取一次，本评分会话内复用。每批产出时**必须输出填充后的完整 prompt 文本**（证明模板被逐字使用、变量已被替换）。
+   3. **简历现读现用**：每批从 `scored-candidates.json` 的 `d.candidates` 中实时读取本批候选人的 `resumeText`，禁止复述或总结。
+   4. **结构化输出**（替代文件回写）：每评完一批，在回复末尾用标记包裹 JSON 结果，禁止写文件：
+      ```
+      ===AGENT_RESULT_START===
+      [{"candidateIndex": 0, "jobRelevanceScore": <0-50>, "jobRelevanceComment": "..."}]
+      ===AGENT_RESULT_END===
+      ```
+      主会话通过 `scripts/collect-agent-results.mjs` 提取，无需 Agent 自行写文件。
    5. **输出格式硬约束**：
-      - 严格输出 JSON：`{"jobRelevanceScore": <0-50 整数>, "jobRelevanceComment": "..."}`
-      - 评语必须是三段结构：`技术栈匹配：... | 项目经验相关性：... | 行业经验：...`（三段之间用 ` | ` 分隔并且换行）
-      - 评语**禁用年限描述**：不得出现 `\d+年经验`、`\d+年工作`、`\d+年从业`、`\d+年开发`、`应届`、`毕业\d+年` 等任何工作年限相关表述
-   6. **违规自检**：每产出一条评分后，Agent 必须在同一回复内**逐条对照上述 5 条规则做自检并显式声明通过**；若自检未通过，必须当轮重写，**不得将未通过的结果写回 JSON**。
+      - 严格输出 JSON 数组：`[{“candidateIndex”: <本批内序号>, “jobRelevanceScore”: <0-50>, “jobRelevanceComment”: “...”}]`
+      - 评语三段结构、禁用年限描述（同原有规则）
+   6. **违规自检**：每批产出后逐条对照上述 6 条规则做自检并显式声明通过。
    </MUST>
 
-   **Step 3.1**: 读取 `output/scored-candidates.json`，获取候选人列表（注意：列表在 `d.candidates` 字段中，不是 `d` 本身）
+   **Step 3.1**: 读取 `output/scored-candidates.json`，获取候选人列表（`d.candidates`）
+   - 分析 `candidates` 中 `positionInfo.appliedJob` 的分布
+   - 输出：`"发现 {N} 个岗位：{岗位1}({M1}人)、{岗位2}({M2}人)..."`
 
-   **Step 3.2**: 判断是否有岗位描述 — 检查 `d.candidates[0].jobDescription.description` 是否存在
+   **Step 3.2**: 读取模板文件并确定评分上下文
+   - 模板内容在本次评分会话内复用，无需每批重读
+   - 注意：不同岗位可能有不同的 JD，评分时需按岗位区分（见 Step 3.3 分组流程）
+   - 若所有候选人 `appliedJob` 相同，退化为旧行为（一次读取 `d.candidates[0].jobDescription.description`）
 
-   **Step 3.3**: 确定模板文件路径（仅确定路径，实际读取在 Step 3.4 每人一次）：
-   - 有岗位描述 → `config/scoring-prompt-with-jd.txt`
-   - 无岗位描述 → `config/scoring-prompt-no-jd.txt`
+   **Step 3.3**: 按岗位分组
 
-   **Step 3.4**: 逐个评分候选人（**一轮一人**）：
-   - 对有 `resumeText` 的候选人：
-     1. 重新读取 Step 3.3 确定的模板文件
-     2. 将模板中的 `{positionName}` / `{jobDescription.description}` 和 `{resumeText}` 替换为当前候选人对应值
-     3. 在回复中原样展示替换后的完整 prompt
-     4. 基于该 prompt 产出评分 JSON
-     5. 执行规则 6 的自检并声明通过
-   - 对无 `resumeText` 的候选人：直接设置 `jobRelevanceScore = 0`，`jobRelevanceComment = “无在线简历”`（不消耗 LLM 调用，无需模板）
+   1. 从 `d.candidates` 统计 `positionInfo.appliedJob` 的唯一值列表
+   2. 按岗位分组：
+      ```
+      岗位列表: [ai应用开发工程师(20人), Java开发(15人), 产品经理(15人)]
+      ```
+   3. 逐岗位处理，每个岗位独立走 Step 3.4-3.5：
+      - 从 `d.candidates` 中筛选出该岗位的候选人（`appliedJob === 岗位名`）
+      - 取该岗位的 JD（组内任一候选人的 `jobDescription.description` 即可）
+      - 该岗位候选人总数 C_pos
+      - 子 Agent 数 N = clamp(ceil(C_pos / 5), 2, 5)
+      - 将该岗位候选人平均分给 N 个子 Agent，每人 3-6 人
+      - 进入 Step 3.4 并行评分
+      - 评分结果合并回 `d.candidates`
+   4. 全部岗位完成后，继续 Step 4 合并总分
 
-   **Step 3.5**: 每评完 **1 人** 立即执行以下操作（原“每 10 人一次”已作废）：
-   - 更新 `d.candidates` 中该候选人的 `jobRelevanceScore` 和 `jobRelevanceComment`
-   - 将整个 `d` 对象写回 `output/scored-candidates.json`
-   - 向用户报告：”已评分 X/Y 人”
+   **Step 3.4**: 并行启动子 Agent（使用 Agent 工具的 `run_in_background: true`）
+   - 每个子 Agent 的职责（隔离执行，互不影响）：
+     - 接收自己的候选人子集；如果候选人子集中有不同岗位的（理论上不会），应跳过或报错
+     - 内部将候选人按 3-5 人分一批
+     - 每批：用 Step 3.2 读入的模板逐人填充简历 → 输出完整 prompt → 发 LLM → 自检
+     - 全部候选人评分完毕后，在回复**末尾**输出标记包裹的 JSON 结果：
+       ```
+       ===AGENT_RESULT_START===
+       [{"candidateIndex": 0, "jobRelevanceScore": <0-50>, "jobRelevanceComment": "..."}]
+       ===AGENT_RESULT_END===
+       ```
+     - 无 resumeText 的候选人不消耗 LLM 调用
+   - Agent prompt 末尾必须包含以下指令：
+     ```
+     注意：当前评分的岗位是 "{岗位名}"，请确保只对该岗位的候选人进行评分。
+     评分依据使用该岗位的 JD（Job Description）。
+
+     评分完成后，在回复末尾单独输出：
+     ===AGENT_RESULT_START===
+     [{"candidateIndex": ..., "jobRelevanceScore": ..., "jobRelevanceComment": "..."}]
+     ===AGENT_RESULT_END===
+     ```
+   - 记录每个 Agent 返回的 `agentId`
+
+   **Step 3.5**: 等待所有子 Agent 完成，提取结果并合并
+   - 子 Agent 完成通知到达后，将通知中的 Agent 回复文本通过管道传给提取脚本：
+     ```bash
+     # 将 Agent 回复文本通过 stdin 传入
+     node scripts/collect-agent-results.mjs --output tmp/agent-{n}-results.json
+     ```
+     （实际执行时复制 Agent 回复内容并管道传入）
+   - 读取所有 `tmp/agent-*-results.json`
+   - 将 `jobRelevanceScore` / `jobRelevanceComment` 合并到 `d.candidates` 对应条目
+   - 清理 `tmp/agent-*-results.json`
+
+   **进度报告**：
+   - 启动前：`"准备并行评分：共 {C} 位候选人，{P} 个岗位"`
+   - 每个岗位启动前：`"评分岗位 [{岗位名}]: {C_pos} 位候选人，{N} 个子 Agent，每批 3-5 人"`
+   - 每个岗位完成后：`"岗位 [{岗位名}] 评分完成"`
+   - 全部完成时：`"LLM 评分完成，准备合并总分"`
 4. **合并总分**：`totalScore = educationScore + workYearsScore + jobRelevanceScore`，更新 `d.candidates` 中每个候选人的 `score` 和 `recommendationLevel`，然后写回整个 `d` 对象到 JSON 文件
 5. **导出 Excel**：
    ```bash
@@ -259,7 +307,7 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
 
 - LLM 阅读简历文本评估，基于技术栈匹配度、项目经验相关性、行业经验
 - 无在线简历的候选人：0 分
-- **此部分由 Agent 逐位调用模板完成，违反 Step 3.4 的单人节奏或模板透明约束即视为无效评分，须重评**
+- **此部分由 Agent 在子 Agent 内按批调用模板完成，违反 Step 3.4 的评分约束或模板透明约束即视为无效评分，须重评**
 
 ### 规则配置（条件筛选模式）
 

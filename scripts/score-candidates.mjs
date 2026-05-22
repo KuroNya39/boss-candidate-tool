@@ -415,12 +415,22 @@ function main() {
   const candidates = JSON.parse(readFileSync(resolve(opts.input), 'utf-8'));
   const candidateList = candidates.candidates || candidates;
 
+  // --position 过滤
+  const filteredList = opts.position
+    ? candidateList.filter(c => (c.positionInfo?.appliedJob || '') === opts.position)
+    : candidateList;
+
+  if (opts.position && filteredList.length === 0) {
+    console.warn(`警告：未找到岗位 "${opts.position}" 的候选人`);
+    console.warn(`可用的岗位: ${[...new Set(candidateList.map(c => c.positionInfo?.appliedJob || '').filter(Boolean))].join(', ')}`);
+  }
+
   let scoredCandidates;
   let output;
 
   if (opts.default) {
     // 默认评分模式
-    scoredCandidates = candidateList.map(c => scoreCandidateDefault(c));
+    scoredCandidates = filteredList.map(c => scoreCandidateDefault(c));
     scoredCandidates.sort((a, b) => b.score - a.score);
 
     output = {
@@ -436,7 +446,7 @@ function main() {
     const rulesConfig = JSON.parse(readFileSync(resolve(opts.rules), 'utf-8'));
     const rules = rulesConfig.rules;
 
-    scoredCandidates = candidateList.map(c => scoreCandidate(c, rules));
+    scoredCandidates = filteredList.map(c => scoreCandidate(c, rules));
     scoredCandidates.sort((a, b) => b.score - a.score);
     const passedCandidates = scoredCandidates.filter(c => c.passed);
 

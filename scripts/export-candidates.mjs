@@ -41,10 +41,23 @@ function parseArgs() {
 }
 
 // ===== 字段配置 =====
+function toAiRating(candidate) {
+  const score = candidate.totalScore ?? candidate.score ?? 0;
+  if (score >= 80) return '五星';
+  if (score >= 60) return '四星';
+  if (score >= 40) return '三星';
+  if (score >= 20) return '二星';
+  return '一星';
+}
+
 const FIELD_CONFIG = {
   name: {
     header: '姓名',
     extract: (c) => c.basicInfo?.name || '',
+  },
+  aiRating: {
+    header: 'AI评级',
+    extract: (c) => toAiRating(c),
   },
   age: {
     header: '年龄',
@@ -75,7 +88,7 @@ const FIELD_CONFIG = {
     extract: (c) => c.jobRelevanceScore ?? '',
   },
   jobRelevanceComment: {
-    header: '评语',
+    header: 'AI评级理由',
     extract: (c) => c.jobRelevanceComment || '',
   },
   jobDescription: {
@@ -89,7 +102,7 @@ const FIELD_CONFIG = {
   },
   score: {
     header: '分数',
-    extract: (c) => c.score ?? 0,
+    extract: (c) => c.totalScore ?? c.score ?? 0,
   },
   passed: {
     header: '是否通过',
@@ -137,21 +150,12 @@ const FIELD_CONFIG = {
 // 默认导出字段顺序
 const DEFAULT_FIELDS = [
   'name',
+  'aiRating',
+  'jobRelevanceComment',
   'age',
-  'workYears',
   'school',
   'education',
-  'score',
-  'educationScore',
-  'workYearsScore',
-  'jobRelevanceScore',
-  'jobRelevanceComment',
-  'passed',
-  'recommendationLevel',
-  'currentPosition',
-  'currentCompany',
-  'expectCity',
-  'expectSalary',
+  'workYears',
   'resumeText',
 ];
 
@@ -169,6 +173,18 @@ function transformCandidates(candidates, fields, mode = 'filter') {
   );
 
   return [headers, ...rows];
+}
+
+function buildGroupedExportData(candidates, fields, mode = 'filter') {
+  const data = transformCandidates(candidates, fields, mode);
+  const headers = data[0];
+  const rows = data.slice(1);
+  const groupHeaders = fields.map((_, index) => {
+    if (index === 0) return 'AI分析';
+    if (index === 3) return '附加信息';
+    return undefined;
+  });
+  return [groupHeaders, headers, ...rows];
 }
 
 // ===== 自动列宽 =====
@@ -197,6 +213,25 @@ function autoColumnWidth(ws, data, fields) {
   ws['!cols'] = colWidths;
 }
 
+/**
+ * 将岗位名转为合法的 Excel sheet 名
+ * - 最长 31 字符
+ * - 移除非法字符：\ / ? * [ ] :
+ */
+function safeSheetName(name) {
+  if (!name) return '候选人';
+  let safe = name.replace(/[\\\/\?\*\[\]:]/g, '');
+  if (safe.length > 31) safe = safe.slice(0, 31);
+  return safe || '候选人';
+}
+
+function applyGroupedHeaders(ws) {
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } },
+    { s: { r: 0, c: 3 }, e: { r: 0, c: 7 } },
+  ];
+}
+
 // ===== 主流程 =====
 function main() {
   const opts = parseArgs();
@@ -207,7 +242,7 @@ function main() {
   const candidates = input.candidates || input;
 
   // 按总分降序排序
-  candidates.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  candidates.sort((a, b) => (b.totalScore ?? b.score ?? 0) - (a.totalScore ?? a.score ?? 0));
 
   // 字段选择（支持 --fields 参数）
   const fields = opts.fields
@@ -215,18 +250,40 @@ function main() {
     : DEFAULT_FIELDS;
 
   const mode = input.mode === 'default' ? 'default' : 'filter';
-  const data = transformCandidates(candidates, fields, mode);
 
   // 创建工作簿
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(data);
 
-  // 自动列宽
-  autoColumnWidth(ws, data, fields);
+  // 按 appliedJob 分组
+  const positionGroups = new Map();
+  for (const c of candidates) {
+    const job = c.positionInfo?.appliedJob || '未知岗位';
+    if (!positionGroups.has(job)) positionGroups.set(job, []);
+    positionGroups.get(job).push(c);
+  }
 
-  // 在线简历列：单元格保留完整内容（Excel 点击时编辑栏可看全文），默认不换行 → 宽度截断显示
-  // 不设置 wrapText（xlsx 社区版不支持写单元格样式），行高保持默认
-  XLSX.utils.book_append_sheet(wb, ws, '候选人');
+  let sheetCount = 0;
+  for (const [position, groupCandidates] of positionGroups) {
+    // 组内排序
+    groupCandidates.sort((a, b) => (b.totalScore ?? b.score ?? 0) - (a.totalScore ?? a.score ?? 0));
+
+    const groupData = buildGroupedExportData(groupCandidates, fields, mode);
+    const ws = XLSX.utils.aoa_to_sheet(groupData);
+    autoColumnWidth(ws, groupData, fields);
+    applyGroupedHeaders(ws);
+
+    const sheetName = safeSheetName(position);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    sheetCount++;
+  }
+
+  // 如果没有任何分组（理论上不会发生），创建默认 sheet
+  if (sheetCount === 0) {
+    const emptyData = buildGroupedExportData([], fields, mode);
+    const ws = XLSX.utils.aoa_to_sheet(emptyData);
+    applyGroupedHeaders(ws);
+    XLSX.utils.book_append_sheet(wb, ws, '候选人');
+  }
 
   // 输出路径
   const outputDir = dirname(inputPath);
@@ -236,7 +293,13 @@ function main() {
   XLSX.writeFile(wb, outputPath);
 
   console.log(`导出成功: ${outputPath}`);
-  console.log(`共导出 ${candidates.length} 条记录`);
+  console.log(`共导出 ${candidates.length} 条记录，${sheetCount} 个岗位`);
+
+  // 输出各岗位人数
+  for (const [position, groupCandidates] of positionGroups) {
+    const passCount = groupCandidates.filter(c => c.passed !== false).length;
+    console.log(`  ${position}: ${groupCandidates.length} 人 (通过 ${passCount})`);
+  }
 
   // 统计信息
   if (input.totalCandidates && input.passedCount) {
@@ -253,4 +316,4 @@ if (isMainModule) {
   main();
 }
 
-export { FIELD_CONFIG, DEFAULT_FIELDS, transformCandidates };
+export { FIELD_CONFIG, DEFAULT_FIELDS, transformCandidates, buildGroupedExportData, safeSheetName, toAiRating };
