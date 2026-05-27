@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline';">
+  <title>Boss直聘候选人提取分析</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 标题 -->
+    <header>
+      <h1>Boss直聘候选人提取分析</h1>
+    </header>
+
+    <!-- 初始状态 -->
+    <div id="state-initial" class="state active">
+      <div class="api-config">
+        <div class="api-config-title">API 配置</div>
+        <div class="api-field">
+          <label for="api-url">API 地址</label>
+          <input type="text" id="api-url" placeholder="https://api.xxx.com">
+        </div>
+        <div class="api-field">
+          <label for="api-key">API Key</label>
+          <input type="password" id="api-key" placeholder="sk-...">
+        </div>
+        <div class="api-field">
+          <label for="api-model">模型名称</label>
+          <input type="text" id="api-model" placeholder="claude-sonnet-...">
+        </div>
+        <button id="btn-save-config" class="btn btn-secondary btn-small">保存配置</button>
+        <span id="config-status" class="config-status"></span>
+      </div>
+
+      <div class="config-section">
+        <label for="count-input">提取候选人数量：</label>
+        <input type="number" id="count-input" value="20" min="1" max="999">
+        <label class="inline-checkbox">
+          <input type="checkbox" id="extract-all" checked>
+          <span>提取全部</span>
+        </label>
+      </div>
+      <label class="checkbox-label">
+        <input type="checkbox" id="skip-extract">
+        <span>跳过提取（已有数据时调试用）</span>
+      </label>
+      <div class="output-dir-info">
+        输出目录: <span id="output-dir">output/</span>
+      </div>
+      <button id="btn-start" class="btn btn-primary btn-large">
+        ▶ 开始提取分析
+      </button>
+    </div>
+
+    <!-- 执行中状态 -->
+    <div id="state-running" class="state">
+      <div class="steps-container">
+        <div class="step-card" id="step-1">
+          <div class="step-header">
+            <span class="step-icon">1</span>
+            <span class="step-title">提取候选人信息</span>
+            <span class="step-status" id="step-1-status">等待中</span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar" id="step-1-bar"></div>
+          </div>
+          <div class="step-message" id="step-1-msg"></div>
+        </div>
+        <div class="step-card" id="step-2">
+          <div class="step-header">
+            <span class="step-icon">2</span>
+            <span class="step-title">AI 评分（基础分 + 岗位相关性）</span>
+            <span class="step-status" id="step-2-status">等待中</span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar" id="step-2-bar"></div>
+          </div>
+          <div class="step-message" id="step-2-msg"></div>
+        </div>
+        <div class="step-card" id="step-3">
+          <div class="step-header">
+            <span class="step-icon">3</span>
+            <span class="step-title">导出 Excel</span>
+            <span class="step-status" id="step-3-status">等待中</span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar" id="step-3-bar"></div>
+          </div>
+          <div class="step-message" id="step-3-msg"></div>
+        </div>
+      </div>
+      <button id="btn-cancel" class="btn btn-secondary">取消</button>
+    </div>
+
+    <!-- 完成状态 -->
+    <div id="state-done" class="state">
+      <div class="result-icon result-success">&#10003;</div>
+      <h2>任务执行完成！</h2>
+      <div class="result-summary" id="done-summary"></div>
+      <div class="result-actions">
+        <button id="btn-open-dir" class="btn btn-primary">&#128194; 打开输出目录</button>
+        <button id="btn-restart" class="btn btn-secondary">重新开始</button>
+      </div>
+    </div>
+
+    <!-- 错误状态 -->
+    <div id="state-error" class="state">
+      <div class="result-icon result-error">&#10007;</div>
+      <h2>执行出错</h2>
+      <div class="error-message" id="error-message"></div>
+      <button id="btn-retry" class="btn btn-primary">重试</button>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

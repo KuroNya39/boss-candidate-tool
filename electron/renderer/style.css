@@ -1,0 +1,333 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  background: #f0f2f5;
+  color: #333;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+#app {
+  width: 600px;
+  margin: 0 auto;
+  padding: 20px 32px;
+  min-height: 520px;
+  -webkit-app-region: no-drag;
+}
+
+/* ===== 标题 ===== */
+header h1 {
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+  color: #1a1a1a;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+/* ===== 状态切换 ===== */
+.state {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.state.active {
+  display: flex;
+}
+
+/* ===== API 配置区 ===== */
+.api-config {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 16px 20px;
+  width: 100%;
+  margin-bottom: 8px;
+}
+.api-config-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 12px;
+}
+.api-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.api-field label {
+  font-size: 13px;
+  color: #666;
+  width: 72px;
+  flex-shrink: 0;
+}
+.api-field input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: 'Consolas', 'Courier New', monospace;
+}
+.api-field input:focus {
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.15);
+}
+.api-field input::placeholder {
+  color: #bbb;
+}
+
+.btn-small {
+  font-size: 12px;
+  padding: 5px 14px;
+  margin-top: 4px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #888;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+.checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.inline-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+  margin-left: 8px;
+}
+.inline-checkbox input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.config-status {
+  font-size: 12px;
+  margin-left: 10px;
+}
+.config-ok {
+  color: #4CAF50;
+}
+.config-missing {
+  color: #999;
+}
+.config-error {
+  color: #e53935;
+}
+
+/* ===== 提取数量配置 ===== */
+.config-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+}
+.config-section input[type="number"] {
+  width: 80px;
+  padding: 6px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 15px;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.config-section input[type="number"]:focus {
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.15);
+}
+.config-section input[type="number"]:disabled {
+  background: #f0f0f0;
+  color: #ccc;
+  cursor: not-allowed;
+}
+
+.output-dir-info {
+  font-size: 13px;
+  color: #888;
+  text-align: center;
+}
+
+/* ===== 按钮 ===== */
+.btn {
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+  -webkit-app-region: no-drag;
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn-primary {
+  background: #4CAF50;
+  color: #fff;
+  padding: 10px 24px;
+}
+.btn-primary:hover {
+  background: #43a047;
+}
+.btn-primary:disabled {
+  background: #a5d6a7;
+  cursor: not-allowed;
+}
+.btn-secondary {
+  background: #e8e8e8;
+  color: #666;
+  padding: 8px 20px;
+}
+.btn-secondary:hover {
+  background: #d0d0d0;
+}
+.btn-large {
+  font-size: 18px;
+  padding: 14px 48px;
+  margin-top: 8px;
+}
+
+/* ===== 步骤卡片 ===== */
+.steps-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.step-card {
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 10px;
+  padding: 16px 20px;
+  transition: all 0.3s;
+}
+.step-card.active {
+  border-color: #4CAF50;
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.12);
+}
+.step-card.done {
+  border-color: #4CAF50;
+  background: #f6fdf6;
+}
+.step-card.error-step {
+  border-color: #e53935;
+  box-shadow: 0 2px 8px rgba(229, 57, 53, 0.12);
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.step-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #e0e0e0;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.step-card.active .step-icon {
+  background: #4CAF50;
+}
+.step-card.done .step-icon {
+  background: #4CAF50;
+}
+.step-title {
+  font-size: 15px;
+  font-weight: 500;
+  flex: 1;
+}
+.step-status {
+  font-size: 12px;
+  color: #999;
+  font-weight: 400;
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 6px;
+  background: #e8e8e8;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #66bb6a, #43a047);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.step-message {
+  font-size: 12px;
+  color: #888;
+  line-height: 1.4;
+  min-height: 18px;
+  word-break: break-all;
+}
+
+/* ===== 结果区 ===== */
+.result-icon {
+  font-size: 64px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.result-success {
+  color: #4CAF50;
+}
+.result-error {
+  color: #e53935;
+}
+
+.result-summary {
+  font-size: 14px;
+  color: #555;
+  text-align: center;
+  line-height: 1.8;
+  margin-bottom: 8px;
+}
+
+.error-message {
+  background: #fff0f0;
+  border: 1px solid #ffcdd2;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #c62828;
+  max-width: 100%;
+  word-break: break-all;
+  margin-bottom: 8px;
+}
+
+.result-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}

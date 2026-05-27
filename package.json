@@ -3,8 +3,18 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Web access and candidate management tools",
+  "main": "electron/main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --win portable"
+  },
   "dependencies": {
+    "iconv-lite": "^0.7.2",
     "tesseract.js": "^7.0.0",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^42.3.0",
+    "electron-builder": "^26.8.1"
   }
 }

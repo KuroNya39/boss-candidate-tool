@@ -1,0 +1,20 @@
+appId: com.web-access.candidate-tool
+productName: Boss直聘候选人提取分析
+directories:
+  output: dist
+files:
+  - electron/**/*
+  - scripts/**/*
+  - config/**/*
+  - package.json
+  - node_modules/**/*
+  - "!node_modules/electron-builder/**"
+  - "!**/*.map"
+win:
+  signAndEditExecutable: false
+  target:
+    - target: nsis
+      arch:
+        - x64
+extraMetadata:
+  main: electron/main.mjs
