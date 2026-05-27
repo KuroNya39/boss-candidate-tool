@@ -1118,6 +1118,52 @@ function archiveOldOutput(outputDir, isResume) {
   }
 }
 
+// ===== 未读筛选 =====
+
+async function ensureUnreadFilter(targetId) {
+  const result = await proxyPost(`/eval?target=${targetId}`, `
+    (() => {
+      const el = Array.from(document.querySelectorAll('span,button,a,div,li'))
+        .find(el => (el.innerText || el.textContent || '').trim() === '未读');
+      if (!el) return { clicked: false, reason: 'not found' };
+      el.click();
+      return { clicked: true };
+    })()
+  `);
+
+  if (!result || !result.value?.clicked) {
+    console.warn('[未读筛选] 未找到"未读"按钮，降级为全量提取');
+    return;
+  }
+
+  console.log('[未读筛选] 已点击"未读"，等待列表刷新...');
+
+  // 动态等待列表刷新：轮询直到 .geek-item 数量稳定
+  const maxWait = 8000;
+  const start = Date.now();
+  let prevCount = -1;
+  let stableCount = 0;
+
+  while (Date.now() - start < maxWait) {
+    try {
+      const count = parseInt(await cdpEval(targetId, `document.querySelectorAll('.geek-item').length`)) || 0;
+      if (count === prevCount && count > 0) {
+        stableCount++;
+        if (stableCount >= 3) {
+          console.log(`[未读筛选] 列表已刷新稳定 (${count} 项)`);
+          return;
+        }
+      } else {
+        stableCount = 0;
+        prevCount = count;
+      }
+    } catch {}
+    await sleep(400);
+  }
+
+  console.warn(`[未读筛选] 等待列表刷新超时 (当前 ${prevCount} 项)，继续`);
+}
+
 async function main() {
   const opts = parseArgs();
   const outputPath = resolve(opts.output);
@@ -1166,6 +1212,9 @@ async function main() {
     console.log('等待页面加载...');
     const listCount = await waitForCandidateList(targetId, 15000);
     console.log(`页面已加载，候选人列表: ${listCount} 项\n`);
+
+    // 切换到未读模式
+    await ensureUnreadFilter(targetId);
 
     // 扫描阶段
     if (opts.extractAll) {
@@ -1272,6 +1321,9 @@ async function main() {
   console.log('等待页面加载...');
   const listCount = await waitForCandidateList(targetId, 15000);
   console.log(`页面已加载，候选人列表: ${listCount} 项\n`);
+
+  // 切换到未读模式
+  await ensureUnreadFilter(targetId);
 
   // 岗位描述缓存（同一岗位只提取一次）
   const jobDescCache = new Map();

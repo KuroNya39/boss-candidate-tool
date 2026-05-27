@@ -22,6 +22,16 @@ const apiModelInput = document.getElementById('api-model');
 const btnSaveConfig = document.getElementById('btn-save-config');
 const configStatus = document.getElementById('config-status');
 
+// 邮件配置 DOM
+const emailPrefixInput = document.getElementById('email-prefix');
+const smtpHostInput = document.getElementById('smtp-host');
+const smtpPortInput = document.getElementById('smtp-port');
+const smtpUserInput = document.getElementById('smtp-user');
+const smtpPassInput = document.getElementById('smtp-pass');
+const smtpFromInput = document.getElementById('smtp-from');
+const smtpSection = document.getElementById('smtp-config-section');
+const smtpToggle = document.getElementById('smtp-toggle');
+
 // ===== 步骤元素 =====
 const stepCards = {
   1: {
@@ -114,6 +124,9 @@ function setupListeners() {
         const filename = data.excelPath.split(/[/\\]/).pop();
         summary += `导出文件: ${filename}\n`;
       }
+      if (data.emailTo) {
+        summary += `邮件已发送至: ${data.emailTo}\n`;
+      }
       summary += `输出目录: ${data.outputDir}`;
       doneSummary.textContent = summary;
     })
@@ -134,6 +147,12 @@ async function loadApiConfig() {
     if (config.url) apiUrlInput.value = config.url;
     if (config.key) apiKeyInput.value = config.key;
     if (config.model) apiModelInput.value = config.model;
+    if (config.emailPrefix) emailPrefixInput.value = config.emailPrefix;
+    if (config.smtpHost) smtpHostInput.value = config.smtpHost;
+    if (config.smtpPort) smtpPortInput.value = config.smtpPort;
+    if (config.smtpUser) smtpUserInput.value = config.smtpUser;
+    if (config.smtpPass) smtpPassInput.value = config.smtpPass;
+    if (config.smtpFrom) smtpFromInput.value = config.smtpFrom;
   } catch {}
   updateConfigStatus();
 }
@@ -181,7 +200,15 @@ btnSaveConfig.addEventListener('click', async () => {
   }
 
   try {
-    await window.electronAPI.setApiConfig(url, key, model);
+    await window.electronAPI.setApiConfig({
+      url, key, model,
+      emailPrefix: emailPrefixInput.value.trim(),
+      smtpHost: smtpHostInput.value.trim() || 'smtp.mxhichina.com',
+      smtpPort: smtpPortInput.value.trim() || '25',
+      smtpUser: smtpUserInput.value.trim() || 'lixins@allwinnertech.com',
+      smtpPass: smtpPassInput.value.trim(),
+      smtpFrom: smtpFromInput.value.trim(),
+    });
     configStatus.textContent = '✓ 已保存';
     configStatus.className = 'config-status config-ok';
     updateConfigStatus();
@@ -199,6 +226,15 @@ btnStart.addEventListener('click', async () => {
   const count = extractAll ? 0 : parseInt(countInput.value, 10);
   if (!extractAll && (!count || count < 1)) {
     countInput.focus();
+    return;
+  }
+
+  // 检查邮件配置：如果填了邮箱前缀但 SMTP 密码为空，给出提示
+  const prefix = emailPrefixInput.value.trim();
+  const smtpPass = smtpPassInput.value.trim();
+  if (prefix && !smtpPass) {
+    const msg = '已填写目标邮箱前缀，但 SMTP 密码为空，邮件将无法发送。\n\n请展开 SMTP 配置填写密码后再试。';
+    alert(msg);
     return;
   }
 
@@ -246,6 +282,13 @@ extractAllCheck.addEventListener('change', () => {
 
 // 初始状态：默认提取全部，数量输入禁用
 countInput.disabled = true;
+
+// SMTP 配置折叠切换
+smtpToggle.addEventListener('click', () => {
+  const visible = smtpSection.style.display !== 'block';
+  smtpSection.style.display = visible ? 'block' : 'none';
+  smtpToggle.textContent = visible ? '收起 SMTP 配置' : '展开 SMTP 配置';
+});
 
 // ===== 初始化 =====
 async function init() {

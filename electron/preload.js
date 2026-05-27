@@ -7,8 +7,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openOutputDir: () => ipcRenderer.invoke('open-output'),
   getOutputDir: () => ipcRenderer.invoke('get-output-dir'),
 
-  // API 配置
-  setApiConfig: (url, key, model) => ipcRenderer.invoke('set-api-config', { url, key, model }),
+  // API 配置 + 邮件配置
+  setApiConfig: (config) => ipcRenderer.invoke('set-api-config', config),
   getApiConfig: () => ipcRenderer.invoke('get-api-config'),
   getApiConfigStatus: () => ipcRenderer.invoke('get-api-config-status'),
 

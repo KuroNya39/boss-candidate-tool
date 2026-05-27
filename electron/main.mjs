@@ -11,15 +11,21 @@ const OUTPUT_DIR = resolve(APP_ROOT, 'output');
 const CONFIG_DIR = resolve(app.getPath('userData'), 'web-access');
 const CONFIG_PATH = resolve(CONFIG_DIR, 'api-config.json');
 
-// ===== API 配置（持久化到 userData） =====
-let apiConfig = { url: '', key: '', model: '' };
+// ===== 配置（持久化到 userData） =====
+let apiConfig = {
+  url: '', key: '', model: '',
+  smtpHost: 'smtp.mxhichina.com', smtpPort: '25', smtpSecure: 'false',
+  smtpUser: 'lixins@allwinnertech.com', smtpPass: '', smtpFrom: '',
+  emailPrefix: '',
+};
 
 function loadApiConfig() {
   try {
     if (existsSync(CONFIG_PATH)) {
       const saved = JSON.parse(readFileSync(CONFIG_PATH, 'utf-8'));
       if (saved.url && saved.key && saved.model) {
-        apiConfig = saved;
+        // 合并保存的字段，保留默认值补全缺失字段
+        apiConfig = { ...apiConfig, ...saved };
         termLog(`[config] 已加载持久化配置: url=${saved.url}, model=${saved.model}`);
       }
     }
@@ -130,7 +136,7 @@ function parseExportProgress(line) {
 }
 
 // ===== 脚本执行 =====
-function runScript(scriptName, args, step, parseFn) {
+function runScript(scriptName, args, step, parseFn, extraEnv = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
     const scriptPath = resolve(APP_ROOT, 'scripts', scriptName);
 
@@ -140,6 +146,7 @@ function runScript(scriptName, args, step, parseFn) {
     const proc = spawn('node', [scriptPath, ...args], {
       cwd: APP_ROOT,
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, ...extraEnv },
     });
 
     currentProcess = proc;
@@ -159,7 +166,11 @@ function runScript(scriptName, args, step, parseFn) {
 
     proc.stderr.on('data', (data) => {
       const text = decodeBuffer(data).trim();
-      if (text) termLog(`[${scriptName} stderr] ${text}`, 'stderr');
+      if (text) {
+        termLog(`[${scriptName} stderr] ${text}`, 'stderr');
+        // 将 stderr 也回传给 UI，使用户能看到邮件错误等
+        sendProgress(step, 'running', null, text);
+      }
     });
 
     proc.on('error', (err) => {
@@ -275,16 +286,31 @@ async function callClaudeAPI(prompt) {
     if (match) jsonStr = match[0];
   }
 
-  // 策略3: 找第一个 [ 到最后一个 ]，尝试解析
+  // 策略3: 逐段尝试找有效的 JSON 数组（从后往前找 [）
   if (!jsonStr) {
-    const firstBracket = text.indexOf('[');
-    const lastBracket = text.lastIndexOf(']');
-    if (firstBracket >= 0 && lastBracket > firstBracket) {
-      const candidate = text.slice(firstBracket, lastBracket + 1);
-      try {
-        const parsed = JSON.parse(candidate);
-        if (Array.isArray(parsed)) jsonStr = candidate;
-      } catch {}
+    // 找所有 [ 的位置，从后往前试，找到第一个能解析为数组的
+    const bracketPositions = [];
+    let searchPos = 0;
+    while (true) {
+      const pos = text.indexOf('[', searchPos);
+      if (pos === -1) break;
+      bracketPositions.push(pos);
+      searchPos = pos + 1;
+    }
+    // 从后往前试（越靠后的 [ 到 ] 范围越小，越可能是目标）
+    for (let i = bracketPositions.length - 1; i >= 0; i--) {
+      const start = bracketPositions[i];
+      const end = text.lastIndexOf(']');
+      if (end > start) {
+        const candidate = text.slice(start, end + 1);
+        try {
+          const parsed = JSON.parse(candidate);
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0] !== null && typeof parsed[0] === 'object') {
+            jsonStr = candidate;
+            break;
+          }
+        } catch {}
+      }
     }
   }
 
@@ -462,11 +488,30 @@ async function runPipeline(count, skipExtract = false, extractAll = false) {
     sendProgress(3, 'running', 0, '准备导出 Excel...');
     const scoredPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
     if (!existsSync(scoredPath)) throw new Error(`未找到评分结果文件: ${scoredPath}`);
-    await runScript('export-candidates.mjs', ['--input', scoredPath], 3, parseExportProgress);
+
+    // 构建导出参数：若有 emailPrefix，传给导出脚本自动发邮件
+    let exportArgs = ['--input', scoredPath];
+    const smtpEnv = {};
+    if (apiConfig.emailPrefix) {
+      exportArgs.push('--to-prefix', apiConfig.emailPrefix);
+      // 传递 SMTP 配置给子进程
+      if (apiConfig.smtpHost) smtpEnv.SMTP_HOST = apiConfig.smtpHost;
+      if (apiConfig.smtpPort) smtpEnv.SMTP_PORT = apiConfig.smtpPort;
+      if (apiConfig.smtpSecure) smtpEnv.SMTP_SECURE = apiConfig.smtpSecure;
+      if (apiConfig.smtpUser) smtpEnv.SMTP_USER = apiConfig.smtpUser;
+      if (apiConfig.smtpPass) smtpEnv.SMTP_PASS = apiConfig.smtpPass;
+      if (apiConfig.smtpFrom) smtpEnv.SMTP_FROM = apiConfig.smtpFrom;
+      termLog(`[main] 将发送邮件到 ${apiConfig.emailPrefix}@allwinnertech.com`);
+    }
+    await runScript('export-candidates.mjs', exportArgs, 3, parseExportProgress, smtpEnv);
     if (cancelled) return;
 
     sendProgress(3, 'done', 100, '导出完成');
-    sendDone({ outputDir: OUTPUT_DIR, excelPath: resolve(OUTPUT_DIR, 'candidates.xlsx') });
+    sendDone({
+      outputDir: OUTPUT_DIR,
+      excelPath: resolve(OUTPUT_DIR, 'candidates.xlsx'),
+      emailTo: apiConfig.emailPrefix ? `${apiConfig.emailPrefix}@allwinnertech.com` : null,
+    });
   } catch (err) {
     if (err.message === '已取消') {
       sendProgress(1, 'idle', 0, '已取消');
@@ -501,9 +546,9 @@ function registerIPC() {
 
   ipcMain.handle('get-output-dir', () => OUTPUT_DIR);
 
-  // API 配置（持久化到磁盘）
+  // API 配置 + SMTP 配置（持久化到磁盘）
   ipcMain.handle('set-api-config', (_event, config) => {
-    apiConfig = { url: config.url, key: config.key, model: config.model };
+    apiConfig = { ...apiConfig, ...config };
     saveApiConfig(apiConfig);
     return { ok: true };
   });

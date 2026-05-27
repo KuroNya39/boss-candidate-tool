@@ -8,7 +8,7 @@
  *   node scripts/export-candidates.mjs --input output/scored-candidates.json
  */
 
-import { readFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -34,7 +34,7 @@ function parseArgs() {
     }
   }
   if (!opts.input) {
-    console.error('Usage: node scripts/export-candidates.mjs --input <scored-candidates.json>');
+    console.error('Usage: node scripts/export-candidates.mjs --input <scored-candidates.json> [--to-prefix <email-prefix>] [--email-domain <domain>] [--email-subject <subject>]');
     process.exit(1);
   }
   return opts;
@@ -233,7 +233,7 @@ function applyGroupedHeaders(ws) {
 }
 
 // ===== 主流程 =====
-function main() {
+async function main() {
   const opts = parseArgs();
 
   // 读取输入
@@ -308,12 +308,39 @@ function main() {
   } else if (input.mode === 'default') {
     console.log(`评分模式: 默认评分 (全量)`);
   }
+
+  // 邮件发送（可选，--to-prefix 时触发）
+  if (opts['to-prefix']) {
+    await sendEmailAfterExport(opts, outputPath);
+  }
+}
+
+async function sendEmailAfterExport(opts, excelPath) {
+  if (!existsSync(excelPath)) {
+    console.error(`无法发送邮件：附件文件不存在 ${excelPath}`);
+    return;
+  }
+  try {
+    const { sendCandidateEmail } = await import('./send-candidates-email.mjs');
+    const result = await sendCandidateEmail({
+      toPrefix: opts['to-prefix'],
+      attachmentPath: excelPath,
+      domain: opts['email-domain'] || undefined,
+      subject: opts['email-subject'] || undefined,
+    });
+    console.log(`邮件发送成功: ${result.to}`);
+  } catch (err) {
+    console.error(`邮件发送失败: ${err.message}`);
+  }
 }
 
 // 只在直接执行时运行主流程
 const isMainModule = process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'));
 if (isMainModule) {
-  main();
+  main().catch(err => {
+    console.error(`导出失败: ${err.message}`);
+    process.exit(1);
+  });
 }
 
 export { FIELD_CONFIG, DEFAULT_FIELDS, transformCandidates, buildGroupedExportData, safeSheetName, toAiRating };

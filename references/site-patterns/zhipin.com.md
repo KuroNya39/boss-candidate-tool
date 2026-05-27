@@ -2,7 +2,7 @@
 domain: zhipin.com
 aliases: [Boss直聘, BOSS直聘, boss直聘, boss]
 outputFile: zhipin-candidates.json
-updated: 2026-04-23
+updated: 2026-05-22
 ---
 
 ## 平台特征
@@ -14,6 +14,7 @@ updated: 2026-04-23
   - 左侧：候选人列表卡片（`.geek-item`）
   - 右侧：详情面板（点击卡片后显示，`.base-info-single-container`）
 - 基本信息、经历、职位期望等信息在详情面板中，需点击候选人才能获取
+- 页面顶部有"全部"和"未读"两个筛选按钮，默认提取前先切换到"未读"模式
 
 ## 参数规范
 
@@ -103,7 +104,10 @@ updated: 2026-04-23
 **提取流程**（严格按此执行，禁止修改）：
 
 1. 解析用户请求，确定提取数量 N（应用边界规则）
-2. 循环 N 次（索引 0 到 N-1）：
+2. 切换到未读筛选：执行下方"未读点击脚本"
+   - 等待 1500ms 让列表刷新
+   - 若返回 `clicked: false`（按钮不存在），记录警告后继续（降级为全量提取）
+3. 循环 N 次（索引 0 到 N-1）：
    a. 执行点击脚本：`document.querySelectorAll('.geek-item')[i].click()`
    b. 等待 1000ms
    c. 执行**本文件定义的提取脚本**
@@ -116,7 +120,7 @@ updated: 2026-04-23
       - 再次执行提取脚本
       - 仍失败则返回 `{ "index": i+1 }`（空对象）
    e. 记录结果，继续下一个
-3. 汇总输出 JSON
+4. 汇总输出 JSON
 
 **点击候选人脚本**（唯一可用，禁止修改）：
 
@@ -127,6 +131,20 @@ document.querySelectorAll('.geek-item')[i].click()
 其中 `i` 为索引（0 到 N-1）。
 
 > **重要**：此脚本返回 `undefined` 是正常行为，表示点击已执行。**不是错误，不要调试，继续执行提取脚本。**
+
+**未读点击脚本**（导航到沟通页或重新加载后，在提取前执行。唯一可用，禁止修改）：
+
+```javascript
+(() => {
+  const el = Array.from(document.querySelectorAll('span,button,a,div,li'))
+    .find(el => (el.innerText || el.textContent || '').trim() === '未读');
+  if (!el) return { clicked: false, reason: 'not found' };
+  el.click();
+  return { clicked: true, tag: el.tagName, cls: el.className, text: (el.innerText || el.textContent || '').trim() };
+})()
+```
+
+> **按钮不存在时**：返回 `clicked: false`，记录警告后继续（降级为全量提取）。
 
 **提取详情脚本**（点击后等待 1000ms，再执行。唯一可用，禁止修改）：
 
@@ -405,17 +423,18 @@ document.querySelectorAll('.geek-item')[i].click()
 3. 解析用户请求，确定提取数量 N（应用边界规则）
 4. 创建新 tab：`curl -s "http://localhost:3456/new?url=https://www.zhipin.com/web/chat"`
 5. 等待页面加载完成
-6. **循环 N 次**（索引 0 到 N-1）：
+6. 切换到未读筛选：执行下方"未读点击脚本"，等待 1500ms
+7. **循环 N 次**（索引 0 到 N-1）：
    - 执行点击脚本，返回 `undefined` 是正常的（表示点击已执行）
    - 等待 1000ms
    - 执行提取脚本
    - 若返回 `Uncaught` 错误：等待 500ms → 重新点击 → 等待 1000ms → 再次提取（不要分析原因，不要检查页面）
    - 记录结果
-7. 汇总数据，输出 JSON 结果
+8. 汇总数据，输出 JSON 结果
    - 检查站点经验 frontmatter 是否定义 `outputFile`
    - 若有，保存到 `./output/{outputFile}`
    - 向用户输出完整 JSON 结果，并告知文件路径
-8. 关闭 tab：`curl -s "http://localhost:3456/close?target=xxx"`
+9. 关闭 tab：`curl -s "http://localhost:3456/close?target=xxx"`
 
 ## 在线简历提取
 

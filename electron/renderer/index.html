@@ -32,6 +32,35 @@
         </div>
         <button id="btn-save-config" class="btn btn-secondary btn-small">保存配置</button>
         <span id="config-status" class="config-status"></span>
+
+        <div class="api-field" style="margin-top:12px;">
+          <label for="email-prefix">目标邮箱前缀</label>
+          <input type="text" id="email-prefix" placeholder="zhangsan（发到 zhangsan@allwinnertech.com）">
+        </div>
+
+        <div class="smtp-toggle" id="smtp-toggle">展开 SMTP 配置</div>
+        <div class="smtp-config-section" id="smtp-config-section" style="display:none;">
+          <div class="api-field">
+            <label for="smtp-host">SMTP 地址</label>
+            <input type="text" id="smtp-host" placeholder="smtp.mxhichina.com">
+          </div>
+          <div class="api-field">
+            <label for="smtp-port">SMTP 端口</label>
+            <input type="text" id="smtp-port" placeholder="25">
+          </div>
+          <div class="api-field">
+            <label for="smtp-user">SMTP 用户</label>
+            <input type="text" id="smtp-user" placeholder="lixins@allwinnertech.com">
+          </div>
+          <div class="api-field">
+            <label for="smtp-pass">SMTP 密码</label>
+            <input type="password" id="smtp-pass" placeholder="SMTP 授权码">
+          </div>
+          <div class="api-field">
+            <label for="smtp-from">发件地址</label>
+            <input type="text" id="smtp-from" placeholder="留空则同 SMTP 用户">
+          </div>
+        </div>
       </div>
 
       <div class="config-section">

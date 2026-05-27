@@ -155,6 +155,18 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
 
 当用户要求对候选人评分或筛选时，**自动完成以下全部步骤**，无需用户手动运行脚本。
 
+### 邮件发送前置要求
+
+在开始提取、评分或筛选前，必须先询问用户收件人邮箱前缀：
+
+```text
+请提供收件人邮箱前缀，例如 zhangsan；系统会发送到 zhangsan@allwinnertech.com。
+```
+
+用户只需提供前缀，不要要求用户输入完整邮箱。默认后缀固定为 `allwinnertech.com`。
+
+评分导出并发送邮件时，使用 `--to-prefix` 参数传入前缀。
+
 ### 两种模式
 
 - **默认评分**：用户未给筛选条件（如”帮我评分”、”给这些候选人打分”）
@@ -259,12 +271,15 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
    - 每个岗位完成后：`"岗位 [{岗位名}] 评分完成"`
    - 全部完成时：`"LLM 评分完成，准备合并总分"`
 4. **合并总分**：`totalScore = educationScore + workYearsScore + jobRelevanceScore`，更新 `d.candidates` 中每个候选人的 `score` 和 `recommendationLevel`，然后写回整个 `d` 对象到 JSON 文件
-5. **导出 Excel**：
+5. **导出 Excel 并发送邮件**：
    ```bash
    node scripts/export-candidates.mjs \
-     --input output/scored-candidates.json
+     --input output/scored-candidates.json \
+     --to-prefix <用户提供的邮箱前缀>
    ```
-6. **展示结果摘要**：向用户展示 Top 候选人列表（姓名、总分、各维度分、评语）、Excel 文件路径
+   - 导出成功且邮件发送成功：继续展示结果摘要
+   - 邮件发送失败：不要删除或覆盖 Excel，向用户说明 Excel 已生成但邮件发送失败及失败原因
+6. **展示结果摘要**：向用户展示 Top 候选人列表（姓名、总分、各维度分、评语）、Excel 文件路径、邮件发送结果
 
 ### 条件筛选流程
 
@@ -278,12 +293,15 @@ Proxy 持续运行，不建议主动停止——重启后需要在 Chrome 中重
    ```
 3. **LLM 岗位相关性评分**：同默认评分流程第 3 步
 4. **合并总分**：同默认评分流程第 4 步
-5. **导出 Excel**：
+5. **导出 Excel 并发送邮件**：
    ```bash
    node scripts/export-candidates.mjs \
-     --input output/scored-candidates.json
+     --input output/scored-candidates.json \
+     --to-prefix <用户提供的邮箱前缀>
    ```
-6. **展示结果摘要**：向用户展示通过/未通过人数、Top 候选人列表、Excel 文件路径
+   - 导出成功且邮件发送成功：继续展示结果摘要
+   - 邮件发送失败：不要删除或覆盖 Excel，向用户说明 Excel 已生成但邮件发送失败及失败原因
+6. **展示结果摘要**：向用户展示通过/未通过人数、Top 候选人列表、Excel 文件路径、邮件发送结果
 
 ### 评分规则
 
