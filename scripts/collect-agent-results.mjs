@@ -8,6 +8,11 @@
  *   [{"candidateIndex": 0, ...}]
  *   ===AGENT_RESULT_END===
  *
+ * 评语要求:
+ *   - 结合岗位 JD，突出候选人匹配点
+ *   - 100 字左右，简洁扼要
+ *   - 非空即可，不限制格式模板
+ *
  * 用法:
  *   方式1 - 从文件读取:
  *     node scripts/collect-agent-results.mjs \
@@ -88,12 +93,6 @@ function validateStructure(data) {
 
     if (typeof item.jobRelevanceComment !== 'string' || item.jobRelevanceComment.length === 0) {
       itemErrors.push(`[${i}] jobRelevanceComment 缺失或为空`);
-    } else {
-      const requiredParts = ['技术栈匹配', '项目经验相关性', '行业经验'];
-      const missing = requiredParts.filter(p => !item.jobRelevanceComment.includes(p));
-      if (missing.length > 0) {
-        itemErrors.push(`[${i}] 评语缺少段: ${missing.join(', ')}`);
-      }
     }
 
     if (itemErrors.length === 0) {

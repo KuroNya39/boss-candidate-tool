@@ -237,12 +237,13 @@ async function scrollListToTop(targetId) {
 
 // 扫描全部候选人 geekId（逐步滚动，去重，终止检测）
 async function scanAllCandidateGeekIds(targetId, opts = {}) {
-  const { maxScrollAttempts = 500, noNewThreshold = 3, onProgress } = opts;
+  const { maxScrollAttempts = 500, noNewThreshold = 6, onProgress } = opts;
 
   const seenGeekIds = new Set();
   const candidateList = [];
   let noNewCount = 0;
   let prevScrollTop = -1;
+  let prevScrollHeight = 0;
 
   // 重置到顶部
   await scrollListToTop(targetId);
@@ -269,18 +270,29 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
     // 进度回调
     if (onProgress) onProgress(candidateList.length, attempt, newInThisBatch);
 
-    // 终止检测：连续多次无新 geekId
-    if (noNewCount >= noNewThreshold) break;
-
     // 向下滚动
     const scroll = await scrollListDown(targetId);
-    if (!scroll.ok || !scroll.scrolled) break;
+    if (!scroll.ok) break;
 
-    // 终止检测：scrollTop 未变化（物理到底）
+    // scrollHeight 增长 → 新内容已加载 → 重置终止信号
+    if (scroll.scrollHeight > prevScrollHeight) {
+      prevScrollHeight = scroll.scrollHeight;
+      prevScrollTop = -1; // 允许继续向下滚入新区域
+      noNewCount = Math.max(0, noNewCount - 2);
+    } else if (!scroll.scrolled) {
+      // 触底且无新数据：先不中断，耐心等待可能加载的新内容
+      // 不做特殊处理，继续通过 noNewCount 和 scrollTop 判断
+    }
+
+    // 终止检测：scrollTop 未变化（物理到底，且 scrollHeight 未增长）
     if (scroll.scrollTop === prevScrollTop) break;
     prevScrollTop = scroll.scrollTop;
 
-    await randomDelay(600, 1000);
+    // 终止检测：连续多次无新 geekId
+    if (noNewCount >= noNewThreshold) break;
+
+    // 更大的延迟，给 Boss直聘 足够时间加载下一页
+    await randomDelay(1500, 2500);
   }
 
   return candidateList;
@@ -288,12 +300,13 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
 
 // 扫描前 N 个候选人 geekId（滚动直到发现 N 个）
 async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
-  const { maxScrollAttempts = 200, noNewThreshold = 3, onProgress } = opts;
+  const { maxScrollAttempts = 200, noNewThreshold = 6, onProgress } = opts;
 
   const seenGeekIds = new Set();
   const candidateList = [];
   let noNewCount = 0;
   let prevScrollTop = -1;
+  let prevScrollHeight = 0;
 
   // 重置到顶部
   await scrollListToTop(targetId);
@@ -330,11 +343,31 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
 
     // 向下滚动
     const scroll = await scrollListDown(targetId);
-    if (!scroll.ok || !scroll.scrolled) break;
+    if (!scroll.ok) break;
+
+    // 触底时（scrolled=false）不立即中断，等待新数据加载
+    if (!scroll.scrolled) {
+      if (scroll.scrollHeight > prevScrollHeight) {
+        // scrollHeight 增长 = 新内容已加载，继续扫描
+        prevScrollHeight = scroll.scrollHeight;
+        noNewCount = 0;
+      } else {
+        noNewCount = Math.max(noNewCount, 1);
+      }
+    }
+
+    // scrollHeight 增长 → 有新内容加载进来 → 再给机会
+    if (scroll.scrollHeight > prevScrollHeight) {
+      prevScrollHeight = scroll.scrollHeight;
+      if (noNewCount > 0 && newInThisBatch === 0) {
+        noNewCount = Math.max(0, noNewCount - 1);
+      }
+    }
+
     if (scroll.scrollTop === prevScrollTop) break;
     prevScrollTop = scroll.scrollTop;
 
-    await randomDelay(600, 1000);
+    await randomDelay(1500, 2500);
   }
 
   return candidateList;

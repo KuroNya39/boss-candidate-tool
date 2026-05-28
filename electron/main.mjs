@@ -404,7 +404,7 @@ async function doAiScoring() {
 
       // 附加输出格式要求（多候选人模式）
       prompt += `\n\n请为以上每位候选人分别给出评分。\n请严格按以下 JSON 数组格式输出：\n[\n` +
-        batch.map((_, i) => `  {"candidateIndex": ${i}, "jobRelevanceScore": <0-50>, "jobRelevanceComment": "技术栈匹配：... | 项目经验相关性：... | 行业经验：..."}`).join(',\n') +
+        batch.map((_, i) => `  {"candidateIndex": ${i}, "jobRelevanceScore": <0-50>, "jobRelevanceComment": "评语（100字左右，先看齐JD再说不足，最后总结匹配度）"}`).join(',\n') +
         `\n]`;
 
       try {
