@@ -291,8 +291,8 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
     // 终止检测：连续多次无新 geekId
     if (noNewCount >= noNewThreshold) break;
 
-    // 更大的延迟，给 Boss直聘 足够时间加载下一页
-    await randomDelay(1500, 2500);
+    // 触底时等更久（给API加载时间），正常滚动用短间隔
+    await randomDelay(scroll.scrolled ? 800 : 3000, scroll.scrolled ? 1200 : 4000);
   }
 
   return candidateList;
@@ -345,25 +345,16 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
     const scroll = await scrollListDown(targetId);
     if (!scroll.ok) break;
 
-    // 触底时（scrolled=false）不立即中断，等待新数据加载
-    if (!scroll.scrolled) {
-      if (scroll.scrollHeight > prevScrollHeight) {
-        // scrollHeight 增长 = 新内容已加载，继续扫描
-        prevScrollHeight = scroll.scrollHeight;
-        noNewCount = 0;
-      } else {
-        noNewCount = Math.max(noNewCount, 1);
-      }
-    }
-
-    // scrollHeight 增长 → 有新内容加载进来 → 再给机会
+    // scrollHeight 增长 → 新内容已加载 → 重置终止信号
     if (scroll.scrollHeight > prevScrollHeight) {
       prevScrollHeight = scroll.scrollHeight;
-      if (noNewCount > 0 && newInThisBatch === 0) {
-        noNewCount = Math.max(0, noNewCount - 1);
-      }
+      prevScrollTop = -1; // 允许继续向下滚入新区域
+      noNewCount = Math.max(0, noNewCount - 2);
+    } else if (!scroll.scrolled) {
+      // 触底且无新数据：不做特殊处理，靠 noNewCount 和 scrollTop 判断
     }
 
+    // 终止检测：scrollTop 未变化（物理到底）
     if (scroll.scrollTop === prevScrollTop) break;
     prevScrollTop = scroll.scrollTop;
 
@@ -1254,18 +1245,14 @@ async function main() {
       console.log('扫描全部候选人 geekId...');
       candidateList = await scanAllCandidateGeekIds(targetId, {
         onProgress: (total, attempt, newCount) => {
-          if (attempt % 5 === 0 || newCount > 0) {
-            console.log(`  扫描进度: ${total} 人 (第 ${attempt + 1} 次滚动, 新增 ${newCount})`);
-          }
+          console.log(`  扫描进度: ${total} 人 (第 ${attempt + 1} 次滚动, 新增 ${newCount})`);
         },
       });
     } else {
       console.log(`扫描前 ${opts.count} 个候选人 geekId...`);
       candidateList = await scanUpToCandidateGeekIds(targetId, opts.count, {
         onProgress: (total, attempt, newCount) => {
-          if (newCount > 0) {
-            console.log(`  扫描进度: ${total}/${opts.count} 人`);
-          }
+          console.log(`  扫描进度: ${total}/${opts.count} 人 (第 ${attempt + 1} 次滚动, 新增 ${newCount})`);
         },
       });
     }

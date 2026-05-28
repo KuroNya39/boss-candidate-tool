@@ -321,6 +321,10 @@ async function callClaudeAPI(prompt) {
   return JSON.parse(jsonStr);
 }
 
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
 // 将候选人分成 N 人一批
 function chunkArray(arr, size) {
   const result = [];
@@ -395,9 +399,13 @@ async function doAiScoring() {
         .replace('{jobDescription.description}', jdText)
         .replace('{positionName}', positionName);
 
-      // 替换 {resumeText} 为逐人简历
+      // 替换 {resumeText} 为逐人简历（含DOM直接读取的基础信息）
       const resumeSections = batch.map((c, i) =>
-        `=== 候选人 ${i + 1}/${batch.length} ===\n姓名：${c.basicInfo?.name || '未知'}\n简历：\n${c.resumeText || '(无)'}`
+        `=== 候选人 ${i + 1}/${batch.length} ===\n` +
+        `姓名：${c.basicInfo?.name || '未知'}\n` +
+        `学历（来自页面）：${c.basicInfo?.education || '未知'}\n` +
+        `工作年限（来自页面）：${c.basicInfo?.workYears || '未知'}\n` +
+        `简历（OCR识别，仅供参考）：\n${c.resumeText || '(无)'}`
       ).join('\n\n');
 
       prompt = prompt.replace('{resumeText}', resumeSections);
@@ -408,7 +416,21 @@ async function doAiScoring() {
         `\n]`;
 
       try {
-        const results = await callClaudeAPI(prompt);
+        // 最多重试 2 次
+        let results = null;
+        for (let retry = 0; retry <= 2; retry++) {
+          try {
+            results = await callClaudeAPI(prompt);
+            break;
+          } catch (err) {
+            if (retry < 2) {
+              termLog(`[AI评分] 第 ${batchIdx + 1} 批失败，${retry + 1}/2 重试: ${err.message}`, 'stderr');
+              await sleep(2000);
+            } else {
+              throw err;
+            }
+          }
+        }
         for (const r of results) {
           const idx = r.candidateIndex;
           if (idx >= 0 && idx < batch.length) {
@@ -417,7 +439,7 @@ async function doAiScoring() {
           }
         }
       } catch (err) {
-        termLog(`[AI评分] 第 ${batchIdx + 1} 批失败: ${err.message}`, 'stderr');
+        termLog(`[AI评分] 第 ${batchIdx + 1} 批最终失败: ${err.message}`, 'stderr');
         // 失败批的候选人设 0 分
         for (const c of batch) {
           c.jobRelevanceScore = 0;
