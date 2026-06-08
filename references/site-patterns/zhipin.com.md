@@ -2,7 +2,7 @@
 domain: zhipin.com
 aliases: [Boss直聘, BOSS直聘, boss直聘, boss]
 outputFile: zhipin-candidates.json
-updated: 2026-05-22
+updated: 2026-06-01
 ---
 
 ## 平台特征
@@ -525,3 +525,156 @@ node scripts/extract-candidates-full.mjs --all --output output/zhipin-candidates
 - **虚拟滚动列表**（2026-04-27）：候选人列表使用虚拟滚动，DOM 中仅保留约 20 个 .geek-item。提取全部候选人时需逐步滚动发现所有 geekId，滚动过快可能导致部分候选人未被渲染
 - **大量候选人提取耗时**（2026-04-27）：每提取一位候选人（含简历）约需 10-15 秒，500 位候选人约需 80-125 分钟。使用 --resume 可在中断后继续
 - **geekId 顺序稳定性**（2026-04-27）：geekId 本身稳定不变，但列表中 geekId 的出现顺序可能因新候选人加入而变化。长时间提取过程中如果有新候选人加入，扫描结果可能与实际列表有差异
+
+## 推荐牛人页提取
+
+> 更新于 2026-06-01。新增提取来源：`/web/chat/recommend` 页面。
+
+### 平台特征
+
+- 页面 URL：`https://www.zhipin.com/web/chat/recommend`
+- 内容嵌套在 `iframe[name=recommendFrame]` 中，所有 JS 操作需通过 iframe 的 `contentWindow.eval()` 执行
+- 候选人列表使用虚拟滚动，DOM 中仅保留约 20 个 `li.card-item`
+- **卡片 DOM 包含完整基础信息**（工作经历、教育经历、技能标签、优势描述等），无需点击即可提取
+- 点击 `.card-inner[data-geekid]` 弹出简历弹窗，弹窗内简历通过 iframe + Canvas 渲染（同沟通页）
+- 推荐牛人页的弹窗结构与沟通页不同，需使用独立的弹窗检测和关闭逻辑
+
+### DOM 结构
+
+| 元素 | 选择器 | 说明 |
+|------|--------|------|
+| iframe | `iframe[name=recommendFrame]` | 内容容器，所有操作需穿透 |
+| 候选列表 | `ul.card-list` | 虚拟滚动列表 |
+| 卡片项 | `li.card-item` | 每个候选人一张卡片 |
+| 卡片内容 | `.card-inner[data-geekid]` | 含 geekId 稳定标识 |
+| 卡片信息 | `.info-item` | 基础信息（年龄/学历/年限） |
+| 技能标签 | `.skill-tag` | 候选人技能 |
+| 优势描述 | `.advantage` | 候选人自我描述 |
+| 期望薪资 | `.salary` | 薪资期望 |
+| 期望职位 | `.expect-position` | 期望岗位 |
+| 期望城市 | `.expect-city` | 期望工作城市 |
+| 弹出弹窗 | `.dialog-wrap.active` | 简历弹窗 |
+| 弹窗关闭 | `.dialog-wrap.active .close-btn` | 弹窗关闭按钮 |
+| 弹窗内简历 | 同沟通页 — iframe + Canvas | 需要截图 + OCR |
+
+### geekId 稳定标识
+
+候选人卡片属性 `data-geekid` 包含 geekId，是稳定的唯一标识：
+```javascript
+el.getAttribute('data-geekid')
+```
+
+### 卡片基本信息提取
+
+推荐牛人页卡片的 DOM 文本包含完整的候选人基础信息，包括：
+
+- **姓名**：`.card-inner .name`
+- **基本信息**：`.info-item` 列表（年龄、工作年限、学历）
+- **期望薪资**：`.salary`
+- **期望职位**：`.expect-position`  
+- **期望城市**：`.expect-city`
+- **技能标签**：`.skill-tag` 数组
+- **优势描述**：`.advantage`
+- **工作经历**：`.work-item` — 包含时间、公司名、职位
+- **教育经历**：`.edu-item` — 包含时间、学校、专业、学历
+
+完整提取脚本见 `scripts/extract-recommend-candidates.mjs` 中 `EXTRACT_CARD_INFO_SCRIPT` 常量。
+
+### 提取脚本
+
+```bash
+# 提取前 20 个候选人（从推荐牛人页）
+node scripts/extract-recommend-candidates.mjs --count 20
+
+# 提取全部
+node scripts/extract-recommend-candidates.mjs --all
+
+# 从中断处恢复
+node scripts/extract-recommend-candidates.mjs --all --resume
+
+# 指定输出路径
+node scripts/extract-recommend-candidates.mjs --all --output output/zhipin-candidates.json
+```
+
+脚本流程（两阶段提取）：
+
+**阶段 1（扫描）**：在 iframe 内逐步滚动列表，收集所有 geekId + 卡片文本信息
+- 通过 `iframeEval()` 执行 JS 在 iframe 上下文
+- 扫描时即提取完整的卡片 DOM 信息（基础信息、经历、技能等）
+- 终止条件：连续 3 次滚动无新 geekId
+- 扫描结果缓存到 `output/.scan-cache.json`
+
+**阶段 2（提取简历截图）**：逐个处理每个候选人
+1. 在 iframe 内点击 `.card-inner[data-geekid="xxx"]` 弹出简历弹窗
+2. 等待弹窗加载（`.dialog-wrap.active`）
+3. 弹窗内简历通过 iframe + Canvas 渲染，需截图 + OCR
+4. 关闭弹窗（`.dialog-wrap.active .close-btn`）
+5. 每 5 人自动保存进度
+6. 每 50 人额外停顿 30 秒（防风控）
+
+### 输出格式
+
+与沟通页完全兼容，增加 `source: 'recommend'` 字段：
+```json
+{
+  "requested": 10,
+  "actual": 10,
+  "totalScanned": 15,
+  "extractedAt": "2026-06-01T10:00:00.000Z",
+  "source": "recommend",
+  "candidates": [
+    {
+      "index": 1,
+      "geekId": "ae9761a3c37aa9230nx739-1EFc~",
+      "rawVisibleText": "念帆\n28岁 2年 硕士...",
+      "basicInfo": { "name": "念帆", "age": "28岁", "workYears": "2年", "education": "硕士" },
+      "workExperience": [
+        { "time": "2025.07-2026.05", "company": "丰疆智能", "position": "渠道销售" }
+      ],
+      "educationExperience": [
+        { "time": "2021-2024", "school": "复旦大学", "major": "电子信息", "degree": "硕士" }
+      ],
+      "positionInfo": {
+        "appliedJob": "海外商务拓展经理",
+        "expectCity": "深圳",
+        "expectPosition": "海外销售",
+        "expectSalary": "20-30K"
+      },
+      "resumeText": "...(OCR 识别文本)..."
+    }
+  ]
+}
+```
+
+### Electron UI 切换来源
+
+在 UI 的"提取候选人数量"上方有来源选择：
+- **沟通页**（`source: chat`）→ 运行 `extract-candidates-full.mjs`
+- **推荐牛人页**（`source: recommend`）→ 运行 `extract-recommend-candidates.mjs`
+
+### 已知陷阱
+
+- **iframe 操作必须使用 contentWindow.eval**（2026-06-01）：`iframe.contentDocument.querySelector` 会解析到父页面 document。必须用 `iframe.contentWindow.eval(expr)` 让整个表达式在 iframe 上下文执行，`document` 自然指向 iframe 的 document
+- **弹窗在 iframe 外层**（2026-06-01）：点击 `.card-inner` 弹出的 `.dialog-wrap.active` 在父页面（不 iframe 内）。关闭按钮也在父页面。弹窗滚动和截图操作需在父页面执行
+- **弹窗结构不同于沟通页**（2026-06-01）：推荐牛人页的简历弹窗没有 `.resume-detail` 容器。弹窗直接是 `.dialog-wrap.active`，iframe 选择器为 `.dialog-wrap.active iframe`，关闭按钮为 `.dialog-wrap.active .close-btn`
+- **简历弹窗也是 Canvas 渲染**（2026-06-01）：同沟通页，在线简历通过 iframe + Canvas 渲染，需要截图 + OCR
+
+### 手动筛选模式
+
+> 更新于 2026-06-08。支持 HR 用户手动设置筛选条件后提取。
+
+使用场景：HR 需要在推荐牛人页使用筛选功能（学历、年龄、性别、院校等），筛选出精准候选人列表后再提取。
+
+**操作流程**：
+1. 在 Chrome 中手动打开 `https://www.zhipin.com/web/chat/recommend`
+2. 点击右上角筛选按钮，设置筛选条件，点击确定
+3. 候选人列表刷新为筛选后结果
+4. 在 Electron 应用中选择"推荐牛人页（手动筛选）"来源
+5. 设置提取数量、岗位等参数
+6. 点击"开始提取分析"
+7. 程序自动发现已打开的推荐页 tab，直接提取
+
+**技术说明**：
+- 程序通过 CDP `/targets` 接口发现用户已打开的 tab（匹配 URL 包含 `/web/chat/recommend`）
+- 提取完成后不关闭 tab
+- 提取过程中请勿操作该页面
