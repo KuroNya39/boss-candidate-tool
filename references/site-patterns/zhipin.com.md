@@ -667,11 +667,11 @@ node scripts/extract-recommend-candidates.mjs --all --output output/zhipin-candi
 
 **操作流程**：
 1. 在 Chrome 中手动打开 `https://www.zhipin.com/web/chat/recommend`
-2. 点击右上角筛选按钮，设置筛选条件，点击确定
-3. 候选人列表刷新为筛选后结果
-4. 在 Electron 应用中选择"推荐牛人页（手动筛选）"来源
-5. 设置提取数量、岗位等参数
-6. 点击"开始提取分析"
+2. 在页面顶部选择目标岗位
+3. 点击右上角筛选按钮，设置筛选条件，点击确定
+4. 候选人列表刷新为筛选后结果
+5. 在 Electron 应用中选择"推荐牛人页（手动筛选）"来源
+6. 设置提取数量，点击"开始提取分析"
 7. 程序自动发现已打开的推荐页 tab，直接提取
 
 **技术说明**：
