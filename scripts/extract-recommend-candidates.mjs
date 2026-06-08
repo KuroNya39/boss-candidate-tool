@@ -44,7 +44,6 @@ const RECOMMEND_PAGE_URL = 'https://www.zhipin.com/web/chat/recommend';
  * 用于 --attach 模式（手动筛选后附着到现有页面）
  */
 async function findExistingRecommendTab() {
-  const { proxyGet } = await import('./extract-common.mjs');
   const targets = await proxyGet('/targets');
   if (!Array.isArray(targets) || targets.length === 0) {
     throw new Error('无法获取 Chrome tab 列表，请确保 CDP Proxy 已连接');
