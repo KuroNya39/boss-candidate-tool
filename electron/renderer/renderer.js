@@ -1,3 +1,5 @@
+// 岗位列表从 config/jd-descriptions/ 目录动态加载
+
 // ===== DOM 引用 =====
 const stateInitial = document.getElementById('state-initial');
 const stateRunning = document.getElementById('state-running');
@@ -8,10 +10,19 @@ const btnCancel = document.getElementById('btn-cancel');
 const btnRestart = document.getElementById('btn-restart');
 const btnRetry = document.getElementById('btn-retry');
 const btnOpenDir = document.getElementById('btn-open-dir');
+const btnSelectDir = document.getElementById('btn-select-dir');
 const countInput = document.getElementById('count-input');
 const extractAllCheck = document.getElementById('extract-all');
-const skipExtract = document.getElementById('skip-extract');
 const outputDirSpan = document.getElementById('output-dir');
+const jobSelectSection = document.getElementById('job-select-section');
+const jobSelect = document.getElementById('job-select');
+const btnAddJob = document.getElementById('btn-add-job');
+const jobDialogOverlay = document.getElementById('job-dialog-overlay');
+const dialogJobName = document.getElementById('dialog-job-name');
+const dialogJobDesc = document.getElementById('dialog-job-desc');
+const btnDialogSave = document.getElementById('btn-dialog-save');
+const btnDialogCancel = document.getElementById('btn-dialog-cancel');
+const sourceRadios = document.querySelectorAll('input[name="source"]');
 const doneSummary = document.getElementById('done-summary');
 const errorMessage = document.getElementById('error-message');
 
@@ -24,13 +35,6 @@ const configStatus = document.getElementById('config-status');
 
 // 邮件配置 DOM
 const emailPrefixInput = document.getElementById('email-prefix');
-const smtpHostInput = document.getElementById('smtp-host');
-const smtpPortInput = document.getElementById('smtp-port');
-const smtpUserInput = document.getElementById('smtp-user');
-const smtpPassInput = document.getElementById('smtp-pass');
-const smtpFromInput = document.getElementById('smtp-from');
-const smtpSection = document.getElementById('smtp-config-section');
-const smtpToggle = document.getElementById('smtp-toggle');
 
 // ===== 步骤元素 =====
 const stepCards = {
@@ -53,6 +57,33 @@ const stepCards = {
     status: document.getElementById('step-3-status'),
   },
 };
+
+// ===== 输入框清除按钮 =====
+function setupInputClears() {
+  document.addEventListener('input', (e) => {
+    const wrap = e.target.closest('.input-wrap');
+    if (!wrap) return;
+    const clear = wrap.querySelector('.input-clear');
+    if (clear) {
+      clear.classList.toggle('visible', e.target.value.length > 0);
+    }
+  });
+  document.addEventListener('click', (e) => {
+    const clear = e.target.closest('.input-clear');
+    if (!clear) return;
+    const targetId = clear.getAttribute('data-target');
+    if (targetId) {
+      const input = document.getElementById(targetId);
+      if (input) {
+        input.value = '';
+        clear.classList.remove('visible');
+        input.focus();
+        // 触发 input 事件，让其他监听器感知变化
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
+  });
+}
 
 // ===== 清理函数 =====
 let cleanupFns = [];
@@ -148,11 +179,6 @@ async function loadApiConfig() {
     if (config.key) apiKeyInput.value = config.key;
     if (config.model) apiModelInput.value = config.model;
     if (config.emailPrefix) emailPrefixInput.value = config.emailPrefix;
-    if (config.smtpHost) smtpHostInput.value = config.smtpHost;
-    if (config.smtpPort) smtpPortInput.value = config.smtpPort;
-    if (config.smtpUser) smtpUserInput.value = config.smtpUser;
-    if (config.smtpPass) smtpPassInput.value = config.smtpPass;
-    if (config.smtpFrom) smtpFromInput.value = config.smtpFrom;
   } catch {}
   updateConfigStatus();
 }
@@ -203,11 +229,6 @@ btnSaveConfig.addEventListener('click', async () => {
     await window.electronAPI.setApiConfig({
       url, key, model,
       emailPrefix: emailPrefixInput.value.trim(),
-      smtpHost: smtpHostInput.value.trim() || 'smtp.mxhichina.com',
-      smtpPort: smtpPortInput.value.trim() || '25',
-      smtpUser: smtpUserInput.value.trim() || 'lixins@allwinnertech.com',
-      smtpPass: smtpPassInput.value.trim(),
-      smtpFrom: smtpFromInput.value.trim(),
     });
     configStatus.textContent = '✓ 已保存';
     configStatus.className = 'config-status config-ok';
@@ -229,18 +250,13 @@ btnStart.addEventListener('click', async () => {
     return;
   }
 
-  // 检查邮件配置：如果填了邮箱前缀但 SMTP 密码为空，给出提示
-  const prefix = emailPrefixInput.value.trim();
-  const smtpPass = smtpPassInput.value.trim();
-  if (prefix && !smtpPass) {
-    const msg = '已填写目标邮箱前缀，但 SMTP 密码为空，邮件将无法发送。\n\n请展开 SMTP 配置填写密码后再试。';
-    alert(msg);
-    return;
-  }
+  // 获取选中的来源
+  const sourceRadios = document.querySelectorAll('input[name="source"]');
+  const selectedSource = Array.from(sourceRadios).find(r => r.checked)?.value || 'chat';
 
   resetSteps();
   showState('state-running');
-  await window.electronAPI.startExtraction({ count, skipExtract: skipExtract.checked, extractAll });
+  await window.electronAPI.startExtraction({ count, extractAll, source: selectedSource, job: jobSelect.value });
 });
 
 // 取消
@@ -258,20 +274,101 @@ btnRestart.addEventListener('click', () => {
 
 // 重试（错误状态）
 btnRetry.addEventListener('click', async () => {
-  const count = parseInt(countInput.value, 10);
-  if (!count || count < 1) {
+  const extractAll = extractAllCheck.checked;
+  const count = extractAll ? 0 : parseInt(countInput.value, 10);
+  if (!extractAll && (!count || count < 1)) {
     showState('state-initial');
     return;
   }
 
+  // 获取选中的来源
+  const sourceRadios = document.querySelectorAll('input[name="source"]');
+  const selectedSource = Array.from(sourceRadios).find(r => r.checked)?.value || 'chat';
+
   resetSteps();
   showState('state-running');
-  await window.electronAPI.startExtraction(count);
+  await window.electronAPI.startExtraction({ count, extractAll, source: selectedSource, job: jobSelect.value });
 });
 
 // 打开目录
 btnOpenDir.addEventListener('click', async () => {
   await window.electronAPI.openOutputDir();
+});
+
+// 选择输出目录
+btnSelectDir.addEventListener('click', async () => {
+  const result = await window.electronAPI.selectOutputDir();
+  if (result?.path) {
+    outputDirSpan.textContent = result.path;
+  }
+});
+
+// 填充岗位下拉框（从 config 目录动态加载）
+async function populateJobSelect() {
+  try {
+    const jobs = await window.electronAPI.getRecommendJobs();
+    // 清空现有选项（保留默认占位）
+    jobSelect.innerHTML = '';
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = '-- 请选择岗位 --';
+    jobSelect.appendChild(defaultOpt);
+    jobs.forEach(job => {
+      const opt = document.createElement('option');
+      opt.value = job;
+      opt.textContent = job;
+      jobSelect.appendChild(opt);
+    });
+  } catch (err) {
+    console.error('加载岗位列表失败:', err);
+  }
+}
+
+// 来源切换：显示/隐藏岗位选择
+sourceRadios.forEach(radio => {
+  radio.addEventListener('change', () => {
+    jobSelectSection.style.display = (radio.value === 'recommend' || radio.value === 'recommend-attach') ? 'flex' : 'none';
+  });
+});
+
+// 添加新岗位弹窗
+function showAddJobDialog() {
+  dialogJobName.value = '';
+  dialogJobDesc.value = '';
+  jobDialogOverlay.style.display = 'flex';
+  dialogJobName.focus();
+}
+
+function hideAddJobDialog() {
+  jobDialogOverlay.style.display = 'none';
+}
+
+btnAddJob.addEventListener('click', showAddJobDialog);
+btnDialogCancel.addEventListener('click', hideAddJobDialog);
+jobDialogOverlay.addEventListener('click', (e) => {
+  if (e.target === jobDialogOverlay) hideAddJobDialog();
+});
+
+dialogJobName.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') dialogJobDesc.focus();
+  if (e.key === 'Escape') hideAddJobDialog();
+});
+
+btnDialogSave.addEventListener('click', async () => {
+  const jobName = dialogJobName.value.trim();
+  const jobDesc = dialogJobDesc.value.trim();
+  if (!jobName) {
+    dialogJobName.focus();
+    return;
+  }
+  try {
+    await window.electronAPI.addRecommendJob(jobName, jobDesc);
+    await populateJobSelect();
+    jobSelect.value = jobName;
+    hideAddJobDialog();
+  } catch (err) {
+    alert('添加失败: ' + err.message);
+  }
 });
 
 // 提取全部 切换时禁用/启用数量输入
@@ -283,13 +380,6 @@ extractAllCheck.addEventListener('change', () => {
 // 初始状态：默认提取全部，数量输入禁用
 countInput.disabled = true;
 
-// SMTP 配置折叠切换
-smtpToggle.addEventListener('click', () => {
-  const visible = smtpSection.style.display !== 'block';
-  smtpSection.style.display = visible ? 'block' : 'none';
-  smtpToggle.textContent = visible ? '收起 SMTP 配置' : '展开 SMTP 配置';
-});
-
 // ===== 初始化 =====
 async function init() {
   try {
@@ -299,8 +389,10 @@ async function init() {
     outputDirSpan.textContent = 'output/';
   }
 
+  setupInputClears();
   await loadApiConfig();
   setupListeners();
+  await populateJobSelect();
   showState('state-initial');
 }
 

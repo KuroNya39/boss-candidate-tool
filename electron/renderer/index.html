@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
   <title>Boss直聘候选人提取分析</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -20,47 +20,57 @@
         <div class="api-config-title">API 配置</div>
         <div class="api-field">
           <label for="api-url">API 地址</label>
-          <input type="text" id="api-url" placeholder="https://api.xxx.com">
+          <div class="input-wrap">
+            <input type="text" id="api-url" placeholder="https://api.xxx.com">
+            <span class="input-clear" data-target="api-url">×</span>
+          </div>
         </div>
         <div class="api-field">
           <label for="api-key">API Key</label>
-          <input type="password" id="api-key" placeholder="sk-...">
+          <div class="input-wrap">
+            <input type="password" id="api-key" placeholder="sk-...">
+            <span class="input-clear" data-target="api-key">×</span>
+          </div>
         </div>
         <div class="api-field">
           <label for="api-model">模型名称</label>
-          <input type="text" id="api-model" placeholder="claude-sonnet-...">
+          <div class="input-wrap">
+            <input type="text" id="api-model" placeholder="claude-sonnet-...">
+            <span class="input-clear" data-target="api-model">×</span>
+          </div>
+        </div>
+        <div class="sub-section-title">邮件通知</div>
+        <div class="api-field">
+          <label for="email-prefix">目标邮箱前缀</label>
+          <div class="input-wrap">
+            <input type="text" id="email-prefix" placeholder="zhangsan（发到 zhangsan@allwinnertech.com）">
+            <span class="input-clear" data-target="email-prefix">×</span>
+          </div>
         </div>
         <button id="btn-save-config" class="btn btn-secondary btn-small">保存配置</button>
         <span id="config-status" class="config-status"></span>
+      </div>
 
-        <div class="api-field" style="margin-top:12px;">
-          <label for="email-prefix">目标邮箱前缀</label>
-          <input type="text" id="email-prefix" placeholder="zhangsan（发到 zhangsan@allwinnertech.com）">
-        </div>
+      <div class="source-section">
+        <div class="source-label">提取来源：</div>
+        <label class="radio-label">
+          <input type="radio" name="source" value="chat" checked>
+          <span>沟通页</span>
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="source" value="recommend">
+          <span>推荐牛人页</span>
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="source" value="recommend-attach">
+          <span>推荐牛人页（手动筛选）</span>
+        </label>
+      </div>
 
-        <div class="smtp-toggle" id="smtp-toggle">展开 SMTP 配置</div>
-        <div class="smtp-config-section" id="smtp-config-section" style="display:none;">
-          <div class="api-field">
-            <label for="smtp-host">SMTP 地址</label>
-            <input type="text" id="smtp-host" placeholder="smtp.mxhichina.com">
-          </div>
-          <div class="api-field">
-            <label for="smtp-port">SMTP 端口</label>
-            <input type="text" id="smtp-port" placeholder="25">
-          </div>
-          <div class="api-field">
-            <label for="smtp-user">SMTP 用户</label>
-            <input type="text" id="smtp-user" placeholder="lixins@allwinnertech.com">
-          </div>
-          <div class="api-field">
-            <label for="smtp-pass">SMTP 密码</label>
-            <input type="password" id="smtp-pass" placeholder="SMTP 授权码">
-          </div>
-          <div class="api-field">
-            <label for="smtp-from">发件地址</label>
-            <input type="text" id="smtp-from" placeholder="留空则同 SMTP 用户">
-          </div>
-        </div>
+      <div id="job-select-section" class="source-section" style="display:none;">
+        <div class="source-label">目标岗位：</div>
+        <select id="job-select" class="job-select"></select>
+        <button id="btn-add-job" class="btn-icon" title="添加新岗位">+</button>
       </div>
 
       <div class="config-section">
@@ -71,12 +81,9 @@
           <span>提取全部</span>
         </label>
       </div>
-      <label class="checkbox-label">
-        <input type="checkbox" id="skip-extract">
-        <span>跳过提取（已有数据时调试用）</span>
-      </label>
       <div class="output-dir-info">
         输出目录: <span id="output-dir">output/</span>
+        <button id="btn-select-dir" class="btn-dir-select">选择目录</button>
       </div>
       <button id="btn-start" class="btn btn-primary btn-large">
         ▶ 开始提取分析
@@ -140,6 +147,26 @@
       <h2>执行出错</h2>
       <div class="error-message" id="error-message"></div>
       <button id="btn-retry" class="btn btn-primary">重试</button>
+    </div>
+  </div>
+
+  <!-- 添加岗位弹窗 -->
+  <div id="job-dialog-overlay" class="dialog-overlay" style="display:none;">
+    <div class="dialog-box">
+      <div class="dialog-title">添加新岗位</div>
+      <div class="dialog-field">
+        <label for="dialog-job-name">岗位名称</label>
+        <input type="text" id="dialog-job-name" placeholder="例如：AI大模型工程师 _ 深圳 30-50K">
+        <div class="dialog-hint">含 / 的字符（如 Soc/泛平板）程序会自动处理，直接填写即可</div>
+      </div>
+      <div class="dialog-field">
+        <label for="dialog-job-desc">岗位描述</label>
+        <textarea id="dialog-job-desc" rows="8" placeholder="请粘贴该岗位的 JD 描述..."></textarea>
+      </div>
+      <div class="dialog-actions">
+        <button id="btn-dialog-save" class="btn btn-primary">保存</button>
+        <button id="btn-dialog-cancel" class="btn btn-secondary">取消</button>
+      </div>
     </div>
   </div>
 
