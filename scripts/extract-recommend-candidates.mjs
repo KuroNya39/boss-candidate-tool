@@ -884,7 +884,20 @@ async function main() {
     }
 
     // 如果指定了岗位，先切换再等待加载（避免浪费等待默认岗位的候选人）
-    if (opts.job) {
+    // 注意：--attach 模式下跳过岗位切换（用户已手动选好岗位和筛选条件）
+    if (opts.attach) {
+      console.log('等待页面加载（手动筛选模式，跳过岗位切换）...');
+      const cardCount = await waitForPageLoad(targetId, 20000);
+      console.log(`页面已加载，卡片列表: ${cardCount} 项\n`);
+      // 尝试读取当前页面岗位名作为 appliedJob
+      try {
+        const pageJob = await iframeEval(targetId, EXTRACT_PAGE_JOB_SCRIPT);
+        if (pageJob) {
+          console.log(`当前岗位: ${pageJob}`);
+          effectiveJobName = pageJob;
+        }
+      } catch {}
+    } else if (opts.job) {
       console.log('等待页面初始加载...');
       try {
         await sleep(3000);
