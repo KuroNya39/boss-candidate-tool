@@ -610,12 +610,13 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
 
     if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
 
+    const isRecommendMode = source === 'recommend' || source === 'recommend-attach';
+
     // 步骤 1: 提取（可跳过）
     if (!skipExtract) {
-      const isRecommend = source === 'recommend' || source === 'recommend-attach';
       const isAttach = source === 'recommend-attach';
-      const scriptName = isRecommend ? 'extract-recommend-candidates.mjs' : 'extract-candidates-full.mjs';
-      const pageLabel = isAttach ? '推荐牛人页（手动筛选）' : (isRecommend ? '推荐牛人' : '沟通');
+      const scriptName = isRecommendMode ? 'extract-recommend-candidates.mjs' : 'extract-candidates-full.mjs';
+      const pageLabel = isAttach ? '推荐牛人页（手动筛选）' : (isRecommendMode ? '推荐牛人' : '沟通');
       sendProgress(1, 'running', 0, extractAll ? `准备提取全部候选人 (${pageLabel}页)...` : '准备提取候选人...');
       const extractArgs = extractAll
         ? ['--all', '--output', resolve(OUTPUT_DIR, 'zhipin-candidates.json')]
@@ -651,7 +652,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     let exportArgs = ['--input', scoredPath];
     const smtpEnv = {};
     if (apiConfig.emailPrefix) {
-      const emailSubject = source === 'recommend' ? '推荐牛人评分结果' : '候选人评分结果';
+      const emailSubject = isRecommendMode ? '推荐牛人评分结果' : '候选人评分结果';
       exportArgs.push('--to-prefix', apiConfig.emailPrefix);
       exportArgs.push('--email-subject', emailSubject);
       // 传递 SMTP 配置给子进程
