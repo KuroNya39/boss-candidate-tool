@@ -804,12 +804,17 @@ async function closeRecommendDialog(targetId) {
 
 let _cleanupTargetId = null;
 let _cleanupWorker = null;
+let _attachMode = false; // --attach 模式不关闭用户 tab
 
 async function doCleanup() {
   if (!_cleanupTargetId && !_cleanupWorker) return;
   console.log('\n收到取消指令，清理资源...');
   if (_cleanupTargetId) {
-    try { await proxyGet(`/close?target=${_cleanupTargetId}`); } catch {}
+    if (_attachMode) {
+      console.log('  [手动筛选模式] 保留用户打开的 tab');
+    } else {
+      try { await proxyGet(`/close?target=${_cleanupTargetId}`); } catch {}
+    }
     _cleanupTargetId = null;
   }
   if (_cleanupWorker) {
@@ -866,6 +871,7 @@ async function main() {
   } else {
     if (opts.attach) {
       // 手动筛选模式：附着到用户已打开的推荐页
+      _attachMode = true;
       console.log('查找用户已打开的推荐牛人页...');
       targetId = await findExistingRecommendTab();
       console.log(`已附着到 Tab: ${targetId}\n`);
@@ -926,7 +932,9 @@ async function main() {
 
     if (cardInfos.length === 0) {
       console.error('未扫描到候选人，退出');
-      await proxyGet(`/close?target=${targetId}`);
+      if (!opts.attach) {
+        await proxyGet(`/close?target=${targetId}`);
+      }
       process.exit(1);
     }
 
