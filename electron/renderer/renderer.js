@@ -327,7 +327,7 @@ async function populateJobSelect() {
 // 来源切换：显示/隐藏岗位选择
 sourceRadios.forEach(radio => {
   radio.addEventListener('change', () => {
-    jobSelectSection.style.display = (radio.value === 'recommend' || radio.value === 'recommend-attach') ? 'flex' : 'none';
+    jobSelectSection.style.display = radio.value === 'recommend' ? 'flex' : 'none';
   });
 });
 
