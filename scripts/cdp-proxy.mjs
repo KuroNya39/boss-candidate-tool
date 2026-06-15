@@ -199,6 +199,19 @@ async function connect() {
   });
 }
 
+// 带自动重试的连接（每 5 秒重试一次）
+async function connectWithRetry() {
+  while (true) {
+    try {
+      await connect();
+      return; // 连接成功
+    } catch (e) {
+      console.log(`[CDP Proxy] 连接 Chrome 失败，5 秒后重试: ${e.message}`);
+      await new Promise(r => setTimeout(r, 5000));
+    }
+  }
+}
+
 function sendCDP(method, params = {}, sessionId = null) {
   return new Promise((resolve, reject) => {
     if (!ws || (ws.readyState !== WS.OPEN && ws.readyState !== 1)) {
@@ -297,6 +310,13 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/health') {
       const connected = ws && (ws.readyState === WS.OPEN || ws.readyState === 1);
       res.end(JSON.stringify({ status: 'ok', connected, sessions: sessions.size, chromePort }));
+      return;
+    }
+
+    // /shutdown — 关闭 CDP 代理（用于新实例替换旧实例）
+    if (pathname === '/shutdown') {
+      res.end(JSON.stringify({ ok: true }));
+      setTimeout(() => process.exit(0), 100);
       return;
     }
 
@@ -614,8 +634,8 @@ async function main() {
 
   server.listen(PORT, '127.0.0.1', () => {
     console.log(`[CDP Proxy] 运行在 http://localhost:${PORT}`);
-    // 启动时尝试连接 Chrome（非阻塞）
-    connect().catch(e => console.error('[CDP Proxy] 初始连接失败:', e.message, '（将在首次请求时重试）'));
+    // 启动时尝试连接 Chrome，失败后自动重试
+    connectWithRetry();
   });
 }
 

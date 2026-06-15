@@ -67,6 +67,14 @@ export function cleanOcrText(raw) {
     return true;
   }).join('\n');
 
+  // 9. 去除页面底部"其他名校毕业的牛人"推荐列表（BOSS直聘）
+  // 正则容错常见 OCR 错字：其/共、他/她、牛/午、人/入
+  const bottomMarkerRe = /[其共][他她]名校毕业的[牛午][人入]/;
+  const otherSchoolLine = text.split('\n').findIndex(l => bottomMarkerRe.test(l));
+  if (otherSchoolLine !== -1) {
+    text = text.split('\n').slice(0, otherSchoolLine).join('\n');
+  }
+
   return text.trim();
 }
 

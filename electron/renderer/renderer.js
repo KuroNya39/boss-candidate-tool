@@ -15,16 +15,27 @@ const countInput = document.getElementById('count-input');
 const extractAllCheck = document.getElementById('extract-all');
 const outputDirSpan = document.getElementById('output-dir');
 const jobSelectSection = document.getElementById('job-select-section');
-const jobSelect = document.getElementById('job-select');
-const btnAddJob = document.getElementById('btn-add-job');
+const jobDisplay = document.getElementById('job-display');
+const jobPickerOverlay = document.getElementById('job-picker-overlay');
+const jobPickerList = document.getElementById('job-picker-list');
+const btnPickerCancel = document.getElementById('btn-picker-cancel');
 const jobDialogOverlay = document.getElementById('job-dialog-overlay');
 const dialogJobName = document.getElementById('dialog-job-name');
 const dialogJobDesc = document.getElementById('dialog-job-desc');
+const dialogJobHint = document.getElementById('dialog-job-hint');
 const btnDialogSave = document.getElementById('btn-dialog-save');
 const btnDialogCancel = document.getElementById('btn-dialog-cancel');
+const recommendHint = document.getElementById('recommend-hint');
 const sourceRadios = document.querySelectorAll('input[name="source"]');
 const doneSummary = document.getElementById('done-summary');
 const errorMessage = document.getElementById('error-message');
+
+// 岗位选择状态
+let selectedJob = '';
+let jobList = [];
+
+// 编辑岗位模式（非空时表示正在编辑已有岗位）
+let editJobName = '';
 
 // API 配置 DOM
 const apiUrlInput = document.getElementById('api-url');
@@ -35,6 +46,17 @@ const configStatus = document.getElementById('config-status');
 
 // 邮件配置 DOM
 const emailPrefixInput = document.getElementById('email-prefix');
+
+// 批量打招呼 DOM
+const greetSection = document.getElementById('greet-section');
+const greetLevel = document.getElementById('greet-level');
+const greetCount = document.getElementById('greet-count');
+const btnStartGreet = document.getElementById('btn-start-greet');
+const btnCancelGreet = document.getElementById('btn-cancel-greet');
+const greetProgress = document.getElementById('greet-progress');
+const greetProgressBar = document.getElementById('greet-progress-bar');
+const greetProgressText = document.getElementById('greet-progress-text');
+const greetResult = document.getElementById('greet-result');
 
 // ===== 步骤元素 =====
 const stepCards = {
@@ -148,7 +170,7 @@ function setupListeners() {
   registerCleanup(window.electronAPI.onProgress(handleProgress));
 
   registerCleanup(
-    window.electronAPI.onDone((data) => {
+    window.electronAPI.onDone(async (data) => {
       showState('state-done');
       let summary = '';
       if (data.excelPath) {
@@ -160,6 +182,16 @@ function setupListeners() {
       }
       summary += `输出目录: ${data.outputDir}`;
       doneSummary.textContent = summary;
+
+      // 检查评分数据，显示批量打招呼
+      resetGreetUI();
+      try {
+        const counts = await window.electronAPI.getGreetCandidateCounts();
+        if (counts.available) {
+          greetSection.style.display = '';
+          updateGreetCount(counts);
+        }
+      } catch {}
     })
   );
 
@@ -167,6 +199,38 @@ function setupListeners() {
     window.electronAPI.onError((data) => {
       showState('state-error');
       errorMessage.textContent = data.message || '未知错误';
+    })
+  );
+
+  // 打招呼事件
+  registerCleanup(
+    window.electronAPI.onGreetProgress((data) => {
+      greetProgressText.textContent = data.message;
+    })
+  );
+
+  registerCleanup(
+    window.electronAPI.onGreetDone((data) => {
+      greetProgress.style.display = 'none';
+      btnCancelGreet.style.display = 'none';
+      btnStartGreet.style.display = '';
+      greetResult.style.display = '';
+      greetResult.textContent =
+        `✅ 成功打招呼 ${data.success} 人` +
+        (data.already > 0 ? `，${data.already} 人已打过招呼` : '') +
+        (data.notFound > 0 ? `，${data.notFound} 人不在当前列表中` : '') +
+        (data.skipped > 0 ? `，${data.skipped} 人跳过` : '');
+    })
+  );
+
+  registerCleanup(
+    window.electronAPI.onGreetError((data) => {
+      greetProgress.style.display = 'none';
+      btnCancelGreet.style.display = 'none';
+      btnStartGreet.style.display = '';
+      greetResult.style.display = '';
+      greetResult.className = 'greet-result greet-result-error';
+      greetResult.textContent = '❌ 打招呼失败: ' + data.message;
     })
   );
 }
@@ -256,7 +320,7 @@ btnStart.addEventListener('click', async () => {
 
   resetSteps();
   showState('state-running');
-  await window.electronAPI.startExtraction({ count, extractAll, source: selectedSource, job: jobSelect.value });
+  await window.electronAPI.startExtraction({ count, extractAll, source: selectedSource, job: selectedJob });
 });
 
 // 取消
@@ -287,12 +351,23 @@ btnRetry.addEventListener('click', async () => {
 
   resetSteps();
   showState('state-running');
-  await window.electronAPI.startExtraction({ count, extractAll, source: selectedSource, job: jobSelect.value });
+  await window.electronAPI.startExtraction({ count, extractAll, source: selectedSource, job: selectedJob });
 });
 
 // 打开目录
 btnOpenDir.addEventListener('click', async () => {
   await window.electronAPI.openOutputDir();
+});
+
+// Chrome 重连
+document.getElementById('btn-retry-chrome').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-retry-chrome');
+  btn.textContent = '重连中...';
+  btn.disabled = true;
+  await window.electronAPI.retryCdpConnection();
+  await updateCdpStatus();
+  btn.textContent = '重试';
+  btn.disabled = false;
 });
 
 // 选择输出目录
@@ -303,47 +378,179 @@ btnSelectDir.addEventListener('click', async () => {
   }
 });
 
-// 填充岗位下拉框（从 config 目录动态加载）
-async function populateJobSelect() {
+// 岗位显示更新
+function updateJobDisplay() {
+  if (selectedJob) {
+    jobDisplay.textContent = selectedJob;
+    jobDisplay.className = 'job-display';
+  } else {
+    jobDisplay.textContent = '请选择岗位';
+    jobDisplay.className = 'job-display placeholder';
+  }
+}
+
+// 加载岗位列表
+async function loadJobList() {
   try {
-    const jobs = await window.electronAPI.getRecommendJobs();
-    // 清空现有选项（保留默认占位）
-    jobSelect.innerHTML = '';
-    const defaultOpt = document.createElement('option');
-    defaultOpt.value = '';
-    defaultOpt.textContent = '-- 请选择岗位 --';
-    jobSelect.appendChild(defaultOpt);
-    jobs.forEach(job => {
-      const opt = document.createElement('option');
-      opt.value = job;
-      opt.textContent = job;
-      jobSelect.appendChild(opt);
-    });
+    jobList = await window.electronAPI.getRecommendJobs();
+    // 如果已选岗位不在新列表中，清空选中
+    if (selectedJob && !jobList.includes(selectedJob)) {
+      selectedJob = '';
+    }
+    updateJobDisplay();
+    renderJobPicker();
   } catch (err) {
     console.error('加载岗位列表失败:', err);
   }
 }
 
-// 来源切换：显示/隐藏岗位选择
+// 渲染目标岗位弹窗列表
+function renderJobPicker() {
+  jobPickerList.innerHTML = '';
+
+  // 顶部：添加新岗位
+  const addItem = document.createElement('div');
+  addItem.className = 'job-picker-item job-picker-add';
+  const addName = document.createElement('span');
+  addName.className = 'job-picker-item-name';
+  addName.textContent = '+ 添加新岗位';
+  addName.style.color = '#4CAF50';
+  addName.style.fontWeight = '600';
+  addItem.appendChild(addName);
+  addItem.addEventListener('click', () => {
+    hideJobPicker();
+    setTimeout(showAddJobDialog, 150);
+  });
+  jobPickerList.appendChild(addItem);
+
+  // 岗位列表
+  if (jobList.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'job-picker-item';
+    empty.textContent = '暂无岗位';
+    empty.style.color = '#999';
+    empty.style.cursor = 'default';
+    empty.style.justifyContent = 'center';
+    jobPickerList.appendChild(empty);
+    return;
+  }
+  jobList.forEach(job => {
+    const item = document.createElement('div');
+    item.className = 'job-picker-item';
+    if (job === selectedJob) item.classList.add('selected');
+
+    // 岗位名称（可点击切换）
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'job-picker-item-name';
+    nameSpan.textContent = job;
+    nameSpan.addEventListener('click', () => {
+      selectedJob = job;
+      updateJobDisplay();
+      hideJobPicker();
+    });
+    item.appendChild(nameSpan);
+
+    // 操作按钮组
+    const actions = document.createElement('span');
+    actions.className = 'job-picker-item-actions';
+
+    const btnEdit = document.createElement('button');
+    btnEdit.className = 'btn-picker-edit';
+    btnEdit.textContent = '编辑';
+    btnEdit.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showEditJobDialog(job);
+    });
+    actions.appendChild(btnEdit);
+
+    const btnDelete = document.createElement('button');
+    btnDelete.className = 'btn-picker-delete';
+    btnDelete.textContent = '删除';
+    btnDelete.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteJob(job);
+    });
+    actions.appendChild(btnDelete);
+
+    item.appendChild(actions);
+    jobPickerList.appendChild(item);
+  });
+}
+
+// 显示/隐藏目标岗位弹窗
+function showJobPicker() {
+  renderJobPicker();
+  jobPickerOverlay.style.display = 'flex';
+}
+
+function hideJobPicker() {
+  jobPickerOverlay.style.display = 'none';
+}
+
+// 目标岗位弹窗事件
+jobDisplay.addEventListener('click', showJobPicker);
+btnPickerCancel.addEventListener('click', hideJobPicker);
+jobPickerOverlay.addEventListener('click', (e) => {
+  if (e.target === jobPickerOverlay) hideJobPicker();
+});
 sourceRadios.forEach(radio => {
   radio.addEventListener('change', () => {
-    jobSelectSection.style.display = radio.value === 'recommend' ? 'flex' : 'none';
+    const isAttach = radio.value === 'recommend-attach';
+    const isNormal = radio.value === 'recommend';
+    const showJob = isNormal || isAttach;
+    jobSelectSection.style.display = showJob ? 'flex' : 'none';
+    recommendHint.style.display = isAttach ? '' : 'none';
+    if (showJob) updateJobDisplay();
   });
 });
 
-// 添加新岗位弹窗
+// 添加/编辑岗位弹窗
 function showAddJobDialog() {
+  editJobName = '';
   dialogJobName.value = '';
+  dialogJobName.readOnly = false;
+  dialogJobName.style.background = '';
   dialogJobDesc.value = '';
+  dialogJobHint.style.display = '';
+  document.querySelector('#job-dialog-overlay .dialog-title').textContent = '添加新岗位';
   jobDialogOverlay.style.display = 'flex';
   dialogJobName.focus();
 }
 
-function hideAddJobDialog() {
-  jobDialogOverlay.style.display = 'none';
+async function showEditJobDialog(jobName) {
+  editJobName = jobName;
+  dialogJobName.value = jobName;
+  dialogJobName.readOnly = true;
+  dialogJobName.style.background = '#f5f5f5';
+  dialogJobHint.style.display = 'none';
+  document.querySelector('#job-dialog-overlay .dialog-title').textContent = '编辑岗位描述';
+  try {
+    const desc = await window.electronAPI.getRecommendJobDesc(jobName);
+    dialogJobDesc.value = desc || '';
+  } catch {
+    dialogJobDesc.value = '';
+  }
+  jobDialogOverlay.style.display = 'flex';
+  dialogJobDesc.focus();
 }
 
-btnAddJob.addEventListener('click', showAddJobDialog);
+function hideAddJobDialog() {
+  jobDialogOverlay.style.display = 'none';
+  editJobName = '';
+}
+
+// 删除岗位
+async function deleteJob(jobName) {
+  if (!confirm(`确定要删除岗位「${jobName}」吗？`)) return;
+  try {
+    await window.electronAPI.deleteRecommendJob(jobName);
+    if (selectedJob === jobName) selectedJob = '';
+    await loadJobList();
+  } catch (err) {
+    alert('删除失败: ' + err.message);
+  }
+}
+
 btnDialogCancel.addEventListener('click', hideAddJobDialog);
 jobDialogOverlay.addEventListener('click', (e) => {
   if (e.target === jobDialogOverlay) hideAddJobDialog();
@@ -362,12 +569,18 @@ btnDialogSave.addEventListener('click', async () => {
     return;
   }
   try {
-    await window.electronAPI.addRecommendJob(jobName, jobDesc);
-    await populateJobSelect();
-    jobSelect.value = jobName;
+    if (editJobName) {
+      // 编辑模式：更新岗位描述
+      await window.electronAPI.updateRecommendJob(jobName, jobDesc);
+    } else {
+      // 添加模式：创建新岗位
+      await window.electronAPI.addRecommendJob(jobName, jobDesc);
+      selectedJob = jobName;
+    }
+    await loadJobList();
     hideAddJobDialog();
   } catch (err) {
-    alert('添加失败: ' + err.message);
+    alert((editJobName ? '编辑' : '添加') + '失败: ' + err.message);
   }
 });
 
@@ -380,6 +593,84 @@ extractAllCheck.addEventListener('change', () => {
 // 初始状态：默认提取全部，数量输入禁用
 countInput.disabled = true;
 
+// ===== 批量打招呼 =====
+
+// 等级选择变化时更新人数
+greetLevel.addEventListener('change', async () => {
+  try {
+    const counts = await window.electronAPI.getGreetCandidateCounts();
+    if (counts.available) updateGreetCount(counts);
+  } catch {}
+});
+
+// 开始打招呼
+btnStartGreet.addEventListener('click', async () => {
+  const level = parseInt(greetLevel.value, 10);
+  btnStartGreet.style.display = 'none';
+  btnCancelGreet.style.display = '';
+  greetResult.style.display = 'none';
+  greetProgress.style.display = '';
+  greetProgressBar.style.width = '0%';
+  greetProgressText.textContent = '准备中...';
+  await window.electronAPI.startGreeting(level);
+});
+
+// 取消打招呼
+btnCancelGreet.addEventListener('click', async () => {
+  await window.electronAPI.cancelGreeting();
+  greetProgressText.textContent = '已取消';
+  btnCancelGreet.style.display = 'none';
+  btnStartGreet.style.display = '';
+});
+
+// ===== CDP/Chrome 状态 =====
+async function updateCdpStatus() {
+  try {
+    const status = await window.electronAPI.getCdpStatus();
+    const dot = document.getElementById('chrome-status-dot');
+    const text = document.getElementById('chrome-status-text');
+    const retryBtn = document.getElementById('btn-retry-chrome');
+
+    dot.className = 'chrome-status-dot';
+    text.textContent = '';
+    retryBtn.style.display = 'none';
+
+    if (status.state === 'connected') {
+      dot.classList.add('dot-green');
+      text.textContent = 'CDP 代理已就绪';
+    } else if (status.state === 'initializing' || status.state === 'connecting') {
+      dot.classList.add('dot-yellow');
+      text.textContent = status.message || '正在准备...';
+    } else if (status.state === 'error') {
+      dot.classList.add('dot-red');
+      text.textContent = status.message || 'Chrome 连接失败';
+      retryBtn.style.display = '';
+    }
+  } catch {}
+}
+
+// ===== 批量打招呼辅助函数 =====
+function updateGreetCount(counts) {
+  const level = parseInt(greetLevel.value, 10);
+  const n = counts.counts[level] || 0;
+  greetCount.textContent = `（可打招呼 ${n} 人）`;
+  btnStartGreet.disabled = n === 0;
+  btnStartGreet.style.opacity = n === 0 ? '0.5' : '1';
+}
+
+function resetGreetUI() {
+  greetSection.style.display = 'none';
+  greetProgress.style.display = 'none';
+  greetResult.style.display = 'none';
+  greetResult.className = 'greet-result';
+  greetResult.textContent = '';
+  greetCount.textContent = '';
+  btnStartGreet.style.display = '';
+  btnStartGreet.disabled = false;
+  btnStartGreet.style.opacity = '1';
+  btnCancelGreet.style.display = 'none';
+}
+
 // ===== 初始化 =====
 async function init() {
   try {
@@ -391,8 +682,21 @@ async function init() {
 
   setupInputClears();
   await loadApiConfig();
+  await updateCdpStatus();
+  // 轮询 CDP 状态（未连接时持续刷新，用户勾选 Chrome 远程调试后自动变绿）
+  setInterval(async () => {
+    try {
+      const s = await window.electronAPI.getCdpStatus();
+      await updateCdpStatus();
+      // 如果是 error 状态且内容是 Chrome 未开远程调试，自动重试检测
+      if (s.state === 'error' && s.message.includes('chrome://inspect')) {
+        await window.electronAPI.retryCdpConnection();
+        await updateCdpStatus();
+      }
+    } catch {}
+  }, 3000);
   setupListeners();
-  await populateJobSelect();
+  await loadJobList();
   showState('state-initial');
 }
 

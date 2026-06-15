@@ -6,10 +6,14 @@
   "main": "electron/main.mjs",
   "scripts": {
     "test:email": "node --test scripts/send-candidates-email.test.mjs",
+    "icon": "node scripts/process-icon.mjs",
     "start": "electron .",
-    "pack": "electron-builder --win portable"
+    "make-ico": "node scripts/make-ico.mjs",
+    "pack": "node build.mjs"
   },
   "dependencies": {
+    "core-util-is": "^1.0.3",
+    "exceljs": "^4.4.0",
     "iconv-lite": "^0.7.2",
     "nodemailer": "^6.9.0",
     "tesseract.js": "^7.0.0",
@@ -17,6 +21,9 @@
   },
   "devDependencies": {
     "electron": "^42.3.0",
-    "electron-builder": "^26.8.1"
+    "electron-builder": "^26.8.1",
+    "png-to-ico": "^3.0.1",
+    "rcedit": "^5.0.2",
+    "sharp": "^0.34.5"
   }
 }

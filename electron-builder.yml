@@ -4,17 +4,39 @@ directories:
   output: dist
 files:
   - electron/**/*
-  - scripts/**/*
+  - scripts/**/*.mjs
+  - "!scripts/*.test.mjs"
+  - "!scripts/process-icon.mjs"
+  - "!scripts/make-ico.mjs"
   - config/**/*
   - package.json
   - node_modules/**/*
   - "!node_modules/electron-builder/**"
+  - "!node_modules/sharp/**"
+  - "!node_modules/png-to-ico/**"
   - "!**/*.map"
+  - "!**/*.md"
+  - app_icon_rounded.png
+  - ocr-lang/**/*
+asarUnpack:
+  - "scripts/**"
+  - "config/**"
+  - "ocr-lang/**"
+  - "app_icon_rounded.png"
+  # 子进程(fork)需要访问实体文件，不能放在 asar 里
+  - "node_modules/**"
 win:
   signAndEditExecutable: false
+  icon: build/icon.ico
   target:
     - target: nsis
       arch:
         - x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: Boss直聘候选人提取分析
+  deleteAppDataOnUninstall: false
 extraMetadata:
   main: electron/main.mjs

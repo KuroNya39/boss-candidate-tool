@@ -2,7 +2,8 @@ import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import { fork } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, renameSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, renameSync, unlinkSync } from 'node:fs';
+import http from 'node:http';
 import iconv from 'iconv-lite';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -95,6 +96,10 @@ let cancelled = false;
 let aiAbortController = null; // 用于中断 AI 评分的正在请求
 let actualExportPath = ''; // 导出脚本实际输出的文件路径（可能被另存）
 
+// CDP proxy & Chrome 状态
+let cdpProxyProcess = null;
+let cdpStatus = { state: 'initializing', message: '', chromePort: null };
+
 // ===== 窗口创建 =====
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -132,6 +137,25 @@ function sendError(data) {
   }
 }
 
+// ===== 打招呼进度推送 =====
+function sendGreetProgress(message, current, total) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('greet-progress', { message, current, total });
+  }
+}
+
+function sendGreetDone(data) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('greet-done', data);
+  }
+}
+
+function sendGreetError(data) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('greet-error', data);
+  }
+}
+
 // ===== stdout 进度解析 =====
 function parseExtractProgress(line) {
   if (line.includes('提取结果摘要')) return { progress: 100, message: '提取完成' };
@@ -166,7 +190,7 @@ function runScript(scriptName, args, step, parseFn, extraEnv = {}) {
     const proc = fork(scriptPath, args, {
       cwd: procCwd,
       stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-      env: { ...process.env, ...extraEnv },
+      env: { ...process.env, ...extraEnv, ELECTRON_RUN_AS_NODE: '1' },
       silent: true,
     });
 
@@ -684,6 +708,221 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
   }
 }
 
+// ===== 批量打招呼 =====
+async function runGreeting(level) {
+  cancelled = false; // 重置取消标志
+  const scoredPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
+  if (!existsSync(scoredPath)) {
+    sendGreetError({ message: '未找到评分结果文件，请先完成评分' });
+    return;
+  }
+
+  // 读取评分数据，计算各等级人数用于进度显示
+  let totalTargets = 0;
+  try {
+    const raw = JSON.parse(readFileSync(scoredPath, 'utf-8'));
+    const candidates = raw.candidates || raw;
+    const thresholds = { 5: 86, 4: 72, 3: 58, 0: 0 };
+    const threshold = thresholds[level] ?? 72;
+    totalTargets = candidates.filter(c => (c.totalScore ?? c.jobRelevanceScore ?? 0) >= threshold).length;
+  } catch (err) {
+    termLog(`[greet] 读取评分数据失败: ${err.message}`, 'stderr');
+  }
+
+  termLog(`[greet] 开始批量打招呼，level=${level}，目标 ${totalTargets} 人`);
+
+  const MAX_WAIT = 600000; // 最多等 10 分钟
+  let greetCancelled = false;
+
+  try {
+    const greetPath = resolve(UNPACKED_ROOT, 'scripts', 'greet-candidates.mjs');
+    const procCwd = app.isPackaged ? OUTPUT_DIR : APP_ROOT;
+
+    const proc = fork(greetPath, [
+      '--input', scoredPath,
+      '--level', String(level),
+    ], {
+      cwd: procCwd,
+      stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      silent: true,
+    });
+
+    currentProcess = proc;
+
+    // 解析 stdout 中的打招呼进度
+    proc.stdout.on('data', (data) => {
+      const lines = decodeBuffer(data).split('\n').filter(Boolean);
+      for (const line of lines) {
+        termLog(`[greet] ${line}`);
+
+        // GREET_STATUS: 单条结果
+        const statusMatch = line.match(/^GREET_STATUS:(.+?)\|(.+?)\|(.+?)\|(.+)/);
+        if (statusMatch) {
+          sendGreetProgress(statusMatch[4], 0, 0);
+          continue;
+        }
+
+        // GREET_DONE: 最终统计
+        const doneMatch = line.match(/^GREET_DONE:(\d+)\|(\d+)\|(\d+)\|(\d+)/);
+        if (doneMatch) {
+          sendGreetDone({
+            success: parseInt(doneMatch[1]),
+            already: parseInt(doneMatch[2]),
+            notFound: parseInt(doneMatch[3]),
+            skipped: parseInt(doneMatch[4]),
+          });
+          continue;
+        }
+
+        // GREET_ERROR: 致命错误
+        const errMatch = line.match(/^GREET_ERROR:(.+)/);
+        if (errMatch) {
+          sendGreetError({ message: errMatch[1] });
+          return;
+        }
+      }
+    });
+
+    proc.stderr.on('data', (data) => {
+      const text = decodeBuffer(data).trim();
+      if (text) termLog(`[greet stderr] ${text}`, 'stderr');
+    });
+
+    proc.on('error', (err) => {
+      currentProcess = null;
+      if (!cancelled) {
+        sendGreetError({ message: err.message });
+      }
+    });
+
+    proc.on('close', (code) => {
+      currentProcess = null;
+      if (cancelled) return;
+      if (code !== 0) {
+        sendGreetError({ message: `greet-candidates.mjs 退出码 ${code}` });
+      }
+    });
+
+    // 超时保护
+    setTimeout(() => {
+      if (currentProcess === proc) {
+        greetCancelled = true;
+        currentProcess = null;
+        proc.kill();
+        sendGreetError({ message: '打招呼超时' });
+      }
+    }, MAX_WAIT);
+
+  } catch (err) {
+    if (!greetCancelled) {
+      sendGreetError({ message: err.message });
+    }
+  }
+}
+
+// ===== CDP Proxy 自动启动 =====
+function httpGet(url) {
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, { timeout: 1500 }, (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); } catch { resolve(null); }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+  });
+}
+
+async function startCdpProxy() {
+  // 1. 检查 CDP proxy 是否已在运行
+  try {
+    const health = await httpGet('http://127.0.0.1:3456/health');
+    if (health?.status === 'ok') {
+      cdpProxyProcess = null;
+      if (health.connected) {
+        cdpStatus = { state: 'connected', message: '' };
+        termLog(`[cdp] 发现已有 CDP 代理, Chrome 已连接`);
+      } else {
+        // 尝试触发重连（旧代理可能只是没触发 connect）
+        termLog(`[cdp] 发现已有 CDP 代理但 Chrome 未连接，尝试触发重连...`);
+        try { await httpGet('http://127.0.0.1:3456/targets'); } catch {}
+        await sleep(3000);
+        const retry = await httpGet('http://127.0.0.1:3456/health');
+        if (retry?.connected) {
+          cdpStatus = { state: 'connected', message: '' };
+          termLog(`[cdp] Chrome 重连成功`);
+        } else {
+          cdpStatus = { state: 'error', message: 'Chrome 未开启远程调试，请在 chrome://inspect/#remote-debugging 中勾选"允许远程调试"' };
+          termLog(`[cdp] Chrome 仍未连接`);
+        }
+      }
+      return;
+    }
+  } catch (e) {
+    termLog(`[cdp] 端口 3456 无响应，将启动新代理 (${e.message})`);
+  }
+
+  // 2. Fork CDP proxy
+  termLog('[cdp] 启动 CDP 代理...');
+  cdpStatus = { state: 'connecting', message: '正在启动 CDP 代理...' };
+
+  const proxyPath = resolve(UNPACKED_ROOT, 'scripts', 'cdp-proxy.mjs');
+  cdpProxyProcess = fork(proxyPath, [], {
+    cwd: app.isPackaged ? process.resourcesPath : APP_ROOT,
+    stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+    env: { ...process.env, CDP_PROXY_PORT: '3456', ELECTRON_RUN_AS_NODE: '1' },
+    silent: true,
+  });
+
+  cdpProxyProcess.stdout.on('data', (data) => {
+    for (const line of data.toString().split('\n').filter(Boolean)) {
+      termLog(`[cdp-proxy] ${line}`);
+    }
+  });
+  cdpProxyProcess.stderr.on('data', (data) => {
+    for (const line of data.toString().split('\n').filter(Boolean)) {
+      termLog(`[cdp-proxy stderr] ${line}`, 'stderr');
+    }
+  });
+  cdpProxyProcess.on('error', (err) => {
+    termLog(`[cdp] 代理进程错误: ${err.message}`, 'stderr');
+  });
+  cdpProxyProcess.on('exit', (code) => {
+    termLog(`[cdp] 代理进程退出 (code=${code})`);
+    cdpProxyProcess = null;
+    if (cdpStatus.state !== 'connected') {
+      cdpStatus = { state: 'error', message: 'CDP 代理意外退出' };
+    }
+  });
+
+  // 3. 等待 HTTP 服务器就绪（最长 10 秒），同时检查 Chrome 连接
+  for (let i = 0; i < 20; i++) {
+    await sleep(500);
+    try {
+      const health = await httpGet('http://127.0.0.1:3456/health');
+      if (health?.status === 'ok') {
+        if (health.connected) {
+          cdpStatus = { state: 'connected', message: '' };
+          termLog('[cdp] CDP 代理已就绪，Chrome 已连接');
+        } else {
+          // 新代理有 connectWithRetry，会在后台自动重连，这里先显示提示
+          // 同时手动触发一次重连
+          try { httpGet('http://127.0.0.1:3456/targets').catch(() => {}); } catch {}
+          cdpStatus = { state: 'error', message: 'Chrome 未开启远程调试，请在 chrome://inspect/#remote-debugging 中勾选"允许远程调试"' };
+          termLog('[cdp] CDP 代理已就绪，Chrome 未连接（后台自动重试中）');
+        }
+        return;
+      }
+    } catch {}
+  }
+
+  cdpStatus = { state: 'error', message: 'CDP 代理启动失败' };
+  termLog('[cdp] CDP 代理启动失败', 'stderr');
+}
+
 // ===== IPC 注册 =====
 function registerIPC() {
   ipcMain.handle('start-extraction', (_event, opts) => {
@@ -709,6 +948,48 @@ function registerIPC() {
     }
     if (aiAbortController) { aiAbortController.abort(); aiAbortController = null; }
     return { ok: true };
+  });
+
+  // 批量打招呼
+  ipcMain.handle('start-greeting', (_event, opts) => {
+    if (currentProcess) return { error: '已有任务运行中' };
+    const level = opts?.level ?? 4;
+    runGreeting(level);
+    return { ok: true };
+  });
+
+  ipcMain.handle('cancel-greeting', () => {
+    cancelled = true;
+    if (currentProcess) {
+      try { currentProcess.stdin.write('CANCEL\n'); } catch {}
+      setTimeout(() => {
+        if (currentProcess) { currentProcess.kill(); currentProcess = null; }
+      }, 2000);
+    }
+    return { ok: true };
+  });
+
+  // 获取评分候选人各等级人数（供打招呼 UI 展示）
+  ipcMain.handle('get-greet-candidate-counts', () => {
+    const scoredPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
+    if (!existsSync(scoredPath)) return { available: false, total: 0, counts: {} };
+    try {
+      const raw = JSON.parse(readFileSync(scoredPath, 'utf-8'));
+      const candidates = raw.candidates || raw;
+      if (!Array.isArray(candidates)) return { available: false, total: 0, counts: {} };
+      const counts = { 5: 0, 4: 0, 3: 0, 0: 0 };
+      const thresholds = { 5: 86, 4: 72, 3: 58, 0: 0 };
+      for (const c of candidates) {
+        const score = c.totalScore ?? c.jobRelevanceScore ?? 0;
+        if (score >= 86) counts[5]++;
+        if (score >= 72) counts[4]++;
+        if (score >= 58) counts[3]++;
+        counts[0] = candidates.length;
+      }
+      return { available: true, total: candidates.length, counts };
+    } catch {
+      return { available: false, total: 0, counts: {} };
+    }
   });
 
   ipcMain.handle('open-output', async () => {
@@ -752,6 +1033,16 @@ function registerIPC() {
     return { configured: !!(apiConfig.url && apiConfig.key && apiConfig.model) };
   });
 
+  // CDP/Chrome 状态
+  ipcMain.handle('get-cdp-status', () => ({ ...cdpStatus }));
+
+  ipcMain.handle('retry-cdp-connection', async () => {
+    if (cdpStatus.state === 'connected') return { ...cdpStatus };
+    cdpStatus = { state: 'connecting', message: '正在重试...', chromePort: null };
+    startCdpProxy().catch(() => {});
+    return { ...cdpStatus };
+  });
+
   // 读取推荐牛人页岗位列表（从 jd-descriptions/ 目录的 .txt 文件名反解）
   ipcMain.handle('get-recommend-jobs', () => {
     const dir = resolve(UNPACKED_ROOT, 'config', 'jd-descriptions');
@@ -780,12 +1071,55 @@ function registerIPC() {
     termLog(`[config] 已添加新岗位: ${jobName}`);
     return { ok: true };
   });
+
+  // 读取岗位 JD 描述
+  ipcMain.handle('get-recommend-job-desc', (_event, jobName) => {
+    if (!jobName) return '';
+    const safeName = jobName.replace(/[\\/:*?"<>|]/g, (c) => ({
+      '\\': '＼', '/': '／', ':': '：', '*': '＊',
+      '?': '？', '"': '＂', '<': '＜', '>': '＞', '|': '｜'
+    })[c]);
+    const filePath = resolve(UNPACKED_ROOT, 'config', 'jd-descriptions', safeName + '.txt');
+    if (!existsSync(filePath)) return '';
+    return readFileSync(filePath, 'utf-8');
+  });
+
+  // 更新岗位描述（岗位名不可改，只更新 .txt 内容）
+  ipcMain.handle('update-recommend-job', (_event, jobName, jobDesc) => {
+    if (!jobName || typeof jobName !== 'string') throw new Error('岗位名不能为空');
+    const safeName = jobName.replace(/[\\/:*?"<>|]/g, (c) => ({
+      '\\': '＼', '/': '／', ':': '：', '*': '＊',
+      '?': '？', '"': '＂', '<': '＜', '>': '＞', '|': '｜'
+    })[c]);
+    const filePath = resolve(UNPACKED_ROOT, 'config', 'jd-descriptions', safeName + '.txt');
+    if (!existsSync(filePath)) throw new Error(`岗位"${jobName}"不存在`);
+    writeFileSync(filePath, jobDesc || '', 'utf-8');
+    termLog(`[config] 已更新岗位描述: ${jobName}`);
+    return { ok: true };
+  });
+
+  // 删除岗位
+  ipcMain.handle('delete-recommend-job', (_event, jobName) => {
+    if (!jobName) throw new Error('岗位名不能为空');
+    const safeName = jobName.replace(/[\\/:*?"<>|]/g, (c) => ({
+      '\\': '＼', '/': '／', ':': '：', '*': '＊',
+      '?': '？', '"': '＂', '<': '＜', '>': '＞', '|': '｜'
+    })[c]);
+    const filePath = resolve(UNPACKED_ROOT, 'config', 'jd-descriptions', safeName + '.txt');
+    if (!existsSync(filePath)) throw new Error(`岗位"${jobName}"不存在`);
+    unlinkSync(filePath);
+    termLog(`[config] 已删除岗位: ${jobName}`);
+    return { ok: true };
+  });
 }
 
 // ===== 应用生命周期 =====
 app.whenReady().then(() => {
   loadApiConfig();
   registerIPC();
+
+  // 非阻塞启动 CDP 代理（后台进行，不阻塞窗口创建）
+  startCdpProxy();
 
   const scoreOnly = process.argv.includes('--score-only');
   if (scoreOnly) {
@@ -803,5 +1137,6 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (currentProcess) { currentProcess.kill(); currentProcess = null; }
+  if (cdpProxyProcess) { cdpProxyProcess.kill(); cdpProxyProcess = null; }
   if (process.platform !== 'darwin') app.quit();
 });

@@ -87,8 +87,8 @@ function validateStructure(data) {
     }
 
     if (typeof item.jobRelevanceScore !== 'number' ||
-        item.jobRelevanceScore < 0 || item.jobRelevanceScore > 50) {
-      itemErrors.push(`[${i}] jobRelevanceScore 必须为 0-50 的数字`);
+        item.jobRelevanceScore < 0 || item.jobRelevanceScore > 100) {
+      itemErrors.push(`[${i}] jobRelevanceScore 必须为 0-100 的数字`);
     }
 
     if (typeof item.jobRelevanceComment !== 'string' || item.jobRelevanceComment.length === 0) {

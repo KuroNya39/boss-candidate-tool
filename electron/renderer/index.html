@@ -16,6 +16,11 @@
 
     <!-- 初始状态 -->
     <div id="state-initial" class="state active">
+      <div class="chrome-status-bar" id="chrome-status-bar">
+        <span class="chrome-status-dot" id="chrome-status-dot"></span>
+        <span class="chrome-status-text" id="chrome-status-text">正在检查 CDP 代理...</span>
+        <button id="btn-retry-chrome" class="btn-dir-select" style="display:none;">重试</button>
+      </div>
       <div class="api-config">
         <div class="api-config-title">API 配置</div>
         <div class="api-field">
@@ -59,18 +64,23 @@
         </label>
         <label class="radio-label">
           <input type="radio" name="source" value="recommend">
-          <span>推荐牛人页</span>
+          <span>推荐页</span>
         </label>
         <label class="radio-label">
           <input type="radio" name="source" value="recommend-attach">
-          <span>推荐牛人页（手动筛选）</span>
+          <span>推荐页（含筛选）</span>
         </label>
+      </div>
+
+      <div id="recommend-hint" class="recommend-hint" style="display:none;">
+        提示：请先在 Chrome 中打开 Boss 直聘推荐牛人页，并选择岗位、设置筛选条件，不要刷新页面
       </div>
 
       <div id="job-select-section" class="source-section" style="display:none;">
         <div class="source-label">目标岗位：</div>
-        <select id="job-select" class="job-select"></select>
-        <button id="btn-add-job" class="btn-icon" title="添加新岗位">+</button>
+        <div class="job-selector">
+          <span id="job-display" class="job-display placeholder">请选择岗位</span>
+        </div>
       </div>
 
       <div class="config-section">
@@ -139,6 +149,33 @@
         <button id="btn-open-dir" class="btn btn-primary">&#128194; 打开输出目录</button>
         <button id="btn-restart" class="btn btn-secondary">重新开始</button>
       </div>
+
+      <!-- 批量打招呼（评分完成后显示） -->
+      <div id="greet-section" class="greet-section" style="display:none;">
+        <div class="greet-divider"></div>
+        <div class="greet-title">批量打招呼</div>
+        <div class="greet-controls">
+          <label class="greet-label">选择等级：</label>
+          <select id="greet-level" class="greet-select">
+            <option value="5">五星（强烈推荐）</option>
+            <option value="4" selected>四星及以上（推荐）</option>
+            <option value="3">三星及以上（可考虑）</option>
+            <option value="0">全部候选人</option>
+          </select>
+          <span id="greet-count" class="greet-count"></span>
+        </div>
+        <div class="greet-actions">
+          <button id="btn-start-greet" class="btn btn-primary btn-small">开始打招呼</button>
+          <button id="btn-cancel-greet" class="btn btn-secondary btn-small" style="display:none;">取消</button>
+        </div>
+        <div id="greet-progress" class="greet-progress" style="display:none;">
+          <div class="greet-progress-bar-container">
+            <div class="greet-progress-bar" id="greet-progress-bar"></div>
+          </div>
+          <div class="greet-progress-text" id="greet-progress-text"></div>
+        </div>
+        <div id="greet-result" class="greet-result" style="display:none;"></div>
+      </div>
     </div>
 
     <!-- 错误状态 -->
@@ -157,7 +194,7 @@
       <div class="dialog-field">
         <label for="dialog-job-name">岗位名称</label>
         <input type="text" id="dialog-job-name" placeholder="例如：AI大模型工程师 _ 深圳 30-50K">
-        <div class="dialog-hint">含 / 的字符（如 Soc/泛平板）程序会自动处理，直接填写即可</div>
+        <div id="dialog-job-hint" class="dialog-hint">含 / 的字符（如 Soc/泛平板）程序会自动处理，直接填写即可</div>
       </div>
       <div class="dialog-field">
         <label for="dialog-job-desc">岗位描述</label>
@@ -166,6 +203,17 @@
       <div class="dialog-actions">
         <button id="btn-dialog-save" class="btn btn-primary">保存</button>
         <button id="btn-dialog-cancel" class="btn btn-secondary">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 目标岗位弹窗 -->
+  <div id="job-picker-overlay" class="dialog-overlay" style="display:none;">
+    <div class="dialog-box">
+      <div class="dialog-title">目标岗位</div>
+      <div class="job-picker-list" id="job-picker-list"></div>
+      <div class="dialog-actions">
+        <button id="btn-picker-cancel" class="btn btn-secondary">取消</button>
       </div>
     </div>
   </div>

@@ -889,14 +889,20 @@ async function main() {
       console.log('等待页面加载（手动筛选模式，跳过岗位切换）...');
       const cardCount = await waitForPageLoad(targetId, 20000);
       console.log(`页面已加载，卡片列表: ${cardCount} 项\n`);
-      // 尝试读取当前页面岗位名作为 appliedJob
-      try {
-        const pageJob = await iframeEval(targetId, EXTRACT_PAGE_JOB_SCRIPT);
-        if (pageJob) {
-          console.log(`当前岗位: ${pageJob}`);
-          effectiveJobName = pageJob;
-        }
-      } catch {}
+      // 先用 --job 参数（用户在 UI 中选择了岗位）
+      if (opts.job) {
+        console.log(`使用用户选择的岗位: ${opts.job}`);
+        effectiveJobName = opts.job;
+      } else {
+        // 回退：尝试读取当前页面岗位名作为 appliedJob
+        try {
+          const pageJob = await iframeEval(targetId, EXTRACT_PAGE_JOB_SCRIPT);
+          if (pageJob) {
+            console.log(`当前岗位: ${pageJob}`);
+            effectiveJobName = pageJob;
+          }
+        } catch {}
+      }
     } else if (opts.job) {
       console.log('等待页面初始加载...');
       try {
@@ -1217,13 +1223,8 @@ async function main() {
     await prevOcr;
   }
 
-  if (!opts.attach) {
-    // 自动模式才关闭 tab
-    console.log('\n关闭 tab...');
-    await proxyGet(`/close?target=${targetId}`);
-  } else {
-    console.log('\n手动筛选模式：保留用户打开的 tab');
-  }
+  // 两种模式都保留 tab，供后续"打招呼"等操作复用
+  console.log('\n保留页面 tab，供后续操作使用');
   await worker.terminate();
   _cleanupTargetId = null;
   _cleanupWorker = null;

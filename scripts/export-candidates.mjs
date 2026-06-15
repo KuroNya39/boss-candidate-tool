@@ -2,25 +2,16 @@
 /**
  * export-candidates.mjs - 候选人 Excel 导出脚本
  *
- * 将 scored-candidates.json 导出为 Excel 文件
+ * 将 scored-candidates.json 导出为带样式的 Excel 文件
  *
  * Usage:
  *   node scripts/export-candidates.mjs --input output/scored-candidates.json
  */
 
-import { readFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, mkdirSync, existsSync, renameSync, unlinkSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-// 动态导入 xlsx
-let XLSX;
-try {
-  XLSX = await import('xlsx');
-} catch {
-  console.error('错误：未安装 xlsx 包');
-  console.error('请运行: npm install xlsx');
-  process.exit(1);
-}
+import ExcelJS from 'exceljs';
 
 // ===== CLI 参数解析 =====
 function parseArgs() {
@@ -43,11 +34,20 @@ function parseArgs() {
 // ===== 字段配置 =====
 function toAiRating(candidate) {
   const score = candidate.totalScore ?? candidate.score ?? 0;
-  if (score >= 80) return '五星';
-  if (score >= 60) return '四星';
-  if (score >= 40) return '三星';
-  if (score >= 20) return '二星';
-  return '一星';
+  const count = score >= 86 ? 5 : score >= 72 ? 4 : score >= 58 ? 3 : score >= 42 ? 2 : 1;
+  return '★'.repeat(count);
+}
+
+// 统一评语换行格式（与 main.mjs 中的格式化逻辑保持一致）
+function formatComment(text) {
+  if (!text) return '';
+  return text
+    .replace(/(匹配度评分|首句定性|维度权重|硬性技能|核心领域|刚性扣分说明|综合结论|岗位相关性分数|技术栈匹配|项目经验(?:相关|相关性)|行业经验)/g, '\n$1')
+    .replace(/\n{3,}/g, '\n\n')
+    // 修复旧数据中误换行的"刚性扣分"（非标题场景，如"刚性扣分。学历..."）
+    .replace(/\n刚性扣分(?!说明)/g, '刚性扣分')
+    .replace(/^\n+/, '')
+    .trim();
 }
 
 const FIELD_CONFIG = {
@@ -67,13 +67,22 @@ const FIELD_CONFIG = {
     header: '工作年限',
     extract: (c) => c.basicInfo?.workYears || '',
   },
-  school: {
-    header: '学校',
-    extract: (c) => c.educationExperience?.[0]?.school || '',
+  // 教育经历展开为4列，extract 第二个参数 rowIdx 表示该候选人的第几段教育
+  eduTime: {
+    header: '时间',
+    extract: (c, rowIdx) => c.educationExperience?.[rowIdx]?.time || '',
   },
-  education: {
+  eduSchool: {
+    header: '学校',
+    extract: (c, rowIdx) => c.educationExperience?.[rowIdx]?.school || '',
+  },
+  eduMajor: {
+    header: '专业',
+    extract: (c, rowIdx) => c.educationExperience?.[rowIdx]?.major || '',
+  },
+  eduDegree: {
     header: '学历',
-    extract: (c) => c.basicInfo?.education || '',
+    extract: (c, rowIdx) => c.educationExperience?.[rowIdx]?.degree || '',
   },
   educationScore: {
     header: '学历分',
@@ -89,7 +98,7 @@ const FIELD_CONFIG = {
   },
   jobRelevanceComment: {
     header: 'AI评级理由',
-    extract: (c) => c.jobRelevanceComment || '',
+    extract: (c) => formatComment(c.jobRelevanceComment || ''),
   },
   jobDescription: {
     header: '岗位描述',
@@ -153,13 +162,75 @@ const DEFAULT_FIELDS = [
   'aiRating',
   'jobRelevanceComment',
   'age',
-  'school',
-  'education',
+  'eduTime',
+  'eduSchool',
+  'eduMajor',
+  'eduDegree',
   'workYears',
   'resumeText',
 ];
 
+// ===== 分组配置 =====
+const FIELD_GROUPS = [
+  { label: 'AI分析', start: 0, end: 2 },
+  { label: '附加信息', start: 3, end: 9 },
+];
+// 教育经历子字段列表（在列标题行合并为"教育经历"，子标题行显示具体字段名）
+const EDU_SUB_FIELDS = ['eduTime', 'eduSchool', 'eduMajor', 'eduDegree'];
+
+// ===== 字段样式配置 =====
+const FIELD_STYLES = {
+  name: {
+    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6E8F0' } },   // 柔蓝
+  },
+  aiRating: {
+    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } },   // 柔黄
+  },
+  jobRelevanceComment: {
+    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } },   // 柔绿
+    alignment: { horizontal: 'left', vertical: 'top', wrapText: true },
+  },
+  age: {
+    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCE4EC' } },   // 柔粉
+  },
+  eduTime: {
+    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } },   // 柔橙
+  },
+  eduSchool: {
+    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } },   // 柔橙
+  },
+  eduMajor: {
+    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } },   // 柔橙
+  },
+  eduDegree: {
+    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } },   // 柔橙
+  },
+  workYears: {
+    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F7FA' } },   // 柔青
+  },
+  resumeText: {
+    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } },   // 柔灰
+    alignment: { horizontal: 'left', vertical: 'top', wrapText: true },
+  },
+};
+
+// 默认对齐方式：垂直居中、水平居中
+const DEFAULT_ALIGNMENT = { horizontal: 'center', vertical: 'middle' };
+
+// 通用边框：细实线
+const THIN_BORDER = {
+  top: { style: 'thin' },
+  left: { style: 'thin' },
+  bottom: { style: 'thin' },
+  right: { style: 'thin' },
+};
+
 // ===== 数据转换 =====
+function getExpandedRowCount(candidate) {
+  const eduList = candidate.educationExperience || [];
+  return Math.max(1, eduList.length);
+}
+
 function transformCandidates(candidates, fields, mode = 'filter') {
   const enriched = candidates.map(c => ({
     ...c,
@@ -168,51 +239,284 @@ function transformCandidates(candidates, fields, mode = 'filter') {
   const selectedConfig = fields.map(f => FIELD_CONFIG[f] || { header: f, extract: () => '' });
 
   const headers = selectedConfig.map(cfg => cfg.header);
-  const rows = enriched.map(c =>
-    selectedConfig.map(cfg => cfg.extract(c))
-  );
+
+  const rows = [];
+  for (const c of enriched) {
+    const rowCount = getExpandedRowCount(c);
+    for (let ri = 0; ri < rowCount; ri++) {
+      const row = selectedConfig.map(cfg => {
+        if (cfg.extract.length >= 2) {
+          // expandable field: 传入行索引取对应的教育经历段
+          return cfg.extract(c, ri);
+        }
+        // 固定字段：只在第1行填入值，其余行留空
+        return ri === 0 ? cfg.extract(c) : '';
+      });
+      rows.push(row);
+    }
+  }
 
   return [headers, ...rows];
 }
 
 function buildGroupedExportData(candidates, fields, mode = 'filter') {
   const data = transformCandidates(candidates, fields, mode);
-  const headers = data[0];
+  const colHeaders = data[0];   // 字段原始 header: 姓名, AI评级, ..., 时间, 学校, 专业, 学历, ...
   const rows = data.slice(1);
-  const groupHeaders = fields.map((_, index) => {
-    if (index === 0) return 'AI分析';
-    if (index === 3) return '附加信息';
-    return undefined;
-  });
-  return [groupHeaders, headers, ...rows];
-}
 
-// ===== 自动列宽 =====
-function autoColumnWidth(ws, data, fields) {
-  const colCount = data[0].length;
-  const colWidths = [];
-
-  for (let col = 0; col < colCount; col++) {
-    const fieldKey = fields[col];
-    // 在线简历列固定宽度：默认截断显示，点击单元格后在 Excel 编辑栏查看完整内容
-    if (fieldKey === 'resumeText') {
-      colWidths.push({ wch: 50 });
-      continue;
+  // 分组标题行 (Row 1)
+  const groupHeaders = fields.map(() => undefined);
+  for (const g of FIELD_GROUPS) {
+    for (let i = g.start; i <= g.end; i++) {
+      if (i < groupHeaders.length) groupHeaders[i] = g.label;
     }
-    let maxLen = 0;
-    for (let row = 0; row < data.length; row++) {
-      const cell = data[row][col];
-      const len = String(cell).length;
-      // 中文字符宽度加倍
-      const width = len + String(cell).replace(/[^\x00-\xff]/g, 'xx').length / 2;
-      maxLen = Math.max(maxLen, Math.min(width, 50)); // 最大 50
-    }
-    colWidths.push({ wch: maxLen + 2 }); // 加 padding
   }
 
-  ws['!cols'] = colWidths;
+  // 主标题行 (Row 2)：教育经历子字段显示"教育经历"，其他用原始 header
+  const mainHeaders = fields.map(f => {
+    if (EDU_SUB_FIELDS.includes(f)) return '教育经历';
+    const cfg = FIELD_CONFIG[f];
+    return cfg ? cfg.header : f;
+  });
+
+  // 子标题行 (Row 3)：仅教育经历子字段显示原始 header，其他为空
+  const subHeaders = fields.map(f => {
+    const cfg = FIELD_CONFIG[f];
+    return cfg ? cfg.header : '';
+  });
+  for (let i = 0; i < subHeaders.length; i++) {
+    if (!EDU_SUB_FIELDS.includes(fields[i])) subHeaders[i] = '';
+  }
+
+  return [groupHeaders, mainHeaders, subHeaders, ...rows];
 }
 
+// ===== 样式化导出 =====
+function applyGroupHeaderStyle(ws, lastCol, groupLabel, fillColor) {
+  // groupHeaderRowIndex 是 exceljs 中的行号，在第 1 行处理时传入
+}
+
+/**
+ * 创建带样式的 worksheet
+ * 表头结构 3 行：分组标题 / 主标题（教育经历合并）/ 子标题（时间·学校·专业·学历）
+ */
+async function createStyledSheet(wb, sheetName, groupData, fields) {
+  const ws = wb.addWorksheet(sheetName);
+
+  const groupHeaders = groupData[0];  // 分组标题行
+  const mainHeaders  = groupData[1];  // 主标题行
+  const subHeaders   = groupData[2];  // 子标题行
+  const dataRows     = groupData.slice(3); // 数据行
+
+  const colCount = fields.length;
+  const eduFirstIdx = fields.indexOf('eduTime'); // 教育经历起始列（0-based）
+
+  // 1. 添加 3 行表头 (exceljs 行号从 1 开始)
+  ws.addRow(groupHeaders.map(h => h || ''));
+  ws.addRow(mainHeaders.map(h => h || ''));
+  ws.addRow(subHeaders);
+  const dataStartRow = 4; // 数据起始行号
+
+  // 2. 添加数据行
+  for (const row of dataRows) {
+    ws.addRow(row);
+  }
+
+  const totalRows = groupData.length; // 总行数
+
+  // 3. 合并单元格
+
+  // 教育经历列范围
+  const eduColRange = { start: eduFirstIdx >= 0 ? eduFirstIdx : 0, end: eduFirstIdx >= 0 ? eduFirstIdx + 3 : -1 };
+
+  // 3a. 分组标题行合并（Row 1）
+  const merges = [];
+  for (const g of FIELD_GROUPS) {
+    if (g.start < colCount && g.end < colCount) {
+      merges.push({ s: { r: 1, c: g.start + 1 }, e: { r: 1, c: g.end + 1 } });
+    }
+  }
+
+  // 3b. 主标题行"教育经历"合并（Row 2, cols eduFirstIdx+1 ~ eduFirstIdx+4）
+  if (eduFirstIdx >= 0) {
+    merges.push({ s: { r: 2, c: eduFirstIdx + 1 }, e: { r: 2, c: eduFirstIdx + 4 } });
+  }
+
+  // 3c. 非教育列 Row 2~Row 3 合并（去掉中间的分隔线）
+  for (let c = 0; c < colCount; c++) {
+    if (c >= eduColRange.start && c <= eduColRange.end) continue;
+    merges.push({ s: { r: 2, c: c + 1 }, e: { r: 3, c: c + 1 } });
+  }
+
+  // 3d. 数据行垂直合并（同一候选人的非教育列）
+  const mergeBlocks = [];
+  let blockStart = dataStartRow;
+  for (let r = dataStartRow; r <= totalRows; r++) {
+    const nameVal = groupData[r - 1]?.[0];
+    if (nameVal && r > blockStart) {
+      mergeBlocks.push({ start: blockStart, end: r - 1 });
+      blockStart = r;
+    }
+  }
+  if (blockStart <= totalRows) {
+    mergeBlocks.push({ start: blockStart, end: totalRows });
+  }
+
+  for (const block of mergeBlocks) {
+    if (block.end - block.start < 1) continue;
+    for (let c = 0; c < colCount; c++) {
+      if (c >= eduColRange.start && c <= eduColRange.end) continue;
+      merges.push({ s: { r: block.start, c: c + 1 }, e: { r: block.end, c: c + 1 } });
+    }
+  }
+
+  // 先写值再合并（exceljs mergeCells 会保留左上角单元格的值）
+  for (const m of merges) {
+    ws.mergeCells(m.s.r, m.s.c, m.e.r, m.e.c);
+  }
+
+  // 部分 exceljs 版本合并后清空了左上单元格的值，此处补回
+  for (let c = 0; c < colCount; c++) {
+    if (c >= eduColRange.start && c <= eduColRange.end) continue;
+    const v = groupData[1]?.[c];
+    if (v) ws.getCell(2, c + 1).value = v;
+  }
+
+  // 4. 设置列宽
+  for (let col = 0; col < colCount; col++) {
+    const fieldKey = fields[col];
+    const colIdx = col + 1;
+
+    if (fieldKey === 'jobRelevanceComment') {
+      ws.getColumn(colIdx).width = 90;
+    } else if (fieldKey === 'resumeText') {
+      ws.getColumn(colIdx).width = 60;
+    } else if (fieldKey === 'eduSchool') {
+      ws.getColumn(colIdx).width = 28;
+    } else if (fieldKey === 'eduTime') {
+      ws.getColumn(colIdx).width = 16;
+    } else if (fieldKey === 'eduMajor') {
+      ws.getColumn(colIdx).width = 16;
+    } else if (fieldKey === 'eduDegree') {
+      ws.getColumn(colIdx).width = 8;
+    } else {
+      ws.getColumn(colIdx).width = 18;
+    }
+  }
+
+  // 5. 设置行高
+  ws.getRow(1).height = 28;
+  ws.getRow(2).height = 24;
+  ws.getRow(3).height = 20;
+
+  // 冻结前三行（分组标题 + 主标题 + 子标题）
+  ws.views = [{ state: 'frozen', ySplit: 3 }];
+
+  // 6. 应用样式
+
+  // --- 分组标题行样式 (Row 1) ---
+  const groupRowRef = ws.getRow(1);
+  groupRowRef.eachCell((cell, colNum) => {
+    const colIdx = colNum - 1;
+    const group = FIELD_GROUPS.find(g => colIdx >= g.start && colIdx <= g.end);
+    if (group) {
+      cell.fill = group.label === 'AI分析'
+        ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } }
+        : { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF70AD47' } };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+    }
+    cell.alignment = { ...DEFAULT_ALIGNMENT };
+    cell.border = THIN_BORDER;
+  });
+
+  // --- 主标题行样式 (Row 2) ---
+  const mainRowRef = ws.getRow(2);
+  mainRowRef.eachCell((cell, colNum) => {
+    const colIdx = colNum - 1;
+    const fieldKey = fields[colIdx];
+    const fieldStyle = FIELD_STYLES[fieldKey];
+    cell.font = { bold: true, size: 11, color: { argb: 'FF000000' } };
+    cell.alignment = { ...DEFAULT_ALIGNMENT };
+    cell.border = THIN_BORDER;
+    if (fieldStyle && fieldStyle.fill) {
+      cell.fill = fieldStyle.fill;
+    }
+  });
+
+  // --- 子标题行样式 (Row 3) ---
+  const subRowRef = ws.getRow(3);
+  subRowRef.eachCell((cell, colNum) => {
+    const colIdx = colNum - 1;
+    const fieldKey = fields[colIdx];
+    const fieldStyle = FIELD_STYLES[fieldKey];
+    // 仅教育经历子标题用灰色，非教育列（已合并到 Row 2）不设灰色
+    const isEdu = colIdx >= eduColRange.start && colIdx <= eduColRange.end;
+    cell.font = isEdu
+      ? { size: 10, color: { argb: 'FF666666' } }
+      : { size: 10, color: { argb: 'FF000000' } };
+    cell.alignment = { ...DEFAULT_ALIGNMENT };
+    cell.border = THIN_BORDER;
+    if (fieldStyle && fieldStyle.fill) {
+      cell.fill = fieldStyle.fill;
+    }
+  });
+
+  // --- 数据行样式 ---
+  for (let r = dataStartRow; r <= totalRows; r++) {
+    const rowRef = ws.getRow(r);
+    rowRef.height = 24; // 统一基础行高
+    rowRef.eachCell((cell, colNum) => {
+      const colIdx = colNum - 1;
+      const fieldKey = fields[colIdx];
+      const fieldStyle = FIELD_STYLES[fieldKey];
+
+      if (fieldStyle && fieldStyle.alignment) {
+        cell.alignment = fieldStyle.alignment;
+      } else {
+        cell.alignment = { ...DEFAULT_ALIGNMENT };
+      }
+
+      cell.font = { size: 11 };
+      if (fieldKey === 'aiRating') {
+        cell.font = { size: 14, color: { argb: 'FFFFA500' } };
+      }
+      cell.border = THIN_BORDER;
+    });
+
+    // AI评级理由 自动撑高行（按字数估算，留足余量）
+    const commentIdx = fields.indexOf('jobRelevanceComment');
+    if (commentIdx >= 0) {
+      const commentText = String(groupData[r - 1]?.[commentIdx] ?? '');
+      if (commentText) {
+        // 列宽约90字符，中文字符占2个单位 → 每行约45个中文字
+        const charCount = commentText.length;
+        const lineCount = Math.ceil(charCount / 35); // 保守估算每行35字
+        rowRef.height = Math.max(lineCount * 22, 60);
+      }
+    }
+    // 在线简历 自动撑高行
+    const resumeIdx = fields.indexOf('resumeText');
+    if (resumeIdx >= 0) {
+      const resumeText = String(groupData[r - 1]?.[resumeIdx] ?? '');
+      if (resumeText && resumeText.length > 50) {
+        // 在线简历通常很长，列宽60字符 → 每行约30个中文字
+        const lineCount = Math.ceil(resumeText.length / 25);
+        rowRef.height = Math.max(lineCount * 18, rowRef.height || 60);
+      }
+    }
+    // 教育经历行高
+    if (eduFirstIdx >= 0) {
+      for (let c = eduFirstIdx; c <= eduFirstIdx + 3; c++) {
+        const val = String(groupData[r - 1]?.[c] ?? '');
+        if (val) { rowRef.height = Math.max(rowRef.height || 22, 22); break; }
+      }
+    }
+  }
+
+  return ws;
+}
+
+// ===== 工具函数 =====
 /**
  * 将岗位名转为合法的 Excel sheet 名
  * - 最长 31 字符
@@ -223,13 +527,6 @@ function safeSheetName(name) {
   let safe = name.replace(/[\\\/\?\*\[\]:]/g, '');
   if (safe.length > 31) safe = safe.slice(0, 31);
   return safe || '候选人';
-}
-
-function applyGroupedHeaders(ws) {
-  ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } },
-    { s: { r: 0, c: 3 }, e: { r: 0, c: 7 } },
-  ];
 }
 
 // ===== 主流程 =====
@@ -252,7 +549,9 @@ async function main() {
   const mode = input.mode === 'default' ? 'default' : 'filter';
 
   // 创建工作簿
-  const wb = XLSX.utils.book_new();
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'AI评分系统';
+  wb.created = new Date();
 
   // 按 appliedJob 分组
   const positionGroups = new Map();
@@ -268,21 +567,16 @@ async function main() {
     groupCandidates.sort((a, b) => (b.totalScore ?? b.score ?? 0) - (a.totalScore ?? a.score ?? 0));
 
     const groupData = buildGroupedExportData(groupCandidates, fields, mode);
-    const ws = XLSX.utils.aoa_to_sheet(groupData);
-    autoColumnWidth(ws, groupData, fields);
-    applyGroupedHeaders(ws);
-
     const sheetName = safeSheetName(position);
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+    await createStyledSheet(wb, sheetName, groupData, fields);
     sheetCount++;
   }
 
-  // 如果没有任何分组（理论上不会发生），创建默认 sheet
+  // 如果没有任何分组，创建默认 sheet
   if (sheetCount === 0) {
     const emptyData = buildGroupedExportData([], fields, mode);
-    const ws = XLSX.utils.aoa_to_sheet(emptyData);
-    applyGroupedHeaders(ws);
-    XLSX.utils.book_append_sheet(wb, ws, '候选人');
+    await createStyledSheet(wb, '候选人', emptyData, fields);
   }
 
   // 输出路径
@@ -290,9 +584,27 @@ async function main() {
   const outputPath = opts.output || resolve(outputDir, 'candidates.xlsx');
   mkdirSync(dirname(outputPath), { recursive: true });
 
-  XLSX.writeFile(wb, outputPath);
+  // 写临时文件，避免被占用的文件直接写入报错
+  const tmpPath = outputPath + '.tmp';
+  await wb.xlsx.writeFile(tmpPath);
 
-  console.log(`导出成功: ${outputPath}`);
+  // 尝试覆盖目标文件
+  let finalPath = outputPath;
+  try {
+    // 删除旧文件（忽略文件不存在）
+    try { unlinkSync(outputPath); } catch {}
+    renameSync(tmpPath, outputPath);
+  } catch (err) {
+    // 文件被占用（如 Excel 打开中），改用带时间戳的文件名
+    const pad = (n) => String(n).padStart(2, '0');
+    const now = new Date();
+    const ts = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    finalPath = resolve(dirname(outputPath), `candidates-${ts}.xlsx`);
+    renameSync(tmpPath, finalPath);
+    console.warn(`输出文件被占用，已另存为: ${finalPath}`);
+  }
+
+  console.log(`导出成功: ${finalPath}`);
   console.log(`共导出 ${candidates.length} 条记录，${sheetCount} 个岗位`);
 
   // 输出各岗位人数
@@ -311,7 +623,7 @@ async function main() {
 
   // 邮件发送（可选，--to-prefix 时触发）
   if (opts['to-prefix']) {
-    await sendEmailAfterExport(opts, outputPath);
+    await sendEmailAfterExport(opts, finalPath);
   }
 }
 
@@ -343,4 +655,4 @@ if (isMainModule) {
   });
 }
 
-export { FIELD_CONFIG, DEFAULT_FIELDS, transformCandidates, buildGroupedExportData, safeSheetName, toAiRating };
+export { FIELD_CONFIG, DEFAULT_FIELDS, transformCandidates, buildGroupedExportData, safeSheetName, toAiRating, formatComment };

@@ -42,6 +42,47 @@ header h1 {
   display: flex;
 }
 
+/* ===== Chrome 状态栏 ===== */
+.chrome-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 10px 16px;
+  width: 100%;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.chrome-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.chrome-status-dot.dot-green {
+  background: #4CAF50;
+  box-shadow: 0 0 4px rgba(76,175,80,0.4);
+}
+.chrome-status-dot.dot-yellow {
+  background: #FFC107;
+  box-shadow: 0 0 4px rgba(255,193,7,0.4);
+  animation: chrome-pulse 1.5s infinite;
+}
+.chrome-status-dot.dot-red {
+  background: #e53935;
+  box-shadow: 0 0 4px rgba(229,57,53,0.4);
+}
+@keyframes chrome-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.chrome-status-text {
+  color: #666;
+  flex: 1;
+}
+
 /* ===== API 配置区 ===== */
 .api-config {
   background: #fff;
@@ -66,12 +107,18 @@ header h1 {
 .api-field label {
   font-size: 13px;
   color: #666;
-  width: 72px;
+  width: 86px;
   flex-shrink: 0;
 }
-.api-field input {
+.api-field .input-wrap {
   flex: 1;
-  padding: 6px 10px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.api-field .input-wrap input {
+  width: 100%;
+  padding: 6px 28px 6px 10px;
   border: 1px solid #d0d5dd;
   border-radius: 6px;
   font-size: 13px;
@@ -79,12 +126,45 @@ header h1 {
   transition: border-color 0.2s;
   font-family: 'Consolas', 'Courier New', monospace;
 }
-.api-field input:focus {
+.api-field .input-wrap input:focus {
   border-color: #4CAF50;
   box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.15);
 }
-.api-field input::placeholder {
+.api-field .input-wrap input::placeholder {
   color: #bbb;
+}
+.sub-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #555;
+  margin: 14px 0 8px;
+}
+.input-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  font-size: 14px;
+  color: #aaa;
+  cursor: pointer;
+  border-radius: 50%;
+  display: none;
+  transition: all 0.15s;
+  -webkit-app-region: no-drag;
+}
+.input-clear:hover {
+  color: #666;
+  background: #e8e8e8;
+}
+.input-wrap:hover .input-clear:not(.hidden) {
+  display: block;
+}
+.input-wrap .input-clear.visible {
+  display: block;
 }
 
 .btn-small {
@@ -133,6 +213,276 @@ header h1 {
   color: #e53935;
 }
 
+/* ===== 来源选择 ===== */
+.source-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  margin-bottom: 12px;
+  width: 100%;
+}
+.source-label {
+  font-size: 14px;
+  color: #666;
+  flex-shrink: 0;
+}
+.radio-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+}
+.radio-label input[type="radio"] {
+  cursor: pointer;
+  accent-color: #4CAF50;
+}
+
+/* ===== 推荐页提示 ===== */
+.recommend-hint {
+  font-size: 12px;
+  color: #8d6e00;
+  background: #fffde7;
+  border: 1px solid #ffe082;
+  border-radius: 6px;
+  padding: 8px 12px;
+  width: 100%;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+/* ===== 岗位选择 ===== */
+.job-select {
+  flex: 1;
+  padding: 6px 28px 6px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  max-width: 460px;
+  background: #fff;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2210%22%20height%3D%226%22%3E%3Cpath%20d%3D%22M1%2C1%20l4%2C4%20l4%2C-4%22%20stroke%3D%22%23666%22%20stroke-width%3D%221.5%22%20fill%3D%22none%22%2F%3E%3C%2Fsvg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 10px 6px;
+}
+.job-select:focus {
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.15);
+}
+
+/* ===== 添加岗位 ===== */
+.btn-icon {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: #4CAF50;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+.btn-icon:hover {
+  background: #f0f0f0;
+  border-color: #4CAF50;
+}
+
+/* ===== 岗位选择器（新样式） ===== */
+.job-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+.job-display {
+  font-size: 14px;
+  color: #1a1a1a;
+  font-weight: 500;
+  padding: 6px 12px;
+  background: #e8f5e9;
+  border: 1px solid #c8e6c9;
+  border-radius: 6px;
+  flex: 1;
+  max-width: 380px;
+  cursor: default;
+}
+.job-display.placeholder {
+  color: #bbb;
+  font-weight: 400;
+  background: #fff;
+  border: 1px dashed #d0d5dd;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.job-display.placeholder:hover {
+  border-color: #4CAF50;
+  color: #4CAF50;
+  background: #f1faf1;
+}
+
+/* ===== 目标岗位弹窗列表 ===== */
+.job-picker-list {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 4px;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+}
+.job-picker-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 14px;
+  font-size: 14px;
+  color: #333;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.1s;
+  -webkit-app-region: no-drag;
+}
+.job-picker-item:last-child {
+  border-bottom: none;
+}
+.job-picker-item:hover {
+  background: #f5f5f5;
+}
+.job-picker-item-name {
+  flex: 1;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.job-picker-add {
+  border-bottom: 1px dashed #e0e0e0;
+  background: #fafffa;
+}
+.job-picker-add:hover {
+  background: #e8f5e9;
+}
+.job-picker-item.selected .job-picker-item-name {
+  color: #2e7d32;
+  font-weight: 600;
+}
+.job-picker-item.selected .job-picker-item-name::before {
+  content: '✓ ';
+  color: #4CAF50;
+  font-weight: 700;
+}
+.job-picker-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.btn-picker-edit,
+.btn-picker-delete {
+  font-size: 11px;
+  padding: 2px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.15s;
+  -webkit-app-region: no-drag;
+  line-height: 1.6;
+}
+.btn-picker-edit:hover {
+  background: #f0f0f0;
+  border-color: #4CAF50;
+  color: #2e7d32;
+}
+.btn-picker-delete:hover {
+  background: #fff0f0;
+  border-color: #e53935;
+  color: #e53935;
+}
+
+/* ===== 添加/编辑岗位弹窗（置顶于目标岗位弹窗之上） ===== */
+#job-dialog-overlay {
+  z-index: 200;
+}
+.dialog-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.dialog-box {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px 28px;
+  width: 500px;
+  max-width: 90vw;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+}
+.dialog-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 18px;
+}
+.dialog-field {
+  margin-bottom: 14px;
+}
+.dialog-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+  margin-bottom: 6px;
+}
+.dialog-field input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.dialog-field input:focus {
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.15);
+}
+.dialog-field textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.2s;
+  line-height: 1.5;
+}
+.dialog-field textarea:focus {
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.15);
+}
+.dialog-hint {
+  font-size: 11px;
+  color: #999;
+  margin-top: 4px;
+}
+.dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
 /* ===== 提取数量配置 ===== */
 .config-section {
   display: flex;
@@ -160,27 +510,31 @@ header h1 {
   cursor: not-allowed;
 }
 
-/* ===== SMTP 配置折叠 ===== */
-.smtp-toggle {
-  font-size: 12px;
-  color: #888;
-  cursor: pointer;
-  margin-top: 10px;
-  user-select: none;
-}
-.smtp-toggle:hover {
-  color: #4CAF50;
-}
-.smtp-config-section {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed #e0e0e0;
-}
-
 .output-dir-info {
   font-size: 13px;
   color: #888;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-dir-select {
+  font-size: 11px;
+  padding: 2px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 4px;
+  background: #fff;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.15s;
+  -webkit-app-region: no-drag;
+}
+.btn-dir-select:hover {
+  background: #f0f0f0;
+  border-color: #4CAF50;
+  color: #333;
 }
 
 /* ===== 按钮 ===== */
@@ -347,4 +701,95 @@ header h1 {
   display: flex;
   gap: 12px;
   margin-top: 4px;
+}
+
+/* ===== 批量打招呼 ===== */
+.greet-section {
+  width: 100%;
+  margin-top: 12px;
+}
+.greet-divider {
+  height: 1px;
+  background: #e0e0e0;
+  margin: 8px 0 12px;
+}
+.greet-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 10px;
+}
+.greet-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.greet-label {
+  font-size: 13px;
+  color: #666;
+  flex-shrink: 0;
+}
+.greet-select {
+  padding: 5px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  background: #fff;
+  cursor: pointer;
+}
+.greet-select:focus {
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.15);
+}
+.greet-count {
+  font-size: 12px;
+  color: #999;
+  margin-left: 4px;
+}
+.greet-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.greet-progress {
+  width: 100%;
+  margin-top: 8px;
+}
+.greet-progress-bar-container {
+  width: 100%;
+  height: 6px;
+  background: #e8e8e8;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.greet-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #66bb6a, #43a047);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.greet-progress-text {
+  font-size: 12px;
+  color: #888;
+  text-align: center;
+}
+.greet-result.greet-result-error {
+  background: #fff0f0;
+  border-color: #ffcdd2;
+  color: #c62828;
+}
+.greet-result {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.6;
+  text-align: center;
+  margin-top: 8px;
+  padding: 8px;
+  background: #f6fdf6;
+  border: 1px solid #c8e6c9;
+  border-radius: 6px;
 }
