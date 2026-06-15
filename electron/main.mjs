@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
-import { fork } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, renameSync, unlinkSync } from 'node:fs';
@@ -103,8 +103,8 @@ let cdpStatus = { state: 'initializing', message: '', chromePort: null };
 // ===== 窗口创建 =====
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 640,
-    height: 700,
+    width: 660,
+    height: 730,
     resizable: false,
     title: 'Boss直聘候选人提取分析',
     icon: resolve(UNPACKED_ROOT, 'app_icon_rounded.png'),
@@ -187,11 +187,10 @@ function runScript(scriptName, args, step, parseFn, extraEnv = {}) {
     termLog(`[main] start: scripts/${scriptName} ${args.join(' ')}`);
     sendProgress(step, 'running', 0, `启动 ${scriptName}...`);
 
-    const proc = fork(scriptPath, args, {
+    const proc = spawn(process.execPath, [scriptPath, ...args], {
       cwd: procCwd,
-      stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+      stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, ...extraEnv, ELECTRON_RUN_AS_NODE: '1' },
-      silent: true,
     });
 
     currentProcess = proc;
@@ -738,14 +737,13 @@ async function runGreeting(level) {
     const greetPath = resolve(UNPACKED_ROOT, 'scripts', 'greet-candidates.mjs');
     const procCwd = app.isPackaged ? OUTPUT_DIR : APP_ROOT;
 
-    const proc = fork(greetPath, [
+    const proc = spawn(process.execPath, [greetPath,
       '--input', scoredPath,
       '--level', String(level),
     ], {
       cwd: procCwd,
-      stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+      stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-      silent: true,
     });
 
     currentProcess = proc;
@@ -870,11 +868,10 @@ async function startCdpProxy() {
   cdpStatus = { state: 'connecting', message: '正在启动 CDP 代理...' };
 
   const proxyPath = resolve(UNPACKED_ROOT, 'scripts', 'cdp-proxy.mjs');
-  cdpProxyProcess = fork(proxyPath, [], {
+  cdpProxyProcess = spawn(process.execPath, [proxyPath], {
     cwd: app.isPackaged ? process.resourcesPath : APP_ROOT,
-    stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+    stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env, CDP_PROXY_PORT: '3456', ELECTRON_RUN_AS_NODE: '1' },
-    silent: true,
   });
 
   cdpProxyProcess.stdout.on('data', (data) => {

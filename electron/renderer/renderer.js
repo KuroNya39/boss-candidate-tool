@@ -13,6 +13,7 @@ const btnOpenDir = document.getElementById('btn-open-dir');
 const btnSelectDir = document.getElementById('btn-select-dir');
 const countInput = document.getElementById('count-input');
 const extractAllCheck = document.getElementById('extract-all');
+const extractAllSection = document.getElementById('extract-all-section');
 const outputDirSpan = document.getElementById('output-dir');
 const jobSelectSection = document.getElementById('job-select-section');
 const jobDisplay = document.getElementById('job-display');
@@ -497,9 +498,16 @@ sourceRadios.forEach(radio => {
   radio.addEventListener('change', () => {
     const isAttach = radio.value === 'recommend-attach';
     const isNormal = radio.value === 'recommend';
+    const isChat = radio.value === 'chat';
     const showJob = isNormal || isAttach;
     jobSelectSection.style.display = showJob ? 'flex' : 'none';
     recommendHint.style.display = isAttach ? '' : 'none';
+    // 推荐页无限滚动，没有"全部"概念，隐藏提取全部
+    extractAllSection.style.display = isChat ? '' : 'none';
+    if (!isChat && extractAllCheck.checked) {
+      extractAllCheck.checked = false;
+      countInput.disabled = false;
+    }
     if (showJob) updateJobDisplay();
   });
 });

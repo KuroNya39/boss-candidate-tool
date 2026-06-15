@@ -754,50 +754,53 @@ async function scrollRecommendResume(targetId, scrollTop) {
  * 关闭推荐牛人页的简历弹窗
  */
 async function closeRecommendDialog(targetId) {
-  const closed = await iframeEval(targetId, `(function(){
-    var dialog = document.querySelector('.dialog-wrap.active');
-    if (!dialog) return 'not-exist';
-    var closeBtn = dialog.querySelector('.close-btn');
-    if (closeBtn) { closeBtn.click(); return 'clicked'; }
-    return 'no-close-btn';
+  // 检查弹窗是否存在
+  const exists = await iframeEval(targetId, `(function(){
+    var d = document.querySelector('.dialog-wrap.active');
+    return d ? true : false;
   })()`);
 
-  await randomDelay(800, 1500);
+  if (!exists) return true;
 
-  if (closed === 'not-exist') return true;
+  // 1. 按 Escape 键关闭（最通用，兼容各种弹窗结构）
+  await iframeEval(targetId, `(function(){
+    document.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape', keyCode: 27, which: 27, bubbles: true, cancelable: true
+    }));
+  })()`);
+  await randomDelay(500, 1000);
 
-  // 确认已关闭
+  const afterEscape = await iframeEval(targetId, `(function(){
+    var d = document.querySelector('.dialog-wrap.active');
+    return d ? true : false;
+  })()`);
+
+  if (!afterEscape) return true;
+
+  // 2. 尝试点关闭按钮
+  await iframeEval(targetId, `(function(){
+    var dialog = document.querySelector('.dialog-wrap.active');
+    if (!dialog) return;
+    var closeBtn = dialog.querySelector('.close-btn');
+    if (closeBtn) closeBtn.click();
+  })()`);
+  await randomDelay(500, 1000);
+
   const stillVisible = await iframeEval(targetId, `(function(){
     var d = document.querySelector('.dialog-wrap.active');
     return d ? true : false;
   })()`);
 
-  if (stillVisible) {
-    // 重试一次
-    await iframeEval(targetId, `(function(){
-      var dialog = document.querySelector('.dialog-wrap.active');
-      var closeBtn = dialog && dialog.querySelector('.close-btn');
-      if (closeBtn) closeBtn.click();
-    })()`);
-    await randomDelay(800, 1500);
+  if (!stillVisible) return true;
 
-    const stillVisible2 = await iframeEval(targetId, `(function(){
-      var d = document.querySelector('.dialog-wrap.active');
-      return d ? true : false;
-    })()`);
-
-    if (stillVisible2) {
-      await iframeEval(targetId, `(function(){
-        var dialog = document.querySelector('.dialog-wrap.active');
-        if (dialog) dialog.remove();
-      })()`);
-      console.warn(`  ⚠ 简历弹窗关闭失败，已强制移除DOM`);
-      await randomDelay(300, 500);
-      return false;
-    }
-  }
-
-  return true;
+  // 3. 强制移除 DOM
+  await iframeEval(targetId, `(function(){
+    var dialog = document.querySelector('.dialog-wrap.active');
+    if (dialog) dialog.remove();
+  })()`);
+  console.warn(`  ⚠ 简历弹窗关闭失败，已强制移除DOM`);
+  await randomDelay(300, 500);
+  return false;
 }
 
 // ===== 取消清理 =====

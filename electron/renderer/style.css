@@ -13,7 +13,7 @@ body {
 }
 
 #app {
-  width: 600px;
+  width: 610px;
   margin: 0 auto;
   padding: 20px 32px;
   min-height: 520px;
@@ -22,12 +22,12 @@ body {
 
 /* ===== 标题 ===== */
 header h1 {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 600;
   text-align: center;
   color: #1a1a1a;
-  margin-bottom: 20px;
-  padding-bottom: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
   border-bottom: 1px solid #e8e8e8;
 }
 
@@ -219,7 +219,7 @@ header h1 {
   align-items: center;
   gap: 12px;
   font-size: 15px;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   width: 100%;
 }
 .source-label {
@@ -249,7 +249,7 @@ header h1 {
   border-radius: 6px;
   padding: 8px 12px;
   width: 100%;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   line-height: 1.5;
 }
 
@@ -508,6 +508,20 @@ header h1 {
   background: #f0f0f0;
   color: #ccc;
   cursor: not-allowed;
+}
+
+.config-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+.config-row .source-section {
+  margin-bottom: 0;
+  flex: 1;
+}
+.config-row .config-section {
+  flex-shrink: 0;
 }
 
 .output-dir-info {

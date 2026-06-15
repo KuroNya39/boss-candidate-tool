@@ -76,20 +76,24 @@
         提示：请先在 Chrome 中打开 Boss 直聘推荐牛人页，并选择岗位、设置筛选条件，不要刷新页面
       </div>
 
-      <div id="job-select-section" class="source-section" style="display:none;">
-        <div class="source-label">目标岗位：</div>
-        <div class="job-selector">
-          <span id="job-display" class="job-display placeholder">请选择岗位</span>
+      <div class="config-row">
+        <div id="job-select-section" class="source-section" style="display:none;">
+          <div class="source-label">目标岗位：</div>
+          <div class="job-selector">
+            <span id="job-display" class="job-display placeholder">请选择岗位</span>
+          </div>
         </div>
-      </div>
 
-      <div class="config-section">
-        <label for="count-input">提取候选人数量：</label>
-        <input type="number" id="count-input" value="20" min="1" max="999">
-        <label class="inline-checkbox">
-          <input type="checkbox" id="extract-all" checked>
-          <span>提取全部</span>
-        </label>
+        <div class="config-section">
+          <label for="count-input">提取候选人数量：</label>
+          <input type="number" id="count-input" value="20" min="1" max="999">
+          <span id="extract-all-section">
+            <label class="inline-checkbox">
+              <input type="checkbox" id="extract-all" checked>
+              <span>提取全部</span>
+            </label>
+          </span>
+        </div>
       </div>
       <div class="output-dir-info">
         输出目录: <span id="output-dir">output/</span>
