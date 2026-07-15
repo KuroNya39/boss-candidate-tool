@@ -895,3 +895,203 @@ header h1 {
   border: 1px solid #c8e6c9;
   border-radius: 6px;
 }
+
+/* ===== Card ===== */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+/* ===== Field Group ===== */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+/* ===== Toggle Group ===== */
+.toggle-group {
+  display: flex;
+  gap: 0;
+  background: var(--bg-page);
+  border-radius: var(--radius-btn);
+  padding: 3px;
+  width: fit-content;
+}
+.toggle-btn {
+  padding: 7px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  -webkit-app-region: no-drag;
+}
+.toggle-btn.active {
+  background: var(--gradient-primary);
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(79,70,229,0.3);
+}
+.toggle-btn:hover:not(.active) {
+  color: var(--text-primary);
+  background: rgba(79,70,229,0.04);
+}
+
+/* ===== Hint Box ===== */
+.hint-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: #92400e;
+  background: rgba(251,191,36,0.08);
+  border-left: 3px solid var(--color-warning);
+  border-radius: 6px;
+  padding: 10px 14px;
+  line-height: 1.5;
+}
+.hint-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(251,191,36,0.2);
+  color: var(--color-warning);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ===== Count Controls ===== */
+.count-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.input-number {
+  width: 72px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  font-size: 14px;
+  text-align: center;
+  outline: none;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast);
+  -webkit-app-region: no-drag;
+}
+.input-number:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+}
+.input-number:disabled {
+  background: #f1f5f9;
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+.count-unit {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-right: 8px;
+}
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: #4f46e5;
+}
+
+/* ===== Card Divider ===== */
+.card-divider {
+  height: 1px;
+  background: var(--border-card);
+  margin: 0;
+}
+
+/* ===== Auto Greet ===== */
+.auto-greet-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.auto-greet-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.input-select {
+  padding: 5px 10px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  font-size: 13px;
+  outline: none;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+.input-select:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+}
+
+/* ===== Start Button ===== */
+.btn-start {
+  width: 100%;
+  padding: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-btn);
+  background: var(--gradient-primary);
+  color: #fff;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  letter-spacing: 0.5px;
+  -webkit-app-region: no-drag;
+}
+.btn-start:hover {
+  background: var(--gradient-hover);
+  box-shadow: 0 4px 15px rgba(79,70,229,0.3);
+}
+.btn-start:active {
+  transform: scale(0.98);
+}
+.btn-start:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}

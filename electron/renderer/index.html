@@ -57,70 +57,73 @@
         <span id="config-status" class="config-status"></span>
       </div>
 
-      <div class="source-section">
-        <div class="source-label">提取来源：</div>
-        <label class="radio-label">
-          <input type="radio" name="source" value="recommend-attach" checked>
-          <span>推荐牛人页</span>
-        </label>
-        <label class="radio-label">
-          <input type="radio" name="source" value="chat">
-          <span>沟通页</span>
-        </label>
-      </div>
+      <div class="card">
+        <div class="card-title">运行配置</div>
 
-      <div id="recommend-hint" class="recommend-hint" style="display:none;">
-        提示：请先在 Chrome 中打开 Boss 直聘推荐牛人页，并选择岗位、设置筛选条件，不要刷新页面
-      </div>
-      <div id="chat-hint" class="recommend-hint" style="display:none;">
-        提示：请先在 Chrome 中打开 Boss 直聘沟通页
-      </div>
+        <!-- Source Toggle -->
+        <div class="field-group">
+          <label class="field-label">提取来源</label>
+          <div class="toggle-group" id="source-toggle-group">
+            <button class="toggle-btn active" data-source="recommend-attach">推荐牛人页</button>
+            <button class="toggle-btn" data-source="chat">沟通页</button>
+          </div>
+        </div>
 
-      <div class="config-row">
-        <div id="job-select-section" class="source-section" style="display:none;">
-          <div class="source-label">目标岗位：</div>
+        <div id="recommend-hint" class="hint-box" style="display:none;">
+          <span class="hint-icon">i</span>
+          <span>请先在 Chrome 中打开 Boss 直聘推荐牛人页，并选择岗位、设置筛选条件，不要刷新页面</span>
+        </div>
+        <div id="chat-hint" class="hint-box" style="display:none;">
+          <span class="hint-icon">i</span>
+          <span>请先在 Chrome 中打开 Boss 直聘沟通页</span>
+        </div>
+
+        <!-- Job selector (recommend only) -->
+        <div id="job-select-section" class="field-group" style="display:none;">
+          <label class="field-label">目标岗位</label>
           <div class="job-selector">
             <span id="job-display" class="job-display placeholder">请选择岗位</span>
           </div>
         </div>
 
-        <div class="config-section">
-          <label for="count-input">提取候选人数量：</label>
-          <input type="number" id="count-input" value="20" min="1" max="999">
-          <span id="extract-all-section">
-            <label class="inline-checkbox">
+        <!-- Count -->
+        <div class="field-group">
+          <label class="field-label">提取数量</label>
+          <div class="count-controls">
+            <input type="number" id="count-input" class="input-number" value="20" min="1" max="999">
+            <span class="count-unit">人</span>
+            <label class="checkbox-label">
               <input type="checkbox" id="extract-all" checked>
               <span>提取全部</span>
             </label>
-          </span>
+          </div>
         </div>
-      </div>
-      <div class="output-dir-info">
-        输出目录: <span id="output-dir">output/</span>
-        <button id="btn-select-dir" class="btn-dir-select">选择目录</button>
-        <button id="btn-clear-history" class="btn-dir-select btn-clear-history" style="margin-left:6px;">清空历史数据</button>
-      </div>
-      <!-- 自动打招呼配置 -->
-      <div class="auto-greet-section">
-        <label class="auto-greet-checkbox">
-          <input type="checkbox" id="auto-greet-check">
-          <span>分析完成后自动打招呼</span>
-        </label>
-        <div class="auto-greet-controls" id="auto-greet-controls" style="display:none;">
-          <label class="greet-label">选择等级：</label>
-          <select id="auto-greet-level" class="greet-select">
-            <option value="5">五星（91-100分）</option>
-            <option value="4" selected>四星及以上（81-90分）</option>
-            <option value="3">三星及以上（61-80分）</option>
-            <option value="2">二星及以上（31-60分）</option>
-            <option value="0">全部候选人</option>
-          </select>
-        </div>
-      </div>
 
-      <button id="btn-start" class="btn btn-primary btn-large">
-        ▶ 开始提取分析
-      </button>
+        <!-- Divider -->
+        <div class="card-divider"></div>
+
+        <!-- Auto Greet -->
+        <div class="auto-greet-section">
+          <label class="checkbox-label">
+            <input type="checkbox" id="auto-greet-check">
+            <span>分析完成后自动打招呼</span>
+          </label>
+          <div class="auto-greet-controls" id="auto-greet-controls" style="display:none;">
+            <select id="auto-greet-level" class="input-select">
+              <option value="5">五星（91-100分）</option>
+              <option value="4" selected>四星及以上（81-90分）</option>
+              <option value="3">三星及以上（61-80分）</option>
+              <option value="2">二星及以上（31-60分）</option>
+              <option value="0">全部候选人</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Start button -->
+        <button id="btn-start" class="btn-primary btn-start">
+          ▶ 开始提取分析
+        </button>
+      </div>
     </div>
 
     <!-- 执行中状态 -->
