@@ -468,6 +468,7 @@ header h1 {
 .collapsible-card {
   padding: 0;
   overflow: hidden;
+  gap: 0;
 }
 .collapsible-header {
   display: flex;
