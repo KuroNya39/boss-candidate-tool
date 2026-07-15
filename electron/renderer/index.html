@@ -30,7 +30,7 @@
           </div>
           <span class="collapsible-arrow" id="api-config-arrow">▸</span>
         </div>
-        <div class="collapsible-body" id="api-config-body" style="display:none;">
+        <div class="collapsible-body" id="api-config-body">
           <div class="field-group">
             <label class="field-label">API 地址</label>
             <div class="input-wrap">
@@ -96,7 +96,7 @@
         <div id="job-select-section" class="field-group" style="display:none;">
           <label class="field-label">目标岗位</label>
           <div class="job-selector">
-            <span id="job-display" class="job-display placeholder">请选择岗位</span>
+            <span id="job-display" class="job-display placeholder">请选择岗位 ▸</span>
           </div>
         </div>
 
@@ -106,10 +106,12 @@
           <div class="count-controls">
             <input type="number" id="count-input" class="input-number" value="20" min="1" max="999">
             <span class="count-unit">人</span>
-            <label class="checkbox-label">
-              <input type="checkbox" id="extract-all" checked>
-              <span>提取全部</span>
-            </label>
+            <span id="extract-all-section">
+              <label class="checkbox-label">
+                <input type="checkbox" id="extract-all" checked>
+                <span>提取全部</span>
+              </label>
+            </span>
           </div>
         </div>
 

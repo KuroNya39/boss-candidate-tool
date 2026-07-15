@@ -258,78 +258,8 @@ header h1 {
 #job-dialog-overlay {
   z-index: 200;
 }
-.dialog-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-.dialog-box {
-  background: #fff;
-  border-radius: 12px;
-  padding: 24px 28px;
-  width: 500px;
-  max-width: 90vw;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
-}
-.dialog-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin-bottom: 18px;
-}
-.dialog-field {
-  margin-bottom: 14px;
-}
-.dialog-field label {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  color: #555;
-  margin-bottom: 6px;
-}
-.dialog-field input {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #d0d5dd;
-  border-radius: 6px;
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.2s;
-}
-.dialog-field input:focus {
-  border-color: #4CAF50;
-  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.15);
-}
-.dialog-field textarea {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #d0d5dd;
-  border-radius: 6px;
-  font-size: 13px;
-  font-family: inherit;
-  outline: none;
-  resize: vertical;
-  transition: border-color 0.2s;
-  line-height: 1.5;
-}
-.dialog-field textarea:focus {
-  border-color: #4CAF50;
-  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.15);
-}
-.dialog-hint {
-  font-size: 11px;
-  color: #999;
-  margin-top: 4px;
-}
-.dialog-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  margin-top: 18px;
+
+/* ===== 提取数量配置 ===== */
 }
 
 
@@ -376,11 +306,11 @@ header h1 {
   width: fit-content;
 }
 .toggle-btn {
-  padding: 7px 20px;
+  padding: 8px 20px;
   font-size: 13px;
   font-weight: 500;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
@@ -523,6 +453,7 @@ header h1 {
 .btn-start:hover {
   background: var(--gradient-hover);
   box-shadow: 0 4px 15px rgba(79,70,229,0.3);
+  transform: scale(1.02);
 }
 .btn-start:active {
   transform: scale(0.98);
@@ -575,11 +506,20 @@ header h1 {
   transform: rotate(90deg);
 }
 .collapsible-body {
-  padding: 0 20px 20px;
+  max-height: 0;
+  overflow: hidden;
+  padding: 0 20px;
   display: flex;
   flex-direction: column;
   gap: 14px;
   border-top: 1px solid var(--border-card);
+  opacity: 0;
+  transition: max-height var(--transition-normal), opacity var(--transition-normal), padding var(--transition-normal);
+}
+.collapsible-body.expanded {
+  max-height: 1000px;
+  padding: 0 20px 20px;
+  opacity: 1;
 }
 .config-badge {
   font-size: 11px;

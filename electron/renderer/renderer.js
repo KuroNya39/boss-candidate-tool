@@ -356,9 +356,8 @@ btnSaveConfig.addEventListener('click', async () => {
 
 // Collapsible API Config
 apiConfigToggle.addEventListener('click', () => {
-  const isHidden = apiConfigBody.style.display === 'none';
-  apiConfigBody.style.display = isHidden ? 'flex' : 'none';
-  apiConfigArrow.classList.toggle('expanded', isHidden);
+  apiConfigBody.classList.toggle('expanded');
+  apiConfigArrow.classList.toggle('expanded');
 });
 
 // ===== 按钮事件 =====
