@@ -47,14 +47,14 @@ body {
 
 /* ===== Header ===== */
 header h1 {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   text-align: center;
   color: var(--text-primary);
-  margin-bottom: 16px;
-  padding-bottom: 14px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
   border-bottom: 1px solid var(--border-card);
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
 }
 
 /* ===== State ===== */
@@ -62,7 +62,7 @@ header h1 {
   display: none;
   flex-direction: column;
   align-items: stretch;
-  gap: 12px;
+  gap: 10px;
 }
 .state.active {
   display: flex;
@@ -73,9 +73,9 @@ header h1 {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
-  font-size: 13px;
-  color: var(--text-secondary);
+  padding: 6px 20px;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 .status-dot {
   width: 8px;
@@ -130,7 +130,7 @@ header h1 {
   line-height: 18px;
   text-align: center;
   font-size: 14px;
-  color: #aaa;
+  color: var(--text-muted);
   cursor: pointer;
   border-radius: 50%;
   display: none;
@@ -138,8 +138,8 @@ header h1 {
   -webkit-app-region: no-drag;
 }
 .input-clear:hover {
-  color: #666;
-  background: #e8e8e8;
+  color: var(--text-secondary);
+  background: var(--bg-page);
 }
 .input-wrap:hover .input-clear:not(.hidden) {
   display: block;
@@ -150,7 +150,7 @@ header h1 {
 
 
 
-/* ===== 岗位选择器（新样式） ===== */
+/* ===== 岗位选择器 ===== */
 .job-selector {
   display: flex;
   align-items: center;
@@ -159,28 +159,28 @@ header h1 {
 }
 .job-display {
   font-size: 14px;
-  color: #1a1a1a;
+  color: var(--text-primary);
   font-weight: 500;
   padding: 6px 12px;
-  background: #e8f5e9;
-  border: 1px solid #c8e6c9;
+  background: rgba(var(--color-accent-rgb),0.04);
+  border: 1px solid var(--color-accent);
   border-radius: 6px;
   flex: 1;
   max-width: 380px;
   cursor: default;
 }
 .job-display.placeholder {
-  color: #bbb;
+  color: var(--text-muted);
   font-weight: 400;
-  background: #fff;
-  border: 1px dashed #d0d5dd;
+  background: var(--bg-card);
+  border: 1px dashed var(--border-input);
   cursor: pointer;
   transition: all 0.15s;
 }
 .job-display.placeholder:hover {
-  border-color: #4CAF50;
-  color: #4CAF50;
-  background: #f1faf1;
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: rgba(var(--color-accent-rgb),0.04);
 }
 
 /* ===== 目标岗位弹窗列表 ===== */
@@ -188,7 +188,7 @@ header h1 {
   max-height: 400px;
   overflow-y: auto;
   margin-bottom: 4px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--border-card);
   border-radius: 8px;
 }
 .job-picker-item {
@@ -196,8 +196,8 @@ header h1 {
   align-items: center;
   padding: 8px 14px;
   font-size: 14px;
-  color: #333;
-  border-bottom: 1px solid #f0f0f0;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-card);
   transition: background 0.1s;
   -webkit-app-region: no-drag;
 }
@@ -205,7 +205,7 @@ header h1 {
   border-bottom: none;
 }
 .job-picker-item:hover {
-  background: #f5f5f5;
+  background: var(--bg-page);
 }
 .job-picker-item-name {
   flex: 1;
@@ -213,19 +213,19 @@ header h1 {
   padding: 2px 0;
 }
 .job-picker-add {
-  border-bottom: 1px dashed #e0e0e0;
-  background: #fafffa;
+  border-bottom: 1px dashed var(--border-card);
+  background: rgba(var(--color-accent-rgb),0.02);
 }
 .job-picker-add:hover {
-  background: #e8f5e9;
+  background: rgba(var(--color-accent-rgb),0.06);
 }
 .job-picker-item.selected .job-picker-item-name {
-  color: #2e7d32;
+  color: var(--color-accent);
   font-weight: 600;
 }
 .job-picker-item.selected .job-picker-item-name::before {
   content: '✓ ';
-  color: #4CAF50;
+  color: var(--color-accent);
   font-weight: 700;
 }
 .job-picker-item-actions {
@@ -237,23 +237,24 @@ header h1 {
 .btn-picker-delete {
   font-size: 11px;
   padding: 2px 10px;
-  border: 1px solid #d0d5dd;
+  border: 1px solid var(--border-input);
   border-radius: 4px;
-  background: #fff;
+  background: var(--bg-card);
   cursor: pointer;
   transition: all 0.15s;
   -webkit-app-region: no-drag;
   line-height: 1.6;
+  color: var(--text-secondary);
 }
 .btn-picker-edit:hover {
-  background: #f0f0f0;
-  border-color: #4CAF50;
-  color: #2e7d32;
+  background: rgba(var(--color-accent-rgb),0.06);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 .btn-picker-delete:hover {
-  background: #fff0f0;
-  border-color: #e53935;
-  color: #e53935;
+  background: rgba(239,68,68,0.06);
+  border-color: var(--color-error);
+  color: var(--color-error);
 }
 
 /* ===== 添加/编辑岗位弹窗（置顶于目标岗位弹窗之上） ===== */
@@ -271,15 +272,13 @@ header h1 {
   box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 .card-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-  opacity: 0.8;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
 }
 
 /* ===== Field Group ===== */
@@ -301,10 +300,11 @@ header h1 {
   background: var(--bg-page);
   border-radius: var(--radius-btn);
   padding: 3px;
-  width: fit-content;
+  width: 100%;
 }
 .toggle-btn {
-  padding: 8px 20px;
+  flex: 1;
+  padding: 8px 12px;
   font-size: 13px;
   font-weight: 500;
   border: none;
@@ -312,6 +312,7 @@ header h1 {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
+  text-align: center;
   transition: all var(--transition-fast);
   -webkit-app-region: no-drag;
 }
@@ -488,7 +489,7 @@ header h1 {
 }
 .collapsible-icon {
   font-size: 15px;
-  opacity: 0.6;
+  opacity: 0.75;
 }
 .collapsible-title {
   font-size: 14px;
@@ -520,18 +521,23 @@ header h1 {
   opacity: 1;
 }
 .config-badge {
-  font-size: 11px;
-  padding: 2px 8px;
+  font-size: 12px;
+  padding: 3px 10px;
   border-radius: 10px;
   font-weight: 500;
+  line-height: 1.4;
 }
 .config-badge.config-ok {
   background: rgba(16,185,129,0.1);
   color: var(--color-success);
 }
 .config-badge.config-missing {
-  background: rgba(148,163,184,0.15);
+  background: rgba(148,163,184,0.12);
   color: var(--text-muted);
+}
+.config-badge.config-error {
+  background: rgba(239,68,68,0.08);
+  color: var(--color-error);
 }
 
 /* ===== Input Text ===== */
@@ -605,16 +611,16 @@ header h1 {
   padding: 7px 20px;
   font-size: 13px;
   font-weight: 500;
-  border: none;
+  border: 1px solid var(--color-accent);
   border-radius: var(--radius-btn);
-  background: var(--bg-input);
-  color: var(--text-primary);
+  background: var(--bg-card);
+  color: var(--color-accent);
   cursor: pointer;
   transition: all var(--transition-fast);
   -webkit-app-region: no-drag;
 }
 .btn-save:hover {
-  background: #e2e8f0;
+  background: rgba(var(--color-accent-rgb),0.06);
 }
 
 /* ===== Step Items ===== */
@@ -801,11 +807,11 @@ header h1 {
 
 /* ===== Result Summary ===== */
 .result-summary {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-secondary);
   text-align: center;
   line-height: 1.8;
-  padding: 4px 0;
+  padding: 2px 0;
 }
 
 /* ===== Result Actions ===== */
@@ -844,8 +850,8 @@ header h1 {
 .greet-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-top: 4px;
+  gap: 14px;
+  padding-top: 2px;
 }
 .greet-title {
   font-size: 14px;

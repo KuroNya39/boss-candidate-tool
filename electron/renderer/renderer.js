@@ -303,18 +303,18 @@ async function updateConfigStatus() {
     const status = await window.electronAPI.getApiConfigStatus();
     if (status.configured) {
       configStatus.textContent = '✓ 已配置';
-      configStatus.className = 'config-status config-ok';
+      configStatus.className = 'config-badge config-ok';
       btnStart.disabled = false;
       btnStart.style.opacity = '1';
     } else {
       configStatus.textContent = '未配置';
-      configStatus.className = 'config-status config-missing';
+      configStatus.className = 'config-badge config-missing';
       btnStart.disabled = true;
       btnStart.style.opacity = '0.5';
     }
   } catch {
     configStatus.textContent = '未配置';
-    configStatus.className = 'config-status config-missing';
+    configStatus.className = 'config-badge config-missing';
     btnStart.disabled = true;
     btnStart.style.opacity = '0.5';
   }
@@ -327,7 +327,7 @@ btnSaveConfig.addEventListener('click', async () => {
 
   if (!url || !key || !model) {
     configStatus.textContent = '请填写完整配置';
-    configStatus.className = 'config-status config-error';
+    configStatus.className = 'config-badge config-error';
     return;
   }
 
@@ -336,7 +336,7 @@ btnSaveConfig.addEventListener('click', async () => {
     new URL(url);
   } catch {
     configStatus.textContent = 'API 地址格式不正确';
-    configStatus.className = 'config-status config-error';
+    configStatus.className = 'config-badge config-error';
     return;
   }
 
@@ -346,11 +346,11 @@ btnSaveConfig.addEventListener('click', async () => {
       emailPrefix: emailPrefixInput.value.trim(),
     });
     configStatus.textContent = '✓ 已保存';
-    configStatus.className = 'config-status config-ok';
+    configStatus.className = 'config-badge config-ok';
     updateConfigStatus();
   } catch (err) {
     configStatus.textContent = '保存失败: ' + err.message;
-    configStatus.className = 'config-status config-error';
+    configStatus.className = 'config-badge config-error';
   }
 });
 
@@ -521,7 +521,7 @@ function renderJobPicker() {
   const addName = document.createElement('span');
   addName.className = 'job-picker-item-name';
   addName.textContent = '+ 添加新岗位';
-  addName.style.color = '#4CAF50';
+  addName.style.color = '#2563eb';
   addName.style.fontWeight = '600';
   addItem.appendChild(addName);
   addItem.addEventListener('click', () => {
@@ -638,7 +638,7 @@ async function showEditJobDialog(jobName) {
   editJobName = jobName;
   dialogJobName.value = jobName;
   dialogJobName.readOnly = true;
-  dialogJobName.style.background = '#f5f5f5';
+  dialogJobName.style.background = '#f1f5f9';
   dialogJobHint.style.display = 'none';
   document.querySelector('#job-dialog-overlay .dialog-title').textContent = '编辑岗位描述';
   try {
