@@ -511,13 +511,14 @@ header h1 {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  border-top: 1px solid var(--border-card);
+  border-top: 0 solid var(--border-card);
   opacity: 0;
-  transition: max-height var(--transition-normal), opacity var(--transition-normal), padding var(--transition-normal);
+  transition: max-height var(--transition-normal), opacity var(--transition-normal), padding var(--transition-normal), border-top-width var(--transition-normal);
 }
 .collapsible-body.expanded {
   max-height: 1000px;
   padding: 0 20px 20px;
+  border-top-width: 1px;
   opacity: 1;
 }
 .config-badge {
