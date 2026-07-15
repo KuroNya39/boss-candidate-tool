@@ -2,14 +2,16 @@
   --bg-page: #f8fafc;
   --bg-card: #ffffff;
   --bg-input: #f8fafc;
-  --gradient-primary: linear-gradient(135deg, #4f46e5, #7c3aed);
-  --gradient-hover: linear-gradient(135deg, #4338ca, #6d28d9);
+  --gradient-primary: linear-gradient(135deg, #2563eb, #3b82f6);
+  --gradient-hover: linear-gradient(135deg, #1d4ed8, #2563eb);
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #94a3b8;
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
+  --color-accent: #2563eb;
+  --color-accent-rgb: 37, 99, 235;
   --border-card: #e2e8f0;
   --border-input: #cbd5e1;
   --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
@@ -259,10 +261,6 @@ header h1 {
   z-index: 200;
 }
 
-/* ===== 提取数量配置 ===== */
-}
-
-
 
 /* ===== Card ===== */
 .card {
@@ -320,11 +318,11 @@ header h1 {
 .toggle-btn.active {
   background: var(--gradient-primary);
   color: #fff;
-  box-shadow: 0 1px 4px rgba(79,70,229,0.3);
+  box-shadow: 0 1px 4px rgba(var(--color-accent-rgb),0.3);
 }
 .toggle-btn:hover:not(.active) {
   color: var(--text-primary);
-  background: rgba(79,70,229,0.04);
+  background: rgba(var(--color-accent-rgb),0.04);
 }
 
 /* ===== Hint Box ===== */
@@ -374,8 +372,8 @@ header h1 {
   -webkit-app-region: no-drag;
 }
 .input-number:focus {
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb),0.1);
 }
 .input-number:disabled {
   background: #f1f5f9;
@@ -397,7 +395,7 @@ header h1 {
 }
 .checkbox-label input[type="checkbox"] {
   cursor: pointer;
-  accent-color: #4f46e5;
+  accent-color: var(--color-accent);
 }
 
 /* ===== Card Divider ===== */
@@ -431,8 +429,8 @@ header h1 {
   -webkit-app-region: no-drag;
 }
 .input-select:focus {
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb),0.1);
 }
 
 /* ===== Start Button ===== */
@@ -452,7 +450,7 @@ header h1 {
 }
 .btn-start:hover {
   background: var(--gradient-hover);
-  box-shadow: 0 4px 15px rgba(79,70,229,0.3);
+  box-shadow: 0 4px 15px rgba(var(--color-accent-rgb),0.3);
   transform: scale(1.02);
 }
 .btn-start:active {
@@ -551,8 +549,8 @@ header h1 {
   -webkit-app-region: no-drag;
 }
 .input-text:focus {
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb),0.1);
 }
 .input-text::placeholder {
   color: var(--text-muted);
@@ -584,14 +582,14 @@ header h1 {
   border: 1px solid var(--border-input);
   border-radius: var(--radius-input);
   background: var(--bg-card);
-  color: #4f46e5;
+  color: var(--color-accent);
   cursor: pointer;
   transition: all var(--transition-fast);
   -webkit-app-region: no-drag;
 }
 .btn-link:hover {
-  border-color: #4f46e5;
-  background: rgba(79,70,229,0.04);
+  border-color: var(--color-accent);
+  background: rgba(var(--color-accent-rgb),0.04);
 }
 .btn-link-danger {
   color: var(--color-error);
@@ -671,7 +669,7 @@ header h1 {
   color: var(--text-muted);
 }
 .step-item.active .step-item-status {
-  color: #4f46e5;
+  color: var(--color-accent);
   font-weight: 500;
 }
 .step-item.done .step-item-status {
@@ -827,7 +825,7 @@ header h1 {
   -webkit-app-region: no-drag;
 }
 .btn-action:hover {
-  box-shadow: 0 4px 15px rgba(79,70,229,0.3);
+  box-shadow: 0 4px 15px rgba(var(--color-accent-rgb),0.3);
 }
 
 /* ===== Error Message ===== */
@@ -941,8 +939,8 @@ header h1 {
 }
 .dialog-field input:focus,
 .dialog-field textarea:focus {
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb),0.1);
 }
 .dialog-field textarea {
   font-family: inherit;
@@ -976,7 +974,7 @@ header h1 {
 }
 .btn-primary:hover {
   background: var(--gradient-hover);
-  box-shadow: 0 4px 15px rgba(79,70,229,0.3);
+  box-shadow: 0 4px 15px rgba(var(--color-accent-rgb),0.3);
 }
 .btn-primary:disabled {
   background: #cbd5e1;
