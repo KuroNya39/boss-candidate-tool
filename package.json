@@ -1,6 +1,6 @@
 {
   "name": "web-access",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "description": "Web access and candidate management tools",
   "main": "electron/main.mjs",
