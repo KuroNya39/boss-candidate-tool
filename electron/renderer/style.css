@@ -1,3 +1,26 @@
+:root {
+  --bg-page: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-input: #f8fafc;
+  --gradient-primary: linear-gradient(135deg, #4f46e5, #7c3aed);
+  --gradient-hover: linear-gradient(135deg, #4338ca, #6d28d9);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --border-card: #e2e8f0;
+  --border-input: #cbd5e1;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-elevated: 0 10px 25px rgba(0,0,0,0.08);
+  --radius-card: 12px;
+  --radius-btn: 8px;
+  --radius-input: 6px;
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -5,9 +28,9 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
-  background: #f0f2f5;
-  color: #333;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  background: var(--bg-page);
+  color: var(--text-primary);
   user-select: none;
   -webkit-app-region: drag;
 }
@@ -15,27 +38,28 @@ body {
 #app {
   width: 610px;
   margin: 0 auto;
-  padding: 20px 32px;
+  padding: 20px 24px;
   min-height: 520px;
   -webkit-app-region: no-drag;
 }
 
-/* ===== 标题 ===== */
+/* ===== Header ===== */
 header h1 {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   text-align: center;
-  color: #1a1a1a;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e8e8e8;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-card);
+  letter-spacing: 0.3px;
 }
 
-/* ===== 状态切换 ===== */
+/* ===== State ===== */
 .state {
   display: none;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 12px;
 }
 .state.active {
@@ -551,6 +575,16 @@ header h1 {
   color: #333;
 }
 
+.btn-clear-history {
+  border-color: #e0c0c0;
+  color: #c0392b;
+}
+.btn-clear-history:hover {
+  background: #fdf0ef;
+  border-color: #c0392b;
+  color: #a93226;
+}
+
 /* ===== 按钮 ===== */
 .btn {
   border: none;
@@ -583,6 +617,23 @@ header h1 {
 }
 .btn-secondary:hover {
   background: #d0d0d0;
+}
+.btn-warning {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffc107;
+  padding: 8px 20px;
+}
+.btn-warning:hover {
+  background: #ffe69c;
+  border-color: #e0a800;
+}
+.running-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
 }
 .btn-large {
   font-size: 18px;
@@ -715,6 +766,33 @@ header h1 {
   display: flex;
   gap: 12px;
   margin-top: 4px;
+}
+
+/* ===== 自动打招呼（分析前） ===== */
+.auto-greet-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 0;
+}
+.auto-greet-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #555;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.auto-greet-checkbox input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: #4CAF50;
+}
+.auto-greet-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* ===== 批量打招呼 ===== */
