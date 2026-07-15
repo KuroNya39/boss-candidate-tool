@@ -21,40 +21,54 @@
         <span class="status-text" id="chrome-status-text">正在检查 CDP 代理...</span>
         <button id="btn-retry-chrome" class="btn-retry" style="display:none;">重试</button>
       </div>
-      <div class="api-config">
-        <div class="api-config-title">API 配置</div>
-        <div class="api-field">
-          <label for="api-url">API 地址</label>
-          <div class="input-wrap">
-            <input type="text" id="api-url" placeholder="https://api.xxx.com">
-            <span class="input-clear" data-target="api-url">×</span>
+      <div class="card collapsible-card" id="api-config-card">
+        <div class="collapsible-header" id="api-config-toggle">
+          <div class="collapsible-header-left">
+            <span class="collapsible-icon">⚙</span>
+            <span class="collapsible-title">API 配置</span>
+            <span id="config-status" class="config-badge config-missing">未配置</span>
           </div>
+          <span class="collapsible-arrow" id="api-config-arrow">▸</span>
         </div>
-        <div class="api-field">
-          <label for="api-key">API Key</label>
-          <div class="input-wrap">
-            <input type="password" id="api-key" placeholder="sk-...">
-            <span class="input-clear" data-target="api-key">×</span>
+        <div class="collapsible-body" id="api-config-body" style="display:none;">
+          <div class="field-group">
+            <label class="field-label">API 地址</label>
+            <div class="input-wrap">
+              <input type="text" id="api-url" class="input-text" placeholder="https://api.xxx.com">
+              <span class="input-clear" data-target="api-url">×</span>
+            </div>
           </div>
-        </div>
-        <div class="api-field">
-          <label for="api-model">模型名称</label>
-          <div class="input-wrap">
-            <input type="text" id="api-model" placeholder="claude-sonnet-...">
-            <span class="input-clear" data-target="api-model">×</span>
+          <div class="field-group">
+            <label class="field-label">API Key</label>
+            <div class="input-wrap">
+              <input type="password" id="api-key" class="input-text" placeholder="sk-...">
+              <span class="input-clear" data-target="api-key">×</span>
+            </div>
           </div>
-        </div>
-        <div class="sub-section-title">邮件通知</div>
-        <div class="api-field">
-          <label for="email-prefix">目标邮箱前缀</label>
-          <div class="input-wrap">
-            <input type="text" id="email-prefix" placeholder="zhangsan（发到 zhangsan@allwinnertech.com）">
-            <span class="input-clear" data-target="email-prefix">×</span>
+          <div class="field-group">
+            <label class="field-label">模型名称</label>
+            <div class="input-wrap">
+              <input type="text" id="api-model" class="input-text" placeholder="claude-sonnet-...">
+              <span class="input-clear" data-target="api-model">×</span>
+            </div>
           </div>
+          <div class="card-divider"></div>
+          <div class="field-group">
+            <label class="field-label">邮件通知（可选）</label>
+            <div class="input-wrap">
+              <input type="text" id="email-prefix" class="input-text" placeholder="zhangsan（发到 zhangsan@allwinnertech.com）">
+              <span class="input-clear" data-target="email-prefix">×</span>
+            </div>
+          </div>
+          <div class="card-divider"></div>
+          <div class="output-row">
+            <span class="output-label">输出目录：</span>
+            <span id="output-dir" class="output-path">output/</span>
+            <button id="btn-select-dir" class="btn-link">选择目录</button>
+            <button id="btn-clear-history" class="btn-link btn-link-danger">清空历史</button>
+          </div>
+          <button id="btn-save-config" class="btn-save">保存配置</button>
         </div>
-
-        <button id="btn-save-config" class="btn btn-secondary btn-small">保存配置</button>
-        <span id="config-status" class="config-status"></span>
       </div>
 
       <div class="card">

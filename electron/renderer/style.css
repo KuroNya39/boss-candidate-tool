@@ -1095,3 +1095,148 @@ header h1 {
   box-shadow: none;
   transform: none;
 }
+
+/* ===== Collapsible Card ===== */
+.collapsible-card {
+  padding: 0;
+  overflow: hidden;
+}
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  user-select: none;
+  transition: background var(--transition-fast);
+}
+.collapsible-header:hover {
+  background: #f8fafc;
+}
+.collapsible-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.collapsible-icon {
+  font-size: 15px;
+  opacity: 0.6;
+}
+.collapsible-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.collapsible-arrow {
+  font-size: 14px;
+  color: var(--text-muted);
+  transition: transform var(--transition-normal);
+}
+.collapsible-arrow.expanded {
+  transform: rotate(90deg);
+}
+.collapsible-body {
+  padding: 0 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-top: 1px solid var(--border-card);
+}
+.config-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+.config-badge.config-ok {
+  background: rgba(16,185,129,0.1);
+  color: var(--color-success);
+}
+.config-badge.config-missing {
+  background: rgba(148,163,184,0.15);
+  color: var(--text-muted);
+}
+
+/* ===== Input Text ===== */
+.input-text {
+  width: 100%;
+  padding: 8px 32px 8px 12px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  font-size: 13px;
+  outline: none;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: 'Consolas', 'Courier New', monospace;
+  transition: border-color var(--transition-fast);
+  -webkit-app-region: no-drag;
+}
+.input-text:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+}
+.input-text::placeholder {
+  color: var(--text-muted);
+}
+
+/* ===== Output Row ===== */
+.output-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+.output-label {
+  flex-shrink: 0;
+}
+.output-path {
+  font-family: 'Consolas', 'Courier New', monospace;
+  color: var(--text-primary);
+  font-size: 12px;
+  background: var(--bg-input);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.btn-link {
+  font-size: 12px;
+  padding: 3px 10px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  background: var(--bg-card);
+  color: #4f46e5;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  -webkit-app-region: no-drag;
+}
+.btn-link:hover {
+  border-color: #4f46e5;
+  background: rgba(79,70,229,0.04);
+}
+.btn-link-danger {
+  color: var(--color-error);
+}
+.btn-link-danger:hover {
+  border-color: var(--color-error);
+  background: rgba(239,68,68,0.04);
+}
+
+/* ===== Save Button ===== */
+.btn-save {
+  align-self: flex-start;
+  padding: 7px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  border-radius: var(--radius-btn);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  -webkit-app-region: no-drag;
+}
+.btn-save:hover {
+  background: #e2e8f0;
+}
