@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 请求-响应模式
   startExtraction: (opts) => ipcRenderer.invoke('start-extraction', opts),
   cancelExtraction: () => ipcRenderer.invoke('cancel-extraction'),
+  skipExtraction: () => ipcRenderer.invoke('skip-extraction'),
   openOutputDir: () => ipcRenderer.invoke('open-output'),
   getOutputDir: () => ipcRenderer.invoke('get-output-dir'),
 
@@ -14,6 +15,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 输出目录选择
   selectOutputDir: () => ipcRenderer.invoke('select-output-dir'),
+
+  // 清空历史归档数据
+  clearHistory: () => ipcRenderer.invoke('clear-history'),
 
   // 推荐牛人页岗位列表
   getRecommendJobs: () => ipcRenderer.invoke('get-recommend-jobs'),

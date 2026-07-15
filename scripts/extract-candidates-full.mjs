@@ -37,6 +37,24 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const startTime = new Date().toLocaleString('sv-SE', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }).replace(' ', 'T') + new Date().toISOString().slice(19, 23);
 
+// ===== 查找用户已打开的沟通页 tab =====
+async function findChatTab() {
+  const targets = await proxyGet('/targets');
+  const list = Array.isArray(targets) ? targets : targets.targets || [];
+  const tab = list.find(t =>
+    t.url && t.url.includes('/web/chat') && !t.url.includes('/web/chat/recommend')
+  );
+  if (!tab || !tab.targetId) {
+    throw new Error(
+      '未找到已打开的沟通页。\n' +
+      '请先在 Chrome 中打开 Boss 直聘沟通页 https://www.zhipin.com/web/chat\n' +
+      '然后重试。'
+    );
+  }
+  console.log(`已附着到用户打开的沟通页: ${tab.url}`);
+  return tab.targetId;
+}
+
 // ===== 页面操作 =====
 
 async function waitForCandidateList(targetId, maxWait = 15000) {
@@ -295,41 +313,86 @@ const EXTRACT_BASIC_INFO_SCRIPT = `(function() {
     }
   } catch (e) {}
   try {
-    var timeList = document.querySelector('.time-content');
-    var detailList = document.querySelector('.work-content');
-    if (timeList && detailList) {
-      var timeItems = timeList.querySelectorAll(':scope > li');
-      var detailItems = detailList.querySelectorAll(':scope > li');
+    // 使用 querySelectorAll 遍历所有 .time-content / .work-content 对
+    // 避免 Boss直聘工作经历和教育经历分属不同容器时漏掉教育经历
+    var timeLists = document.querySelectorAll('.time-content');
+    var detailLists = document.querySelectorAll('.work-content');
+    var pairCount = Math.min(timeLists.length, detailLists.length);
+    if (pairCount > 0) {
       var workExp = [], eduExp = [];
-      timeItems.forEach(function(timeLi, index) {
-        var detailLi = detailItems[index];
-        if (!detailLi) return;
-        var time = safeText(timeLi.querySelector('.time'));
-        var detail = safeText(detailLi.querySelector('.value'));
-        var svgEl = timeLi.querySelector('svg');
-        var svgClass = svgEl ? svgEl.className.baseVal : '';
-        var isEdu = svgClass.includes('shool');
-        if (isEdu) {
-          var parts = detail ? detail.split('\\u00b7').map(function(p){return p.trim();}) : [];
-          var edu = {};
-          if (time) edu.time = time;
-          if (parts[0]) edu.school = parts[0];
-          if (parts[1]) edu.major = parts[1];
-          if (parts[2]) edu.degree = parts[2];
-          if (Object.keys(edu).length > 0) eduExp.push(edu);
-        } else {
-          var parts = detail ? detail.split('\\u00b7').map(function(p){return p.trim();}) : [];
-          var work = {};
-          if (time) work.time = time;
-          if (parts[0]) work.company = parts[0];
-          if (parts[1]) work.position = parts[1];
-          if (Object.keys(work).length > 0) workExp.push(work);
-        }
-      });
+      for (var listIdx = 0; listIdx < pairCount; listIdx++) {
+        var timeList = timeLists[listIdx];
+        var detailList = detailLists[listIdx];
+        var timeItems = timeList.querySelectorAll(':scope > li');
+        var detailItems = detailList.querySelectorAll(':scope > li');
+        timeItems.forEach(function(timeLi, index) {
+          var detailLi = detailItems[index];
+          if (!detailLi) return;
+          var time = safeText(timeLi.querySelector('.time'));
+          var detail = safeText(detailLi.querySelector('.value'));
+          var svgEl = timeLi.querySelector('svg');
+          var svgClass = svgEl ? svgEl.className.baseVal : '';
+          var isEdu = svgClass.includes('shool') || svgClass.includes('school') || svgClass.includes('edu');
+          if (isEdu) {
+            var parts = detail ? detail.split('\\u00b7').map(function(p){return p.trim();}) : [];
+            var edu = {};
+            if (time) edu.time = time;
+            if (parts[0]) edu.school = parts[0];
+            if (parts[1]) edu.major = parts[1];
+            if (parts[2]) edu.degree = parts[2];
+            if (Object.keys(edu).length > 0) eduExp.push(edu);
+          } else {
+            var parts = detail ? detail.split('\\u00b7').map(function(p){return p.trim();}) : [];
+            var work = {};
+            if (time) work.time = time;
+            if (parts[0]) work.company = parts[0];
+            if (parts[1]) work.position = parts[1];
+            if (Object.keys(work).length > 0) workExp.push(work);
+          }
+        });
+      }
       if (workExp.length > 0) result.workExperience = workExp;
       if (eduExp.length > 0) result.educationExperience = eduExp;
     }
   } catch (e) {}
+  // 教育经历后备提取：结构化提取无结果时，从原始文本中解析
+  if (!result.educationExperience && result.rawVisibleText) {
+    try {
+      var text = result.rawVisibleText;
+      var lines = text.split('\\n');
+      var eduStart = -1;
+      for (var i = 0; i < lines.length; i++) {
+        if (/教育/.test(lines[i])) { eduStart = i + 1; break; }
+      }
+      if (eduStart > 0) {
+        var eduLines = [];
+        for (var i = eduStart; i < lines.length; i++) {
+          var line = lines[i].trim();
+          if (!line) continue;
+          if (/^(工作经历|项目经历|期望|技能|自我|证书)/.test(line)) break;
+          eduLines.push(line);
+        }
+        var fallbackEdu = [];
+        for (var i = 0; i < eduLines.length; i++) {
+          if (/\\d{4}/.test(eduLines[i])) {
+            var time = eduLines[i];
+            var detail = '';
+            if (i + 1 < eduLines.length && !/\\d{4}/.test(eduLines[i + 1])) {
+              detail = eduLines[i + 1];
+              i++;
+            }
+            var parts = detail.split('\\u00b7').map(function(p){return p.trim()}).filter(Boolean);
+            var entry = { time: time };
+            if (parts[0]) entry.school = parts[0];
+            if (parts[1]) entry.major = parts[1];
+            if (parts[2]) entry.degree = parts[2];
+            fallbackEdu.push(entry);
+          }
+        }
+        if (fallbackEdu.length > 0) result.educationExperience = fallbackEdu;
+      }
+    } catch (e) {}
+  }
   try {
     var posContent = document.querySelector('.position-content');
     if (posContent) {
@@ -480,6 +543,85 @@ process.on('SIGTERM', () => {
   doCleanup().finally(() => process.exit(0));
 });
 
+// ===== 教育经历解析（从 OCR 后的简历文本中提取） =====
+/**
+ * 从 resumeText 中解析教育经历段落（后备方案）
+ * 在线简历弹窗中包含完整教育经历，可补充右侧面板时间线提取的不足
+ */
+function parseEducationFromResumeText(resumeText) {
+  if (!resumeText) return null;
+
+  const lines = resumeText.split('\n').map(l => l.trim()).filter(Boolean);
+  // 找"教育经历"或"教育背景"节点头
+  let eduStart = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^教育/.test(lines[i])) { eduStart = i + 1; break; }
+  }
+  if (eduStart < 0 || eduStart >= lines.length) return null;
+
+  // 收集教育节内容，遇到其他节点头停止
+  const eduLines = [];
+  for (let i = eduStart; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^(工作经历|项目经历|期望职位|技能|自我评价|证书|语言|培训经历)/.test(line)) break;
+    eduLines.push(line);
+  }
+  if (eduLines.length === 0) return null;
+
+  // 解析：两行为一组（时间行 + 学校·专业·学历 行），或三~四行为一组
+  const result = [];
+  let i = 0;
+  while (i < eduLines.length) {
+    const line = eduLines[i];
+    if (/\d{4}/.test(line)) {
+      const time = line;
+      const remaining = eduLines.slice(i + 1);
+      // 找下一个时间行或结尾
+      let nextTimeIdx = remaining.findIndex(l => /\d{4}/.test(l));
+      if (nextTimeIdx < 0) nextTimeIdx = remaining.length;
+
+      // 取时间行之后到下一个时间行之间的所有行作为详情
+      const detailLines = remaining.slice(0, nextTimeIdx);
+      let school = '', major = '', degree = '';
+
+      for (const dl of detailLines) {
+        // 按 · 或 • 分隔
+        if (dl.includes('·') || dl.includes('•')) {
+          const parts = dl.split(/[·•]/).map(p => p.trim()).filter(Boolean);
+          if (parts[0]) school = parts[0];
+          if (parts[1]) major = parts[1];
+          if (parts[2]) degree = parts[2];
+        } else {
+          // 单行文本：按"本科/硕士/博士/大专"等关键词分配
+          if (!school && !/^(本科|硕士|博士|大专)/.test(dl)) {
+            school = dl;
+          } else if (!major && !/^(本科|硕士|博士|大专)/.test(dl)) {
+            major = dl;
+          } else if (/^(本科|硕士|博士|大专|高中)/.test(dl)) {
+            degree = dl;
+          } else if (!school) {
+            school = dl;
+          } else if (!major) {
+            major = dl;
+          }
+        }
+      }
+
+      const entry = { time };
+      if (school) entry.school = school;
+      if (major) entry.major = major;
+      if (degree) entry.degree = degree;
+      result.push(entry);
+
+      i += 1 + detailLines.length;
+    } else {
+      i++;
+    }
+  }
+
+  return result.length > 0 ? result : null;
+}
+
 // ===== 主流程 =====
 
 async function main() {
@@ -499,6 +641,11 @@ async function main() {
   const tempDir = resolve(dirname(outputPath), '.temp-screenshots');
   mkdirSync(tempDir, { recursive: true });
 
+  // ===== 查找用户已打开的沟通页 tab =====
+  console.log('查找已打开的 Boss 直聘沟通页...');
+  const targetId = await findChatTab();
+  console.log(`已附着到用户打开的沟通页 tab: ${targetId}\n`);
+
   // ===== 阶段 1：扫描候选人列表 =====
   let candidateList;
   let scanCache = null;
@@ -511,11 +658,6 @@ async function main() {
     candidateList = scanCache.candidates;
     console.log(`跳过扫描阶段，使用缓存: ${candidateList.length} 人\n`);
   } else {
-    console.log('打开 Boss 直聘沟通页...');
-    const newTab = await proxyGet('/new?url=https://www.zhipin.com/web/chat');
-    const targetId = newTab.targetId;
-    console.log(`Tab 已创建: ${targetId}`);
-
     console.log('等待页面加载...');
     const listCount = await waitForCandidateList(targetId, 15000);
     console.log(`页面已加载，候选人列表: ${listCount} 项\n`);
@@ -542,7 +684,6 @@ async function main() {
 
     if (candidateList.length === 0) {
       console.error('未扫描到候选人，退出');
-      await proxyGet(`/close?target=${targetId}`);
       process.exit(1);
     }
 
@@ -551,9 +692,6 @@ async function main() {
     if (!opts.extractAll && candidateList.length > opts.count) {
       candidateList = candidateList.slice(0, opts.count);
     }
-
-    console.log('关闭扫描 tab...');
-    await proxyGet(`/close?target=${targetId}`);
   }
 
   // ===== 阶段 2：逐个提取候选人 =====
@@ -596,17 +734,8 @@ async function main() {
   _cleanupWorker = worker;
   console.log('OCR 引擎就绪\n');
 
-  // 创建新 tab 用于提取
-  console.log('打开 Boss 直聘沟通页...');
-  const newTab = await proxyGet('/new?url=https://www.zhipin.com/web/chat');
-  const targetId = newTab.targetId;
-  _cleanupTargetId = targetId;
-  console.log(`Tab 已创建: ${targetId}`);
-
-  console.log('等待页面加载...');
-  const listCount = await waitForCandidateList(targetId, 15000);
-  console.log(`页面已加载，候选人列表: ${listCount} 项\n`);
-
+  // 使用用户已打开的沟通页 tab 进行提取
+  console.log('使用已打开的沟通页 tab 进行提取...\n');
   await ensureUnreadFilter(targetId);
 
   const jobDescCache = new Map();
@@ -692,6 +821,15 @@ async function main() {
             candidateData.resumeText = resumeText;
             console.log(`  ✓ 简历提取完成 (${resumeText.length} 字)`);
 
+            // 从简历文本中解析教育经历（后备：若右侧面板未提取到完整学历）
+            if (!candidateData.educationExperience || candidateData.educationExperience.length === 0) {
+              const parsed = parseEducationFromResumeText(resumeText);
+              if (parsed && parsed.length > 0) {
+                candidateData.educationExperience = parsed;
+                console.log(`  ✓ 从简历解析教育经历: ${parsed.length} 段`);
+              }
+            }
+
             const resumeDir = resolve(dirname(outputPath), 'resumes');
             mkdirSync(resumeDir, { recursive: true });
             const txtPath = resolve(resumeDir, `${sname}-${geekId}.txt`);
@@ -741,9 +879,8 @@ async function main() {
     }
   }
 
-  // 关闭 tab
-  console.log('\n关闭 tab...');
-  await proxyGet(`/close?target=${targetId}`);
+  // 保留页面 tab，供后续操作复用
+  console.log('\n保留页面 tab，供后续操作使用');
   await worker.terminate();
   _cleanupTargetId = null;
   _cleanupWorker = null;

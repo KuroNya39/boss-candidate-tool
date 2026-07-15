@@ -228,6 +228,9 @@ header h1 {
   color: var(--color-accent);
   font-weight: 700;
 }
+.job-picker-item.selected {
+  background: rgba(var(--color-accent-rgb),0.04);
+}
 .job-picker-item-actions {
   display: flex;
   gap: 6px;
@@ -235,15 +238,15 @@ header h1 {
 }
 .btn-picker-edit,
 .btn-picker-delete {
-  font-size: 11px;
-  padding: 2px 10px;
+  font-size: 12px;
+  padding: 4px 12px;
   border: 1px solid var(--border-input);
   border-radius: 4px;
   background: var(--bg-card);
   cursor: pointer;
   transition: all 0.15s;
   -webkit-app-region: no-drag;
-  line-height: 1.6;
+  line-height: 1.4;
   color: var(--text-secondary);
 }
 .btn-picker-edit:hover {
@@ -377,7 +380,7 @@ header h1 {
   box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb),0.1);
 }
 .input-number:disabled {
-  background: #f1f5f9;
+  background: var(--bg-page);
   color: var(--text-muted);
   cursor: not-allowed;
 }
@@ -481,7 +484,7 @@ header h1 {
   transition: background var(--transition-fast);
 }
 .collapsible-header:hover {
-  background: #f8fafc;
+  background: var(--bg-page);
 }
 .collapsible-header-left {
   display: flex;
@@ -691,7 +694,7 @@ header h1 {
 .progress-track {
   flex: 1;
   height: 6px;
-  background: #e2e8f0;
+  background: var(--border-card);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -770,7 +773,7 @@ header h1 {
   -webkit-app-region: no-drag;
 }
 .btn-ghost:hover {
-  background: #f1f5f9;
+  background: var(--bg-page);
   color: var(--text-primary);
 }
 

@@ -9,9 +9,10 @@
  *   node scripts/greet-candidates.mjs --input output/scored-candidates.json --level 4
  *
  * --level 参数：
- *   5 = 五星（强烈推荐 ≥86分）
- *   4 = 四星及以上（推荐 ≥72分）
- *   3 = 三星及以上（可考虑 ≥58分）
+ *   5 = 五星（91-100分）
+ *   4 = 四星及以上（81-90分）
+ *   3 = 三星及以上（61-80分）
+ *   2 = 二星及以上（31-60分）
  *   0 = 全部候选人
  */
 
@@ -33,14 +34,14 @@ function parseArgs() {
     if (args[i] === '--level' && args[i + 1]) opts.level = parseInt(args[++i], 10);
   }
   if (!opts.input) {
-    console.error('Usage: node greet-candidates.mjs --input <scored-candidates.json> --level <5|4|3|0>');
+    console.error('Usage: node greet-candidates.mjs --input <scored-candidates.json> --level <5|4|3|2|0>');
     process.exit(1);
   }
   return opts;
 }
 
 // ===== 等级阈值 =====
-const LEVEL_THRESHOLDS = { 5: 86, 4: 72, 3: 58, 0: 0 };
+const LEVEL_THRESHOLDS = { 5: 91, 4: 81, 3: 61, 2: 31, 0: 0 };
 
 // ===== 查找 recommend tab =====
 async function findRecommendTab() {

@@ -1,0 +1,5795 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "web-access",
+    "languages": [
+      "css",
+      "html",
+      "javascript",
+      "json",
+      "markdown",
+      "txt",
+      "yaml"
+    ],
+    "frameworks": [
+      "Electron"
+    ],
+    "description": "基于 Electron 的 Web 访问与候选人管理工具，提供 BOSS 直聘候选人提取、AI 智能评分、简历解析与邮件导出等功能",
+    "analyzedAt": "2026-06-01T05:40:55.513Z",
+    "gitCommitHash": "0291539073c93b06ddfb693efcb2406425fc1c75"
+  },
+  "nodes": [
+    {
+      "id": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/CDP API端点.md",
+      "type": "document",
+      "name": "CDP API端点.md",
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/CDP API端点.md",
+      "summary": "CDP代理全部13个HTTP API端点的综合文档，覆盖健康检查、目标管理、页面导航、元素交互、文件上传、截图和滚动等功能，包含详细的HTTP规范、响应结构、处理流程图和故障排除指南。",
+      "tags": [
+        "documentation",
+        "api-schema",
+        "overview"
+      ],
+      "complexity": "complex",
+      "languageNotes": "该文档使用Mermaid图表（sequenceDiagram、flowchart、graph）可视化每个API端点的处理流程和架构关系，涵盖从/health到/screenshot共13个端点。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/元素交互.md",
+      "type": "document",
+      "name": "元素交互.md",
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/元素交互.md",
+      "summary": "CDP代理元素交互功能的专项文档，详细说明三种元素操作方式：/eval（JavaScript代码执行）、/click（JS层面点击）和/clickAt（CDP真实鼠标事件），包括各自的实现原理、响应结构和适用场景对比。",
+      "tags": [
+        "documentation",
+        "api-schema",
+        "browser-automation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/基础健康检查.md",
+      "type": "document",
+      "name": "基础健康检查.md",
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/基础健康检查.md",
+      "summary": "CDP代理/health健康检查端点的专项文档，描述其「最小化连接」设计理念、响应结构（status、connected、sessions、chromePort字段）、连接状态检测机制和监控最佳实践。",
+      "tags": [
+        "documentation",
+        "api-schema",
+        "monitoring"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/文件上传与截图.md",
+      "type": "document",
+      "name": "文件上传与截图.md",
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/文件上传与截图.md",
+      "summary": "CDP代理文件上传和截图功能的专项文档，详细说明/setFiles端点绕过文件对话框的文件上传机制和/screenshot端点的多种截图格式（png/jpeg/webp）及区域裁剪功能。",
+      "tags": [
+        "documentation",
+        "api-schema",
+        "file-upload",
+        "screenshot"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/滚动与页面信息.md",
+      "type": "document",
+      "name": "滚动与页面信息.md",
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/滚动与页面信息.md",
+      "summary": "CDP代理滚动控制和页面信息获取功能的专项文档，详细说明/scroll端点四种滚动策略（down/up/top/bottom）和/info端点通过Runtime.evaluate获取页面标题、URL和加载状态的实现。",
+      "tags": [
+        "documentation",
+        "api-schema",
+        "page-interaction",
+        "scrolling"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/目标管理.md",
+      "type": "document",
+      "name": "目标管理.md",
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/目标管理.md",
+      "summary": "CDP代理目标管理端点的专项文档，说明/targets端点列出所有页面Tab和/close端点关闭指定Tab的实现，并介绍与/new、/navigate协作的完整页面生命周期管理流程。",
+      "tags": [
+        "documentation",
+        "api-schema",
+        "tab-management"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/页面导航.md",
+      "type": "document",
+      "name": "页面导航.md",
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/页面导航.md",
+      "summary": "CDP代理页面导航端点的专项文档，说明/new（创建后台标签页）、/navigate（导航到新URL）和/back（后退操作）三个端点的自动等待加载机制，以及基于document.readyState的15秒超时轮询策略。",
+      "tags": [
+        "documentation",
+        "api-schema",
+        "page-navigation"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP代理服务.md",
+      "type": "document",
+      "name": "CDP代理服务.md",
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP代理服务.md",
+      "summary": "CDP代理服务的综合技术文档，涵盖架构概览、核心组件分析（HTTP API服务器、WebSocket连接管理器、CDP协议适配器等）、全部HTTP端点详解、依赖分析、性能优化策略及故障排除指南。作为该文档章节的索引页面，内容最全面。",
+      "tags": [
+        "documentation",
+        "api-schema",
+        "architecture",
+        "reference"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP代理概述.md",
+      "type": "document",
+      "name": "CDP代理概述.md",
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP代理概述.md",
+      "summary": "CDP代理服务的概述性文档，介绍项目结构、核心组件（CDP代理服务器、HTTP API接口、会话管理系统）、反风控机制、依赖关系及API使用示例。适合新开发者快速了解项目全貌。",
+      "tags": [
+        "documentation",
+        "overview",
+        "architecture",
+        "getting-started"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/CDP代理服务/WebSocket通信.md",
+      "type": "document",
+      "name": "WebSocket通信.md",
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/WebSocket通信.md",
+      "summary": "详细解析CDP代理的WebSocket通信机制，包括Node.js 22+原生WebSocket与ws模块回退策略、请求-响应模式与异步处理、CDP消息格式与ID分配策略、超时处理、事件监听器管理及pending请求队列内存泄漏防护。",
+      "tags": [
+        "documentation",
+        "websocket",
+        "communication",
+        "protocol"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/CDP代理服务/使用示例.md",
+      "type": "document",
+      "name": "使用示例.md",
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/使用示例.md",
+      "summary": "CDP代理服务的端到端使用指南，涵盖代理启动、Chrome连接、自动化操作（导航、点击、截图、数据提取）等场景，配套curl命令与JavaScript客户端调用示例，以及错误处理策略和性能优化建议。",
+      "tags": [
+        "documentation",
+        "examples",
+        "tutorial",
+        "automation"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/CDP代理服务/连接管理.md",
+      "type": "document",
+      "name": "连接管理.md",
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/连接管理.md",
+      "summary": "深入解析CDP代理的连接管理子系统，涵盖WebSocket连接建立与重连策略、Chrome实例自动发现机制（DevToolsActivePort扫描、跨平台路径处理）、会话管理（ensureSession）、反风控机制（Fetch域启用与调试端口探测拦截）及故障排除。",
+      "tags": [
+        "documentation",
+        "connection-management",
+        "session",
+        "anti-detection"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/候选人筛选系统/候选人筛选系统.md",
+      "type": "document",
+      "name": "候选人筛选系统.md",
+      "filePath": ".qoder/repowiki/zh/content/候选人筛选系统/候选人筛选系统.md",
+      "summary": "候选人筛选系统的顶层概述文档，涵盖项目结构、三类规则配置（mustHave/preferred/exclude）、字段解析引擎、评分算法、LLM岗位相关性评分、架构设计、数据流、性能优化和故障排除等全部核心组件，是本知识库的入口文档。",
+      "tags": [
+        "documentation",
+        "entry-point",
+        "candidate-screening",
+        "overview"
+      ],
+      "complexity": "complex",
+      "languageNotes": "文档引用scripts/score-candidates.mjs、config/filter-rules.json等实际代码文件，通过Mermaid图表展示系统架构与数据流。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/候选人筛选系统/字段解析引擎.md",
+      "type": "document",
+      "name": "字段解析引擎.md",
+      "filePath": ".qoder/repowiki/zh/content/候选人筛选系统/字段解析引擎.md",
+      "summary": "详细阐述字段解析引擎的设计与实现，涵盖字段路径解析（普通字段与数组字段展开）、智能字段解析（rawVisibleText特殊处理与回退机制）、教育程度与工作年限的正则解析策略、多类型比较（学历等级/数值/字符串优先级比较）等核心能力。",
+      "tags": [
+        "documentation",
+        "field-parsing",
+        "data-extraction",
+        "candidate-screening"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/候选人筛选系统/岗位描述(JD)提取系统.md",
+      "type": "document",
+      "name": "岗位描述(JD)提取系统.md",
+      "filePath": ".qoder/repowiki/zh/content/候选人筛选系统/岗位描述(JD)提取系统.md",
+      "summary": "描述基于Boss直聘平台的JD提取系统的完整实现，涵盖候选人信息提取引擎、JD提取模块、OCR文本清洗与数据标准化管道、缓存策略、LLM评分集成以及性能优化策略。",
+      "tags": [
+        "documentation",
+        "job-description",
+        "data-extraction",
+        "candidate-screening",
+        "ocr"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/候选人筛选系统/规则引擎核心.md",
+      "type": "document",
+      "name": "规则引擎核心.md",
+      "filePath": ".qoder/repowiki/zh/content/候选人筛选系统/规则引擎核心.md",
+      "summary": "聚焦规则引擎核心模块的实现，涵盖mustHave/preferred/exclude三类规则的执行顺序与语义、compareValues函数的九种比较操作符（equals/contains/in/>=/>/<=/</regex/exists）、字段路径解析机制以及规则配置示例与最佳实践。",
+      "tags": [
+        "documentation",
+        "rule-engine",
+        "comparison",
+        "candidate-screening"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/候选人筛选系统/评分算法实现.md",
+      "type": "document",
+      "name": "评分算法实现.md",
+      "filePath": ".qoder/repowiki/zh/content/候选人筛选系统/评分算法实现.md",
+      "summary": "详细阐述候选人评分算法模块的完整实现，包括exclude规则的最高优先级检查、mustHave规则的强制通过要求、preferred规则的加权计算、分数归一化算法（60分基础分+权重转换）、推荐等级划分（strong/good/fair/weak）及阈值判定机制。",
+      "tags": [
+        "documentation",
+        "scoring-algorithm",
+        "normalization",
+        "candidate-screening"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/候选人筛选系统/配置管理.md",
+      "type": "document",
+      "name": "配置管理.md",
+      "filePath": ".qoder/repowiki/zh/content/候选人筛选系统/配置管理.md",
+      "summary": "面向filter-rules.json配置文件的完整指南，涵盖规则配置文件结构、字段定义、语法规则与操作符、三类规则配置示例与调优建议、threshold参数设置原则、规则版本管理与命名规范、配置验证机制与错误排查方法。",
+      "tags": [
+        "documentation",
+        "configuration",
+        "rule-config",
+        "candidate-screening"
+      ],
+      "complexity": "complex",
+      "languageNotes": "文档提供不同业务场景下的配置模板示例，帮助读者快速构建稳定可靠的候选人筛选评分系统。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/开发指南/代码结构与模块设计.md",
+      "type": "document",
+      "name": "代码结构与模块设计.md",
+      "filePath": ".qoder/repowiki/zh/content/开发指南/代码结构与模块设计.md",
+      "summary": "详细阐述 Web Access 项目的代码结构与模块设计，涵盖 CDP 代理服务、环境检查、候选人处理流水线、站点经验管理等核心组件，以及架构概览、模块间通信机制、依赖分析和性能优化策略。",
+      "tags": [
+        "开发指南",
+        "代码结构",
+        "架构设计",
+        "模块设计",
+        "组件分析"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/开发指南/开发指南.md",
+      "type": "document",
+      "name": "开发指南.md",
+      "filePath": ".qoder/repowiki/zh/content/开发指南/开发指南.md",
+      "summary": "Web Access 项目的总览开发文档，系统介绍项目结构、核心组件、架构总览、详细组件分析、依赖关系和性能考虑，为开发者提供完整的入门指引和技术概览。",
+      "tags": [
+        "开发指南",
+        "项目概述",
+        "入门指南",
+        "架构总览"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/开发指南/开发流程与规范.md",
+      "type": "document",
+      "name": "开发流程与规范.md",
+      "filePath": ".qoder/repowiki/zh/content/开发指南/开发流程与规范.md",
+      "summary": "定义 Web Access 项目的开发流程与团队规范，包括分支管理策略、代码提交规范、代码审查流程、质量检查标准、发布流程、开发环境配置及持续集成与自动化测试要求。",
+      "tags": [
+        "开发指南",
+        "开发流程",
+        "开发规范",
+        "代码审查",
+        "版本管理"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/开发指南/扩展开发.md",
+      "type": "document",
+      "name": "扩展开发.md",
+      "filePath": ".qoder/repowiki/zh/content/开发指南/扩展开发.md",
+      "summary": "指导开发者如何在 Web Access 项目基础上进行扩展开发，涵盖扩展点识别、插件机制、API 设计原则、配置文件扩展、规则引擎扩展、数据处理扩展，并提供新脚本开发模板和接口适配模式。",
+      "tags": [
+        "开发指南",
+        "扩展开发",
+        "插件机制",
+        "API设计",
+        "脚本开发"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/开发指南/测试与调试.md",
+      "type": "document",
+      "name": "测试与调试.md",
+      "filePath": ".qoder/repowiki/zh/content/开发指南/测试与调试.md",
+      "summary": "系统阐述 Web Access 项目的测试与调试方法论，涵盖单元测试、集成测试、端到端测试、性能测试、调试工具与日志、错误追踪、测试自动化与持续测试以及质量保证标准。",
+      "tags": [
+        "开发指南",
+        "测试",
+        "调试",
+        "质量保证",
+        "自动化测试"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/快速开始.md",
+      "type": "document",
+      "name": "快速开始.md",
+      "filePath": ".qoder/repowiki/zh/content/快速开始.md",
+      "summary": "Web Access Skill 的安装指南与快速入门文档，覆盖环境要求（Node.js 22+、Chrome 远程调试）、多种安装方式、环境检查命令、基本使用示例以及与简历抽取、候选人评分工具链的衔接说明。",
+      "tags": [
+        "documentation",
+        "installation",
+        "getting-started",
+        "entry-point"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Markdown 文档，包含 20 个章节，涵盖项目结构、CDP 代理 API、候选人评分、简历抓取等核心主题。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/数据导出系统.md",
+      "type": "document",
+      "name": "数据导出系统.md",
+      "filePath": ".qoder/repowiki/zh/content/数据导出系统.md",
+      "summary": "候选人数据导出系统的详细技术文档，阐述基于 Node.js 和 xlsx 库的 Excel 文件生成工具的设计与实现，涵盖 Excel 导出引擎、字段配置系统、智能列宽计算、数据转换管道以及 OCR 简历处理集成。",
+      "tags": [
+        "documentation",
+        "data-export",
+        "excel",
+        "ocr",
+        "data-pipeline"
+      ],
+      "complexity": "complex",
+      "languageNotes": "该文档内容最为详尽（442 个非空行），包含 56 个章节小节，深入分析了模块间耦合度、内存使用优化和故障排除方案。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/配置管理.md",
+      "type": "document",
+      "name": "配置管理.md",
+      "filePath": ".qoder/repowiki/zh/content/配置管理.md",
+      "summary": "候选人筛选评分系统的配置管理文档，全面阐述规则配置文件（filter-rules.json）的结构与字段定义、评分提示模板格式要求、候选人数据格式与字段映射关系，以及评分脚本的执行流程与算法原理。",
+      "tags": [
+        "documentation",
+        "configuration",
+        "scoring",
+        "filter-rules",
+        "data-model"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "文档包含完整的配置示例与最佳实践，解释了配置变更的影响范围与热更新机制，适用于配置管理员和系统维护者。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/项目概述.md",
+      "type": "document",
+      "name": "项目概述.md",
+      "filePath": ".qoder/repowiki/zh/content/项目概述.md",
+      "summary": "Web Access 项目的顶层概述文档，阐述项目设计理念（\"哲学 + 技术事实\"指导 Agent 自主决策）与核心能力，包括 CDP 代理组件、环境检查、候选人筛选评分、在线简历提取、Excel 导出和站点经验匹配六大核心模块的架构总览。",
+      "tags": [
+        "documentation",
+        "overview",
+        "architecture",
+        "entry-point"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "作为 Wiki 的入口文档，该文档引用了 README.md 等 14 个外部文件，适合新成员快速了解项目全貌。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/简历提取系统/简历提取系统.md",
+      "type": "document",
+      "name": "简历提取系统.md",
+      "filePath": ".qoder/repowiki/zh/content/简历提取系统/简历提取系统.md",
+      "summary": "简历提取系统 Wiki 的首页文档，全面介绍从候选人数据采集、筛选评分到在线简历识别与 OCR 提取的完整流水线架构，涵盖 CDP 代理、两阶段提取、OCR 文本清洗、评分筛选、统计报告等核心模块的设计思路和依赖关系。",
+      "tags": [
+        "documentation",
+        "architecture",
+        "overview",
+        "resume-extraction"
+      ],
+      "complexity": "complex",
+      "languageNotes": "包含 21 个章节，覆盖系统架构、组件分析、性能考量和故障排查等完整内容，是 Wiki 分册的入口文档。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/简历提取系统/OCR文本识别.md",
+      "type": "document",
+      "name": "OCR文本识别.md",
+      "filePath": ".qoder/repowiki/zh/content/简历提取系统/OCR文本识别.md",
+      "summary": "详细文档介绍 tesseract.js 在本仓库中的集成方式，涵盖中英文双语识别配置、Worker 生命周期管理、图像预处理与识别参数调优、批量 OCR 处理流程与内存管理、错误处理机制以及识别质量评估策略。",
+      "tags": [
+        "documentation",
+        "ocr",
+        "tesseract",
+        "text-recognition"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/简历提取系统/候选人交互.md",
+      "type": "document",
+      "name": "候选人交互.md",
+      "filePath": ".qoder/repowiki/zh/content/简历提取系统/候选人交互.md",
+      "summary": "系统化文档描述候选人交互模块，聚焦候选人列表加载检测、虚拟滚动处理、DOM 元素定位策略、卡片点击机制与重试逻辑、页面导航流程、弹窗检测与状态同步、滚动优化及超时处理策略。",
+      "tags": [
+        "documentation",
+        "automation",
+        "dom-interaction",
+        "retry-logic"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/简历提取系统/截图捕获.md",
+      "type": "document",
+      "name": "截图捕获.md",
+      "filePath": ".qoder/repowiki/zh/content/简历提取系统/截图捕获.md",
+      "summary": "技术文档详解浏览器截图捕获功能，包括 CDP 截图 API 与质量控制、简历弹窗尺寸检测与多页截图策略、滚动定位算法与页面高度计算、截图坐标系统与弹窗定位、文件命名规范与临时文件管理、分辨率适配与延迟控制。",
+      "tags": [
+        "documentation",
+        "screenshot",
+        "cdp",
+        "quality-control"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/简历提取系统/批量处理.md",
+      "type": "document",
+      "name": "批量处理.md",
+      "filePath": ".qoder/repowiki/zh/content/简历提取系统/批量处理.md",
+      "summary": "文档描述候选人数据的批量处理流水线，涵盖评分排序与并发控制、简历提取与 OCR 组件、结果导出组件、CDP 代理组件、环境检查工具，以及进度跟踪、错误收集、临时文件清理、内存优化与容错恢复机制。",
+      "tags": [
+        "documentation",
+        "batch-processing",
+        "pipeline",
+        "scoring"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/系统工具/URL查找工具.md",
+      "type": "document",
+      "name": "URL查找工具.md",
+      "filePath": ".qoder/repowiki/zh/content/系统工具/URL查找工具.md",
+      "summary": "描述URL查找工具（find-url.mjs）的技术文档，涵盖从本地Chrome书签与历史记录中检索URL的功能实现，包括关键词搜索、时间窗过滤、访问频度排序等机制，以及配置参数、使用场景、扩展方法与故障排除指南。",
+      "tags": [
+        "documentation",
+        "tech-doc",
+        "url-search",
+        "chrome-devtools"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Markdown技术文档，包含22个章节、Mermaid架构图和文件引用列表。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/系统工具/环境检查工具.md",
+      "type": "document",
+      "name": "环境检查工具.md",
+      "filePath": ".qoder/repowiki/zh/content/系统工具/环境检查工具.md",
+      "summary": "描述环境检查工具（check-deps.mjs）和CDP代理（cdp-proxy.mjs）的技术文档，涵盖Node.js版本检查机制、Chrome调试端口检测算法、CDP代理启动流程与可用性检查，以及环境依赖验证和故障诊断指南。",
+      "tags": [
+        "documentation",
+        "tech-doc",
+        "environment-check",
+        "cdp-proxy"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Markdown技术文档，包含18个章节、Mermaid流程图和跨平台路径兼容性说明。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/系统工具/站点匹配工具.md",
+      "type": "document",
+      "name": "站点匹配工具.md",
+      "filePath": ".qoder/repowiki/zh/content/系统工具/站点匹配工具.md",
+      "summary": "描述站点匹配工具（match-site.mjs）的技术文档，涵盖站点匹配算法与URL模式识别、平台特征库（site-patterns）的组织与扩展机制、匹配策略与误判处理，以及在候选人筛选流程中的数据匹配与分类作用。",
+      "tags": [
+        "documentation",
+        "tech-doc",
+        "site-matching",
+        "pattern-library"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "Markdown技术文档，包含18个章节、Mermaid架构图和前端matter元数据说明。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/系统工具/系统工具.md",
+      "type": "document",
+      "name": "系统工具.md",
+      "filePath": ".qoder/repowiki/zh/content/系统工具/系统工具.md",
+      "summary": "系统工具集的综合性技术文档索引，概括环境检查工具、CDP代理、本地Chrome资源检索、站点匹配与平台特征库等所有工具的整体架构、核心组件、依赖关系、使用场景、配置选项与故障排查指南。",
+      "tags": [
+        "documentation",
+        "tech-doc",
+        "system-tools",
+        "overview"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Markdown综合技术文档，包含17个章节，作为系统工具文档组的索引入口。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/设计文档/数据持久化计划.md",
+      "type": "document",
+      "name": "数据持久化计划.md",
+      "filePath": ".qoder/repowiki/zh/content/设计文档/数据持久化计划.md",
+      "summary": "详细阐述 Web Access 项目的数据持久化方案，涵盖候选人数据存储结构(JSON 文件格式)、自动保存机制、OCR 简历提取流程、评分系统、Excel 导出流程以及故障排除指南。采用纯文件系统存储策略，避免传统数据库的复杂性。",
+      "tags": [
+        "documentation",
+        "data-persistence",
+        "design",
+        "storage"
+      ],
+      "complexity": "complex",
+      "languageNotes": "共677行，42个章节段落，是四份设计文档中篇幅最长的一份，覆盖从数据格式到备份策略的完整生命周期。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/设计文档/架构设计.md",
+      "type": "document",
+      "name": "架构设计.md",
+      "filePath": ".qoder/repowiki/zh/content/设计文档/架构设计.md",
+      "summary": "描述 Web Access 项目的整体系统架构，包括 CDP 代理服务、候选人筛选系统、简历提取系统、数据导出系统、本地 URL 检索等核心模块的组件关系与依赖分析。强调像人一样思考的浏览哲学，通过本地 Chrome CDP 模式实现登录态复用。",
+      "tags": [
+        "documentation",
+        "architecture",
+        "design",
+        "system-design"
+      ],
+      "complexity": "complex",
+      "languageNotes": "共342行，17个章节段落，以 Mermaid 图表展现模块间调用关系与数据流向。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/设计文档/算法设计.md",
+      "type": "document",
+      "name": "算法设计.md",
+      "filePath": ".qoder/repowiki/zh/content/设计文档/算法设计.md",
+      "summary": "系统阐述候选人筛选评分模块的算法设计，包括规则解析引擎、字段比较逻辑、评分计算公式(含 mustHave/preferred/exclude 权重分配)、优先级排序策略以及结果解释机制。不引入 LLM 判断，确保可解释性与稳定性。",
+      "tags": [
+        "documentation",
+        "algorithm",
+        "scoring",
+        "design"
+      ],
+      "complexity": "complex",
+      "languageNotes": "共308行，19个章节段落，包含算法流程图、伪代码示例与测试用例建议。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/设计文档/设计文档.md",
+      "type": "document",
+      "name": "设计文档.md",
+      "filePath": ".qoder/repowiki/zh/content/设计文档/设计文档.md",
+      "summary": "Web Access 项目的总体设计文档，作为四份设计文档的入口与概览。涵盖项目结构、核心组件(CDP 代理、候选人评分、简历提取、Excel 导出、本地 Chrome 检索、站点经验匹配)、依赖分析与性能考虑。收录多份设计与规划文档的引用链接。",
+      "tags": [
+        "documentation",
+        "overview",
+        "design",
+        "entry-point"
+      ],
+      "complexity": "complex",
+      "languageNotes": "共398行，18个章节段落，是四份设计文档的中央入口，引用并汇总了其他专项设计文档的内容。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/部署运维/部署运维.md",
+      "type": "document",
+      "name": "部署运维.md",
+      "filePath": ".qoder/repowiki/zh/content/部署运维/部署运维.md",
+      "summary": "Web Access 项目的生产环境部署与运维全流程指南，涵盖环境准备、依赖管理、容器化与 CI/CD、性能优化、监控告警、安全权限、版本升级与兼容性维护等主题，提供生产环境部署清单和常见问题诊断方法。",
+      "tags": [
+        "文档",
+        "部署",
+        "运维",
+        "生产环境",
+        "基础设施"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Markdown 文档，含 24 个节段，覆盖完整的生产运维生命周期。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/部署运维/性能监控.md",
+      "type": "document",
+      "name": "性能监控.md",
+      "filePath": ".qoder/repowiki/zh/content/部署运维/性能监控.md",
+      "summary": "Web Access 项目的性能监控与优化文档，聚焦 CDP 代理服务、候选人筛选系统和简历提取系统的性能指标监控，涵盖 KPI 定义、监控工具、基准测试方法和瓶颈识别。",
+      "tags": [
+        "文档",
+        "性能监控",
+        "优化",
+        "KPI",
+        "基准测试"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Markdown 文档，含 19 个节段，包含 CDP 代理、OCR、数据导出等组件的性能数据。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/部署运维/故障排除.md",
+      "type": "document",
+      "name": "故障排除.md",
+      "filePath": ".qoder/repowiki/zh/content/部署运维/故障排除.md",
+      "summary": "Web Access 项目的系统化故障排除指南，覆盖 CDP 连接失败、Chrome 启动异常、依赖包缺失、候选人评分阶段异常、简历提取 OCR 失败等常见问题的诊断流程与解决方案，包含日志分析技巧与预防性维护建议。",
+      "tags": [
+        "文档",
+        "故障排除",
+        "调试",
+        "错误排查",
+        "运维"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Markdown 文档，含 34 个节段，是批次中内容最详尽的故障排查手册。"
+    },
+    {
+      "id": "document:.qoder/repowiki/zh/content/部署运维/环境配置.md",
+      "type": "document",
+      "name": "环境配置.md",
+      "filePath": ".qoder/repowiki/zh/content/部署运维/环境配置.md",
+      "summary": "Web Access 项目的环境配置文档，详细介绍 Node.js 运行时要求、依赖包配置（tesseract.js、xlsx）、CDP 代理服务部署、OCR 处理服务及数据处理服务的配置方法，包含端口配置和常见错误解决方法。",
+      "tags": [
+        "文档",
+        "环境配置",
+        "依赖管理",
+        "开发环境",
+        "配置指南"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Markdown 文档，含 42 个节段，是本项目最详尽的环境搭建参考手册。"
+    },
+    {
+      "id": "document:SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": "SKILL.md",
+      "summary": "web-access 技能的完整定义文档，详细说明了通过 CDP Proxy 进行浏览器自动化操作、候选人提取、AI 评分、在线简历提取等完整工作流程，是 Claude Code Agent 执行联网操作的核心指令手册。",
+      "tags": [
+        "documentation",
+        "claude-code",
+        "skill-definition",
+        "automation"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Markdown 文档包含 frontmatter 元数据（名称、版本、作者）和 30+ 个章节标题，覆盖联网操作的完整生命周期。"
+    },
+    {
+      "id": "config:electron-builder.yml",
+      "type": "config",
+      "name": "electron-builder.yml",
+      "filePath": "electron-builder.yml",
+      "summary": "Electron Builder 打包配置文件，将项目打包为 Windows NSIS 安装程序（exe），配置了文件包含/排除规则、asar 解包策略和应用图标。",
+      "tags": [
+        "configuration",
+        "build-system",
+        "electron",
+        "windows-packaging"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:package.json",
+      "type": "config",
+      "name": "package.json",
+      "filePath": "package.json",
+      "summary": "Node.js 项目配置文件，定义项目为 ES Module 类型的 Electron 应用，包含邮件发送、Excel 处理、OCR 识别等关键依赖以及构建、测试等脚本命令。",
+      "tags": [
+        "configuration",
+        "dependencies",
+        "electron",
+        "build-system"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:weidu.txt",
+      "type": "document",
+      "name": "weidu.txt",
+      "filePath": "weidu.txt",
+      "summary": "一段 CDP Proxy 调用的测试输出示例，展示如何通过 curl 向浏览器注入 JavaScript 脚本点击 Boss 直聘页面上的「未读」筛选按钮。",
+      "tags": [
+        "documentation",
+        "sample",
+        "cdp-proxy",
+        "boss-zhipin"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:用户使用指引.md",
+      "type": "document",
+      "name": "用户使用指引.md",
+      "filePath": "用户使用指引.md",
+      "summary": "Boss 直聘候选人提取工具的最终用户使用手册，涵盖环境准备、工具安装、候选人提取和筛选评分两大使用场景，以及常见问题解答。",
+      "tags": [
+        "documentation",
+        "user-guide",
+        "getting-started",
+        "boss-zhipin"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:config/filter-rules.json",
+      "type": "config",
+      "name": "filter-rules.json",
+      "filePath": "config/filter-rules.json",
+      "summary": "候选人筛选规则配置文件，定义了 mustHave（必须满足条件）、preferred（优先条件）、exclude（排除条件）和阈值分数，用于在 AI 评分前对候选人进行预筛选。",
+      "tags": [
+        "configuration",
+        "filtering",
+        "candidate-evaluation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:config/scoring-prompt-no-jd.txt",
+      "type": "document",
+      "name": "scoring-prompt-no-jd.txt",
+      "filePath": "config/scoring-prompt-no-jd.txt",
+      "summary": "AI 评分提示词模板（无岗位描述版），指引 AI 根据候选人简历评估岗位相关性，输出 0-60 分的相关性评分和评语，格式为 JSON。",
+      "tags": [
+        "documentation",
+        "ai-prompt",
+        "scoring",
+        "recruitment"
+      ],
+      "complexity": "simple",
+      "languageNotes": "使用模板变量 {positionName} 和 {resumeText} 动态填充，输出结构化为 JSON 格式。"
+    },
+    {
+      "id": "document:config/scoring-prompt-with-jd.txt",
+      "type": "document",
+      "name": "scoring-prompt-with-jd.txt",
+      "filePath": "config/scoring-prompt-with-jd.txt",
+      "summary": "AI 评分提示词模板（含岗位描述版），指引 AI 结合岗位描述（JD）和候选人简历评估匹配度，输出 0-60 分的相关性评分和 100-150 字评语，格式为 JSON。",
+      "tags": [
+        "documentation",
+        "ai-prompt",
+        "scoring",
+        "recruitment"
+      ],
+      "complexity": "simple",
+      "languageNotes": "使用模板变量 {jobDescription.description} 和 {resumeText} 动态填充，与无 JD 版本相比增加了对岗位描述的评估维度。"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-04-22-boss-zhipin-candidate-extraction-v2.md",
+      "type": "document",
+      "name": "Boss 直聘候选人信息提取 v2 实现计划",
+      "filePath": "docs/superpowers/plans/2026-04-22-boss-zhipin-candidate-extraction-v2.md",
+      "summary": "Boss 直聘候选人提取第二阶段实施计划，将第一版固定提取前5人改进为支持用户指定提取数量，涉及站点经验文件、设计文档更新和验证。",
+      "tags": [
+        "documentation",
+        "planning",
+        "candidate-extraction",
+        "boss-zhipin"
+      ],
+      "complexity": "simple",
+      "languageNotes": "共 8 个小节，包含概述、设计文档引用和实现任务列表。"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-04-22-boss-zhipin-full-extraction-v3.md",
+      "type": "document",
+      "name": "Boss 直聘候选人详情全量提取 (v3) 实现计划",
+      "filePath": "docs/superpowers/plans/2026-04-22-boss-zhipin-full-extraction-v3.md",
+      "summary": "Boss 直聘候选人提取第三阶段实施计划，将站点经验文件从目标字段提取模式升级为全量结构化输出模式，包括站点经验文件、输出格式变更和风险点分析。",
+      "tags": [
+        "documentation",
+        "planning",
+        "candidate-extraction",
+        "boss-zhipin"
+      ],
+      "complexity": "simple",
+      "languageNotes": "共 10 个小节，包含任务清单、详细改动说明和风险点评估。"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-04-22-extraction-persistence-plan.md",
+      "type": "document",
+      "name": "提取结果持久化实现计划",
+      "filePath": "docs/superpowers/plans/2026-04-22-extraction-persistence-plan.md",
+      "summary": "实现提取结果持久化功能的实施计划，在站点经验文件中新增 outputFile 字段配置，将提取结果自动保存到指定文件路径。",
+      "tags": [
+        "documentation",
+        "planning",
+        "persistence",
+        "data-storage"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "共 7 个小节，包含 SKILL.md 更新和站点经验文件修改任务。"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-04-23-candidate-filtering-scoring.md",
+      "type": "document",
+      "name": "候选人筛选评分（纯脚本 v1）实现计划",
+      "filePath": "docs/superpowers/plans/2026-04-23-candidate-filtering-scoring.md",
+      "summary": "候选人筛选评分系统第一版详细实现计划，基于规则配置的纯脚本评分系统，实现 rawVisibleText 解析、操作符比较逻辑、三级筛选和归一化评分。",
+      "tags": [
+        "documentation",
+        "planning",
+        "scoring",
+        "candidate-filtering",
+        "rule-based"
+      ],
+      "complexity": "complex",
+      "languageNotes": "共 8 个小节、700 行，包含完整的评分脚本骨架和操作符比较实现细节。"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-04-27-candidate-scoring-v2.md",
+      "type": "document",
+      "name": "候选人评分系统 V2 实现计划",
+      "filePath": "docs/superpowers/plans/2026-04-27-candidate-scoring-v2.md",
+      "summary": "候选人评分系统第二版实施计划，新增默认评分模式支持学历/年限评分和 LLM 岗位相关性评分，同时改造 export-candidates.mjs 支持分维度列导出。",
+      "tags": [
+        "documentation",
+        "planning",
+        "scoring",
+        "llm",
+        "excel-export"
+      ],
+      "complexity": "complex",
+      "languageNotes": "共 5 个小节、569 行，包含学历分映射、年限分计算和批量 LLM 评分流程设计。"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-04-28-job-description-extraction.md",
+      "type": "document",
+      "name": "岗位描述（JD）提取与评分集成实现计划",
+      "filePath": "docs/superpowers/plans/2026-04-28-job-description-extraction.md",
+      "summary": "岗位描述提取与评分集成实施计划，在候选人提取时同步提取 JD 并用 Map 缓存去重，LLM 评分时同时参考 JD 和简历信息提升评分准确度。",
+      "tags": [
+        "documentation",
+        "planning",
+        "job-description",
+        "scoring",
+        "integration"
+      ],
+      "complexity": "complex",
+      "languageNotes": "共 5 个小节、281 行，涉及 extract-candidates-full.mjs 和 export-candidates.mjs 两个脚本的改动。"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-04-28-scoring-compliance.md",
+      "type": "document",
+      "name": "SKILL.md 评分流程合规性改进实现计划",
+      "filePath": "docs/superpowers/plans/2026-04-28-scoring-compliance.md",
+      "summary": "评分流程合规性改进实施计划，解决 Claude Code 执行时的 prompt 偏离、未分批写入、未报告进度三个问题，将评分 prompt 提取为独立文件并重构 SKILL.md 流程。",
+      "tags": [
+        "documentation",
+        "planning",
+        "scoring",
+        "compliance",
+        "prompt-engineering"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "共 4 个小节、135 行，纯文件变更无代码改动。"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-04-28-stats-reporting.md",
+      "type": "document",
+      "name": "提取脚本统计数据上报实现计划",
+      "filePath": "docs/superpowers/plans/2026-04-28-stats-reporting.md",
+      "summary": "提取脚本统计数据上报实施计划，在 extract-candidates-full.mjs 末尾自动上报统计数据到 Django API，使用 Node.js 原生 fetch 和 3 秒超时机制。",
+      "tags": [
+        "documentation",
+        "planning",
+        "statistics",
+        "reporting",
+        "api"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "共 4 个小节、145 行，使用 Node.js 22+ 原生 fetch 和 AbortController 实现。"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-05-13-scoring-speed-optimization.md",
+      "type": "document",
+      "name": "评分速度优化实施计划",
+      "filePath": "docs/superpowers/plans/2026-05-13-scoring-speed-optimization.md",
+      "summary": "评分速度优化实施计划，基于设计文档优化 SKILL.md 中 LLM 评分流程的 Step 3，减少单人逐轮循环改为批量评分以提升评分速度。",
+      "tags": [
+        "documentation",
+        "planning",
+        "scoring",
+        "performance-optimization",
+        "llm"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "共 6 个小节、97 行，仅修改 SKILL.md 一个文件中的两处改动。"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-05-22-auto-email-export.md",
+      "type": "document",
+      "name": "Auto Email Export 实现计划",
+      "filePath": "docs/superpowers/plans/2026-05-22-auto-email-export.md",
+      "summary": "自动邮件发送功能实施计划，创建 send-candidates-email.mjs CLI 脚本通过 SMTP 发送评分 Excel 附件，支持环境变量配置和 Nodemailer 集成。",
+      "tags": [
+        "documentation",
+        "planning",
+        "email",
+        "smtp",
+        "export"
+      ],
+      "complexity": "complex",
+      "languageNotes": "共 8 个小节、629 行，包含完整单元测试设计、SMTP 配置和 SKILL.md 工作流集成。"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-05-22-boss-unread-only-plan.md",
+      "type": "document",
+      "name": "Boss 直聘仅提取未读候选人实现计划",
+      "filePath": "docs/superpowers/plans/2026-05-22-boss-unread-only-plan.md",
+      "summary": "Boss 直聘仅提取未读候选人功能实施计划，在提取流程开始前自动点击未读按钮筛选列表，确保后续操作只针对未读候选人。",
+      "tags": [
+        "documentation",
+        "planning",
+        "boss-zhipin",
+        "candidate-extraction",
+        "filtering"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "共 8 个小节、71 行，基于设计文档 docs/superpowers/specs/2026-05-22-boss-unread-only-design.md。"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-05-22-excel-ai-analysis-grouped-export.md",
+      "type": "document",
+      "name": "Excel AI 分析分组表头实现计划",
+      "filePath": "docs/superpowers/plans/2026-05-22-excel-ai-analysis-grouped-export.md",
+      "summary": "Excel AI 分析分组表头功能实施计划，导出格式改为 AI 分析和附加信息两大组列，将 0-100 总分转换为一星到五星 AI 评级，使用两行表头和 Excel merge 实现。",
+      "tags": [
+        "documentation",
+        "planning",
+        "excel",
+        "ai-rating",
+        "export"
+      ],
+      "complexity": "complex",
+      "languageNotes": "共 8 个小节、316 行，改动集中在 export-candidates.mjs 一个文件。"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-05-22-multi-position-scoring-export.md",
+      "type": "document",
+      "name": "多岗位评分与导出实现计划",
+      "filePath": "docs/superpowers/plans/2026-05-22-multi-position-scoring-export.md",
+      "summary": "多岗位评分与导出功能实施计划，支持按 appliedJob 字段区分多岗位，LLM 按岗位分组评分、Excel 按岗位分 sheet 导出，保持向后兼容。",
+      "tags": [
+        "documentation",
+        "planning",
+        "multi-position",
+        "scoring",
+        "excel-export"
+      ],
+      "complexity": "complex",
+      "languageNotes": "共 5 个小节、289 行，涉及 score-candidates.mjs 和 export-candidates.mjs 两脚本改动。"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-05-27-electron-app-implementation.md",
+      "type": "document",
+      "name": "Electron 桌面应用实现计划",
+      "filePath": "docs/superpowers/plans/2026-05-27-electron-app-implementation.md",
+      "summary": "Electron 桌面应用实施计划，为现有 CLI 脚本包装桌面 GUI 实现一键提取评分导出，主进程通过 child_process.spawn 调用脚本、渲染进程展示三段式进度。",
+      "tags": [
+        "documentation",
+        "planning",
+        "electron",
+        "desktop-app",
+        "gui"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "共 9 个小节、240 行，遵循零改动原则——不对现有 scripts/ 下任何 .mjs 文件做修改。"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-04-21-boss-zhipin-candidate-extraction-design.md",
+      "type": "document",
+      "name": "2026-04-21-boss-zhipin-candidate-extraction-design.md",
+      "filePath": "docs/superpowers/specs/2026-04-21-boss-zhipin-candidate-extraction-design.md",
+      "summary": "Boss直聘候选人信息提取的初始设计方案，定义了提取参数、输出字段、页面结构分析和技术架构，包含v1和v2两个实现阶段的已完成状态记录。",
+      "tags": [
+        "设计文档",
+        "boss直聘",
+        "数据提取",
+        "候选人"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-04-22-boss-zhipin-full-extraction-design.md",
+      "type": "document",
+      "name": "2026-04-22-boss-zhipin-full-extraction-design.md",
+      "filePath": "docs/superpowers/specs/2026-04-22-boss-zhipin-full-extraction-design.md",
+      "summary": "Boss直聘候选人详情全量提取的设计方案，覆盖基本信息、经历、职位信息的DOM结构映射、提取脚本、参数规范和完整的输出格式定义。",
+      "tags": [
+        "设计文档",
+        "boss直聘",
+        "数据提取",
+        "dom解析",
+        "全量提取"
+      ],
+      "complexity": "complex",
+      "languageNotes": "详细描述了从Boss直聘页面DOM结构中提取候选人各项字段的映射规则和提取逻辑。"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-04-22-cdp-script-execution-fix-design.md",
+      "type": "document",
+      "name": "2026-04-22-cdp-script-execution-fix-design.md",
+      "filePath": "docs/superpowers/specs/2026-04-22-cdp-script-execution-fix-design.md",
+      "summary": "CDP脚本执行修复方案，解决浏览器内执行提取脚本失败的问题，采用在浏览器中提取原始文本后在Node端本地解析的两阶段架构。",
+      "tags": [
+        "设计文档",
+        "cdp",
+        "脚本执行",
+        "本地解析",
+        "错误处理"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-04-22-extraction-persistence-design.md",
+      "type": "document",
+      "name": "2026-04-22-extraction-persistence-design.md",
+      "filePath": "docs/superpowers/specs/2026-04-22-extraction-persistence-design.md",
+      "summary": "提取结果持久化设计方案，定义通过SKILL.md新增章节规范持久化格式，站点经验文件存储已提取候选人列表，避免重复提取。",
+      "tags": [
+        "设计文档",
+        "持久化",
+        "数据存储",
+        "去重"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-04-23-candidate-filtering-scoring-design.md",
+      "type": "document",
+      "name": "2026-04-23-candidate-filtering-scoring-design.md",
+      "filePath": "docs/superpowers/specs/2026-04-23-candidate-filtering-scoring-design.md",
+      "summary": "候选人筛选评分v1设计方案，基于规则配置文件加评分脚本的纯脚本方案，定义规则字段说明、操作符、字段解析注册表和完整的评分逻辑。",
+      "tags": [
+        "设计文档",
+        "评分系统",
+        "筛选规则",
+        "候选人评估"
+      ],
+      "complexity": "complex",
+      "languageNotes": "采用规则引擎模式设计评分系统，通过JSON配置定义筛选条件和分值计算逻辑。"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-04-27-candidate-scoring-v2-design.md",
+      "type": "document",
+      "name": "2026-04-27-candidate-scoring-v2-design.md",
+      "filePath": "docs/superpowers/specs/2026-04-27-candidate-scoring-v2-design.md",
+      "summary": "候选人评分系统V2设计方案，引入LLM评分替代纯脚本计算，支持默认评分和条件筛选两种模式，增加岗位相关性AI评分维度。",
+      "tags": [
+        "设计文档",
+        "评分系统",
+        "llm",
+        "ai评分",
+        "v2"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-04-28-job-description-extraction-design.md",
+      "type": "document",
+      "name": "2026-04-28-job-description-extraction-design.md",
+      "filePath": "docs/superpowers/specs/2026-04-28-job-description-extraction-design.md",
+      "summary": "岗位描述(JD)提取与评分集成设计方案，定义JD提取流程、LLM评分集成方式和Excel导出格式，将JD信息融入候选人评分体系。",
+      "tags": [
+        "设计文档",
+        "jd提取",
+        "评分集成",
+        "excel导出"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-04-28-scoring-compliance-design.md",
+      "type": "document",
+      "name": "2026-04-28-scoring-compliance-design.md",
+      "filePath": "docs/superpowers/specs/2026-04-28-scoring-compliance-design.md",
+      "summary": "SKILL.md评分流程合规性改进设计，将评分Prompt抽取为独立文件、重构SKILL.md评分流程、引入分批写入策略以提升可靠性和可维护性。",
+      "tags": [
+        "设计文档",
+        "合规性",
+        "prompt管理",
+        "流程重构"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-04-28-stats-reporting-design.md",
+      "type": "document",
+      "name": "2026-04-28-stats-reporting-design.md",
+      "filePath": "docs/superpowers/specs/2026-04-28-stats-reporting-design.md",
+      "summary": "提取脚本统计数据上报设计方案，定义在extract-candidates-full.mjs中添加数据上报功能，包括Payload字段规范和API端点设计。",
+      "tags": [
+        "设计文档",
+        "统计上报",
+        "数据分析",
+        "监控"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-04-30-screenshot-scroll-fix-design.md",
+      "type": "document",
+      "name": "2026-04-30-screenshot-scroll-fix-design.md",
+      "filePath": "docs/superpowers/specs/2026-04-30-screenshot-scroll-fix-design.md",
+      "summary": "修复简历截图只截第一页问题的设计方案，通过canvas滚动模式检测、新增scrollMode字段和停滞检测机制确保完整截取整份简历。",
+      "tags": [
+        "设计文档",
+        "截图",
+        "滚动修复",
+        "canvas"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-05-13-scoring-speed-optimization-design.md",
+      "type": "document",
+      "name": "2026-05-13-scoring-speed-optimization-design.md",
+      "filePath": "docs/superpowers/specs/2026-05-13-scoring-speed-optimization-design.md",
+      "summary": "评分速度优化设计方案，采用并行子Agent加内部小批量的策略，将候选人分组后由多个子Agent并行评分再合并结果，大幅提升处理效率。",
+      "tags": [
+        "设计文档",
+        "性能优化",
+        "并行处理",
+        "子agent",
+        "批量评分"
+      ],
+      "complexity": "complex",
+      "languageNotes": "引入子Agent并行架构和内部3人小批量LLM评分，通过多级错误处理和进度报告机制保障稳定性。"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-05-22-auto-email-export-design.md",
+      "type": "document",
+      "name": "2026-05-22-auto-email-export-design.md",
+      "filePath": "docs/superpowers/specs/2026-05-22-auto-email-export-design.md",
+      "summary": "自动发送候选人评分Excel邮件设计方案，定义通过SMTP协议发送邮件的命令接口、环境变量配置、邮件内容模板和校验错误处理机制。",
+      "tags": [
+        "设计文档",
+        "邮件发送",
+        "smtp",
+        "excel导出",
+        "自动化"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-05-22-boss-unread-only-design.md",
+      "type": "document",
+      "name": "2026-05-22-boss-unread-only-design.md",
+      "filePath": "docs/superpowers/specs/2026-05-22-boss-unread-only-design.md",
+      "summary": "Boss直聘仅提取未读候选人设计方案，通过修改提取脚本和站点经验文件，在读取候选人列表时过滤已读项，减少重复工作和API调用。",
+      "tags": [
+        "设计文档",
+        "boss直聘",
+        "未读筛选",
+        "增量提取"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-05-22-multi-position-scoring-export-design.md",
+      "type": "document",
+      "name": "2026-05-22-multi-position-scoring-export-design.md",
+      "filePath": "docs/superpowers/specs/2026-05-22-multi-position-scoring-export-design.md",
+      "summary": "多岗位评分与导出设计方案，扩展评分脚本和导出脚本支持多岗位维度，在数据模型中新增positionId字段并保持向后兼容。",
+      "tags": [
+        "设计文档",
+        "多岗位",
+        "评分系统",
+        "导出",
+        "向后兼容"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-05-27-electron-app-design.md",
+      "type": "document",
+      "name": "2026-05-27-electron-app-design.md",
+      "filePath": "docs/superpowers/specs/2026-05-27-electron-app-design.md",
+      "summary": "Electron桌面应用设计方案，定义应用项目结构、主进程与渲染进程分工、脚本执行与进度解析流程、UI设计及打包迁移策略。",
+      "tags": [
+        "设计文档",
+        "electron",
+        "桌面应用",
+        "ui设计",
+        "打包部署"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:_probe-dialog.mjs",
+      "type": "file",
+      "name": "_probe-dialog.mjs",
+      "filePath": "_probe-dialog.mjs",
+      "summary": "通过CDP代理探测对话框内容的工具脚本，连接Chrome目标页面执行JavaScript表达式以获取弹窗信息。",
+      "tags": [
+        "工具脚本",
+        "cdp",
+        "调试"
+      ],
+      "complexity": "simple",
+      "languageNotes": "使用http.get直接调用CDP代理HTTP接口，无需额外依赖。"
+    },
+    {
+      "id": "function:_probe-dialog.mjs:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "_probe-dialog.mjs",
+      "lineRange": [
+        23,
+        133
+      ],
+      "summary": "入口函数：连接目标页面，执行表达式探测对话框内容并输出结果。",
+      "tags": [
+        "入口点",
+        "探测"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:.claude-plugin/marketplace.json",
+      "type": "config",
+      "name": "marketplace.json",
+      "filePath": ".claude-plugin/marketplace.json",
+      "summary": "Claude插件市场注册元数据，定义插件名称、拥有者及技能列表。",
+      "tags": [
+        "配置",
+        "claude",
+        "插件"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:.claude-plugin/plugin.json",
+      "type": "config",
+      "name": "plugin.json",
+      "filePath": ".claude-plugin/plugin.json",
+      "summary": "Claude插件清单文件，定义插件的名称、版本、作者和注册的技能。",
+      "tags": [
+        "配置",
+        "claude",
+        "插件"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:.claude/settings.local.json",
+      "type": "config",
+      "name": "settings.local.json",
+      "filePath": ".claude/settings.local.json",
+      "summary": "Claude本地项目设置，配置项目上下文、内存文件路径及MCP服务器。",
+      "tags": [
+        "配置",
+        "claude",
+        "开发环境"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:.qoder/repowiki/zh/meta/repowiki-metadata.json",
+      "type": "config",
+      "name": "repowiki-metadata.json",
+      "filePath": ".qoder/repowiki/zh/meta/repowiki-metadata.json",
+      "summary": "Qoder仓库知识库元数据，记录代码片段、知识关系和源文件信息。",
+      "tags": [
+        "配置",
+        "知识库",
+        "元数据"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:.understand-anything/.understandignore",
+      "type": "config",
+      "name": ".understandignore",
+      "filePath": ".understand-anything/.understandignore",
+      "summary": "Understand-Anything分析忽略规则，定义在代码分析中应排除的文件和目录模式。",
+      "tags": [
+        "配置",
+        "分析",
+        "忽略规则"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:.understand-anything/config.json",
+      "type": "config",
+      "name": "config.json",
+      "filePath": ".understand-anything/config.json",
+      "summary": "Understand-Anything分析工具配置，设置输出语言为中文。",
+      "tags": [
+        "配置",
+        "分析",
+        "输出语言"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:build.mjs",
+      "type": "file",
+      "name": "build.mjs",
+      "filePath": "build.mjs",
+      "summary": "Electron应用构建脚本，自动化地编译并打包为Windows安装程序。",
+      "tags": [
+        "构建",
+        "electron",
+        "打包"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:build.mjs:findRcedit",
+      "type": "function",
+      "name": "findRcedit",
+      "filePath": "build.mjs",
+      "lineRange": [
+        28,
+        41
+      ],
+      "summary": "在系统缓存目录中查找rcedit可执行文件路径，用于修改EXE图标。",
+      "tags": [
+        "工具函数",
+        "构建"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:build.mjs:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "build.mjs",
+      "lineRange": [
+        43,
+        73
+      ],
+      "summary": "构建入口：编译渲染进程、复制静态资源、设置图标并打包为可分发安装程序。",
+      "tags": [
+        "入口点",
+        "构建"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:electron/main.mjs",
+      "type": "file",
+      "name": "main.mjs",
+      "filePath": "electron/main.mjs",
+      "summary": "Electron主进程入口，管理窗口生命周期、执行候选人提取-评分-导出完整流水线，并提供Claude API评分能力。",
+      "tags": [
+        "入口点",
+        "electron",
+        "主进程",
+        "流水线"
+      ],
+      "complexity": "complex",
+      "languageNotes": "使用import.meta.url和pathToFileURL处理模块路径；使用child_process.fork运行子脚本。"
+    },
+    {
+      "id": "function:electron/main.mjs:loadApiConfig",
+      "type": "function",
+      "name": "loadApiConfig",
+      "filePath": "electron/main.mjs",
+      "lineRange": [
+        37,
+        55
+      ],
+      "summary": "从项目配置目录加载Claude API配置，支持旧格式迁移。",
+      "tags": [
+        "配置加载",
+        "api"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:electron/main.mjs:saveApiConfig",
+      "type": "function",
+      "name": "saveApiConfig",
+      "filePath": "electron/main.mjs",
+      "lineRange": [
+        57,
+        65
+      ],
+      "summary": "将Claude API配置保存到项目配置目录。",
+      "tags": [
+        "配置保存",
+        "api"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:electron/main.mjs:termLog",
+      "type": "function",
+      "name": "termLog",
+      "filePath": "electron/main.mjs",
+      "lineRange": [
+        68,
+        82
+      ],
+      "summary": "带编码转换的终端日志输出，支持Windows GBK编码。",
+      "tags": [
+        "日志",
+        "编码"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:electron/main.mjs:createWindow",
+      "type": "function",
+      "name": "createWindow",
+      "filePath": "electron/main.mjs",
+      "lineRange": [
+        98,
+        113
+      ],
+      "summary": "创建Electron浏览器窗口，加载渲染进程HTML并隐藏菜单栏。",
+      "tags": [
+        "窗口管理",
+        "ui"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:electron/main.mjs:runScript",
+      "type": "function",
+      "name": "runScript",
+      "filePath": "electron/main.mjs",
+      "lineRange": [
+        158,
+        220
+      ],
+      "summary": "使用child_process.fork运行子脚本，实时解析标准输出进度并转发到渲染进程。",
+      "tags": [
+        "子进程",
+        "进程管理",
+        "进度解析"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:electron/main.mjs:callClaudeAPI",
+      "type": "function",
+      "name": "callClaudeAPI",
+      "filePath": "electron/main.mjs",
+      "lineRange": [
+        225,
+        352
+      ],
+      "summary": "调用Claude API进行AI评分，处理请求构建、响应解析和JSON格式提取。",
+      "tags": [
+        "api调用",
+        "ai评分",
+        "claude"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:electron/main.mjs:doAiScoring",
+      "type": "function",
+      "name": "doAiScoring",
+      "filePath": "electron/main.mjs",
+      "lineRange": [
+        365,
+        515
+      ],
+      "summary": "执行AI评分流水线：加载候选人数据，分批调用Claude API进行岗位匹配度评分。",
+      "tags": [
+        "ai评分",
+        "流水线",
+        "批处理"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:electron/main.mjs:runPipeline",
+      "type": "function",
+      "name": "runPipeline",
+      "filePath": "electron/main.mjs",
+      "lineRange": [
+        518,
+        605
+      ],
+      "summary": "主流水线编排：按顺序执行提取、合并、清洗、评分、导出步骤，支持重试和中断。",
+      "tags": [
+        "流水线",
+        "编排",
+        "自动化"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:electron/main.mjs:registerIPC",
+      "type": "function",
+      "name": "registerIPC",
+      "filePath": "electron/main.mjs",
+      "lineRange": [
+        608,
+        672
+      ],
+      "summary": "注册Electron IPC处理器，处理运行流水线、取消操作、获取配置、选择输出目录等渲染进程请求。",
+      "tags": [
+        "ipc",
+        "事件处理",
+        "进程通信"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:electron/preload.js",
+      "type": "file",
+      "name": "preload.js",
+      "filePath": "electron/preload.js",
+      "summary": "Electron预加载脚本，通过contextBridge安全地暴露IPC通信接口给渲染进程。",
+      "tags": [
+        "electron",
+        "预加载",
+        "ipc桥接"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:electron/renderer/index.html",
+      "type": "file",
+      "name": "index.html",
+      "filePath": "electron/renderer/index.html",
+      "summary": "Electron渲染进程主页面，提供API配置、流水线执行状态和结果查看的完整用户界面。",
+      "tags": [
+        "ui",
+        "html",
+        "配置面板"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:electron/renderer/renderer.js",
+      "type": "file",
+      "name": "renderer.js",
+      "filePath": "electron/renderer/renderer.js",
+      "summary": "渲染进程逻辑脚本，处理用户交互、IPC通信、进度展示和配置管理。",
+      "tags": [
+        "ui逻辑",
+        "ipc",
+        "事件处理"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:electron/renderer/renderer.js:handleProgress",
+      "type": "function",
+      "name": "handleProgress",
+      "filePath": "electron/renderer/renderer.js",
+      "lineRange": [
+        89,
+        112
+      ],
+      "summary": "处理来自主进程的进度更新，更新各步骤UI状态和进度条。",
+      "tags": [
+        "进度处理",
+        "ui更新"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:electron/renderer/renderer.js:setupListeners",
+      "type": "function",
+      "name": "setupListeners",
+      "filePath": "electron/renderer/renderer.js",
+      "lineRange": [
+        115,
+        141
+      ],
+      "summary": "注册IPC监听器和清理函数，处理完成、错误和进度事件。",
+      "tags": [
+        "事件注册",
+        "ipc监听"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:electron/renderer/renderer.js:loadApiConfig",
+      "type": "function",
+      "name": "loadApiConfig",
+      "filePath": "electron/renderer/renderer.js",
+      "lineRange": [
+        144,
+        158
+      ],
+      "summary": "从主进程加载Claude API配置并填充到UI表单。",
+      "tags": [
+        "配置加载",
+        "api设置"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:electron/renderer/renderer.js:updateConfigStatus",
+      "type": "function",
+      "name": "updateConfigStatus",
+      "filePath": "electron/renderer/renderer.js",
+      "lineRange": [
+        160,
+        180
+      ],
+      "summary": "检查并更新API配置状态显示，检测配置有效性。",
+      "tags": [
+        "配置验证",
+        "ui更新"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:electron/renderer/renderer.js:init",
+      "type": "function",
+      "name": "init",
+      "filePath": "electron/renderer/renderer.js",
+      "lineRange": [
+        303,
+        314
+      ],
+      "summary": "页面初始化入口：获取输出目录、加载配置、注册监听器。",
+      "tags": [
+        "初始化",
+        "入口点"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:electron/renderer/style.css",
+      "type": "file",
+      "name": "style.css",
+      "filePath": "electron/renderer/style.css",
+      "summary": "Electron渲染进程样式表，定义暗色主题的流水线UI布局、步骤卡片和进度条样式。",
+      "tags": [
+        "样式",
+        "暗色主题",
+        "ui"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:references/cdp-api.md",
+      "type": "document",
+      "name": "cdp-api.md",
+      "filePath": "references/cdp-api.md",
+      "summary": "CDP代理HTTP API接口参考文档，详细描述健康检查、目标管理、页面导航、截图等端点用法。",
+      "tags": [
+        "文档",
+        "api参考",
+        "cdp"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:references/site-patterns/.gitkeep",
+      "type": "file",
+      "name": ".gitkeep",
+      "filePath": "references/site-patterns/.gitkeep",
+      "summary": "占位文件，确保site-patterns目录被Git跟踪。",
+      "tags": [
+        "占位",
+        "git"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:references/site-patterns/zhipin.com.md",
+      "type": "document",
+      "name": "zhipin.com.md",
+      "filePath": "references/site-patterns/zhipin.com.md",
+      "summary": "Boss直聘平台操作手册，包含参数规范、错误处理、候选人提取流程和在线简历获取技巧。",
+      "tags": [
+        "文档",
+        "boss直聘",
+        "爬虫参考"
+      ],
+      "complexity": "complex",
+      "languageNotes": "包含精确的DOM选择器、JavaScript注入代码和分步操作流程。"
+    },
+    {
+      "id": "file:scripts/build-trial.mjs",
+      "type": "file",
+      "name": "build-trial.mjs",
+      "filePath": "scripts/build-trial.mjs",
+      "summary": "试用版Electron构建脚本，复制必要文件生成可直接运行的试用打包目录。",
+      "tags": [
+        "构建",
+        "试用版",
+        "打包"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/build-trial.mjs:copy",
+      "type": "function",
+      "name": "copy",
+      "filePath": "scripts/build-trial.mjs",
+      "lineRange": [
+        9,
+        18
+      ],
+      "summary": "递归复制文件或目录，源不存在时发出警告。",
+      "tags": [
+        "工具函数",
+        "文件操作"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scripts/cdp-proxy.mjs",
+      "type": "file",
+      "name": "cdp-proxy.mjs",
+      "filePath": "scripts/cdp-proxy.mjs",
+      "summary": "Chrome DevTools Protocol代理服务器，自动发现Chrome远程调试端口，提供HTTP API作为CDP中间层。",
+      "tags": [
+        "cdp代理",
+        "chrome",
+        "调试",
+        "http服务器"
+      ],
+      "complexity": "complex",
+      "languageNotes": "使用原生http和net模块（无Express依赖）；WebSocket实现纯事件驱动通信。"
+    },
+    {
+      "id": "function:scripts/cdp-proxy.mjs:discoverChromePort",
+      "type": "function",
+      "name": "discoverChromePort",
+      "filePath": "scripts/cdp-proxy.mjs",
+      "lineRange": [
+        36,
+        91
+      ],
+      "summary": "自动发现Chrome远程调试端口，扫描多个可能的Chrome用户数据目录。",
+      "tags": [
+        "端口发现",
+        "chrome"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/cdp-proxy.mjs:connect",
+      "type": "function",
+      "name": "connect",
+      "filePath": "scripts/cdp-proxy.mjs",
+      "lineRange": [
+        114,
+        200
+      ],
+      "summary": "建立WebSocket连接到Chrome DevTools，管理消息路由和会话状态。",
+      "tags": [
+        "websocket",
+        "连接管理",
+        "cdp"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/cdp-proxy.mjs:sendCDP",
+      "type": "function",
+      "name": "sendCDP",
+      "filePath": "scripts/cdp-proxy.mjs",
+      "lineRange": [
+        202,
+        217
+      ],
+      "summary": "通过WebSocket发送CDP命令并等待响应，支持超时和错误处理。",
+      "tags": [
+        "cdp",
+        "命令发送",
+        "超时"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/cdp-proxy.mjs:ensureSession",
+      "type": "function",
+      "name": "ensureSession",
+      "filePath": "scripts/cdp-proxy.mjs",
+      "lineRange": [
+        222,
+        233
+      ],
+      "summary": "为目标页面创建或获取已存在的CDP会话，启用Fetch域。",
+      "tags": [
+        "会话管理",
+        "cdp"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/cdp-proxy.mjs:enablePortGuard",
+      "type": "function",
+      "name": "enablePortGuard",
+      "filePath": "scripts/cdp-proxy.mjs",
+      "lineRange": [
+        237,
+        248
+      ],
+      "summary": "启用Fetch端口防护，阻止非白名单端口的网络请求。",
+      "tags": [
+        "安全",
+        "端口防护"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/cdp-proxy.mjs:waitForLoad",
+      "type": "function",
+      "name": "waitForLoad",
+      "filePath": "scripts/cdp-proxy.mjs",
+      "lineRange": [
+        251,
+        278
+      ],
+      "summary": "等待页面完成加载，通过CDP Runtime.evaluate轮询document.readyState。",
+      "tags": [
+        "等待加载",
+        "cdp"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/cdp-proxy.mjs:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "scripts/cdp-proxy.mjs",
+      "lineRange": [
+        593,
+        620
+      ],
+      "summary": "入口函数：检查端口可用性，启动HTTP服务器处理各类CDP代理请求。",
+      "tags": [
+        "入口点",
+        "服务器启动"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/check-deps.mjs",
+      "type": "file",
+      "name": "check-deps.mjs",
+      "filePath": "scripts/check-deps.mjs",
+      "summary": "依赖检查工具，验证Node版本、Chrome远程调试端口可用性，并自动启动CDP代理。",
+      "tags": [
+        "依赖检查",
+        "诊断",
+        "chrome"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/check-deps.mjs:activePortFiles",
+      "type": "function",
+      "name": "activePortFiles",
+      "filePath": "scripts/check-deps.mjs",
+      "lineRange": [
+        40,
+        63
+      ],
+      "summary": "枚举Chrome可能的远程调试端口文件路径，涵盖多平台和多用户场景。",
+      "tags": [
+        "端口枚举",
+        "chrome"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/check-deps.mjs:detectChromePort",
+      "type": "function",
+      "name": "detectChromePort",
+      "filePath": "scripts/check-deps.mjs",
+      "lineRange": [
+        65,
+        83
+      ],
+      "summary": "自动检测Chrome远程调试端口，读取端口文件并验证连通性。",
+      "tags": [
+        "端口检测",
+        "chrome"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/check-deps.mjs:startProxyDetached",
+      "type": "function",
+      "name": "startProxyDetached",
+      "filePath": "scripts/check-deps.mjs",
+      "lineRange": [
+        95,
+        105
+      ],
+      "summary": "以分离方式启动CDP代理子进程，确保日志输出到临时文件。",
+      "tags": [
+        "子进程",
+        "代理启动"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/check-deps.mjs:ensureProxy",
+      "type": "function",
+      "name": "ensureProxy",
+      "filePath": "scripts/check-deps.mjs",
+      "lineRange": [
+        107,
+        139
+      ],
+      "summary": "确保CDP代理正在运行，若未运行则自动启动并等待就绪。",
+      "tags": [
+        "代理管理",
+        "健康检查"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/check-deps.mjs:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "scripts/check-deps.mjs",
+      "lineRange": [
+        143,
+        169
+      ],
+      "summary": "入口函数：执行Node版本检查、Chrome端口检测和代理启动。",
+      "tags": [
+        "入口点",
+        "诊断"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/clean-resume-text.mjs",
+      "type": "file",
+      "name": "clean-resume-text.mjs",
+      "filePath": "scripts/clean-resume-text.mjs",
+      "summary": "OCR简历文本清洗脚本，修复常见OCR识别错误并过滤无用字符。",
+      "tags": [
+        "文本清洗",
+        "ocr",
+        "简历处理"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/clean-resume-text.mjs:cleanOcrText",
+      "type": "function",
+      "name": "cleanOcrText",
+      "filePath": "scripts/clean-resume-text.mjs",
+      "lineRange": [
+        30,
+        79
+      ],
+      "summary": "对OCR原始文本执行多步骤清洗：修正字符映射、移除孤立符号、截断无关尾部内容。",
+      "tags": [
+        "工具函数",
+        "ocr",
+        "文本清洗"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/clean-resume-text.mjs:parseArgs",
+      "type": "function",
+      "name": "parseArgs",
+      "filePath": "scripts/clean-resume-text.mjs",
+      "lineRange": [
+        83,
+        97
+      ],
+      "summary": "解析命令行参数，支持--input和--output选项。",
+      "tags": [
+        "参数解析",
+        "cli"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/clean-resume-text.mjs:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "scripts/clean-resume-text.mjs",
+      "lineRange": [
+        99,
+        126
+      ],
+      "summary": "入口：读取候选人JSON文件，对每条记录的resumeText执行清洗并输出。",
+      "tags": [
+        "入口点",
+        "批处理"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/collect-agent-results.mjs",
+      "type": "file",
+      "name": "collect-agent-results.mjs",
+      "filePath": "scripts/collect-agent-results.mjs",
+      "summary": "Agent结果收集脚本，解析agent输出的JSON标记并验证数据结构完整性。",
+      "tags": [
+        "数据收集",
+        "结构验证",
+        "cli工具"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/collect-agent-results.mjs:extractJsonBetweenMarkers",
+      "type": "function",
+      "name": "extractJsonBetweenMarkers",
+      "filePath": "scripts/collect-agent-results.mjs",
+      "lineRange": [
+        49,
+        71
+      ],
+      "summary": "从文本中提取起始和结束标记之间的JSON内容，处理嵌套括号。",
+      "tags": [
+        "提取",
+        "json解析"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/collect-agent-results.mjs:validateStructure",
+      "type": "function",
+      "name": "validateStructure",
+      "filePath": "scripts/collect-agent-results.mjs",
+      "lineRange": [
+        73,
+        113
+      ],
+      "summary": "验证agent输出数据的结构完整性，检测必填字段缺失并汇总错误。",
+      "tags": [
+        "数据验证",
+        "结构检查"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/collect-agent-results.mjs:parseArgs",
+      "type": "function",
+      "name": "parseArgs",
+      "filePath": "scripts/collect-agent-results.mjs",
+      "lineRange": [
+        38,
+        47
+      ],
+      "summary": "解析命令行参数，支持--input和--output选项。",
+      "tags": [
+        "参数解析",
+        "cli"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/collect-agent-results.mjs:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "scripts/collect-agent-results.mjs",
+      "lineRange": [
+        124,
+        178
+      ],
+      "summary": "入口：读取agent输出文件或标准输入，提取并验证JSON数据后输出结果。",
+      "tags": [
+        "入口点",
+        "数据管道"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/export-candidates.mjs",
+      "type": "file",
+      "name": "export-candidates.mjs",
+      "filePath": "scripts/export-candidates.mjs",
+      "summary": "候选人数据导出工具，生成带样式的Excel工作簿，支持按岗位分组和自动邮件发送。",
+      "tags": [
+        "导出",
+        "excel",
+        "邮件",
+        "报表"
+      ],
+      "complexity": "complex",
+      "languageNotes": "使用exceljs库生成格式化Excel；输出支持多种字段配置和自定义分组。"
+    },
+    {
+      "id": "function:scripts/export-candidates.mjs:parseArgs",
+      "type": "function",
+      "name": "parseArgs",
+      "filePath": "scripts/export-candidates.mjs",
+      "lineRange": [
+        17,
+        32
+      ],
+      "summary": "解析命令行参数，支持输入、输出、分组、字段选择和邮件发送选项。",
+      "tags": [
+        "参数解析",
+        "cli"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/export-candidates.mjs:toAiRating",
+      "type": "function",
+      "name": "toAiRating",
+      "filePath": "scripts/export-candidates.mjs",
+      "lineRange": [
+        35,
+        39
+      ],
+      "summary": "将AI评分转换为星级显示格式。",
+      "tags": [
+        "工具函数",
+        "格式化"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/export-candidates.mjs:transformCandidates",
+      "type": "function",
+      "name": "transformCandidates",
+      "filePath": "scripts/export-candidates.mjs",
+      "lineRange": [
+        192,
+        205
+      ],
+      "summary": "将原始候选人数据按字段配置转换为导出用的扁平格式。",
+      "tags": [
+        "数据转换",
+        "导出"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/export-candidates.mjs:buildGroupedExportData",
+      "type": "function",
+      "name": "buildGroupedExportData",
+      "filePath": "scripts/export-candidates.mjs",
+      "lineRange": [
+        207,
+        217
+      ],
+      "summary": "按岗位名称将候选人分组并构建带标题行和数行分隔的导出数据结构。",
+      "tags": [
+        "数据分组",
+        "导出"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/export-candidates.mjs:createStyledSheet",
+      "type": "function",
+      "name": "createStyledSheet",
+      "filePath": "scripts/export-candidates.mjs",
+      "lineRange": [
+        227,
+        367
+      ],
+      "summary": "创建带样式的工作表，设置分组标题行样式、列宽、单元格格式和合并单元格。",
+      "tags": [
+        "excel",
+        "样式",
+        "报表"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:scripts/export-candidates.mjs:safeSheetName",
+      "type": "function",
+      "name": "safeSheetName",
+      "filePath": "scripts/export-candidates.mjs",
+      "lineRange": [
+        375,
+        380
+      ],
+      "summary": "将工作表名称截断到Excel支持的31字符限制并去除非法字符。",
+      "tags": [
+        "工具函数",
+        "excel"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/export-candidates.mjs:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "scripts/export-candidates.mjs",
+      "lineRange": [
+        383,
+        460
+      ],
+      "summary": "入口：加载候选人数据、创建Excel工作簿、保存文件和可选发送邮件。",
+      "tags": [
+        "入口点",
+        "导出流程"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/export-candidates.mjs:sendEmailAfterExport",
+      "type": "function",
+      "name": "sendEmailAfterExport",
+      "filePath": "scripts/export-candidates.mjs",
+      "lineRange": [
+        462,
+        479
+      ],
+      "summary": "导出完成后通过SMTP发送带附件的邮件通知。",
+      "tags": [
+        "邮件",
+        "smtp",
+        "通知"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scripts/extract-candidates-full.mjs",
+      "type": "file",
+      "name": "extract-candidates-full.mjs",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "summary": "全量候选人提取核心脚本，通过CDP代理自动化操作Boss直聘网页，完成候选人扫描、简历截图和OCR识别。",
+      "tags": [
+        "提取",
+        "boss直聘",
+        "自动化",
+        "ocr",
+        "核心脚本"
+      ],
+      "complexity": "complex",
+      "languageNotes": "冗长的大脚本（1577行），使用原生http模块通过CDP代理通信；无外部浏览器自动化依赖。"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:parseArgs",
+      "type": "function",
+      "name": "parseArgs",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        29,
+        62
+      ],
+      "summary": "解析命令行参数，支持输出目录、提取数量、调试截图等选项。",
+      "tags": [
+        "参数解析",
+        "cli"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:proxyGet",
+      "type": "function",
+      "name": "proxyGet",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        65,
+        78
+      ],
+      "summary": "通过CDP代理发送HTTP GET请求并返回解析后的JSON响应。",
+      "tags": [
+        "http",
+        "代理通信"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:proxyPost",
+      "type": "function",
+      "name": "proxyPost",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        80,
+        100
+      ],
+      "summary": "通过CDP代理发送HTTP POST请求，支持JSON数据体。",
+      "tags": [
+        "http",
+        "代理通信"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:reportStats",
+      "type": "function",
+      "name": "reportStats",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        107,
+        134
+      ],
+      "summary": "输出提取统计信息，包括总数、成功数、失败数和耗时。",
+      "tags": [
+        "统计",
+        "进度报告"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:cdpScreenshot",
+      "type": "function",
+      "name": "cdpScreenshot",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        148,
+        163
+      ],
+      "summary": "通过CDP代理截取指定区域的页面截图。",
+      "tags": [
+        "截图",
+        "cdp"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:waitForCandidateList",
+      "type": "function",
+      "name": "waitForCandidateList",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        167,
+        177
+      ],
+      "summary": "等待候选人列表渲染完成，通过CDP轮询检查元素存在性。",
+      "tags": [
+        "等待",
+        "cdp"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:readVisibleGeekItems",
+      "type": "function",
+      "name": "readVisibleGeekItems",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        182,
+        201
+      ],
+      "summary": "读取当前视口中可见的候选人列表项信息。",
+      "tags": [
+        "数据读取",
+        "cdp"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:scrollListDown",
+      "type": "function",
+      "name": "scrollListDown",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        204,
+        214
+      ],
+      "summary": "将候选人列表向下滚动一屏距离。",
+      "tags": [
+        "滚动",
+        "自动化"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:scrollListUp",
+      "type": "function",
+      "name": "scrollListUp",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        217,
+        227
+      ],
+      "summary": "将候选人列表向上滚动一屏距离。",
+      "tags": [
+        "滚动",
+        "自动化"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:scanAllCandidateGeekIds",
+      "type": "function",
+      "name": "scanAllCandidateGeekIds",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        239,
+        299
+      ],
+      "summary": "滚动遍历全部候选人列表，收集所有候选人的geekId标识。",
+      "tags": [
+        "扫描",
+        "列表遍历"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:scanUpToCandidateGeekIds",
+      "type": "function",
+      "name": "scanUpToCandidateGeekIds",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        302,
+        365
+      ],
+      "summary": "滚动扫描指定数量的候选人，收集geekId并支持进度报告。",
+      "tags": [
+        "扫描",
+        "限量采集"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:clickCandidateByGeekId",
+      "type": "function",
+      "name": "clickCandidateByGeekId",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        368,
+        425
+      ],
+      "summary": "根据geekId定位并点击候选人详情项。",
+      "tags": [
+        "点击",
+        "自动化"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:extractJobDescription",
+      "type": "function",
+      "name": "extractJobDescription",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        515,
+        564
+      ],
+      "summary": "从页面提取当前岗位的职位描述信息。",
+      "tags": [
+        "提取",
+        "职位描述"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:clickOnlineResume",
+      "type": "function",
+      "name": "clickOnlineResume",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        568,
+        636
+      ],
+      "summary": "点击在线简历按钮并等待简历弹窗加载完成。",
+      "tags": [
+        "点击",
+        "在线简历"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:getDialogClip",
+      "type": "function",
+      "name": "getDialogClip",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        638,
+        677
+      ],
+      "summary": "获取简历弹窗在视口中的精确裁剪坐标，用于分区域截图。",
+      "tags": [
+        "截图",
+        "坐标计算"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:getResumeScrollInfo",
+      "type": "function",
+      "name": "getResumeScrollInfo",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        679,
+        778
+      ],
+      "summary": "探测简历弹窗的真实滚动高度和当前滚动位置，支持分页截图。",
+      "tags": [
+        "滚动探测",
+        "简历"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:scrollResume",
+      "type": "function",
+      "name": "scrollResume",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        780,
+        790
+      ],
+      "summary": "将简历弹窗滚动到指定位置。",
+      "tags": [
+        "滚动",
+        "简历"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:closeBossPopup",
+      "type": "function",
+      "name": "closeBossPopup",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        794,
+        859
+      ],
+      "summary": "关闭Boss直聘页面上的各种弹窗（登录提示、引导遮罩等）。",
+      "tags": [
+        "弹窗处理",
+        "自动化"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:captureResumeScreenshots",
+      "type": "function",
+      "name": "captureResumeScreenshots",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        865,
+        935
+      ],
+      "summary": "滚动简历弹窗并逐屏截图，保存到临时目录。",
+      "tags": [
+        "截图",
+        "简历",
+        "滚动"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:cleanOcrText",
+      "type": "function",
+      "name": "cleanOcrText",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        956,
+        1007
+      ],
+      "summary": "OCR文本清洗，修复全角半角字符映射并过滤孤立字符。",
+      "tags": [
+        "文本清洗",
+        "ocr"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:dedupePages",
+      "type": "function",
+      "name": "dedupePages",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        1010,
+        1040
+      ],
+      "summary": "对连续截图页面进行去重，移除重复内容以减少OCR处理量。",
+      "tags": [
+        "去重",
+        "截图"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:ocrScreenshots",
+      "type": "function",
+      "name": "ocrScreenshots",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        1042,
+        1052
+      ],
+      "summary": "使用Tesseract.js对截图批量执行OCR文字识别。",
+      "tags": [
+        "ocr",
+        "文字识别"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:loadScanCache",
+      "type": "function",
+      "name": "loadScanCache",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        1078,
+        1088
+      ],
+      "summary": "从磁盘加载扫描缓存，支持断点续扫。",
+      "tags": [
+        "缓存",
+        "断点续传"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/extract-candidates-full.mjs:loadProgress",
+      "type": "function",
+      "name": "loadProgress",
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "lineRange": [
+        1100,
+        1110
+      ],
+      "summary": "加载已处理的候选人进度，恢复中断的提取任务。",
+      "tags": [
+        "进度恢复",
+        "断点续传"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scripts/fetch-resumes.mjs",
+      "type": "file",
+      "name": "fetch-resumes.mjs",
+      "filePath": "scripts/fetch-resumes.mjs",
+      "summary": "简历获取脚本，自动化操作Boss直聘页面逐一点开候选人并截图识别简历内容。",
+      "tags": [
+        "获取",
+        "boss直聘",
+        "简历",
+        "自动化"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:scripts/fetch-resumes.mjs:parseArgs",
+      "type": "function",
+      "name": "parseArgs",
+      "filePath": "scripts/fetch-resumes.mjs",
+      "lineRange": [
+        27,
+        43
+      ],
+      "summary": "解析命令行参数，支持输出目录、候选人索引范围等选项。",
+      "tags": [
+        "参数解析",
+        "cli"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/fetch-resumes.mjs:proxyGet",
+      "type": "function",
+      "name": "proxyGet",
+      "filePath": "scripts/fetch-resumes.mjs",
+      "lineRange": [
+        46,
+        59
+      ],
+      "summary": "通过CDP代理发送HTTP GET请求。",
+      "tags": [
+        "http",
+        "代理通信"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/fetch-resumes.mjs:proxyPost",
+      "type": "function",
+      "name": "proxyPost",
+      "filePath": "scripts/fetch-resumes.mjs",
+      "lineRange": [
+        61,
+        81
+      ],
+      "summary": "通过CDP代理发送HTTP POST请求。",
+      "tags": [
+        "http",
+        "代理通信"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/fetch-resumes.mjs:waitForCandidateList",
+      "type": "function",
+      "name": "waitForCandidateList",
+      "filePath": "scripts/fetch-resumes.mjs",
+      "lineRange": [
+        111,
+        121
+      ],
+      "summary": "等待候选人列表渲染完成。",
+      "tags": [
+        "等待",
+        "cdp"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/fetch-resumes.mjs:scrollToCandidate",
+      "type": "function",
+      "name": "scrollToCandidate",
+      "filePath": "scripts/fetch-resumes.mjs",
+      "lineRange": [
+        124,
+        146
+      ],
+      "summary": "滚动到指定索引位置并等待加载。",
+      "tags": [
+        "滚动",
+        "定位"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/fetch-resumes.mjs:clickCandidate",
+      "type": "function",
+      "name": "clickCandidate",
+      "filePath": "scripts/fetch-resumes.mjs",
+      "lineRange": [
+        149,
+        164
+      ],
+      "summary": "点击指定索引的候选人详情项。",
+      "tags": [
+        "点击",
+        "导航"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/fetch-resumes.mjs:clickOnlineResume",
+      "type": "function",
+      "name": "clickOnlineResume",
+      "filePath": "scripts/fetch-resumes.mjs",
+      "lineRange": [
+        167,
+        190
+      ],
+      "summary": "点击在线简历按钮并等待弹窗。",
+      "tags": [
+        "点击",
+        "在线简历"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/fetch-resumes.mjs:getDialogClip",
+      "type": "function",
+      "name": "getDialogClip",
+      "filePath": "scripts/fetch-resumes.mjs",
+      "lineRange": [
+        193,
+        204
+      ],
+      "summary": "获取简历弹窗在视口中的裁剪坐标。",
+      "tags": [
+        "截图",
+        "坐标"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/fetch-resumes.mjs:extractResumeNameFromDialog",
+      "type": "function",
+      "name": "extractResumeNameFromDialog",
+      "filePath": "scripts/fetch-resumes.mjs",
+      "lineRange": [
+        207,
+        222
+      ],
+      "summary": "从简历弹窗中提取候选人姓名。",
+      "tags": [
+        "提取",
+        "姓名"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/fetch-resumes.mjs:getResumeScrollInfo",
+      "type": "function",
+      "name": "getResumeScrollInfo",
+      "filePath": "scripts/fetch-resumes.mjs",
+      "lineRange": [
+        225,
+        236
+      ],
+      "summary": "获取简历弹窗的滚动高度和当前位置。",
+      "tags": [
+        "滚动",
+        "探测"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/fetch-resumes.mjs:probeRealScrollHeight",
+      "type": "function",
+      "name": "probeRealScrollHeight",
+      "filePath": "scripts/fetch-resumes.mjs",
+      "lineRange": [
+        244,
+        279
+      ],
+      "summary": "探测简历窗口的真实滚动高度，处理自适应高度场景。",
+      "tags": [
+        "探测",
+        "滚动"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/fetch-resumes.mjs:captureResumeScreenshots",
+      "type": "function",
+      "name": "captureResumeScreenshots",
+      "filePath": "scripts/fetch-resumes.mjs",
+      "lineRange": [
+        298,
+        330
+      ],
+      "summary": "滚动简历并截取完整截图序列。",
+      "tags": [
+        "截图",
+        "简历"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/fetch-resumes.mjs:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "scripts/fetch-resumes.mjs",
+      "lineRange": [
+        348,
+        495
+      ],
+      "summary": "入口：循环处理候选人列表，逐个提取简历截图并进行OCR识别。",
+      "tags": [
+        "入口点",
+        "自动化流程"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:scripts/find-url.mjs",
+      "type": "file",
+      "name": "find-url.mjs",
+      "filePath": "scripts/find-url.mjs",
+      "summary": "Chrome书签和历史记录搜索工具，从本地Chrome配置文件中查找匹配关键字的URL。",
+      "tags": [
+        "搜索",
+        "chrome",
+        "书签",
+        "历史记录"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/find-url.mjs:parseArgs",
+      "type": "function",
+      "name": "parseArgs",
+      "filePath": "scripts/find-url.mjs",
+      "lineRange": [
+        27,
+        43
+      ],
+      "summary": "解析命令行参数，支持关键字、搜索模式和时间范围等选项。",
+      "tags": [
+        "参数解析",
+        "cli"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/find-url.mjs:parseSince",
+      "type": "function",
+      "name": "parseSince",
+      "filePath": "scripts/find-url.mjs",
+      "lineRange": [
+        45,
+        56
+      ],
+      "summary": "解析时间范围参数，支持相对时间（如7d）和绝对日期格式。",
+      "tags": [
+        "时间解析",
+        "cli"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/find-url.mjs:searchBookmarks",
+      "type": "function",
+      "name": "searchBookmarks",
+      "filePath": "scripts/find-url.mjs",
+      "lineRange": [
+        84,
+        108
+      ],
+      "summary": "遍历Chrome书签树，匹配关键字并返回匹配的书签条目。",
+      "tags": [
+        "书签搜索",
+        "chrome"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/find-url.mjs:searchHistory",
+      "type": "function",
+      "name": "searchHistory",
+      "filePath": "scripts/find-url.mjs",
+      "lineRange": [
+        113,
+        149
+      ],
+      "summary": "从Chrome历史记录SQLite数据库中搜索匹配的URL，支持时间过滤和排序。",
+      "tags": [
+        "历史搜索",
+        "sqlite",
+        "chrome"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/make-ico.mjs",
+      "type": "file",
+      "name": "make-ico.mjs",
+      "filePath": "scripts/make-ico.mjs",
+      "summary": "使用 sharp 库将 PNG 图片转换为多尺寸 BMP 格式的 ICO 图标文件，供 electron-builder 打包桌面应用使用。",
+      "tags": [
+        "utility",
+        "icon-generation",
+        "build-tool",
+        "image-processing"
+      ],
+      "complexity": "simple",
+      "languageNotes": "纯 BMP 格式 ICO 生成，包含 7 种尺寸（16-256px），手动拼接 BMP 二进制头和数据。"
+    },
+    {
+      "id": "function:scripts/make-ico.mjs:createBmpEntry",
+      "type": "function",
+      "name": "createBmpEntry",
+      "filePath": "scripts/make-ico.mjs",
+      "lineRange": [
+        19,
+        44
+      ],
+      "summary": "根据 RGBA 像素数据生成 BMP 图像条目，包含 40 字节 BMP 头、BGRA 像素数据和 AND 遮罩。",
+      "tags": [
+        "utility",
+        "image-processing",
+        "binary-format"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/make-ico.mjs:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "scripts/make-ico.mjs",
+      "lineRange": [
+        46,
+        90
+      ],
+      "summary": "异步主流程，读取 PNG 图片生成多尺寸 ICO 文件，包含 ICONDIR 头和目录项。",
+      "tags": [
+        "entry-point",
+        "image-processing",
+        "async"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/match-site.mjs",
+      "type": "file",
+      "name": "match-site.mjs",
+      "filePath": "scripts/match-site.mjs",
+      "summary": "根据用户输入文本匹配 references/site-patterns 目录下的站点经验 Markdown 文件，输出匹配到的内容。",
+      "tags": [
+        "utility",
+        "text-matching",
+        "pattern-matching",
+        "cli"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scripts/merge-scores.mjs",
+      "type": "file",
+      "name": "merge-scores.mjs",
+      "filePath": "scripts/merge-scores.mjs",
+      "summary": "合并多 Agent 评分结果到候选人数据中，计算总分、推荐级别和通过判定，排序后输出到 scored-candidates.json。",
+      "tags": [
+        "utility",
+        "scoring",
+        "data-processing",
+        "cli"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scripts/open-candidate.mjs",
+      "type": "file",
+      "name": "open-candidate.mjs",
+      "filePath": "scripts/open-candidate.mjs",
+      "summary": "通过 CDP Proxy 操作 Boss 直聘浏览器页面，按候选人姓名搜索并点击打开候选人详情面板。",
+      "tags": [
+        "utility",
+        "browser-automation",
+        "cdp",
+        "cli"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "通过 CDP（Chrome DevTools Protocol）代理控制浏览器页面，包含反检测随机延迟和滚动搜索策略。"
+    },
+    {
+      "id": "function:scripts/open-candidate.mjs:parseArgs",
+      "type": "function",
+      "name": "parseArgs",
+      "filePath": "scripts/open-candidate.mjs",
+      "lineRange": [
+        16,
+        31
+      ],
+      "summary": "解析命令行参数，提取 --name 候选人姓名，缺少时打印用法并退出。",
+      "tags": [
+        "utility",
+        "cli",
+        "argument-parsing"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/open-candidate.mjs:proxyGet",
+      "type": "function",
+      "name": "proxyGet",
+      "filePath": "scripts/open-candidate.mjs",
+      "lineRange": [
+        34,
+        47
+      ],
+      "summary": "通过 HTTP GET 请求 CDP 代理，返回解析后的 JSON 响应，支持 60 秒超时。",
+      "tags": [
+        "utility",
+        "http-client",
+        "cdp"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/open-candidate.mjs:proxyPost",
+      "type": "function",
+      "name": "proxyPost",
+      "filePath": "scripts/open-candidate.mjs",
+      "lineRange": [
+        49,
+        69
+      ],
+      "summary": "通过 HTTP POST 请求 CDP 代理，发送 CDP 指令并返回 JSON 响应。",
+      "tags": [
+        "utility",
+        "http-client",
+        "cdp"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/open-candidate.mjs:waitForCandidateList",
+      "type": "function",
+      "name": "waitForCandidateList",
+      "filePath": "scripts/open-candidate.mjs",
+      "lineRange": [
+        89,
+        99
+      ],
+      "summary": "轮询等待页面中 .geek-item 候选人列表元素出现，超时则抛出错误。",
+      "tags": [
+        "utility",
+        "browser-automation",
+        "wait"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/open-candidate.mjs:readVisibleGeekItems",
+      "type": "function",
+      "name": "readVisibleGeekItems",
+      "filePath": "scripts/open-candidate.mjs",
+      "lineRange": [
+        102,
+        121
+      ],
+      "summary": "通过 CDP 执行 DOM 查询，读取当前可见的候选人卡片 geekId 和姓名列表。",
+      "tags": [
+        "utility",
+        "browser-automation",
+        "dom-query"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/open-candidate.mjs:scrollListDown",
+      "type": "function",
+      "name": "scrollListDown",
+      "filePath": "scripts/open-candidate.mjs",
+      "lineRange": [
+        124,
+        134
+      ],
+      "summary": "通过 CDP 执行脚本向下滚动候选人列表容器并返回滚动结果。",
+      "tags": [
+        "utility",
+        "browser-automation",
+        "scroll"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/open-candidate.mjs:scrollListUp",
+      "type": "function",
+      "name": "scrollListUp",
+      "filePath": "scripts/open-candidate.mjs",
+      "lineRange": [
+        137,
+        147
+      ],
+      "summary": "通过 CDP 执行脚本向上滚动候选人列表容器并返回滚动结果。",
+      "tags": [
+        "utility",
+        "browser-automation",
+        "scroll"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/open-candidate.mjs:clickCandidateByGeekId",
+      "type": "function",
+      "name": "clickCandidateByGeekId",
+      "filePath": "scripts/open-candidate.mjs",
+      "lineRange": [
+        159,
+        214
+      ],
+      "summary": "通过 geekId 精准定位并点击候选人卡片，支持先下后上的滚动搜索策略，包含反检测随机延迟。",
+      "tags": [
+        "utility",
+        "browser-automation",
+        "click",
+        "scrolling-search"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/open-candidate.mjs:findCandidateByName",
+      "type": "function",
+      "name": "findCandidateByName",
+      "filePath": "scripts/open-candidate.mjs",
+      "lineRange": [
+        217,
+        243
+      ],
+      "summary": "在候选人列表中按姓名模糊匹配搜索，去重后返回匹配的候选人信息。",
+      "tags": [
+        "utility",
+        "browser-automation",
+        "search"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/open-candidate.mjs:findOrCreateChatTab",
+      "type": "function",
+      "name": "findOrCreateChatTab",
+      "filePath": "scripts/open-candidate.mjs",
+      "lineRange": [
+        246,
+        268
+      ],
+      "summary": "查找已有 Boss 直聘聊天页面 tab，未找到则通过代理创建新 tab。",
+      "tags": [
+        "utility",
+        "browser-automation",
+        "tab-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/open-candidate.mjs:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "scripts/open-candidate.mjs",
+      "lineRange": [
+        271,
+        333
+      ],
+      "summary": "主流程：解析参数、查找聊天 tab、等待列表加载、按姓名搜索、点击候选人、等待详情面板显示。",
+      "tags": [
+        "entry-point",
+        "orchestration",
+        "async"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:scripts/process-icon.mjs",
+      "type": "file",
+      "name": "process-icon.mjs",
+      "filePath": "scripts/process-icon.mjs",
+      "summary": "使用 sharp 库将应用图标缩放至 256x256 并添加圆角遮罩，输出为 PNG 文件。",
+      "tags": [
+        "utility",
+        "icon-generation",
+        "image-processing",
+        "build-tool"
+      ],
+      "complexity": "simple",
+      "languageNotes": "使用 SVG 圆角矩形作为遮罩，通过 sharp.composite 的 dest-in 混合模式裁剪原图。"
+    },
+    {
+      "id": "function:scripts/process-icon.mjs:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "scripts/process-icon.mjs",
+      "lineRange": [
+        18,
+        39
+      ],
+      "summary": "创建圆角遮罩 SVG，读取原图缩放后合成遮罩并输出 PNG 文件。",
+      "tags": [
+        "entry-point",
+        "image-processing",
+        "async"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scripts/score-candidates.mjs",
+      "type": "file",
+      "name": "score-candidates.mjs",
+      "filePath": "scripts/score-candidates.mjs",
+      "summary": "候选人评分引擎，支持默认模式和规则模式两种评分方式，包含学历解析、工作年限解析、字段路径查询、操作符比较和推荐级别计算。",
+      "tags": [
+        "utility",
+        "scoring",
+        "evaluation",
+        "rule-engine"
+      ],
+      "complexity": "complex",
+      "languageNotes": "支持 exclude/mustHave/preferred 三层规则引擎，字段路径支持数组展开语法（[]后缀），分数采用 60-100 归一化策略。"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:parseArgs",
+      "type": "function",
+      "name": "parseArgs",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        7,
+        30
+      ],
+      "summary": "解析命令行参数，支持 --input、--rules、--default、--position、--output 选项，校验必填参数。",
+      "tags": [
+        "utility",
+        "cli",
+        "argument-parsing"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:educationRank",
+      "type": "function",
+      "name": "educationRank",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        35,
+        39
+      ],
+      "summary": "将学历字符串（高中/中专/大专/本科/硕士/博士）映射为数字排名。",
+      "tags": [
+        "utility",
+        "education",
+        "ranking"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:calcEducationScore",
+      "type": "function",
+      "name": "calcEducationScore",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        51,
+        54
+      ],
+      "summary": "根据学历计算分数，博士 15 分，硕士 13 分，本科 10 分，大专 6 分，中专/高中 3 分。",
+      "tags": [
+        "utility",
+        "scoring",
+        "education"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:calcWorkYearsScore",
+      "type": "function",
+      "name": "calcWorkYearsScore",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        57,
+        64
+      ],
+      "summary": "根据工作年限字符串计算分数，每年 1.5 分上限 13 分，应届生额外加 2 分。",
+      "tags": [
+        "utility",
+        "scoring",
+        "work-experience"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:resolveEducationFromRaw",
+      "type": "function",
+      "name": "resolveEducationFromRaw",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        69,
+        79
+      ],
+      "summary": "从 rawVisibleText 中按最高学历匹配提取学历字符串。",
+      "tags": [
+        "utility",
+        "education",
+        "text-parsing"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:resolveWorkYearsFromRaw",
+      "type": "function",
+      "name": "resolveWorkYearsFromRaw",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        82,
+        110
+      ],
+      "summary": "从 rawVisibleText 中通过正则匹配提取工作年限，支持应届生、年内、年以上和普通年限格式。",
+      "tags": [
+        "utility",
+        "work-experience",
+        "text-parsing",
+        "regex"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:getFieldValue",
+      "type": "function",
+      "name": "getFieldValue",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        113,
+        117
+      ],
+      "summary": "通过点分隔路径从嵌套对象中获取单个字段值。",
+      "tags": [
+        "utility",
+        "object-traversal",
+        "helper"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:getFieldValues",
+      "type": "function",
+      "name": "getFieldValues",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        121,
+        143
+      ],
+      "summary": "通过支持 [] 数组展开语法的路径从嵌套对象中获取多个字段值。",
+      "tags": [
+        "utility",
+        "object-traversal",
+        "array-expansion"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:resolveField",
+      "type": "function",
+      "name": "resolveField",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        146,
+        176
+      ],
+      "summary": "智能字段解析，支持特殊路径（education/workYears/resumeText）回退、数组路径和普通路径。",
+      "tags": [
+        "utility",
+        "field-resolution",
+        "fallback"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:parseWorkYears",
+      "type": "function",
+      "name": "parseWorkYears",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        179,
+        184
+      ],
+      "summary": "从字符串中解析工作年限数值，如 '3年' 转为 3。",
+      "tags": [
+        "utility",
+        "work-experience",
+        "text-parsing"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:compareValues",
+      "type": "function",
+      "name": "compareValues",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        187,
+        238
+      ],
+      "summary": "操作符比较引擎，支持 equals/contains/in/>=/></=</regex/exists 等多种比较操作符。",
+      "tags": [
+        "utility",
+        "comparison",
+        "operator-engine"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:compareOrdered",
+      "type": "function",
+      "name": "compareOrdered",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        240,
+        257
+      ],
+      "summary": "有序比较，先尝试学历比较，再尝试数值比较，最后使用 localeCompare 中文字符串比较。",
+      "tags": [
+        "utility",
+        "comparison",
+        "ordering"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:getRecommendationLevel",
+      "type": "function",
+      "name": "getRecommendationLevel",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        260,
+        265
+      ],
+      "summary": "根据分数返回推荐级别字符串：strong(>=75)、good(>=60)、fair(>=45)、weak。",
+      "tags": [
+        "utility",
+        "classification",
+        "threshold"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:scoreCandidate",
+      "type": "function",
+      "name": "scoreCandidate",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        268,
+        378
+      ],
+      "summary": "单候选人评分核心函数，按 exclude/mustHave/preferred 三层规则引擎评分，支持 60-100 归一化。",
+      "tags": [
+        "core",
+        "scoring",
+        "rule-engine"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:scoreCandidateDefault",
+      "type": "function",
+      "name": "scoreCandidateDefault",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        381,
+        409
+      ],
+      "summary": "默认评分模式，不依赖规则文件，直接从 rawVisibleText 解析学历和工作年限给出基础分。",
+      "tags": [
+        "utility",
+        "scoring",
+        "fallback"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/score-candidates.mjs:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "scripts/score-candidates.mjs",
+      "lineRange": [
+        412,
+        475
+      ],
+      "summary": "主流程：解析参数、读取候选人数据、根据默认或规则模式评分、排序、过滤、输出文件。",
+      "tags": [
+        "entry-point",
+        "orchestration",
+        "io"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:scripts/send-candidates-email.mjs",
+      "type": "file",
+      "name": "send-candidates-email.mjs",
+      "filePath": "scripts/send-candidates-email.mjs",
+      "summary": "通过 SMTP 发送候选人评分结果邮件，支持收件人构建、SMTP 配置验证、附件检查和邮件发送。",
+      "tags": [
+        "utility",
+        "email",
+        "smtp",
+        "notification",
+        "tested"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/send-candidates-email.mjs:parseArgs",
+      "type": "function",
+      "name": "parseArgs",
+      "filePath": "scripts/send-candidates-email.mjs",
+      "lineRange": [
+        17,
+        44
+      ],
+      "summary": "解析命令行参数，校验 --to-prefix 和 --attachment 必填项，支持自定义 domain/subject。",
+      "tags": [
+        "utility",
+        "cli",
+        "argument-parsing"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/send-candidates-email.mjs:buildRecipient",
+      "type": "function",
+      "name": "buildRecipient",
+      "filePath": "scripts/send-candidates-email.mjs",
+      "lineRange": [
+        46,
+        54
+      ],
+      "summary": "构建收件人邮箱地址，校验 prefix 和 domain 格式后拼接为 prefix@domain。",
+      "tags": [
+        "utility",
+        "email",
+        "validation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/send-candidates-email.mjs:readSmtpConfig",
+      "type": "function",
+      "name": "readSmtpConfig",
+      "filePath": "scripts/send-candidates-email.mjs",
+      "lineRange": [
+        56,
+        88
+      ],
+      "summary": "从环境变量读取 SMTP 配置（HOST/PORT/USER/PASS），校验必填项和端口格式，推断 secure 参数。",
+      "tags": [
+        "utility",
+        "email",
+        "smtp",
+        "configuration"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scripts/send-candidates-email.mjs:validateAttachment",
+      "type": "function",
+      "name": "validateAttachment",
+      "filePath": "scripts/send-candidates-email.mjs",
+      "lineRange": [
+        90,
+        99
+      ],
+      "summary": "验证附件路径是否存在且为文件，返回解析后的绝对路径。",
+      "tags": [
+        "utility",
+        "validation",
+        "file-system"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/send-candidates-email.mjs:buildMailOptions",
+      "type": "function",
+      "name": "buildMailOptions",
+      "filePath": "scripts/send-candidates-email.mjs",
+      "lineRange": [
+        101,
+        114
+      ],
+      "summary": "构建 nodemailer 邮件选项对象，包含发件人、收件人、主题、正文和附件。",
+      "tags": [
+        "utility",
+        "email",
+        "mail-construction"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scripts/send-candidates-email.mjs:sendCandidateEmail",
+      "type": "function",
+      "name": "sendCandidateEmail",
+      "filePath": "scripts/send-candidates-email.mjs",
+      "lineRange": [
+        116,
+        151
+      ],
+      "summary": "完整的邮件发送流程：读取 SMTP 配置、构建收件人、验证附件、创建传输、发送邮件并返回结果。",
+      "tags": [
+        "core",
+        "email",
+        "smtp",
+        "orchestration"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:scripts/send-candidates-email.test.mjs",
+      "type": "file",
+      "name": "send-candidates-email.test.mjs",
+      "filePath": "scripts/send-candidates-email.test.mjs",
+      "summary": "使用 node:test 框架对 send-candidates-email.mjs 的 6 个导出函数进行单元测试，覆盖收件人构建、SMTP 配置、附件验证和邮件发送等场景。",
+      "tags": [
+        "test",
+        "unit-test",
+        "email",
+        "validation"
+      ],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/CDP API端点.md",
+      "target": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/元素交互.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/CDP API端点.md",
+      "target": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/基础健康检查.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/CDP API端点.md",
+      "target": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/文件上传与截图.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/CDP API端点.md",
+      "target": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/滚动与页面信息.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/CDP API端点.md",
+      "target": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/目标管理.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/CDP API端点.md",
+      "target": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/页面导航.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/CDP API端点.md",
+      "target": "file:scripts/cdp-proxy.mjs",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/CDP API端点.md",
+      "target": "document:references/cdp-api.md",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/元素交互.md",
+      "target": "file:scripts/cdp-proxy.mjs",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/基础健康检查.md",
+      "target": "file:scripts/cdp-proxy.mjs",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/文件上传与截图.md",
+      "target": "file:scripts/cdp-proxy.mjs",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/滚动与页面信息.md",
+      "target": "file:scripts/cdp-proxy.mjs",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/目标管理.md",
+      "target": "file:scripts/cdp-proxy.mjs",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/页面导航.md",
+      "target": "file:scripts/cdp-proxy.mjs",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP代理服务.md",
+      "target": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP代理概述.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP代理服务.md",
+      "target": "document:.qoder/repowiki/zh/content/CDP代理服务/WebSocket通信.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP代理服务.md",
+      "target": "document:.qoder/repowiki/zh/content/CDP代理服务/使用示例.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP代理服务.md",
+      "target": "document:.qoder/repowiki/zh/content/CDP代理服务/连接管理.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/WebSocket通信.md",
+      "target": "document:.qoder/repowiki/zh/content/CDP代理服务/连接管理.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/CDP代理服务/使用示例.md",
+      "target": "document:.qoder/repowiki/zh/content/CDP代理服务/CDP代理概述.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/候选人筛选系统/候选人筛选系统.md",
+      "target": "document:.qoder/repowiki/zh/content/候选人筛选系统/字段解析引擎.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/候选人筛选系统/候选人筛选系统.md",
+      "target": "document:.qoder/repowiki/zh/content/候选人筛选系统/岗位描述(JD)提取系统.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/候选人筛选系统/候选人筛选系统.md",
+      "target": "document:.qoder/repowiki/zh/content/候选人筛选系统/规则引擎核心.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/候选人筛选系统/候选人筛选系统.md",
+      "target": "document:.qoder/repowiki/zh/content/候选人筛选系统/评分算法实现.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/候选人筛选系统/候选人筛选系统.md",
+      "target": "document:.qoder/repowiki/zh/content/候选人筛选系统/配置管理.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/候选人筛选系统/字段解析引擎.md",
+      "target": "document:.qoder/repowiki/zh/content/候选人筛选系统/规则引擎核心.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/候选人筛选系统/规则引擎核心.md",
+      "target": "document:.qoder/repowiki/zh/content/候选人筛选系统/评分算法实现.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/候选人筛选系统/配置管理.md",
+      "target": "document:.qoder/repowiki/zh/content/候选人筛选系统/规则引擎核心.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/候选人筛选系统/配置管理.md",
+      "target": "document:.qoder/repowiki/zh/content/候选人筛选系统/字段解析引擎.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/候选人筛选系统/配置管理.md",
+      "target": "document:.qoder/repowiki/zh/content/候选人筛选系统/评分算法实现.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/候选人筛选系统/岗位描述(JD)提取系统.md",
+      "target": "document:.qoder/repowiki/zh/content/候选人筛选系统/评分算法实现.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/开发指南/开发指南.md",
+      "target": "document:.qoder/repowiki/zh/content/开发指南/代码结构与模块设计.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/开发指南/开发指南.md",
+      "target": "document:.qoder/repowiki/zh/content/开发指南/开发流程与规范.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/开发指南/开发指南.md",
+      "target": "document:.qoder/repowiki/zh/content/开发指南/扩展开发.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/开发指南/开发指南.md",
+      "target": "document:.qoder/repowiki/zh/content/开发指南/测试与调试.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/开发指南/代码结构与模块设计.md",
+      "target": "document:.qoder/repowiki/zh/content/开发指南/开发流程与规范.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/开发指南/代码结构与模块设计.md",
+      "target": "document:.qoder/repowiki/zh/content/开发指南/扩展开发.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/开发指南/代码结构与模块设计.md",
+      "target": "document:.qoder/repowiki/zh/content/开发指南/测试与调试.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/开发指南/开发流程与规范.md",
+      "target": "document:.qoder/repowiki/zh/content/开发指南/扩展开发.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/开发指南/开发流程与规范.md",
+      "target": "document:.qoder/repowiki/zh/content/开发指南/测试与调试.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/开发指南/扩展开发.md",
+      "target": "document:.qoder/repowiki/zh/content/开发指南/测试与调试.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/项目概述.md",
+      "target": "document:.qoder/repowiki/zh/content/快速开始.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/项目概述.md",
+      "target": "document:.qoder/repowiki/zh/content/数据导出系统.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/项目概述.md",
+      "target": "document:.qoder/repowiki/zh/content/配置管理.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/简历提取系统/简历提取系统.md",
+      "target": "document:.qoder/repowiki/zh/content/简历提取系统/OCR文本识别.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/简历提取系统/简历提取系统.md",
+      "target": "document:.qoder/repowiki/zh/content/简历提取系统/候选人交互.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/简历提取系统/简历提取系统.md",
+      "target": "document:.qoder/repowiki/zh/content/简历提取系统/截图捕获.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/简历提取系统/简历提取系统.md",
+      "target": "document:.qoder/repowiki/zh/content/简历提取系统/批量处理.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/简历提取系统/OCR文本识别.md",
+      "target": "document:.qoder/repowiki/zh/content/简历提取系统/截图捕获.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/简历提取系统/候选人交互.md",
+      "target": "document:.qoder/repowiki/zh/content/简历提取系统/批量处理.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/系统工具/系统工具.md",
+      "target": "document:.qoder/repowiki/zh/content/系统工具/URL查找工具.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/系统工具/系统工具.md",
+      "target": "document:.qoder/repowiki/zh/content/系统工具/环境检查工具.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/系统工具/系统工具.md",
+      "target": "document:.qoder/repowiki/zh/content/系统工具/站点匹配工具.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/系统工具/URL查找工具.md",
+      "target": "document:.qoder/repowiki/zh/content/系统工具/环境检查工具.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/系统工具/URL查找工具.md",
+      "target": "document:.qoder/repowiki/zh/content/系统工具/站点匹配工具.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/系统工具/环境检查工具.md",
+      "target": "document:.qoder/repowiki/zh/content/系统工具/站点匹配工具.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/设计文档/设计文档.md",
+      "target": "document:.qoder/repowiki/zh/content/设计文档/数据持久化计划.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/设计文档/设计文档.md",
+      "target": "document:.qoder/repowiki/zh/content/设计文档/架构设计.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/设计文档/设计文档.md",
+      "target": "document:.qoder/repowiki/zh/content/设计文档/算法设计.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/设计文档/数据持久化计划.md",
+      "target": "document:.qoder/repowiki/zh/content/设计文档/架构设计.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/设计文档/数据持久化计划.md",
+      "target": "document:.qoder/repowiki/zh/content/设计文档/算法设计.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/设计文档/架构设计.md",
+      "target": "document:.qoder/repowiki/zh/content/设计文档/算法设计.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/部署运维/部署运维.md",
+      "target": "document:.qoder/repowiki/zh/content/部署运维/性能监控.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/部署运维/部署运维.md",
+      "target": "document:.qoder/repowiki/zh/content/部署运维/故障排除.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:.qoder/repowiki/zh/content/部署运维/部署运维.md",
+      "target": "document:.qoder/repowiki/zh/content/部署运维/环境配置.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "config:electron-builder.yml",
+      "target": "config:package.json",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "document:SKILL.md",
+      "target": "document:用户使用指引.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:weidu.txt",
+      "target": "document:SKILL.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:config/scoring-prompt-no-jd.txt",
+      "target": "document:config/scoring-prompt-with-jd.txt",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "config:config/filter-rules.json",
+      "target": "document:config/scoring-prompt-no-jd.txt",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "config:config/filter-rules.json",
+      "target": "document:config/scoring-prompt-with-jd.txt",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-04-22-boss-zhipin-candidate-extraction-v2.md",
+      "target": "document:docs/superpowers/plans/2026-04-22-boss-zhipin-full-extraction-v3.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-04-22-boss-zhipin-full-extraction-v3.md",
+      "target": "document:docs/superpowers/plans/2026-04-22-extraction-persistence-plan.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-04-22-boss-zhipin-full-extraction-v3.md",
+      "target": "document:docs/superpowers/plans/2026-04-23-candidate-filtering-scoring.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-04-23-candidate-filtering-scoring.md",
+      "target": "document:docs/superpowers/plans/2026-04-27-candidate-scoring-v2.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-04-27-candidate-scoring-v2.md",
+      "target": "document:docs/superpowers/plans/2026-04-28-scoring-compliance.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-04-27-candidate-scoring-v2.md",
+      "target": "document:docs/superpowers/plans/2026-04-28-job-description-extraction.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-04-23-candidate-filtering-scoring.md",
+      "target": "document:docs/superpowers/plans/2026-04-28-stats-reporting.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-04-27-candidate-scoring-v2.md",
+      "target": "document:docs/superpowers/plans/2026-05-13-scoring-speed-optimization.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-05-22-auto-email-export.md",
+      "target": "document:docs/superpowers/plans/2026-05-22-excel-ai-analysis-grouped-export.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-05-22-excel-ai-analysis-grouped-export.md",
+      "target": "document:docs/superpowers/plans/2026-05-22-multi-position-scoring-export.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-05-22-multi-position-scoring-export.md",
+      "target": "document:docs/superpowers/plans/2026-05-27-electron-app-implementation.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-04-22-boss-zhipin-full-extraction-v3.md",
+      "target": "document:docs/superpowers/plans/2026-05-22-boss-unread-only-plan.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-05-22-auto-email-export.md",
+      "target": "document:docs/superpowers/plans/2026-05-27-electron-app-implementation.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-04-21-boss-zhipin-candidate-extraction-design.md",
+      "target": "document:docs/superpowers/specs/2026-04-22-boss-zhipin-full-extraction-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-04-22-boss-zhipin-full-extraction-design.md",
+      "target": "document:docs/superpowers/specs/2026-04-22-cdp-script-execution-fix-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-04-22-boss-zhipin-full-extraction-design.md",
+      "target": "document:docs/superpowers/specs/2026-04-22-extraction-persistence-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-04-22-extraction-persistence-design.md",
+      "target": "document:docs/superpowers/specs/2026-04-23-candidate-filtering-scoring-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-04-23-candidate-filtering-scoring-design.md",
+      "target": "document:docs/superpowers/specs/2026-04-27-candidate-scoring-v2-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-04-27-candidate-scoring-v2-design.md",
+      "target": "document:docs/superpowers/specs/2026-04-28-job-description-extraction-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-04-27-candidate-scoring-v2-design.md",
+      "target": "document:docs/superpowers/specs/2026-04-28-scoring-compliance-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-04-23-candidate-filtering-scoring-design.md",
+      "target": "document:docs/superpowers/specs/2026-04-28-stats-reporting-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-04-28-scoring-compliance-design.md",
+      "target": "document:docs/superpowers/specs/2026-05-13-scoring-speed-optimization-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-04-28-job-description-extraction-design.md",
+      "target": "document:docs/superpowers/specs/2026-05-13-scoring-speed-optimization-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-04-22-boss-zhipin-full-extraction-design.md",
+      "target": "document:docs/superpowers/specs/2026-04-30-screenshot-scroll-fix-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-05-22-auto-email-export-design.md",
+      "target": "document:docs/superpowers/specs/2026-05-22-boss-unread-only-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-05-22-auto-email-export-design.md",
+      "target": "document:docs/superpowers/specs/2026-05-22-multi-position-scoring-export-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-05-22-multi-position-scoring-export-design.md",
+      "target": "document:docs/superpowers/specs/2026-04-27-candidate-scoring-v2-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-05-27-electron-app-design.md",
+      "target": "document:docs/superpowers/specs/2026-05-22-multi-position-scoring-export-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-05-27-electron-app-design.md",
+      "target": "document:docs/superpowers/specs/2026-05-22-auto-email-export-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:_probe-dialog.mjs",
+      "target": "function:_probe-dialog.mjs:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:build.mjs",
+      "target": "function:build.mjs:findRcedit",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:build.mjs",
+      "target": "function:build.mjs:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:electron/main.mjs",
+      "target": "function:electron/main.mjs:loadApiConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:electron/main.mjs",
+      "target": "function:electron/main.mjs:saveApiConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:electron/main.mjs",
+      "target": "function:electron/main.mjs:termLog",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:electron/main.mjs",
+      "target": "function:electron/main.mjs:createWindow",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:electron/main.mjs",
+      "target": "function:electron/main.mjs:runScript",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:electron/main.mjs",
+      "target": "function:electron/main.mjs:callClaudeAPI",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:electron/main.mjs",
+      "target": "function:electron/main.mjs:doAiScoring",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:electron/main.mjs",
+      "target": "function:electron/main.mjs:runPipeline",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:electron/main.mjs",
+      "target": "function:electron/main.mjs:registerIPC",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:electron/renderer/renderer.js",
+      "target": "function:electron/renderer/renderer.js:handleProgress",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:electron/renderer/renderer.js",
+      "target": "function:electron/renderer/renderer.js:setupListeners",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:electron/renderer/renderer.js",
+      "target": "function:electron/renderer/renderer.js:loadApiConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:electron/renderer/renderer.js",
+      "target": "function:electron/renderer/renderer.js:updateConfigStatus",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:electron/renderer/renderer.js",
+      "target": "function:electron/renderer/renderer.js:init",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "config:.claude/settings.local.json",
+      "target": "file:_probe-dialog.mjs",
+      "type": "configures",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "config:.claude/settings.local.json",
+      "target": "file:build.mjs",
+      "type": "configures",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "config:.understand-anything/.understandignore",
+      "target": "file:_probe-dialog.mjs",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:electron/preload.js",
+      "target": "file:electron/renderer/renderer.js",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:electron/renderer/renderer.js",
+      "target": "file:electron/renderer/index.html",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:electron/renderer/style.css",
+      "target": "file:electron/renderer/index.html",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:scripts/build-trial.mjs",
+      "target": "function:scripts/build-trial.mjs:copy",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/cdp-proxy.mjs",
+      "target": "function:scripts/cdp-proxy.mjs:discoverChromePort",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/cdp-proxy.mjs",
+      "target": "function:scripts/cdp-proxy.mjs:connect",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/cdp-proxy.mjs",
+      "target": "function:scripts/cdp-proxy.mjs:sendCDP",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/cdp-proxy.mjs",
+      "target": "function:scripts/cdp-proxy.mjs:ensureSession",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/cdp-proxy.mjs",
+      "target": "function:scripts/cdp-proxy.mjs:enablePortGuard",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/cdp-proxy.mjs",
+      "target": "function:scripts/cdp-proxy.mjs:waitForLoad",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/cdp-proxy.mjs",
+      "target": "function:scripts/cdp-proxy.mjs:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/check-deps.mjs",
+      "target": "function:scripts/check-deps.mjs:activePortFiles",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/check-deps.mjs",
+      "target": "function:scripts/check-deps.mjs:detectChromePort",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/check-deps.mjs",
+      "target": "function:scripts/check-deps.mjs:startProxyDetached",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/check-deps.mjs",
+      "target": "function:scripts/check-deps.mjs:ensureProxy",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/check-deps.mjs",
+      "target": "function:scripts/check-deps.mjs:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/clean-resume-text.mjs",
+      "target": "function:scripts/clean-resume-text.mjs:cleanOcrText",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/clean-resume-text.mjs",
+      "target": "function:scripts/clean-resume-text.mjs:parseArgs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/clean-resume-text.mjs",
+      "target": "function:scripts/clean-resume-text.mjs:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/clean-resume-text.mjs",
+      "target": "function:scripts/clean-resume-text.mjs:cleanOcrText",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/collect-agent-results.mjs",
+      "target": "function:scripts/collect-agent-results.mjs:parseArgs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/collect-agent-results.mjs",
+      "target": "function:scripts/collect-agent-results.mjs:extractJsonBetweenMarkers",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/collect-agent-results.mjs",
+      "target": "function:scripts/collect-agent-results.mjs:validateStructure",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/collect-agent-results.mjs",
+      "target": "function:scripts/collect-agent-results.mjs:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/export-candidates.mjs",
+      "target": "function:scripts/export-candidates.mjs:parseArgs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/export-candidates.mjs",
+      "target": "function:scripts/export-candidates.mjs:toAiRating",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/export-candidates.mjs",
+      "target": "function:scripts/export-candidates.mjs:transformCandidates",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/export-candidates.mjs",
+      "target": "function:scripts/export-candidates.mjs:buildGroupedExportData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/export-candidates.mjs",
+      "target": "function:scripts/export-candidates.mjs:createStyledSheet",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/export-candidates.mjs",
+      "target": "function:scripts/export-candidates.mjs:safeSheetName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/export-candidates.mjs",
+      "target": "function:scripts/export-candidates.mjs:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/export-candidates.mjs",
+      "target": "function:scripts/export-candidates.mjs:sendEmailAfterExport",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/export-candidates.mjs",
+      "target": "function:scripts/export-candidates.mjs:toAiRating",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/export-candidates.mjs",
+      "target": "function:scripts/export-candidates.mjs:transformCandidates",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/export-candidates.mjs",
+      "target": "function:scripts/export-candidates.mjs:buildGroupedExportData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/export-candidates.mjs",
+      "target": "function:scripts/export-candidates.mjs:safeSheetName",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:parseArgs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:proxyGet",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:proxyPost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:reportStats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:cdpScreenshot",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:waitForCandidateList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:readVisibleGeekItems",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:scrollListDown",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:scrollListUp",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:scanAllCandidateGeekIds",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:scanUpToCandidateGeekIds",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:clickCandidateByGeekId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:extractJobDescription",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:clickOnlineResume",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:getDialogClip",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:getResumeScrollInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:scrollResume",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:closeBossPopup",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:captureResumeScreenshots",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:cleanOcrText",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:dedupePages",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:ocrScreenshots",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:loadScanCache",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "function:scripts/extract-candidates-full.mjs:loadProgress",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/fetch-resumes.mjs",
+      "target": "function:scripts/fetch-resumes.mjs:parseArgs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/fetch-resumes.mjs",
+      "target": "function:scripts/fetch-resumes.mjs:proxyGet",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/fetch-resumes.mjs",
+      "target": "function:scripts/fetch-resumes.mjs:proxyPost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/fetch-resumes.mjs",
+      "target": "function:scripts/fetch-resumes.mjs:waitForCandidateList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/fetch-resumes.mjs",
+      "target": "function:scripts/fetch-resumes.mjs:scrollToCandidate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/fetch-resumes.mjs",
+      "target": "function:scripts/fetch-resumes.mjs:clickCandidate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/fetch-resumes.mjs",
+      "target": "function:scripts/fetch-resumes.mjs:clickOnlineResume",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/fetch-resumes.mjs",
+      "target": "function:scripts/fetch-resumes.mjs:getDialogClip",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/fetch-resumes.mjs",
+      "target": "function:scripts/fetch-resumes.mjs:extractResumeNameFromDialog",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/fetch-resumes.mjs",
+      "target": "function:scripts/fetch-resumes.mjs:getResumeScrollInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/fetch-resumes.mjs",
+      "target": "function:scripts/fetch-resumes.mjs:probeRealScrollHeight",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/fetch-resumes.mjs",
+      "target": "function:scripts/fetch-resumes.mjs:captureResumeScreenshots",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/fetch-resumes.mjs",
+      "target": "function:scripts/fetch-resumes.mjs:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/find-url.mjs",
+      "target": "function:scripts/find-url.mjs:parseArgs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/find-url.mjs",
+      "target": "function:scripts/find-url.mjs:parseSince",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/find-url.mjs",
+      "target": "function:scripts/find-url.mjs:searchBookmarks",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/find-url.mjs",
+      "target": "function:scripts/find-url.mjs:searchHistory",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "document:references/cdp-api.md",
+      "target": "file:scripts/cdp-proxy.mjs",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:references/site-patterns/zhipin.com.md",
+      "target": "file:scripts/extract-candidates-full.mjs",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:references/site-patterns/zhipin.com.md",
+      "target": "file:scripts/fetch-resumes.mjs",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:scripts/cdp-proxy.mjs",
+      "target": "file:scripts/check-deps.mjs",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:scripts/cdp-proxy.mjs",
+      "target": "file:scripts/extract-candidates-full.mjs",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:scripts/cdp-proxy.mjs",
+      "target": "file:scripts/fetch-resumes.mjs",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:scripts/clean-resume-text.mjs",
+      "target": "file:scripts/extract-candidates-full.mjs",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:scripts/extract-candidates-full.mjs",
+      "target": "file:scripts/fetch-resumes.mjs",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:scripts/send-candidates-email.test.mjs",
+      "target": "file:scripts/send-candidates-email.mjs",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:scripts/make-ico.mjs",
+      "target": "function:scripts/make-ico.mjs:createBmpEntry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/make-ico.mjs",
+      "target": "function:scripts/make-ico.mjs:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/open-candidate.mjs",
+      "target": "function:scripts/open-candidate.mjs:parseArgs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/open-candidate.mjs",
+      "target": "function:scripts/open-candidate.mjs:proxyGet",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/open-candidate.mjs",
+      "target": "function:scripts/open-candidate.mjs:proxyPost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/open-candidate.mjs",
+      "target": "function:scripts/open-candidate.mjs:waitForCandidateList",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/open-candidate.mjs",
+      "target": "function:scripts/open-candidate.mjs:readVisibleGeekItems",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/open-candidate.mjs",
+      "target": "function:scripts/open-candidate.mjs:scrollListDown",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/open-candidate.mjs",
+      "target": "function:scripts/open-candidate.mjs:scrollListUp",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/open-candidate.mjs",
+      "target": "function:scripts/open-candidate.mjs:clickCandidateByGeekId",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/open-candidate.mjs",
+      "target": "function:scripts/open-candidate.mjs:findCandidateByName",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/open-candidate.mjs",
+      "target": "function:scripts/open-candidate.mjs:findOrCreateChatTab",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/open-candidate.mjs",
+      "target": "function:scripts/open-candidate.mjs:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/process-icon.mjs",
+      "target": "function:scripts/process-icon.mjs:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:parseArgs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:educationRank",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:calcEducationScore",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:calcWorkYearsScore",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:resolveEducationFromRaw",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:resolveWorkYearsFromRaw",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:getFieldValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:getFieldValues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:resolveField",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:parseWorkYears",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:compareValues",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:compareOrdered",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:getRecommendationLevel",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:scoreCandidate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:scoreCandidateDefault",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/send-candidates-email.mjs",
+      "target": "function:scripts/send-candidates-email.mjs:parseArgs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/send-candidates-email.mjs",
+      "target": "function:scripts/send-candidates-email.mjs:buildRecipient",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/send-candidates-email.mjs",
+      "target": "function:scripts/send-candidates-email.mjs:readSmtpConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/send-candidates-email.mjs",
+      "target": "function:scripts/send-candidates-email.mjs:validateAttachment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/send-candidates-email.mjs",
+      "target": "function:scripts/send-candidates-email.mjs:buildMailOptions",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/send-candidates-email.mjs",
+      "target": "function:scripts/send-candidates-email.mjs:sendCandidateEmail",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:parseArgs",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:educationRank",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:calcEducationScore",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:calcWorkYearsScore",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:resolveEducationFromRaw",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:resolveWorkYearsFromRaw",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:getFieldValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:getFieldValues",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:resolveField",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:parseWorkYears",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:compareValues",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:compareOrdered",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:getRecommendationLevel",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:scoreCandidate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/score-candidates.mjs",
+      "target": "function:scripts/score-candidates.mjs:scoreCandidateDefault",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/send-candidates-email.mjs",
+      "target": "function:scripts/send-candidates-email.mjs:parseArgs",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/send-candidates-email.mjs",
+      "target": "function:scripts/send-candidates-email.mjs:buildRecipient",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/send-candidates-email.mjs",
+      "target": "function:scripts/send-candidates-email.mjs:readSmtpConfig",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/send-candidates-email.mjs",
+      "target": "function:scripts/send-candidates-email.mjs:validateAttachment",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/send-candidates-email.mjs",
+      "target": "function:scripts/send-candidates-email.mjs:buildMailOptions",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/send-candidates-email.mjs",
+      "target": "function:scripts/send-candidates-email.mjs:sendCandidateEmail",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:scripts/send-candidates-email.mjs",
+      "target": "file:scripts/send-candidates-email.test.mjs",
+      "type": "tested_by",
+      "direction": "forward",
+      "weight": 0.5
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer:service",
+      "name": "服务层",
+      "description": "核心业务逻辑与CLI工具脚本，包括CDP代理服务、候选人提取引擎、AI评分系统、简历解析与OCR、Excel导出及邮件发送",
+      "nodeIds": [
+        "file:scripts/build-trial.mjs",
+        "file:scripts/cdp-proxy.mjs",
+        "file:scripts/check-deps.mjs",
+        "file:scripts/clean-resume-text.mjs",
+        "file:scripts/collect-agent-results.mjs",
+        "file:scripts/export-candidates.mjs",
+        "file:scripts/extract-candidates-full.mjs",
+        "file:scripts/fetch-resumes.mjs",
+        "file:scripts/find-url.mjs",
+        "file:scripts/make-ico.mjs",
+        "file:scripts/match-site.mjs",
+        "file:scripts/merge-scores.mjs",
+        "file:scripts/open-candidate.mjs",
+        "file:scripts/process-icon.mjs",
+        "file:scripts/score-candidates.mjs",
+        "file:scripts/send-candidates-email.mjs",
+        "file:scripts/send-candidates-email.test.mjs",
+        "file:_probe-dialog.mjs",
+        "file:build.mjs"
+      ]
+    },
+    {
+      "id": "layer:electron",
+      "name": "Electron 桌面层",
+      "description": "Electron桌面应用的主进程、预加载脚本和渲染进程，提供带GUI的一键候选人提取、AI评分与导出流水线",
+      "nodeIds": [
+        "file:electron/main.mjs",
+        "file:electron/preload.js",
+        "file:electron/renderer/index.html",
+        "file:electron/renderer/renderer.js",
+        "file:electron/renderer/style.css"
+      ]
+    },
+    {
+      "id": "layer:config",
+      "name": "配置层",
+      "description": "项目构建配置、运行时规则配置、IDE与工具链配置，涵盖npm依赖、Electron打包、候选人筛选规则和Claude插件注册",
+      "nodeIds": [
+        "config:electron-builder.yml",
+        "config:package.json",
+        "config:config/filter-rules.json",
+        "config:.claude-plugin/marketplace.json",
+        "config:.claude-plugin/plugin.json",
+        "config:.claude/settings.local.json",
+        "config:.qoder/repowiki/zh/meta/repowiki-metadata.json",
+        "config:.understand-anything/.understandignore",
+        "config:.understand-anything/config.json"
+      ]
+    },
+    {
+      "id": "layer:knowledge-base",
+      "name": "知识库层",
+      "description": "Qoder仓库知识库中的完整技术文档体系，涵盖CDP代理服务、候选人筛选系统、简历提取系统、开发指南、系统工具和架构设计文档",
+      "nodeIds": [
+        "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/CDP API端点.md",
+        "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/元素交互.md",
+        "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/基础健康检查.md",
+        "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/文件上传与截图.md",
+        "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/滚动与页面信息.md",
+        "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/目标管理.md",
+        "document:.qoder/repowiki/zh/content/CDP代理服务/CDP API端点/页面导航.md",
+        "document:.qoder/repowiki/zh/content/CDP代理服务/CDP代理服务.md",
+        "document:.qoder/repowiki/zh/content/CDP代理服务/CDP代理概述.md",
+        "document:.qoder/repowiki/zh/content/CDP代理服务/WebSocket通信.md",
+        "document:.qoder/repowiki/zh/content/CDP代理服务/使用示例.md",
+        "document:.qoder/repowiki/zh/content/CDP代理服务/连接管理.md",
+        "document:.qoder/repowiki/zh/content/候选人筛选系统/候选人筛选系统.md",
+        "document:.qoder/repowiki/zh/content/候选人筛选系统/字段解析引擎.md",
+        "document:.qoder/repowiki/zh/content/候选人筛选系统/岗位描述(JD)提取系统.md",
+        "document:.qoder/repowiki/zh/content/候选人筛选系统/规则引擎核心.md",
+        "document:.qoder/repowiki/zh/content/候选人筛选系统/评分算法实现.md",
+        "document:.qoder/repowiki/zh/content/候选人筛选系统/配置管理.md",
+        "document:.qoder/repowiki/zh/content/开发指南/代码结构与模块设计.md",
+        "document:.qoder/repowiki/zh/content/开发指南/开发指南.md",
+        "document:.qoder/repowiki/zh/content/开发指南/开发流程与规范.md",
+        "document:.qoder/repowiki/zh/content/开发指南/扩展开发.md",
+        "document:.qoder/repowiki/zh/content/开发指南/测试与调试.md",
+        "document:.qoder/repowiki/zh/content/快速开始.md",
+        "document:.qoder/repowiki/zh/content/数据导出系统.md",
+        "document:.qoder/repowiki/zh/content/配置管理.md",
+        "document:.qoder/repowiki/zh/content/项目概述.md",
+        "document:.qoder/repowiki/zh/content/简历提取系统/简历提取系统.md",
+        "document:.qoder/repowiki/zh/content/简历提取系统/OCR文本识别.md",
+        "document:.qoder/repowiki/zh/content/简历提取系统/候选人交互.md",
+        "document:.qoder/repowiki/zh/content/简历提取系统/截图捕获.md",
+        "document:.qoder/repowiki/zh/content/简历提取系统/批量处理.md",
+        "document:.qoder/repowiki/zh/content/系统工具/URL查找工具.md",
+        "document:.qoder/repowiki/zh/content/系统工具/环境检查工具.md",
+        "document:.qoder/repowiki/zh/content/系统工具/站点匹配工具.md",
+        "document:.qoder/repowiki/zh/content/系统工具/系统工具.md",
+        "document:.qoder/repowiki/zh/content/设计文档/数据持久化计划.md",
+        "document:.qoder/repowiki/zh/content/设计文档/架构设计.md",
+        "document:.qoder/repowiki/zh/content/设计文档/算法设计.md",
+        "document:.qoder/repowiki/zh/content/设计文档/设计文档.md",
+        "document:.qoder/repowiki/zh/content/部署运维/部署运维.md",
+        "document:.qoder/repowiki/zh/content/部署运维/性能监控.md",
+        "document:.qoder/repowiki/zh/content/部署运维/故障排除.md",
+        "document:.qoder/repowiki/zh/content/部署运维/环境配置.md"
+      ]
+    },
+    {
+      "id": "layer:design-documents",
+      "name": "设计文档层",
+      "description": "超级能力功能的设计规范和实现计划文档，涵盖候选人提取、AI评分、Electron应用、邮件导出等功能的设计决策和分阶段实施规划",
+      "nodeIds": [
+        "document:docs/superpowers/plans/2026-04-22-boss-zhipin-candidate-extraction-v2.md",
+        "document:docs/superpowers/plans/2026-04-22-boss-zhipin-full-extraction-v3.md",
+        "document:docs/superpowers/plans/2026-04-22-extraction-persistence-plan.md",
+        "document:docs/superpowers/plans/2026-04-23-candidate-filtering-scoring.md",
+        "document:docs/superpowers/plans/2026-04-27-candidate-scoring-v2.md",
+        "document:docs/superpowers/plans/2026-04-28-job-description-extraction.md",
+        "document:docs/superpowers/plans/2026-04-28-scoring-compliance.md",
+        "document:docs/superpowers/plans/2026-04-28-stats-reporting.md",
+        "document:docs/superpowers/plans/2026-05-13-scoring-speed-optimization.md",
+        "document:docs/superpowers/plans/2026-05-22-auto-email-export.md",
+        "document:docs/superpowers/plans/2026-05-22-boss-unread-only-plan.md",
+        "document:docs/superpowers/plans/2026-05-22-excel-ai-analysis-grouped-export.md",
+        "document:docs/superpowers/plans/2026-05-22-multi-position-scoring-export.md",
+        "document:docs/superpowers/plans/2026-05-27-electron-app-implementation.md",
+        "document:docs/superpowers/specs/2026-04-21-boss-zhipin-candidate-extraction-design.md",
+        "document:docs/superpowers/specs/2026-04-22-boss-zhipin-full-extraction-design.md",
+        "document:docs/superpowers/specs/2026-04-22-cdp-script-execution-fix-design.md",
+        "document:docs/superpowers/specs/2026-04-22-extraction-persistence-design.md",
+        "document:docs/superpowers/specs/2026-04-23-candidate-filtering-scoring-design.md",
+        "document:docs/superpowers/specs/2026-04-27-candidate-scoring-v2-design.md",
+        "document:docs/superpowers/specs/2026-04-28-job-description-extraction-design.md",
+        "document:docs/superpowers/specs/2026-04-28-scoring-compliance-design.md",
+        "document:docs/superpowers/specs/2026-04-28-stats-reporting-design.md",
+        "document:docs/superpowers/specs/2026-04-30-screenshot-scroll-fix-design.md",
+        "document:docs/superpowers/specs/2026-05-13-scoring-speed-optimization-design.md",
+        "document:docs/superpowers/specs/2026-05-22-auto-email-export-design.md",
+        "document:docs/superpowers/specs/2026-05-22-boss-unread-only-design.md",
+        "document:docs/superpowers/specs/2026-05-22-multi-position-scoring-export-design.md",
+        "document:docs/superpowers/specs/2026-05-27-electron-app-design.md"
+      ]
+    },
+    {
+      "id": "layer:documentation",
+      "name": "文档与参考层",
+      "description": "项目顶层文档、AI评分提示词模板、站点操作手册和API参考文档，包括技能定义文件、用户操作指引和外部参考材料",
+      "nodeIds": [
+        "document:SKILL.md",
+        "document:weidu.txt",
+        "document:用户使用指引.md",
+        "document:config/scoring-prompt-no-jd.txt",
+        "document:config/scoring-prompt-with-jd.txt",
+        "document:references/cdp-api.md",
+        "file:references/site-patterns/.gitkeep",
+        "document:references/site-patterns/zhipin.com.md"
+      ]
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "项目概览",
+      "description": "从「项目概述.md」开始了解 Web Access 项目的整体定位与设计理念。本项目的核心思路是「哲学 + 技术事实」，通过本地 Chrome CDP 模式复用登录态，提供 BOSS 直聘候选人提取、AI 智能评分、简历解析与邮件导出等完整工具链。文档清晰划分了 CDP 代理、环境检查、候选人筛选评分、在线简历提取、Excel 导出和站点经验匹配六大核心模块，为接下来的导览奠定全局认知。",
+      "nodeIds": [
+        "document:.qoder/repowiki/zh/content/项目概述.md"
+      ]
+    },
+    {
+      "order": 2,
+      "title": "应用入口与桌面架构",
+      "description": "Electron 主进程入口（main.mjs）是整个桌面应用的启动枢纽，负责管理窗口生命周期、注册 IPC 通信通道，并通过 child_process.spawn 编排候选人提取-评分-导出的完整流水线。预加载脚本（preload.js）作为安全层，通过 contextBridge 向渲染进程暴露有限的 IPC 接口，遵循 Electron 的安全最佳实践，渲染进程无法直接访问 Node.js API。",
+      "nodeIds": [
+        "file:electron/main.mjs",
+        "file:electron/preload.js"
+      ],
+      "languageLesson": "Electron 采用多进程架构：主进程（main process）负责窗口管理和系统集成，渲染进程（renderer process）负责 UI 展示，preload 脚本作为中间桥梁。contextBridge API 确保渲染进程只能调用显式暴露的方法，无法访问完整的 Node.js 或 Electron API，这是安全性的核心保障。"
+    },
+    {
+      "order": 3,
+      "title": "渲染进程界面",
+      "description": "渲染进程由 HTML（index.html）、JavaScript（renderer.js）和 CSS（style.css）三部分组成，提供 API 配置、流水线执行状态监控和结果查看的完整用户界面。renderer.js 通过 IPC 监听主进程发来的进度事件，实时更新 UI 展示各个阶段的执行状态。暗色主题的样式设计配合步骤卡片和进度条，让用户对流水线执行状态一目了然。",
+      "nodeIds": [
+        "file:electron/renderer/index.html",
+        "file:electron/renderer/renderer.js",
+        "file:electron/renderer/style.css"
+      ],
+      "languageLesson": "Electron 渲染进程的 IPC 通信采用双向模式：渲染进程通过 ipcRenderer.invoke 发起请求并等待主进程响应（请求-响应模式），主进程通过 webContents.send 主动推送进度事件（推送模式），两者结合实现了流畅的前后端交互。"
+    },
+    {
+      "order": 4,
+      "title": "项目配置与构建体系",
+      "description": "package.json 定义了项目的 ES Module 类型、关键依赖（包括邮件发送库 nodemailer、Excel 处理库 xlsx、OCR 识别库 tesseract.js）以及构建和测试脚本。electron-builder.yml 负责将应用打包为 Windows NSIS 安装程序。build.mjs 脚本自动化了编译和打包流程，将代码、依赖和资源文件整合为可分发的桌面安装包。",
+      "nodeIds": [
+        "config:package.json",
+        "config:electron-builder.yml",
+        "file:build.mjs"
+      ],
+      "languageLesson": "ES Modules（.mjs 后缀）是 Node.js 的原生模块系统，使用 import/export 语法替代 CommonJS 的 require/module.exports。electron-builder 的 asar 打包机制将应用代码压缩成归档文件，防止源码被直接篡改，同时需要为原生模块（如 tesseract.js）配置解包策略。"
+    },
+    {
+      "order": 5,
+      "title": "CDP 代理服务",
+      "description": "CDP 代理（cdp-proxy.mjs）是整个项目的核心基础设施，在图分析中拥有最高的扇入度（8 个依赖），多个脚本和文档都依赖于它。该脚本自动发现本地 Chrome 的远程调试端口，封装 Chrome DevTools Protocol 为简洁的 HTTP API，提供页面导航、元素点击、截图、脚本执行等浏览器自动化能力。更关键的是，它内置了反风控机制——通过 Fetch 域拦截调试端口探测请求，防止被目标网站识别为自动化工具。",
+      "nodeIds": [
+        "file:scripts/cdp-proxy.mjs"
+      ],
+      "languageLesson": "Chrome DevTools Protocol (CDP) 通过 WebSocket 与 Chrome 通信，每条 CDP 消息包含 id（请求标识符）、method（如 Page.navigate）和 params 三个字段。请求-响应模式通过递增的 id 字段匹配调用和回调，支持并发请求。Node.js 22+ 原生 WebSocket 与 ws 模块的自动回退策略增强了兼容性。"
+    },
+    {
+      "order": 6,
+      "title": "候选人提取引擎",
+      "description": "extract-candidates-full.mjs 是全量候选人提取的核心脚本，通过 CDP 代理自动化操作 BOSS 直聘网页。它实现了完整的提取流水线：扫描候选人列表（处理虚拟滚动）、点击打开候选人详情、提取结构化信息（基本信息、经历、职位）、截取简历截图并进行 OCR 识别。脚本内置了进度缓存和断点续传机制，即使中途中断也能从上次进度恢复。",
+      "nodeIds": [
+        "file:scripts/extract-candidates-full.mjs"
+      ],
+      "languageLesson": "脚本采用两阶段架构：第一阶段在浏览器环境中通过 CDP 注入 JavaScript 提取原始 DOM 文本，第二阶段在 Node.js 端本地解析结构化数据。这种设计解决了浏览器内执行复杂提取脚本的可靠性问题，同时利用 Node.js 端更丰富的文本处理能力。"
+    },
+    {
+      "order": 7,
+      "title": "评分引擎与筛选规则",
+      "description": "score-candidates.mjs 提供了两套评分机制：规则模式基于 filter-rules.json 配置的 mustHave/preferred/exclude 三级规则进行打分和筛选；默认模式则结合学历解析、工作年限解析和字段路径查询进行评分。filter-rules.json 定义了完整的规则体系，包括阈值分数和九种比较操作符（equals/contains/in/正则等），在 AI 评分前对候选人进行预筛选。",
+      "nodeIds": [
+        "file:scripts/score-candidates.mjs",
+        "config:config/filter-rules.json"
+      ],
+      "languageLesson": "规则引擎的 compareValues 函数支持九种操作符，包括语义化的字符串比较（contains、in）和类型感知的数值比较（>=、<=）。字段路径解析采用点号分隔的路径表达式（如 education.degree），数组字段自动展开为多值比较，实现了灵活的规则配置能力。"
+    },
+    {
+      "order": 8,
+      "title": "AI 评分提示词模板",
+      "description": "scoring-prompt-with-jd.txt 和 scoring-prompt-no-jd.txt 是 AI 评分系统的 Prompt 模板，定义了大语言模型在评分环节的行为准则和输出格式。有 JD 版本指引 AI 结合岗位描述和候选人简历计算 0-60 分的相关性评分并输出 100-150 字评语，无 JD 版本则仅依据简历信息评估。两个模板都要求输出严格格式化的 JSON 结果，确保下游处理的一致性。",
+      "nodeIds": [
+        "document:config/scoring-prompt-with-jd.txt",
+        "document:config/scoring-prompt-no-jd.txt"
+      ],
+      "languageLesson": "AI Prompt 作为评分系统的「配置」而非代码，将评分标准与执行逻辑解耦。通过独立的 Prompt 文件管理，可以在不修改代码的情况下调整评分维度和输出格式，这是一种配置驱动（configuration-driven）的设计模式。"
+    },
+    {
+      "order": 9,
+      "title": "候选人数据导出",
+      "description": "export-candidates.mjs 将评分后的候选人数据生成为带格式的 Excel 工作簿，支持按岗位分 Sheet 导出和多维度列配置。脚本基于 xlsx 库实现了智能列宽计算、分组表头合并（AI 分析列与附加信息列）以及一星到五星的 AI 评级转换。导出的 Excel 文件可以直接作为邮件附件发送，形成从提取到分发的完整链路。",
+      "nodeIds": [
+        "file:scripts/export-candidates.mjs"
+      ],
+      "languageLesson": "xlsx 库的工作簿（workbook）包含多个工作表（worksheet），每个工作表由二维数组或对象数组构成。单元格合并（merge）用于创建分组表头，列宽通过测量表头和数据的最大字符长度动态计算，确保 Excel 文件打开时即有良好的可读性。"
+    },
+    {
+      "order": 10,
+      "title": "邮件发送模块",
+      "description": "send-candidates-email.mjs 通过 SMTP 协议将评分报告以邮件附件形式发送给指定收件人，支持环境变量配置发送者身份和 SMTP 服务器参数。脚本包含完整的收件人地址构建、SMTP 配置验证和附件存在性检查。配套的单元测试文件（send-candidates-email.test.mjs）使用 Node.js 原生 node:test 框架对六个导出函数进行了覆盖测试，是两个在图谱分析中形成集群的唯一代码文件对。",
+      "nodeIds": [
+        "file:scripts/send-candidates-email.mjs",
+        "file:scripts/send-candidates-email.test.mjs"
+      ],
+      "languageLesson": "Node.js 的 node:test 框架（自 v18 起内置）支持 describe/it 风格的 BDD 测试组织方式，无需额外安装测试运行器。nodemailer 库通过 SMTP 传输对象封装了邮件发送协议细节，支持附件流式传输，适合在 CLI 脚本中嵌入发送功能。"
+    },
+    {
+      "order": 11,
+      "title": "站点操作手册与用户指南",
+      "description": "这三份文档构成了项目的外部参考体系。zhipin.com.md 详细记录了 BOSS 直聘平台的操作流程、页面结构分析和候选人提取技巧，是开发者和自动化 Agent 执行任务的依据。cdp-api.md 是 CDP 代理 HTTP API 的接口参考，涵盖健康检查、目标管理、页面导航等所有端点。用户使用指引.md 面向最终用户，说明了环境准备、工具安装和两大使用场景的操作步骤。",
+      "nodeIds": [
+        "document:references/site-patterns/zhipin.com.md",
+        "document:references/cdp-api.md",
+        "document:用户使用指引.md"
+      ]
+    }
+  ]
+}

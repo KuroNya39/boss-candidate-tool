@@ -304,10 +304,21 @@ export async function scrollResume(targetId, scrollTop) {
 // ===== 通用弹窗关闭 =====
 
 export async function closeBossPopup(targetId, popupSelector, label = '弹窗') {
+  // 先尝试 Escape 键关闭（keydown + keyup 兼容 React 等框架）
+  await cdpEval(targetId, `(function(){
+    ['keydown','keyup'].forEach(function(type){
+      document.dispatchEvent(new KeyboardEvent(type, {
+        key: 'Escape', keyCode: 27, which: 27, bubbles: true, cancelable: true
+      }));
+    });
+  })()`);
+  await randomDelay(400, 800);
+
   const closed = await cdpEval(targetId, `(function(){
     var popup = document.querySelector('${popupSelector}');
     if (!popup) return 'not-exist';
     var dialogWrap = document.querySelector('.dialog-wrap.active');
+    if (!dialogWrap || dialogWrap.offsetParent === null) return 'escape-closed';
     var closeBtn = dialogWrap && dialogWrap.querySelector('.close-btn');
     if (!closeBtn) closeBtn = popup.querySelector('.close-btn');
     if (!closeBtn) closeBtn = popup.querySelector('.boss-popup__close');

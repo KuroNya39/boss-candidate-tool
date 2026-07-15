@@ -48,11 +48,11 @@ d.candidates.forEach(c => {
     c.jobRelevanceScore = r.score;
     c.jobRelevanceComment = r.comment;
     c.totalScore = r.score;
-    if (c.totalScore >= 86) c.recommendationLevel = '强烈推荐';
-    else if (c.totalScore >= 72) c.recommendationLevel = '推荐';
-    else if (c.totalScore >= 58) c.recommendationLevel = '可考虑';
+    if (c.totalScore >= 91) c.recommendationLevel = '强烈推荐';
+    else if (c.totalScore >= 81) c.recommendationLevel = '推荐';
+    else if (c.totalScore >= 61) c.recommendationLevel = '可考虑';
     else c.recommendationLevel = '暂不推荐';
-    c.passed = c.totalScore >= 58;
+    c.passed = c.totalScore >= 61;
   }
 });
 

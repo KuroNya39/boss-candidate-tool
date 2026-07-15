@@ -347,7 +347,8 @@ btnSaveConfig.addEventListener('click', async () => {
     });
     configStatus.textContent = '✓ 已保存';
     configStatus.className = 'config-badge config-ok';
-    updateConfigStatus();
+    // 延迟更新状态检测，让"✓ 已保存"可见一段时间
+    setTimeout(updateConfigStatus, 1500);
   } catch (err) {
     configStatus.textContent = '保存失败: ' + err.message;
     configStatus.className = 'config-badge config-error';
@@ -535,7 +536,7 @@ function renderJobPicker() {
     const empty = document.createElement('div');
     empty.className = 'job-picker-item';
     empty.textContent = '暂无岗位';
-    empty.style.color = '#999';
+    empty.style.color = '#94a3b8';
     empty.style.cursor = 'default';
     empty.style.justifyContent = 'center';
     jobPickerList.appendChild(empty);

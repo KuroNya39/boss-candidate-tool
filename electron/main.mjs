@@ -1,8 +1,8 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import { spawn } from 'node:child_process';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, renameSync, unlinkSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, renameSync, unlinkSync, rmSync } from 'node:fs';
 import http from 'node:http';
 import iconv from 'iconv-lite';
 
@@ -23,6 +23,9 @@ function getDefaultOutputDir() {
 let OUTPUT_DIR = getDefaultOutputDir();
 const CONFIG_DIR = resolve(app.getPath('userData'), 'web-access');
 const CONFIG_PATH = resolve(CONFIG_DIR, 'api-config.json');
+const JD_DIR = app.isPackaged
+  ? resolve(CONFIG_DIR, 'jd-descriptions')
+  : resolve(APP_ROOT, 'config', 'jd-descriptions');
 
 // ===== 配置（持久化到 userData） =====
 // SMTP 默认密码（编码存储，避免明文出现在源码中）
@@ -33,6 +36,8 @@ let apiConfig = {
   smtpHost: 'smtp.mxhichina.com', smtpPort: '25', smtpSecure: 'false',
   smtpUser: 'jenkins@allwinnertech.com', smtpPass: DEFAULT_SMTP_PASS, smtpFrom: '',
   emailPrefix: '', outputDir: '',
+  dimensions: '',    // 3个核心评估维度及权重（JSON字符串）
+  screeningCriteria: '', // 任职资格关键筛选项（换行分隔）
 };
 
 function loadApiConfig() {
@@ -93,6 +98,7 @@ function decodeBuffer(buf) {
 let mainWindow = null;
 let currentProcess = null;
 let cancelled = false;
+let skipToScoring = false; // 跳过提取步骤，直接使用已提取的数据进行评分
 let aiAbortController = null; // 用于中断 AI 评分的正在请求
 let actualExportPath = ''; // 导出脚本实际输出的文件路径（可能被另存）
 
@@ -323,95 +329,56 @@ async function callClaudeAPI(prompt, { signal } = {}) {
     throw new Error(`API 返回内容为空，请检查 API 地址和格式`);
   }
 
-  // 从文本中提取 JSON 数组
-  let jsonStr = null;
+  return text;
+}
 
-  // 去掉 markdown 代码块包裹
-  const cleanText = text.replace(/^```(?:json)?\s*\n?/m, '').replace(/\n?```\s*$/m, '');
+function parseSingleScoreResponse(text) {
+    // 去掉 markdown 代码块包裹
+    const cleanText = text.replace(/^```(?:json)?\s*\n?/m, '').replace(/\n?```\s*$/m, '').trim();
+    if (!cleanText) return null;
 
-  // 策略1: 精确找 [{"candidateIndex"
-  const idx = cleanText.indexOf('[{"candidateIndex"');
-  if (idx >= 0) {
-    const end = text.lastIndexOf('}]');
-    if (end > idx) jsonStr = cleanText.slice(idx, end + 2);
-  }
-
-  // 策略2: 找 [ 紧接着 { 含 score 和 comment 的对象
-  if (!jsonStr) {
-    const match = cleanText.match(/\[\s*\{[^}]*?score[^}]*?comment[^}]*?\}\s*\]/s);
-    if (match) jsonStr = match[0];
-  }
-
-  // 策略3: 逐段尝试找有效的 JSON 数组（从后往前找 [）
-  if (!jsonStr) {
-    const bracketPositions = [];
+    // 逐个尝试解析 {...} JSON 对象
     let searchPos = 0;
     while (true) {
-      const pos = cleanText.indexOf('[', searchPos);
-      if (pos === -1) break;
-      bracketPositions.push(pos);
-      searchPos = pos + 1;
-    }
-    for (let i = bracketPositions.length - 1; i >= 0; i--) {
-      const start = bracketPositions[i];
-      const end = cleanText.lastIndexOf(']');
+      const start = cleanText.indexOf('{', searchPos);
+      if (start === -1) break;
+
+      let depth = 0;
+      let end = -1;
+      for (let i = start; i < cleanText.length; i++) {
+        if (cleanText[i] === '{') depth++;
+        else if (cleanText[i] === '}') depth--;
+        if (depth === 0) { end = i; break; }
+      }
+
       if (end > start) {
         try {
           const parsed = JSON.parse(cleanText.slice(start, end + 1));
-          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0] !== null && typeof parsed[0] === 'object') {
-            jsonStr = cleanText.slice(start, end + 1);
-            break;
+          const score = parsed.score ?? parsed.jobRelevanceScore ?? null;
+          const comment = parsed.comment ?? parsed.jobRelevanceComment ?? parsed.reason ?? null;
+          if (typeof score === 'number' && typeof comment === 'string') {
+            // 格式化评语：在章节标题前强制换行
+            const formatted = comment
+              .replace(/(匹配度评分|首句定性|维度权重|硬性技能|核心领域|刚性扣分说明|综合结论|岗位相关性分数|技术栈匹配|项目经验(?:相关|相关性)|行业经验)/g, '\n$1')
+              .replace(/\n{3,}/g, '\n\n')
+              .replace(/^\n+/, '')
+              .trim();
+            return { score, comment: formatted };
+          }
+          // 兼容只有分数的情况
+          if (typeof score === 'number') {
+            return { score, comment: comment || '(AI评分未生成评语)' };
           }
         } catch {}
       }
+      searchPos = start + 1;
     }
-  }
 
-  // 策略4: 找 { 开头 .score. .comment. 结尾的单个对象并组装
-  if (!jsonStr) {
-    const objMatches = [...cleanText.matchAll(/\{"candidateIndex":\s*(\d+)\s*,\s*"jobRelevanceScore":\s*(\d+)\s*,\s*"jobRelevanceComment":\s*"((?:[^"\\]|\\.)*)"\s*\}/g)];
-    if (objMatches.length > 0) {
-      jsonStr = JSON.stringify(objMatches.map(m => ({
-        candidateIndex: parseInt(m[1]),
-        jobRelevanceScore: parseInt(m[2]),
-        jobRelevanceComment: m[3],
-      })));
-    }
+    return null;
   }
-
-  // 策略5: 尝试逐个提取 candidateIndex + jobRelevanceScore + jobRelevanceComment
-  if (!jsonStr) {
-    const singleMatches = [...cleanText.matchAll(/\{"candidateIndex":\s*(\d+)[^}]*?"jobRelevanceScore":\s*(\d+)[^}]*?"jobRelevanceComment":\s*"([^"]*)"[^}]*?\}/g)];
-    if (singleMatches.length > 0) {
-      const arr = singleMatches.map(m => ({
-        candidateIndex: parseInt(m[1]),
-        jobRelevanceScore: parseInt(m[2]),
-        jobRelevanceComment: m[3],
-      }));
-      jsonStr = JSON.stringify(arr);
-    }
-  }
-
-  if (!jsonStr) {
-    const timestamp = Date.now();
-    const debugPath = resolve(OUTPUT_DIR, `api-raw-response-${timestamp}.txt`);
-    try { writeFileSync(debugPath, text, 'utf-8'); } catch {}
-    termLog(`[AI评分] API返回未包含评分JSON，已保存到 ${debugPath}`, 'stderr');
-    throw new Error(`API 返回未包含评分 JSON 数组`);
-  }
-
-  return JSON.parse(jsonStr);
-}
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
-}
-
-// 将候选人分成 N 人一批
-function chunkArray(arr, size) {
-  const result = [];
-  for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size));
-  return result;
 }
 
 async function doAiScoring() {
@@ -442,13 +409,6 @@ async function doAiScoring() {
   sendProgress(2, 'running', 50, `AI评分: ${totalCandidates} 人，${positionNames.length} 个岗位`);
 
   // 逐岗位评分
-  let scoredCount = 0;
-  const totalBatches = positionNames.reduce((sum, name) => {
-    const withResume = groups[name].filter(c => c.resumeText);
-    return sum + Math.ceil(withResume.length / 5);
-  }, 0);
-  let completedBatches = 0;
-
   for (const positionName of positionNames) {
     if (cancelled) { termLog('[AI评分] 用户取消'); break; }
 
@@ -465,8 +425,10 @@ async function doAiScoring() {
 
     if (withResume.length === 0) continue;
 
-    // 读取 prompt 模板
-    const templatePath = resolve(UNPACKED_ROOT, 'config', 'scoring-prompt-with-jd.txt');
+    // 根据来源选择 prompt 模板
+    const isRecommendScoring = extractSource === 'recommend' || extractSource === 'recommend-attach';
+    const templateName = isRecommendScoring ? 'scoring-prompt-with-jd.txt' : 'scoring-prompt-chat.txt';
+    const templatePath = resolve(UNPACKED_ROOT, 'config', templateName);
     let template;
     try {
       template = readFileSync(templatePath, 'utf-8');
@@ -483,121 +445,130 @@ async function doAiScoring() {
       termLog(`[AI评分] ⚠ 未找到 scoretext.md，使用默认格式`);
     }
 
-    // 取岗位 JD：根据提取来源分流
-    let jdText = '';
-    if (extractSource === 'recommend') {
-      // 推荐牛人页：从 config/jd-descriptions/ 目录读取对应岗位的 .txt 文件
-      // 文件名 = 岗位名（替换 Windows 不允许的字符）
-      const safeName = positionName.replace(/[\\/:*?"<>|]/g, (c) => ({
-        '\\': '＼', '/': '／', ':': '：', '*': '＊',
-        '?': '？', '"': '＂', '<': '＜', '>': '＞', '|': '｜'
-      })[c]);
-      const filePath = resolve(UNPACKED_ROOT, 'config', 'jd-descriptions', safeName + '.txt');
-      try {
-        if (existsSync(filePath)) {
-          jdText = readFileSync(filePath, 'utf-8').trim();
-        } else {
-          termLog(`[AI评分] ⚠ 未找到 JD 文件: config/jd-descriptions/${safeName}.txt`);
-        }
-      } catch (err) {
-        termLog(`[AI评分] 读取 JD 文件失败: ${err.message}`, 'stderr');
-      }
-    } else {
-      // 沟通页：从候选人数据取
-      jdText = withResume.find(c => c.jobDescription?.description)?.jobDescription?.description || '';
+    // 读取用户配置的评分维度和任职资格筛选项
+    const dimensionsText = apiConfig.dimensions || '';
+    const screeningCriteriaText = apiConfig.screeningCriteria || '';
+
+    // 尝试读取该岗位的 JD 描述文件，如有则覆盖 {dimensions}/{screeningCriteria}
+    let jdContent = null;
+    const safeName = positionName.replace(/[\\/:*?"<>|]/g, (c) => ({
+      '\\': '＼', '/': '／', ':': '：', '*': '＊',
+      '?': '？', '"': '＂', '<': '＜', '>': '＞', '|': '｜'
+    })[c]);
+    const jdFilePath = resolve(JD_DIR, safeName + '.txt');
+    try {
+      const raw = readFileSync(jdFilePath, 'utf-8').trim();
+      if (raw) jdContent = raw;
+    } catch {}
+
+    if (isRecommendScoring && !jdContent && !dimensionsText) {
+      termLog(`[AI评分] ⚠ 未配置核心评估维度，请先在设置中配置`, 'stderr');
     }
 
-    // 分批
-    const batches = chunkArray(withResume, 5);
-    termLog(`[AI评分] 岗位 "${positionName}": ${withResume.length} 人，${batches.length} 批`);
+    // 沟通页：从候选人提取的 jobDescription 中获取 JD 文本（无 JD 文件时的后备）
+    if (!isRecommendScoring && !jdContent) {
+      for (const c of withResume) {
+        if (c.jobDescription?.description) {
+          const jdText = `${c.jobDescription.jobName || ''} ${c.jobDescription.salary || ''}\n\n${c.jobDescription.description}`;
+          jdContent = jdText.trim();
+          termLog(`[AI评分] 使用候选人提取的岗位描述作为 JD 文本`);
+          break;
+        }
+      }
+    }
 
-    // 并行发 API 请求
-    const batchPromises = batches.map(async (batch, batchIdx) => {
-      // 构建 prompt
-      let prompt = template
-        .replace('{jobDescription.description}', jdText)
-        .replace('{positionName}', positionName);
+    // 逐人评分，最大并发 3（避免 API 限流 + 单请求失败不影响其他人）
+    const CONCURRENCY = 3;
+    let completedInPosition = 0;
+    const totalInPosition = withResume.length;
+    termLog(`[AI评分] 岗位 "${positionName}": ${totalInPosition} 人，并发 ${CONCURRENCY}`);
 
-      // 替换 {resumeText} 为逐人简历（含DOM直接读取的基础信息）
-      const resumeSections = batch.map((c, i) =>
-        `=== 候选人 ${i + 1}/${batch.length} ===\n` +
-        `姓名：${c.basicInfo?.name || '未知'}\n` +
-        `学历（来自页面）：${c.basicInfo?.education || '未知'}\n` +
-        `工作年限（来自页面）：${c.basicInfo?.workYears || '未知'}\n` +
-        `简历（OCR识别，仅供参考）：\n${c.resumeText || '(无)'}`
-      ).join('\n\n');
+    for (let i = 0; i < totalInPosition; i += CONCURRENCY) {
+      if (cancelled) { termLog('[AI评分] 用户取消'); break; }
+      const chunk = withResume.slice(i, i + CONCURRENCY);
+      await Promise.all(chunk.map(async (c) => {
+        if (cancelled) return;
+        const displayName = c.basicInfo?.name || c.geekId || '未知';
+        termLog(`[AI评分] 评分: ${displayName}`);
 
-      prompt = prompt.replace('{resumeText}', resumeSections);
+        // 构建单人 prompt
+        let prompt;
+        if (isRecommendScoring) {
+          const dims = jdContent || dimensionsText;
+          const criteria = jdContent || screeningCriteriaText;
+          prompt = template
+            .replace('{dimensions}', dims)
+            .replace('{screeningCriteria}', criteria);
+        } else {
+          prompt = template
+            .replace('{jdText}', jdContent || dimensionsText || '(无岗位JD描述)');
+        }
 
-      // 附加输出格式要求（多候选人模式）
-      const commentFormat = scoretextFormat ||
-        '匹配度评分：\n首句定性：\n\n维度权重（总权重100%）：\n1. \n2. \n3. \n4. \n5. \n\n硬性技能匹配度：\n核心领域能力匹配度：\n刚性扣分说明：\n\n综合结论：';
-      // 转义换行符以嵌入 JSON 示例
-      const escapedFormat = commentFormat.replace(/\n/g, '\\n');
-      prompt += `\n\n重要：每位候选人必须独立评分，绝对禁止与其他候选人做横向比较。评语中不能说"相比其他人"、"在这些候选人中"、"排名第几"等比较性内容。每位候选人的评分只应基于其自身与JD的匹配程度。\n请只输出 JSON，不要包含任何其他文字。格式如下：\n[\n` +
-        batch.map((_, i) => `  {"candidateIndex": ${i}, "jobRelevanceScore": 0-100, "jobRelevanceComment": "${escapedFormat}"}`).join(',\n') +
-        `\n]\n评语的 jobRelevanceComment 字段必须严格按照以下结构填写（将内容填充到各标题之后）：\n${commentFormat}`;
+        prompt = prompt.replace('{resumeText}',
+          `姓名：${c.basicInfo?.name || '未知'}\n` +
+          `学历（来自页面）：${c.basicInfo?.education || '未知'}\n` +
+          `工作年限（来自页面）：${c.basicInfo?.workYears || '未知'}\n` +
+          `简历（OCR识别，仅供参考）：\n${c.resumeText || '(无)'}`
+        );
 
-      try {
+        // 要求输出 JSON 格式
+        prompt += `\n\n重要：请严格按照上面的"最终输出模板"格式撰写评语，评语的每个模块都要包含，且不要输出多个候选人的评分。\n` +
+          `请只输出以下 JSON 格式（不要包含任何其他内容，不要用 markdown 代码块包裹）：\n` +
+          `{\n  \"score\": <0-100的整数>,\n  \"comment\": "<完整的评语文本，用\\n换行>"\n}`;
+
         // 最多重试 2 次
-        let results = null;
+        let lastError = null;
         for (let retry = 0; retry <= 2; retry++) {
+          if (cancelled) return;
           try {
-            results = await callClaudeAPI(prompt, { signal });
-            break;
-          } catch (err) {
-            if (signal.aborted) throw err; // 用户取消，不重试立即退出
+            const text = await callClaudeAPI(prompt, { signal });
+            const obj = parseSingleScoreResponse(text);
+            if (obj) {
+              c.jobRelevanceScore = obj.score;
+              c.jobRelevanceComment = obj.comment;
+              termLog(`  ✓ ${displayName}: ${obj.score}分`);
+              lastError = null;
+              break;
+            }
+            lastError = new Error('解析失败(无有效JSON)');
             if (retry < 2) {
-              termLog(`[AI评分] 第 ${batchIdx + 1} 批失败，${retry + 1}/2 重试: ${err.message}`, 'stderr');
+              const ts = Date.now();
+              const debugPath = resolve(OUTPUT_DIR, `api-raw-response-${ts}.txt`);
+              try { writeFileSync(debugPath, text, 'utf-8'); } catch {}
+              termLog(`  ⚠ 解析失败: ${debugPath}，${retry + 1}/2 重试`, 'stderr');
               await sleep(2000);
-            } else {
-              throw err;
+            }
+          } catch (err) {
+            if (signal.aborted) throw err;
+            lastError = err;
+            if (retry < 2) {
+              termLog(`  ⚠ 请求失败: ${err.message}，${retry + 1}/2 重试`, 'stderr');
+              await sleep(2000);
             }
           }
         }
-        for (const r of results) {
-          const idx = r.candidateIndex;
-          if (idx >= 0 && idx < batch.length) {
-            batch[idx].jobRelevanceScore = r.jobRelevanceScore ?? 0;
-            const raw = r.jobRelevanceComment || '';
-            // 统一评语换行格式：在章节标题前强制换行
-            // 涵盖 with-jd 和 no-jd 两种模板的标题格式
-            batch[idx].jobRelevanceComment = raw
-              .replace(/(匹配度评分|首句定性|维度权重|硬性技能|核心领域|刚性扣分说明|综合结论|岗位相关性分数|技术栈匹配|项目经验(?:相关|相关性)|行业经验)/g, '\n$1')
-              .replace(/\n{3,}/g, '\n\n')
-              .replace(/^\n+/, '')
-              .trim();
-          }
-        }
-      } catch (err) {
-        termLog(`[AI评分] 第 ${batchIdx + 1} 批最终失败: ${err.message}`, 'stderr');
-        // 失败批的候选人设 0 分
-        for (const c of batch) {
+
+        if (lastError) {
           c.jobRelevanceScore = 0;
-          c.jobRelevanceComment = `评分失败: ${err.message}`;
+          c.jobRelevanceComment = `评分失败: ${lastError.message}`;
+          termLog(`  ✗ ${displayName}: ${lastError.message}`, 'stderr');
         }
-      }
 
-      completedBatches++;
-      const overall = Math.round(50 + (completedBatches / totalBatches) * 50);
-      sendProgress(2, 'running', overall, `AI评分: ${completedBatches}/${totalBatches} 批完成`);
-      scoredCount += batch.length;
-      termLog(`[AI评分] 批次 ${batchIdx + 1}/${batches.length} 完成`);
-    });
-
-    await Promise.all(batchPromises);
-    if (cancelled) break;
-    termLog(`[AI评分] 岗位 "${positionName}" 评分完成 (${group.length} 人)`);
+        completedInPosition++;
+        const overall = Math.round(50 + (completedInPosition / totalCandidates) * 50);
+        sendProgress(2, 'running', overall, `AI评分: ${completedInPosition}/${totalCandidates} 人`);
+      }));
+    }
+    termLog(`[AI评分] 岗位 "${positionName}" 评分完成 (${totalInPosition} 人)`);
   }
-
   // 总分 = AI 评分（0-100）
   for (const c of candidates) {
     c.totalScore = c.jobRelevanceScore || 0;
-    if (c.totalScore >= 86) c.recommendationLevel = '强烈推荐';
-    else if (c.totalScore >= 72) c.recommendationLevel = '推荐';
-    else if (c.totalScore >= 58) c.recommendationLevel = '可考虑';
+    if (c.totalScore >= 91) c.recommendationLevel = '强烈推荐';
+    else if (c.totalScore >= 81) c.recommendationLevel = '推荐';
+    else if (c.totalScore >= 61) c.recommendationLevel = '可考虑';
     else c.recommendationLevel = '暂不推荐';
-    c.passed = c.totalScore >= 58;
+    c.passed = c.totalScore >= 61;
   }
 
   aiAbortController = null;
@@ -607,6 +578,47 @@ async function doAiScoring() {
   const output = raw.candidates ? raw : { candidates: raw };
   writeFileSync(resultPath, JSON.stringify(output, null, 2), 'utf-8');
   termLog(`[AI评分] 完成，已写入 ${resultPath}`);
+}
+
+// ===== 清理临时文件 =====
+function cleanupTempFiles() {
+  const dir = OUTPUT_DIR;
+  if (!existsSync(dir)) return;
+
+  // 1. 删除 .temp-screenshots/ 目录（简历截图PNG）
+  const screenshotsDir = resolve(dir, '.temp-screenshots');
+  if (existsSync(screenshotsDir)) {
+    try {
+      rmSync(screenshotsDir, { recursive: true, force: true });
+      termLog(`[main] 已清理截图目录: .temp-screenshots/`);
+    } catch (e) {
+      termLog(`[main] 清理截图目录失败: ${e.message}`, 'stderr');
+    }
+  }
+
+  // 2. 删除 zhipin-candidates.json（原始提取数据，scored-candidates.json 已包含）
+  const rawPath = resolve(dir, 'zhipin-candidates.json');
+  if (existsSync(rawPath)) {
+    try {
+      unlinkSync(rawPath);
+      termLog(`[main] 已清理: zhipin-candidates.json`);
+    } catch (e) {
+      termLog(`[main] 清理 zhipin-candidates.json 失败: ${e.message}`, 'stderr');
+    }
+  }
+
+  // 3. 删除 api-raw-response-*.txt（API调试日志）
+  try {
+    const entries = readdirSync(dir);
+    for (const entry of entries) {
+      if (entry.startsWith('api-raw-response-') && entry.endsWith('.txt')) {
+        unlinkSync(resolve(dir, entry));
+        termLog(`[main] 已清理: ${entry}`);
+      }
+    }
+  } catch (e) {
+    termLog(`[main] 清理 API 日志失败: ${e.message}`, 'stderr');
+  }
 }
 
 // ===== 主流程编排 =====
@@ -650,7 +662,29 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       if (isAttach) {
         extractArgs.push('--attach');
       }
-      await runScript(scriptName, extractArgs, 1, parseExtractProgress);
+      try {
+        await runScript(scriptName, extractArgs, 1, parseExtractProgress);
+      } catch (err) {
+        if (skipToScoring) {
+          skipToScoring = false;
+          termLog('[main] 用户跳过提取，尝试从进度文件恢复数据');
+          const progressPath = resolve(OUTPUT_DIR, '.extract-progress.json');
+          if (!existsSync(progressPath)) {
+            throw new Error('跳过提取失败：未找到进度文件，尚无已提取的候选人数据');
+          }
+          const progressData = JSON.parse(readFileSync(progressPath, 'utf-8'));
+          const candidates = progressData.candidates || [];
+          if (candidates.length === 0) {
+            throw new Error('跳过提取失败：进度文件中无候选人数据');
+          }
+          termLog(`[main] 从进度文件恢复 ${candidates.length} 名候选人`);
+          const output = { source: isRecommendMode ? 'recommend' : 'chat', candidates };
+          writeFileSync(resolve(OUTPUT_DIR, 'zhipin-candidates.json'), JSON.stringify(output, null, 2), 'utf-8');
+          sendProgress(1, 'done', 100, `提取中断（已恢复 ${candidates.length} 人数据）`);
+        } else {
+          throw err;
+        }
+      }
       if (cancelled) return;
       sendProgress(1, 'done', 100, '提取完成');
     } else {
@@ -691,6 +725,10 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     if (cancelled) return;
 
     sendProgress(3, 'done', 100, '导出完成');
+
+    // 清理临时文件（保留 scored-candidates.json 和 candidates.xlsx）
+    cleanupTempFiles();
+
     sendDone({
       outputDir: OUTPUT_DIR,
       excelPath: actualExportPath || resolve(OUTPUT_DIR, 'candidates.xlsx'),
@@ -721,8 +759,8 @@ async function runGreeting(level) {
   try {
     const raw = JSON.parse(readFileSync(scoredPath, 'utf-8'));
     const candidates = raw.candidates || raw;
-    const thresholds = { 5: 86, 4: 72, 3: 58, 0: 0 };
-    const threshold = thresholds[level] ?? 72;
+    const thresholds = { 5: 91, 4: 81, 3: 61, 2: 31, 0: 0 };
+    const threshold = thresholds[level] ?? 81;
     totalTargets = candidates.filter(c => (c.totalScore ?? c.jobRelevanceScore ?? 0) >= threshold).length;
   } catch (err) {
     termLog(`[greet] 读取评分数据失败: ${err.message}`, 'stderr');
@@ -947,6 +985,17 @@ function registerIPC() {
     return { ok: true };
   });
 
+  ipcMain.handle('skip-extraction', () => {
+    skipToScoring = true;
+    if (currentProcess) {
+      try { currentProcess.stdin.write('CANCEL\n'); } catch {}
+      setTimeout(() => {
+        if (currentProcess) { currentProcess.kill(); currentProcess = null; }
+      }, 2000);
+    }
+    return { ok: true };
+  });
+
   // 批量打招呼
   ipcMain.handle('start-greeting', (_event, opts) => {
     if (currentProcess) return { error: '已有任务运行中' };
@@ -974,13 +1023,14 @@ function registerIPC() {
       const raw = JSON.parse(readFileSync(scoredPath, 'utf-8'));
       const candidates = raw.candidates || raw;
       if (!Array.isArray(candidates)) return { available: false, total: 0, counts: {} };
-      const counts = { 5: 0, 4: 0, 3: 0, 0: 0 };
-      const thresholds = { 5: 86, 4: 72, 3: 58, 0: 0 };
+      const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 0: 0 };
+      const thresholds = { 5: 91, 4: 81, 3: 61, 2: 31, 0: 0 };
       for (const c of candidates) {
         const score = c.totalScore ?? c.jobRelevanceScore ?? 0;
-        if (score >= 86) counts[5]++;
-        if (score >= 72) counts[4]++;
-        if (score >= 58) counts[3]++;
+        if (score >= 91) counts[5]++;
+        if (score >= 81) counts[4]++;
+        if (score >= 61) counts[3]++;
+        if (score >= 31) counts[2]++;
         counts[0] = candidates.length;
       }
       return { available: true, total: candidates.length, counts };
@@ -1017,6 +1067,81 @@ function registerIPC() {
     return { path: newDir };
   });
 
+  // 清空输出目录下的历史归档数据
+  ipcMain.handle('clear-history', async () => {
+    const parentDir = dirname(OUTPUT_DIR);
+    const baseName = basename(OUTPUT_DIR);
+    // 校验：baseName 必须只包含合法字符，避免误删
+    if (!/^[a-zA-Z0-9_\u4e00-\u9fa5-]+$/.test(baseName)) {
+      return { error: `输出目录名 "${baseName}" 包含非法字符，拒绝操作` };
+    }
+    // 归档目录名格式：{baseName}-YYYYMMDD-HHMM
+    const archivePattern = new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-\\d{8}-\\d{4}$`);
+
+    let deletedCount = 0;
+    let errorCount = 0;
+    const matchedDirs = [];
+    const skippedDirs = [];
+
+    try {
+      const entries = readdirSync(parentDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) {
+          termLog(`[clear-history] 跳过非目录: ${entry.name}`);
+          continue;
+        }
+        if (!archivePattern.test(entry.name)) {
+          termLog(`[clear-history] 不匹配归档模式: ${entry.name}`);
+          skippedDirs.push(entry.name);
+          continue;
+        }
+
+        matchedDirs.push(entry.name);
+        const fullPath = resolve(parentDir, entry.name);
+        try {
+          // Windows 文件锁问题：重试最多 3 次，每次等待 500ms
+          let retries = 3;
+          let lastErr = null;
+          while (retries > 0) {
+            try {
+              rmSync(fullPath, { recursive: true, force: true });
+              lastErr = null;
+              break;
+            } catch (e) {
+              lastErr = e;
+              retries--;
+              if (retries > 0) {
+                termLog(`[clear-history] ${entry.name} 删除失败，${retries} 次重试...`, 'stderr');
+                await sleep(500);
+              }
+            }
+          }
+          if (lastErr) throw lastErr;
+          termLog(`[clear-history] 已删除: ${entry.name}`);
+          deletedCount++;
+        } catch (err) {
+          termLog(`[clear-history] 删除失败 ${entry.name}: ${err.message}`, 'stderr');
+          errorCount++;
+        }
+      }
+    } catch (err) {
+      return { error: `读取目录失败: ${err.message}` };
+    }
+
+    termLog(`[clear-history] 归档模式: ${archivePattern}`);
+    termLog(`[clear-history] 匹配到的目录: ${JSON.stringify(matchedDirs)}`);
+    termLog(`[clear-history] 未匹配的目录: ${JSON.stringify(skippedDirs)}`);
+
+    return {
+      ok: true,
+      deleted: deletedCount,
+      errors: errorCount,
+      parentDir,
+      matchedDirs,
+      skippedDirs,
+    };
+  });
+
   // API 配置 + SMTP 配置（持久化到磁盘）
   ipcMain.handle('set-api-config', (_event, config) => {
     apiConfig = { ...apiConfig, ...config };
@@ -1030,6 +1155,20 @@ function registerIPC() {
     return { configured: !!(apiConfig.url && apiConfig.key && apiConfig.model) };
   });
 
+  // 评分配置（维度 + 任职资格筛选项）
+  ipcMain.handle('set-scoring-config', (_event, config) => {
+    if (config.dimensions !== undefined) apiConfig.dimensions = config.dimensions;
+    if (config.screeningCriteria !== undefined) apiConfig.screeningCriteria = config.screeningCriteria;
+    saveApiConfig(apiConfig);
+    termLog(`[config] 评分配置已保存`);
+    return { ok: true };
+  });
+
+  ipcMain.handle('get-scoring-config', () => ({
+    dimensions: apiConfig.dimensions || '',
+    screeningCriteria: apiConfig.screeningCriteria || '',
+  }));
+
   // CDP/Chrome 状态
   ipcMain.handle('get-cdp-status', () => ({ ...cdpStatus }));
 
@@ -1042,7 +1181,7 @@ function registerIPC() {
 
   // 读取推荐牛人页岗位列表（从 jd-descriptions/ 目录的 .txt 文件名反解）
   ipcMain.handle('get-recommend-jobs', () => {
-    const dir = resolve(UNPACKED_ROOT, 'config', 'jd-descriptions');
+    const dir = JD_DIR;
     if (!existsSync(dir)) return [];
     const files = readdirSync(dir).filter(f => f.endsWith('.txt'));
     return files
@@ -1060,7 +1199,7 @@ function registerIPC() {
       '\\': '＼', '/': '／', ':': '：', '*': '＊',
       '?': '？', '"': '＂', '<': '＜', '>': '＞', '|': '｜'
     })[c]);
-    const dir = resolve(UNPACKED_ROOT, 'config', 'jd-descriptions');
+    const dir = JD_DIR;
     mkdirSync(dir, { recursive: true });
     const filePath = resolve(dir, safeName + '.txt');
     if (existsSync(filePath)) throw new Error(`岗位"${jobName}"已存在`);
@@ -1076,7 +1215,7 @@ function registerIPC() {
       '\\': '＼', '/': '／', ':': '：', '*': '＊',
       '?': '？', '"': '＂', '<': '＜', '>': '＞', '|': '｜'
     })[c]);
-    const filePath = resolve(UNPACKED_ROOT, 'config', 'jd-descriptions', safeName + '.txt');
+    const filePath = resolve(JD_DIR, safeName + '.txt');
     if (!existsSync(filePath)) return '';
     return readFileSync(filePath, 'utf-8');
   });
@@ -1088,7 +1227,7 @@ function registerIPC() {
       '\\': '＼', '/': '／', ':': '：', '*': '＊',
       '?': '？', '"': '＂', '<': '＜', '>': '＞', '|': '｜'
     })[c]);
-    const filePath = resolve(UNPACKED_ROOT, 'config', 'jd-descriptions', safeName + '.txt');
+    const filePath = resolve(JD_DIR, safeName + '.txt');
     if (!existsSync(filePath)) throw new Error(`岗位"${jobName}"不存在`);
     writeFileSync(filePath, jobDesc || '', 'utf-8');
     termLog(`[config] 已更新岗位描述: ${jobName}`);
@@ -1102,7 +1241,7 @@ function registerIPC() {
       '\\': '＼', '/': '／', ':': '：', '*': '＊',
       '?': '？', '"': '＂', '<': '＜', '>': '＞', '|': '｜'
     })[c]);
-    const filePath = resolve(UNPACKED_ROOT, 'config', 'jd-descriptions', safeName + '.txt');
+    const filePath = resolve(JD_DIR, safeName + '.txt');
     if (!existsSync(filePath)) throw new Error(`岗位"${jobName}"不存在`);
     unlinkSync(filePath);
     termLog(`[config] 已删除岗位: ${jobName}`);
@@ -1113,6 +1252,7 @@ function registerIPC() {
 // ===== 应用生命周期 =====
 app.whenReady().then(() => {
   loadApiConfig();
+  mkdirSync(JD_DIR, { recursive: true });
   registerIPC();
 
   // 非阻塞启动 CDP 代理（后台进行，不阻塞窗口创建）

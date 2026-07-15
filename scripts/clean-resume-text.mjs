@@ -8,6 +8,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // ===== OCR 文本清洗（与 extract-candidates-full.mjs 保持一致） =====
 
@@ -125,5 +126,5 @@ function main() {
   console.log(`输出: ${outputPath}`);
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'));
+const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
 if (isMain) main();

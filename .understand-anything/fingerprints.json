@@ -1,0 +1,3139 @@
+{
+  "version": "1.0.0",
+  "gitCommitHash": "0291539073c93b06ddfb693efcb2406425fc1c75",
+  "generatedAt": "2026-06-01T05:42:46.110Z",
+  "files": {
+    "_probe-dialog.mjs": {
+      "filePath": "_probe-dialog.mjs",
+      "contentHash": "73950c6f1af02ffe08239c53951e5f7e19d9751656f6f0ffb902e88896d6cb2d",
+      "functions": [
+        {
+          "name": "proxyGet",
+          "params": [
+            "path"
+          ],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "cdpEval",
+          "params": [
+            "targetId",
+            "expr"
+          ],
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "sleep",
+          "params": [
+            "ms"
+          ],
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 111
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:http",
+          "specifiers": [
+            "http"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 136,
+      "hasStructuralAnalysis": true
+    },
+    ".claude-plugin/marketplace.json": {
+      "filePath": ".claude-plugin/marketplace.json",
+      "contentHash": "caed61a5f9d46773103ac286851db31dc179dab518ec5cc4f8a6b108145b8c9c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 19,
+      "hasStructuralAnalysis": true
+    },
+    ".claude-plugin/plugin.json": {
+      "filePath": ".claude-plugin/plugin.json",
+      "contentHash": "d53d86b9c0a1fbfae152e143983570307e6175c7ff563ef891fd4ab17fbf1271",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 14,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/settings.local.json": {
+      "filePath": ".claude/settings.local.json",
+      "contentHash": "f04c37db8cd071c751d7bbf1a28f5d53e0e1d9cfcfa4d190572134153fbccbc5",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 105,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/部署运维/部署运维.md": {
+      "filePath": ".qoder/repowiki/zh/content/部署运维/部署运维.md",
+      "contentHash": "ce81a1335435d8dcf98fd16b147e6a1ae18f86e88cd0820bbe29bdb9b8743efb",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 464,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/部署运维/故障排除.md": {
+      "filePath": ".qoder/repowiki/zh/content/部署运维/故障排除.md",
+      "contentHash": "9893a1138a3c070d3b744c21b74e3b1dbac1a28e6828fa3e07d74e2c83d19164",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 583,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/部署运维/环境配置.md": {
+      "filePath": ".qoder/repowiki/zh/content/部署运维/环境配置.md",
+      "contentHash": "b0d07903b0b1a6f6144d0981b01cc6bf4049af10b60b67b5d7914246176a3462",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 475,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/部署运维/性能监控.md": {
+      "filePath": ".qoder/repowiki/zh/content/部署运维/性能监控.md",
+      "contentHash": "bc1d14ed8d09ee2ea279ff5b46332bdec943dad8f59862c62d0b77965eea8ba6",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 352,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/候选人筛选系统/岗位描述(JD)提取系统.md": {
+      "filePath": ".qoder/repowiki/zh/content/候选人筛选系统/岗位描述(JD)提取系统.md",
+      "contentHash": "991a1c1060786d8214a6085a3ac61d44461a7de3e6a304ddc30af7e962160a88",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 428,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/候选人筛选系统/规则引擎核心.md": {
+      "filePath": ".qoder/repowiki/zh/content/候选人筛选系统/规则引擎核心.md",
+      "contentHash": "69d99543d8b2a56f21b6031aa3442c98dd8b88d3580478d33d44598b350c80de",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 318,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/候选人筛选系统/候选人筛选系统.md": {
+      "filePath": ".qoder/repowiki/zh/content/候选人筛选系统/候选人筛选系统.md",
+      "contentHash": "625b2575043a3c6774af2ee535528995b98585931af103bce666be8ad1b98f46",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 956,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/候选人筛选系统/配置管理.md": {
+      "filePath": ".qoder/repowiki/zh/content/候选人筛选系统/配置管理.md",
+      "contentHash": "60e5c40ae3c27e13351510b87560a6db3d6ec4908c5be156a07260d8f512b807",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 326,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/候选人筛选系统/评分算法实现.md": {
+      "filePath": ".qoder/repowiki/zh/content/候选人筛选系统/评分算法实现.md",
+      "contentHash": "183444bce338bd7685d1d06597218733f7b6942727635819361db27447589d9f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 502,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/候选人筛选系统/字段解析引擎.md": {
+      "filePath": ".qoder/repowiki/zh/content/候选人筛选系统/字段解析引擎.md",
+      "contentHash": "0d677b05c3c4fc6c05c800df58dc4730fd706a904f80c99b02d8eb5079db45f7",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 309,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/简历提取系统/候选人交互.md": {
+      "filePath": ".qoder/repowiki/zh/content/简历提取系统/候选人交互.md",
+      "contentHash": "25408285f543ec94418acfbac40a5c20c26b7e567759917c3445e418f02f5689",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 405,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/简历提取系统/简历提取系统.md": {
+      "filePath": ".qoder/repowiki/zh/content/简历提取系统/简历提取系统.md",
+      "contentHash": "84dbe4af9ce66ce091fb6f5812d807eac9717ba5f7437aff06ee3fa53842fa12",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 572,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/简历提取系统/截图捕获.md": {
+      "filePath": ".qoder/repowiki/zh/content/简历提取系统/截图捕获.md",
+      "contentHash": "bd783578053e35178f995dcf95db7c3c56a0fa8698f7eba8d9e776a7bada7f46",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 283,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/简历提取系统/批量处理.md": {
+      "filePath": ".qoder/repowiki/zh/content/简历提取系统/批量处理.md",
+      "contentHash": "c34aab82839bef18bf62f06ed3f062f756cc02c888014b9248e76c2ec2a35d0b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 367,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/简历提取系统/OCR文本识别.md": {
+      "filePath": ".qoder/repowiki/zh/content/简历提取系统/OCR文本识别.md",
+      "contentHash": "735ac5d841dbdad2ca66678f8d84b90ad7b2cfdf95a10ba3c3cc45ac747cac70",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 268,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/开发指南/测试与调试.md": {
+      "filePath": ".qoder/repowiki/zh/content/开发指南/测试与调试.md",
+      "contentHash": "6573a00f30110687dfcb81e8305f10e9011f80fdd953d1e319412a08d6a5af9d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 426,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/开发指南/代码结构与模块设计.md": {
+      "filePath": ".qoder/repowiki/zh/content/开发指南/代码结构与模块设计.md",
+      "contentHash": "14f8bb896147f13c9a8d3a42f43b662861f2e87801fdc17a19be8b930710a008",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 701,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/开发指南/开发流程与规范.md": {
+      "filePath": ".qoder/repowiki/zh/content/开发指南/开发流程与规范.md",
+      "contentHash": "42fd7705b48f2219800f0268ece2f3a389bb432d55c341e321bd53781fafbdd8",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 414,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/开发指南/开发指南.md": {
+      "filePath": ".qoder/repowiki/zh/content/开发指南/开发指南.md",
+      "contentHash": "a61969f7ffab2c4c48d0fe36d826ef547b4c16e1a3fe7336ca2ed3c9c1702316",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 391,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/开发指南/扩展开发.md": {
+      "filePath": ".qoder/repowiki/zh/content/开发指南/扩展开发.md",
+      "contentHash": "fcdd4338532f2a8665fe97d13b7b2bf06765ff0e734a81e21e81b1a3862afa46",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 458,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/快速开始.md": {
+      "filePath": ".qoder/repowiki/zh/content/快速开始.md",
+      "contentHash": "5fd07549ee100dd240abc8e6971d005563cc5be196c4e1db7f9ed0546778702b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 406,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/配置管理.md": {
+      "filePath": ".qoder/repowiki/zh/content/配置管理.md",
+      "contentHash": "f174347288df365e96e777a4c030ee501488562b81869402d4947ba3eb1bcb03",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 347,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/设计文档/架构设计.md": {
+      "filePath": ".qoder/repowiki/zh/content/设计文档/架构设计.md",
+      "contentHash": "d096e3b790fedcf2b2d7b4b71c3808ab80ee62f70d1cfa0f96586ba3a0d2872f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 342,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/设计文档/设计文档.md": {
+      "filePath": ".qoder/repowiki/zh/content/设计文档/设计文档.md",
+      "contentHash": "572b6c9893abe8cba81487b037c8fadbe87f992a3e9525f77d0d55d95a95e559",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 398,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/设计文档/数据持久化计划.md": {
+      "filePath": ".qoder/repowiki/zh/content/设计文档/数据持久化计划.md",
+      "contentHash": "ce55ff854f9ef517275766b3f19749a72607f1dbd1f1419d7a9ee91cef9a16cf",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 677,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/设计文档/算法设计.md": {
+      "filePath": ".qoder/repowiki/zh/content/设计文档/算法设计.md",
+      "contentHash": "14735eccf973e7a6f840dadbee5be886075f3d4026fce3d2ce953291ca350a20",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 308,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/数据导出系统.md": {
+      "filePath": ".qoder/repowiki/zh/content/数据导出系统.md",
+      "contentHash": "15d7c79b65283cb65a26614558a57ab5b7c3c0eba7fd294e2dc2f57a3ac1bbd2",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 587,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/系统工具/环境检查工具.md": {
+      "filePath": ".qoder/repowiki/zh/content/系统工具/环境检查工具.md",
+      "contentHash": "2aef1165fdc80e1d1a9b92da5b8fa17b8c9f0df64560117fa63b8a99e915c8bd",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 371,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/系统工具/系统工具.md": {
+      "filePath": ".qoder/repowiki/zh/content/系统工具/系统工具.md",
+      "contentHash": "1c4ed093d9d673db8c529f5d80f16fbca1bab96f7e61a7d63b164a31f008920a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 367,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/系统工具/站点匹配工具.md": {
+      "filePath": ".qoder/repowiki/zh/content/系统工具/站点匹配工具.md",
+      "contentHash": "550c7a8baf5acb2db5fdda0b774b3c1af51ebbb0baab8a86758188238a831eb5",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 331,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/系统工具/URL查找工具.md": {
+      "filePath": ".qoder/repowiki/zh/content/系统工具/URL查找工具.md",
+      "contentHash": "f74af5fdc6fea9069cd105876c375a1634281c037bf86d21eb3ea07224511489",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 343,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/项目概述.md": {
+      "filePath": ".qoder/repowiki/zh/content/项目概述.md",
+      "contentHash": "7d7d0ea59b0f79429819e776e01f675120c2cf4bc39f7ca5b9ffd9dfafa9d349",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 389,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/CDP代理服务/连接管理.md": {
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/连接管理.md",
+      "contentHash": "0b066d0cce49cf46a6d4d460b66eefa2978dd2efa5a0f0d7fd4d535f2c4314b9",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 292,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/CDP代理服务/使用示例.md": {
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/使用示例.md",
+      "contentHash": "6823e7a019e643a196b4ec12355bf761a516833226a9fc7a52e08ff628d6feec",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 465,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/滚动与页面信息.md": {
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/滚动与页面信息.md",
+      "contentHash": "fb922f812867095ef0cd2041b98b83dfa49ad030c6430398f3ca8e704494d5c7",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 450,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/基础健康检查.md": {
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/基础健康检查.md",
+      "contentHash": "190b250b2bb65211acc6159d2fbd05626706e787d71186bd45463a00da36fced",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 316,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/目标管理.md": {
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/目标管理.md",
+      "contentHash": "2fe181e3e8e46fd6cfab7bfd87399c1f15b8031ec7a89b9dd077352e74181245",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 254,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/文件上传与截图.md": {
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/文件上传与截图.md",
+      "contentHash": "482560d3a91d3328f6d86c62ebac2319ec7498c45a15c7f37c174ffb10db8252",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 405,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/页面导航.md": {
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/页面导航.md",
+      "contentHash": "52c53f62d5d4c2d6cec21ff379b0b5f00b566c3433ca766224ff517b3850e50e",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 302,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/元素交互.md": {
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/元素交互.md",
+      "contentHash": "ed3acd3ef21329eb1160fb6feb3770a50ec92e478c8f0db029e44c262e3621ac",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 345,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/CDP API端点.md": {
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP API端点/CDP API端点.md",
+      "contentHash": "9622e84ec31a71c220c0f80475c3b72fc403d14c48e6b19d2096c2f9cc5bcf29",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 974,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/CDP代理服务/CDP代理服务.md": {
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP代理服务.md",
+      "contentHash": "e41d1cb23edc94f64cdd64ee34f1d196a9b331012ce2afaf1b1f620658add934",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 808,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/CDP代理服务/CDP代理概述.md": {
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/CDP代理概述.md",
+      "contentHash": "ec2a636e63e6d46b1f55582a9ee417bccc3a333e0db00159dfb9dd6d54bfdf66",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 428,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/content/CDP代理服务/WebSocket通信.md": {
+      "filePath": ".qoder/repowiki/zh/content/CDP代理服务/WebSocket通信.md",
+      "contentHash": "f301e3be285bd3111348b832b1b0c7c8df83384bd913c6e5d2e64e8857b7e6fc",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 313,
+      "hasStructuralAnalysis": true
+    },
+    ".qoder/repowiki/zh/meta/repowiki-metadata.json": {
+      "filePath": ".qoder/repowiki/zh/meta/repowiki-metadata.json",
+      "contentHash": "be1130cffcd538c7831bea9f5b2ce8212dffb55399dc81577f9aaf62da5e369d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": true
+    },
+    ".understand-anything/.understandignore": {
+      "filePath": ".understand-anything/.understandignore",
+      "contentHash": "e95bbbf73817d940e22852923c6aaa538222c9170bd5fcf7d5286cdb0b3a26c5",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 31,
+      "hasStructuralAnalysis": false
+    },
+    ".understand-anything/config.json": {
+      "filePath": ".understand-anything/config.json",
+      "contentHash": "de7ae7b841141718a1bd36930e7642f915b847a713410d80cd433977a0691fe0",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 3,
+      "hasStructuralAnalysis": true
+    },
+    "用户使用指引.md": {
+      "filePath": "用户使用指引.md",
+      "contentHash": "7ac0eb576611b4b6ffe1fc1ccaee9dfd1fee5751c274732d0eff1f6243e9d484",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 100,
+      "hasStructuralAnalysis": true
+    },
+    "build.mjs": {
+      "filePath": "build.mjs",
+      "contentHash": "856af5a3a18038ee935c87a723ea9efcbf5c269ba4f2d1b862fff5f5a759cdfd",
+      "functions": [
+        {
+          "name": "run",
+          "params": [
+            "cmd"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "findRcedit",
+          "params": [],
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 31
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:child_process",
+          "specifiers": [
+            "execSync"
+          ]
+        },
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "existsSync",
+            "rmSync",
+            "readdirSync"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "resolve",
+            "dirname"
+          ]
+        },
+        {
+          "source": "node:url",
+          "specifiers": [
+            "fileURLToPath"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 79,
+      "hasStructuralAnalysis": true
+    },
+    "config/filter-rules.json": {
+      "filePath": "config/filter-rules.json",
+      "contentHash": "af98f6608a20da5e7a51858539814b97f2b996ac12daef91eeebce515b4f3999",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 11,
+      "hasStructuralAnalysis": true
+    },
+    "config/scoring-prompt-no-jd.txt": {
+      "filePath": "config/scoring-prompt-no-jd.txt",
+      "contentHash": "c1cacc0b2680d607509f1473b059ac2b64b17b0a5c340d82b206f356cc4e9de4",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 21,
+      "hasStructuralAnalysis": false
+    },
+    "config/scoring-prompt-with-jd.txt": {
+      "filePath": "config/scoring-prompt-with-jd.txt",
+      "contentHash": "931a493fab8e4f70d15bbf27e91f1bd5f5723fce729a1dbe10f5d3ba07a73d60",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 22,
+      "hasStructuralAnalysis": false
+    },
+    "docs/superpowers/plans/2026-04-22-boss-zhipin-candidate-extraction-v2.md": {
+      "filePath": "docs/superpowers/plans/2026-04-22-boss-zhipin-candidate-extraction-v2.md",
+      "contentHash": "f4fe7471402db6dc7bcde3a3c012911b4c7aade0dcb8214b2b6e432045767f0d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 69,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/plans/2026-04-22-boss-zhipin-full-extraction-v3.md": {
+      "filePath": "docs/superpowers/plans/2026-04-22-boss-zhipin-full-extraction-v3.md",
+      "contentHash": "b2aaade63be234911fa8e5d654236e123da51ce289aef27ca689240853863335",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 67,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/plans/2026-04-22-extraction-persistence-plan.md": {
+      "filePath": "docs/superpowers/plans/2026-04-22-extraction-persistence-plan.md",
+      "contentHash": "6a80c75b171902c716f4d9d5420422f17697d34b53ff68f06093f878765fbaaa",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 89,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/plans/2026-04-23-candidate-filtering-scoring.md": {
+      "filePath": "docs/superpowers/plans/2026-04-23-candidate-filtering-scoring.md",
+      "contentHash": "85bcec3196fe26446eb93c8e2b6d76044046f75a263978bb08154a453343371a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 701,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/plans/2026-04-27-candidate-scoring-v2.md": {
+      "filePath": "docs/superpowers/plans/2026-04-27-candidate-scoring-v2.md",
+      "contentHash": "c4db9bb8b1a6c77275ffceaab1ec62942f2d3c2585a26e02bf5f22694f87bef0",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 570,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/plans/2026-04-28-job-description-extraction.md": {
+      "filePath": "docs/superpowers/plans/2026-04-28-job-description-extraction.md",
+      "contentHash": "70e8e246bea1f4db75c7a3b27c113f10119802e37969ad438acc3d57d3b4714a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 282,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/plans/2026-04-28-scoring-compliance.md": {
+      "filePath": "docs/superpowers/plans/2026-04-28-scoring-compliance.md",
+      "contentHash": "49517971f9a8681c976f21db1c33478b89d64489e914d296a2e38ac44a600f15",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 136,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/plans/2026-04-28-stats-reporting.md": {
+      "filePath": "docs/superpowers/plans/2026-04-28-stats-reporting.md",
+      "contentHash": "79e2a816b2efe4a508b8479c4a77c731aaf1f9a75bf13c0c79a4d8aedc574e7f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 145,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/plans/2026-05-13-scoring-speed-optimization.md": {
+      "filePath": "docs/superpowers/plans/2026-05-13-scoring-speed-optimization.md",
+      "contentHash": "cd88a945bbe63f5e802d3d38d46c24cbe6f6cb695704dc14f90e987ba7f284c4",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 98,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/plans/2026-05-22-auto-email-export.md": {
+      "filePath": "docs/superpowers/plans/2026-05-22-auto-email-export.md",
+      "contentHash": "e9f1c6263da1e4da51ef5f431bedda8428bd50e192639ad00c6958e883fdb261",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 630,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/plans/2026-05-22-boss-unread-only-plan.md": {
+      "filePath": "docs/superpowers/plans/2026-05-22-boss-unread-only-plan.md",
+      "contentHash": "b8afd3e9d9ba22e0ef7da8406358beed0048342577017eb16cf710a803a5bd25",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 72,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/plans/2026-05-22-excel-ai-analysis-grouped-export.md": {
+      "filePath": "docs/superpowers/plans/2026-05-22-excel-ai-analysis-grouped-export.md",
+      "contentHash": "fe2e48c55771b16bfacbefa61518f18b9c143e88278498cdf0b637861620461e",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 317,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/plans/2026-05-22-multi-position-scoring-export.md": {
+      "filePath": "docs/superpowers/plans/2026-05-22-multi-position-scoring-export.md",
+      "contentHash": "23fbef82b3c95ccc11f962b0484447685aded7094499949404f3dda2afb85654",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 290,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/plans/2026-05-27-electron-app-implementation.md": {
+      "filePath": "docs/superpowers/plans/2026-05-27-electron-app-implementation.md",
+      "contentHash": "7cafd6da9a59ed8a26fd90b576361a8656f1483334d17fd5c42f3dd6c0172f76",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 241,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/specs/2026-04-21-boss-zhipin-candidate-extraction-design.md": {
+      "filePath": "docs/superpowers/specs/2026-04-21-boss-zhipin-candidate-extraction-design.md",
+      "contentHash": "6f29e052d93c9cc5531f982d1fd335eba530e6889cac52081bd326266fe701cb",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 211,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/specs/2026-04-22-boss-zhipin-full-extraction-design.md": {
+      "filePath": "docs/superpowers/specs/2026-04-22-boss-zhipin-full-extraction-design.md",
+      "contentHash": "c38a5b9a3c3ee8ff7ca4acf6234daf5772ac1fac6d26f32cf70c7233b68cba4a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 315,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/specs/2026-04-22-cdp-script-execution-fix-design.md": {
+      "filePath": "docs/superpowers/specs/2026-04-22-cdp-script-execution-fix-design.md",
+      "contentHash": "8d90579c7f86c23a6a7ded673417bdb204ef4f904e6c56a82d6fd34d1ed5c385",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 224,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/specs/2026-04-22-extraction-persistence-design.md": {
+      "filePath": "docs/superpowers/specs/2026-04-22-extraction-persistence-design.md",
+      "contentHash": "34718569d127044adb3147175d01663c4cb584b67ac869b8b89dad18e7db278b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 146,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/specs/2026-04-23-candidate-filtering-scoring-design.md": {
+      "filePath": "docs/superpowers/specs/2026-04-23-candidate-filtering-scoring-design.md",
+      "contentHash": "74c895235114d6f143007d5fd1698eeda1a88b71c3ceae8a633d9e2f33af768f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 270,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/specs/2026-04-27-candidate-scoring-v2-design.md": {
+      "filePath": "docs/superpowers/specs/2026-04-27-candidate-scoring-v2-design.md",
+      "contentHash": "e4a4a6ce62cce6f168d5d292a360be346525a35ec2a4fb277255741c1bdf6e04",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 151,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/specs/2026-04-28-job-description-extraction-design.md": {
+      "filePath": "docs/superpowers/specs/2026-04-28-job-description-extraction-design.md",
+      "contentHash": "5dc08057aed480241f11004bad748e2c10edb867b9d43a5b03122b5a6f447d48",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 105,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/specs/2026-04-28-scoring-compliance-design.md": {
+      "filePath": "docs/superpowers/specs/2026-04-28-scoring-compliance-design.md",
+      "contentHash": "f437869747c8e7b24694a63e229c1f561479900256db8006f2cf29675e40b167",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 101,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/specs/2026-04-28-stats-reporting-design.md": {
+      "filePath": "docs/superpowers/specs/2026-04-28-stats-reporting-design.md",
+      "contentHash": "31116bea4cfdd08e22526a61d53f62ed5f834704cfd7a0875efd62f1fec66342",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 88,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/specs/2026-04-30-screenshot-scroll-fix-design.md": {
+      "filePath": "docs/superpowers/specs/2026-04-30-screenshot-scroll-fix-design.md",
+      "contentHash": "a592410b454694d03abd5bdfaafbf3d3250914dd47b3f5f20242f1e1d9e0e725",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 119,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/specs/2026-05-13-scoring-speed-optimization-design.md": {
+      "filePath": "docs/superpowers/specs/2026-05-13-scoring-speed-optimization-design.md",
+      "contentHash": "981270af233d7aa34c0b31fb9c4e7a227a7bed83aa486017f7f71475511ea26c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 276,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/specs/2026-05-22-auto-email-export-design.md": {
+      "filePath": "docs/superpowers/specs/2026-05-22-auto-email-export-design.md",
+      "contentHash": "abbe72ed25c7028053e03ce27bc0c01b84a3835aa0934133122bc93f38e0f42b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 162,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/specs/2026-05-22-boss-unread-only-design.md": {
+      "filePath": "docs/superpowers/specs/2026-05-22-boss-unread-only-design.md",
+      "contentHash": "140227b2100b0b1e7c13a259898c10f3661f3105ce1c24ef75fd6fad73cfb691",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 103,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/specs/2026-05-22-multi-position-scoring-export-design.md": {
+      "filePath": "docs/superpowers/specs/2026-05-22-multi-position-scoring-export-design.md",
+      "contentHash": "f1f142bbff20049d5f70bd083523e66995ac43961f5f4b9adca51e61caaa04b4",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 111,
+      "hasStructuralAnalysis": true
+    },
+    "docs/superpowers/specs/2026-05-27-electron-app-design.md": {
+      "filePath": "docs/superpowers/specs/2026-05-27-electron-app-design.md",
+      "contentHash": "fc482888d8d41ca7dcffea6b5115d190752ed0e8965ebc02b821e858ef0988b1",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 189,
+      "hasStructuralAnalysis": true
+    },
+    "electron-builder.yml": {
+      "filePath": "electron-builder.yml",
+      "contentHash": "012de970dca4ed6197f7c1715b5fbc641f8971801a2b6bb15a0c4a631e42984e",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 43,
+      "hasStructuralAnalysis": true
+    },
+    "electron/main.mjs": {
+      "filePath": "electron/main.mjs",
+      "contentHash": "cf7ea37a442196197c405de0cebd2004baac192465c9465e2f5f91d1049572ea",
+      "functions": [
+        {
+          "name": "getDefaultOutputDir",
+          "params": [],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "loadApiConfig",
+          "params": [],
+          "exported": false,
+          "lineCount": 19
+        },
+        {
+          "name": "saveApiConfig",
+          "params": [
+            "config"
+          ],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "termLog",
+          "params": [
+            "msg"
+          ],
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "decodeBuffer",
+          "params": [
+            "buf"
+          ],
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "createWindow",
+          "params": [],
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "sendProgress",
+          "params": [
+            "step",
+            "status",
+            "progress",
+            "message"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "sendDone",
+          "params": [
+            "data"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "sendError",
+          "params": [
+            "data"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "parseExtractProgress",
+          "params": [
+            "line"
+          ],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "parseScoreProgress",
+          "params": [
+            "line"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "parseExportProgress",
+          "params": [
+            "line"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "runScript",
+          "params": [
+            "scriptName",
+            "args",
+            "step",
+            "parseFn"
+          ],
+          "exported": false,
+          "lineCount": 63
+        },
+        {
+          "name": "callClaudeAPI",
+          "params": [
+            "prompt"
+          ],
+          "exported": false,
+          "lineCount": 128
+        },
+        {
+          "name": "sleep",
+          "params": [
+            "ms"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "chunkArray",
+          "params": [
+            "arr",
+            "size"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "doAiScoring",
+          "params": [],
+          "exported": false,
+          "lineCount": 151
+        },
+        {
+          "name": "runPipeline",
+          "params": [
+            "count"
+          ],
+          "exported": false,
+          "lineCount": 88
+        },
+        {
+          "name": "registerIPC",
+          "params": [],
+          "exported": false,
+          "lineCount": 65
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "electron",
+          "specifiers": [
+            "app",
+            "BrowserWindow",
+            "ipcMain",
+            "shell",
+            "dialog"
+          ]
+        },
+        {
+          "source": "node:child_process",
+          "specifiers": [
+            "fork"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "resolve",
+            "dirname"
+          ]
+        },
+        {
+          "source": "node:url",
+          "specifiers": [
+            "fileURLToPath"
+          ]
+        },
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "mkdirSync",
+            "existsSync",
+            "readFileSync",
+            "writeFileSync",
+            "readdirSync",
+            "renameSync"
+          ]
+        },
+        {
+          "source": "iconv-lite",
+          "specifiers": [
+            "iconv"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 688,
+      "hasStructuralAnalysis": true
+    },
+    "electron/preload.js": {
+      "filePath": "electron/preload.js",
+      "contentHash": "859084a66b49d3942f59404b126b7eb0ab28e7b67b6d2f81ace24bb16c49e64c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 33,
+      "hasStructuralAnalysis": true
+    },
+    "electron/renderer/index.html": {
+      "filePath": "electron/renderer/index.html",
+      "contentHash": "96d99f2ccfa61e8c25987643903387e8da243c8dbfd3405f21cc59d67ef4ed32",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 146,
+      "hasStructuralAnalysis": false
+    },
+    "electron/renderer/renderer.js": {
+      "filePath": "electron/renderer/renderer.js",
+      "contentHash": "de8f39f94b3256edebaa088a36411e8ec4364cf4707e84f9d4646124b8fd8567",
+      "functions": [
+        {
+          "name": "registerCleanup",
+          "params": [
+            "fn"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "cleanupAll",
+          "params": [],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "showState",
+          "params": [
+            "stateId"
+          ],
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "resetSteps",
+          "params": [],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "handleProgress",
+          "params": [
+            "data"
+          ],
+          "exported": false,
+          "lineCount": 24
+        },
+        {
+          "name": "setupListeners",
+          "params": [],
+          "exported": false,
+          "lineCount": 27
+        },
+        {
+          "name": "loadApiConfig",
+          "params": [],
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "updateConfigStatus",
+          "params": [],
+          "exported": false,
+          "lineCount": 21
+        },
+        {
+          "name": "init",
+          "params": [],
+          "exported": false,
+          "lineCount": 12
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 317,
+      "hasStructuralAnalysis": true
+    },
+    "electron/renderer/style.css": {
+      "filePath": "electron/renderer/style.css",
+      "contentHash": "734f02ee4d5a0f9fbdf56a96be474338c0ffcdb20b1ebaf55d2e7cf11bb29b3c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 372,
+      "hasStructuralAnalysis": false
+    },
+    "package.json": {
+      "filePath": "package.json",
+      "contentHash": "e8cc63d2373c9028a484cc9dfeb6298334910d0ab938788633d77962cbcd0d48",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 29,
+      "hasStructuralAnalysis": true
+    },
+    "references/cdp-api.md": {
+      "filePath": "references/cdp-api.md",
+      "contentHash": "9c57626025b3acc74fd63d4a061c600efd1abd3bf9987ada9d9b7d0db4a958a3",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 107,
+      "hasStructuralAnalysis": true
+    },
+    "references/site-patterns/.gitkeep": {
+      "filePath": "references/site-patterns/.gitkeep",
+      "contentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": false
+    },
+    "references/site-patterns/zhipin.com.md": {
+      "filePath": "references/site-patterns/zhipin.com.md",
+      "contentHash": "c3e136fa17571f2513495228078000f3c6e8cb244353fb6272343324c8b111ab",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 528,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/build-trial.mjs": {
+      "filePath": "scripts/build-trial.mjs",
+      "contentHash": "c5087a9edefe25c4fd8e9c327ce275f7fb2fbb665514891bc52521d08845d4e6",
+      "functions": [
+        {
+          "name": "copy",
+          "params": [
+            "src",
+            "dst"
+          ],
+          "exported": false,
+          "lineCount": 10
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "cpSync",
+            "mkdirSync",
+            "rmSync",
+            "existsSync",
+            "writeFileSync",
+            "unlinkSync"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "resolve"
+          ]
+        },
+        {
+          "source": "node:child_process",
+          "specifiers": [
+            "execSync"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 64,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/cdp-proxy.mjs": {
+      "filePath": "scripts/cdp-proxy.mjs",
+      "contentHash": "ffa6ce4d4625f39b011cddbea1f920086ee3b75ce52e5f7232357ff7c6565662",
+      "functions": [
+        {
+          "name": "discoverChromePort",
+          "params": [],
+          "exported": false,
+          "lineCount": 56
+        },
+        {
+          "name": "checkPort",
+          "params": [
+            "port"
+          ],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "getWebSocketUrl",
+          "params": [
+            "port",
+            "wsPath"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "connect",
+          "params": [],
+          "exported": false,
+          "lineCount": 87
+        },
+        {
+          "name": "sendCDP",
+          "params": [
+            "method"
+          ],
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "ensureSession",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "enablePortGuard",
+          "params": [
+            "sessionId"
+          ],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "waitForLoad",
+          "params": [
+            "sessionId"
+          ],
+          "exported": false,
+          "lineCount": 28
+        },
+        {
+          "name": "readBody",
+          "params": [
+            "req"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "checkPortAvailable",
+          "params": [
+            "port"
+          ],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 28
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:http",
+          "specifiers": [
+            "http"
+          ]
+        },
+        {
+          "source": "node:url",
+          "specifiers": [
+            "URL"
+          ]
+        },
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "fs"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "path"
+          ]
+        },
+        {
+          "source": "node:os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "node:net",
+          "specifiers": [
+            "net"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 631,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/check-deps.mjs": {
+      "filePath": "scripts/check-deps.mjs",
+      "contentHash": "204f38c1571ba1e04000d5516f98fc761984380240938a629982ec6b8877b162",
+      "functions": [
+        {
+          "name": "checkNode",
+          "params": [],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "checkPort",
+          "params": [
+            "port"
+          ],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "activePortFiles",
+          "params": [],
+          "exported": false,
+          "lineCount": 24
+        },
+        {
+          "name": "detectChromePort",
+          "params": [],
+          "exported": false,
+          "lineCount": 19
+        },
+        {
+          "name": "httpGetJson",
+          "params": [
+            "url"
+          ],
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "startProxyDetached",
+          "params": [],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "ensureProxy",
+          "params": [],
+          "exported": false,
+          "lineCount": 33
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 27
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:child_process",
+          "specifiers": [
+            "spawn"
+          ]
+        },
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "fs"
+          ]
+        },
+        {
+          "source": "node:net",
+          "specifiers": [
+            "net"
+          ]
+        },
+        {
+          "source": "node:os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "path"
+          ]
+        },
+        {
+          "source": "node:url",
+          "specifiers": [
+            "fileURLToPath"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 172,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/clean-resume-text.mjs": {
+      "filePath": "scripts/clean-resume-text.mjs",
+      "contentHash": "9574730af8a8f6ff51c68d0c75f9d304e509fb5ae829e50dcb1b3983097cbe49",
+      "functions": [
+        {
+          "name": "cleanOcrText",
+          "params": [
+            "raw"
+          ],
+          "exported": true,
+          "lineCount": 50
+        },
+        {
+          "name": "parseArgs",
+          "params": [],
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 28
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "readFileSync",
+            "writeFileSync"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "resolve"
+          ]
+        }
+      ],
+      "exports": [
+        "cleanOcrText"
+      ],
+      "totalLines": 130,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/collect-agent-results.mjs": {
+      "filePath": "scripts/collect-agent-results.mjs",
+      "contentHash": "24f81119b2ed7b4598b7fc34a91618bc80a6e2b9f9a276c79cba6346cd55fd59",
+      "functions": [
+        {
+          "name": "parseArgs",
+          "params": [],
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "extractJsonBetweenMarkers",
+          "params": [
+            "content"
+          ],
+          "exported": false,
+          "lineCount": 23
+        },
+        {
+          "name": "validateStructure",
+          "params": [
+            "data"
+          ],
+          "exported": false,
+          "lineCount": 41
+        },
+        {
+          "name": "writeOutput",
+          "params": [
+            "outputPath",
+            "data"
+          ],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 55
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "fs",
+          "specifiers": [
+            "fs"
+          ]
+        },
+        {
+          "source": "path",
+          "specifiers": [
+            "path"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 181,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/export-candidates.mjs": {
+      "filePath": "scripts/export-candidates.mjs",
+      "contentHash": "5b65d263564c211abc2d53c03f86e35429fa7bf75ae6812ac3034d7f668caa1d",
+      "functions": [
+        {
+          "name": "parseArgs",
+          "params": [],
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "toAiRating",
+          "params": [
+            "candidate"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "transformCandidates",
+          "params": [
+            "candidates",
+            "fields"
+          ],
+          "exported": true,
+          "lineCount": 14
+        },
+        {
+          "name": "buildGroupedExportData",
+          "params": [
+            "candidates",
+            "fields"
+          ],
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "applyGroupHeaderStyle",
+          "params": [
+            "ws",
+            "lastCol",
+            "groupLabel",
+            "fillColor"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "createStyledSheet",
+          "params": [
+            "wb",
+            "sheetName",
+            "groupData",
+            "fields"
+          ],
+          "exported": false,
+          "lineCount": 141
+        },
+        {
+          "name": "safeSheetName",
+          "params": [
+            "name"
+          ],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 78
+        },
+        {
+          "name": "sendEmailAfterExport",
+          "params": [
+            "opts",
+            "excelPath"
+          ],
+          "exported": false,
+          "lineCount": 18
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "readFileSync",
+            "mkdirSync",
+            "existsSync"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "dirname",
+            "resolve"
+          ]
+        },
+        {
+          "source": "node:url",
+          "specifiers": [
+            "fileURLToPath"
+          ]
+        },
+        {
+          "source": "exceljs",
+          "specifiers": [
+            "ExcelJS"
+          ]
+        }
+      ],
+      "exports": [
+        "FIELD_CONFIG",
+        "DEFAULT_FIELDS",
+        "transformCandidates",
+        "buildGroupedExportData",
+        "safeSheetName",
+        "toAiRating"
+      ],
+      "totalLines": 490,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/extract-candidates-full.mjs": {
+      "filePath": "scripts/extract-candidates-full.mjs",
+      "contentHash": "2efe7f41b7dd6b66ee7428e1fc5a590549fbf83800dbb517f3b8a010f5cedc9f",
+      "functions": [
+        {
+          "name": "parseArgs",
+          "params": [],
+          "exported": false,
+          "lineCount": 34
+        },
+        {
+          "name": "proxyGet",
+          "params": [
+            "path"
+          ],
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "proxyPost",
+          "params": [
+            "path",
+            "data"
+          ],
+          "exported": false,
+          "lineCount": 21
+        },
+        {
+          "name": "sleep",
+          "params": [
+            "ms"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "reportStats",
+          "params": [],
+          "exported": false,
+          "lineCount": 28
+        },
+        {
+          "name": "randomDelay",
+          "params": [
+            "minMs",
+            "maxMs"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "cdpEval",
+          "params": [
+            "targetId",
+            "expr"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "cdpScreenshot",
+          "params": [
+            "targetId",
+            "filePath",
+            "clip"
+          ],
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "waitForCandidateList",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "readVisibleGeekItems",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 20
+        },
+        {
+          "name": "scrollListDown",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "scrollListUp",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "scrollListToTop",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "scanAllCandidateGeekIds",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 61
+        },
+        {
+          "name": "scanUpToCandidateGeekIds",
+          "params": [
+            "targetId",
+            "count"
+          ],
+          "exported": false,
+          "lineCount": 64
+        },
+        {
+          "name": "clickCandidateByGeekId",
+          "params": [
+            "targetId",
+            "geekId"
+          ],
+          "exported": false,
+          "lineCount": 58
+        },
+        {
+          "name": "extractJobDescription",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 50
+        },
+        {
+          "name": "clickOnlineResume",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 69
+        },
+        {
+          "name": "getDialogClip",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 40
+        },
+        {
+          "name": "getResumeScrollInfo",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 100
+        },
+        {
+          "name": "scrollResume",
+          "params": [
+            "targetId",
+            "scrollTop"
+          ],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "closeBossPopup",
+          "params": [
+            "targetId",
+            "popupSelector"
+          ],
+          "exported": false,
+          "lineCount": 66
+        },
+        {
+          "name": "closeResumeDialog",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "captureResumeScreenshots",
+          "params": [
+            "targetId",
+            "safename",
+            "tempDir"
+          ],
+          "exported": false,
+          "lineCount": 71
+        },
+        {
+          "name": "cleanOcrText",
+          "params": [
+            "raw"
+          ],
+          "exported": false,
+          "lineCount": 52
+        },
+        {
+          "name": "dedupePages",
+          "params": [
+            "pages"
+          ],
+          "exported": false,
+          "lineCount": 31
+        },
+        {
+          "name": "ocrScreenshots",
+          "params": [
+            "screenshots",
+            "worker"
+          ],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "safeName",
+          "params": [
+            "name"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "getScanCachePath",
+          "params": [
+            "outputPath"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "getProgressPath",
+          "params": [
+            "outputPath"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "saveScanCache",
+          "params": [
+            "candidateList",
+            "outputPath"
+          ],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "loadScanCache",
+          "params": [
+            "outputPath"
+          ],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "saveProgress",
+          "params": [
+            "processedGeekIds",
+            "candidates",
+            "outputPath"
+          ],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "loadProgress",
+          "params": [
+            "outputPath"
+          ],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "cleanupCacheFiles",
+          "params": [
+            "outputPath"
+          ],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "archiveOldOutput",
+          "params": [
+            "outputDir",
+            "isResume"
+          ],
+          "exported": false,
+          "lineCount": 25
+        },
+        {
+          "name": "ensureUnreadFilter",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 43
+        },
+        {
+          "name": "doCleanup",
+          "params": [],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 339
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "readFileSync",
+            "writeFileSync",
+            "mkdirSync",
+            "existsSync",
+            "unlinkSync",
+            "readdirSync",
+            "renameSync"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "resolve",
+            "dirname"
+          ]
+        },
+        {
+          "source": "node:url",
+          "specifiers": [
+            "fileURLToPath"
+          ]
+        },
+        {
+          "source": "node:http",
+          "specifiers": [
+            "http"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 1578,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/fetch-resumes.mjs": {
+      "filePath": "scripts/fetch-resumes.mjs",
+      "contentHash": "b1bf8e6f907b6aae3ccd79a63555c76eef2a88c752c7fe5d811599be73341ff6",
+      "functions": [
+        {
+          "name": "parseArgs",
+          "params": [],
+          "exported": false,
+          "lineCount": 17
+        },
+        {
+          "name": "proxyGet",
+          "params": [
+            "path"
+          ],
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "proxyPost",
+          "params": [
+            "path",
+            "data"
+          ],
+          "exported": false,
+          "lineCount": 21
+        },
+        {
+          "name": "sleep",
+          "params": [
+            "ms"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "randomDelay",
+          "params": [
+            "minMs",
+            "maxMs"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "cdpEval",
+          "params": [
+            "targetId",
+            "expr"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "cdpScreenshot",
+          "params": [
+            "targetId",
+            "filePath",
+            "clip"
+          ],
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "waitForCandidateList",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "scrollToCandidate",
+          "params": [
+            "targetId",
+            "index"
+          ],
+          "exported": false,
+          "lineCount": 23
+        },
+        {
+          "name": "clickCandidate",
+          "params": [
+            "targetId",
+            "index"
+          ],
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "clickOnlineResume",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 24
+        },
+        {
+          "name": "getDialogClip",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "extractResumeNameFromDialog",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "getResumeScrollInfo",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "probeRealScrollHeight",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 36
+        },
+        {
+          "name": "scrollResume",
+          "params": [
+            "targetId",
+            "scrollTop"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "closeResumeDialog",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "captureResumeScreenshots",
+          "params": [
+            "targetId",
+            "candidateName",
+            "index",
+            "tempDir"
+          ],
+          "exported": false,
+          "lineCount": 33
+        },
+        {
+          "name": "ocrScreenshots",
+          "params": [
+            "screenshots",
+            "worker"
+          ],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "safeName",
+          "params": [
+            "name"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 148
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "readFileSync",
+            "writeFileSync",
+            "mkdirSync",
+            "existsSync"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "resolve",
+            "dirname"
+          ]
+        },
+        {
+          "source": "node:url",
+          "specifiers": [
+            "fileURLToPath"
+          ]
+        },
+        {
+          "source": "node:http",
+          "specifiers": [
+            "http"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 501,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/find-url.mjs": {
+      "filePath": "scripts/find-url.mjs",
+      "contentHash": "460090f88081d531a004135a2801f26243ccbb50d98d8202f47fee9163d1653d",
+      "functions": [
+        {
+          "name": "parseArgs",
+          "params": [
+            "argv"
+          ],
+          "exported": false,
+          "lineCount": 17
+        },
+        {
+          "name": "parseSince",
+          "params": [
+            "s"
+          ],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "die",
+          "params": [
+            "msg"
+          ],
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "printUsage",
+          "params": [],
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "getChromeDataDir",
+          "params": [],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "listProfiles",
+          "params": [
+            "dataDir"
+          ],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "searchBookmarks",
+          "params": [
+            "profileDir",
+            "profileName",
+            "keywords"
+          ],
+          "exported": false,
+          "lineCount": 25
+        },
+        {
+          "name": "searchHistory",
+          "params": [
+            "profileDir",
+            "profileName",
+            "keywords",
+            "since",
+            "limit",
+            "sort"
+          ],
+          "exported": false,
+          "lineCount": 37
+        },
+        {
+          "name": "clean",
+          "params": [],
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "printBookmarks",
+          "params": [
+            "items",
+            "multiProfile"
+          ],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "printHistory",
+          "params": [
+            "items",
+            "multiProfile",
+            "sortLabel"
+          ],
+          "exported": false,
+          "lineCount": 9
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "fs"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "path"
+          ]
+        },
+        {
+          "source": "node:os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "node:child_process",
+          "specifiers": [
+            "execFileSync"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 215,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/make-ico.mjs": {
+      "filePath": "scripts/make-ico.mjs",
+      "contentHash": "738479e4f7ecff37a70f9e662509902f1189f4427365b8d6324482e22d46b105",
+      "functions": [
+        {
+          "name": "createBmpEntry",
+          "params": [
+            "rgba",
+            "w",
+            "h"
+          ],
+          "exported": false,
+          "lineCount": 26
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 45
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:path",
+          "specifiers": [
+            "resolve",
+            "dirname"
+          ]
+        },
+        {
+          "source": "node:url",
+          "specifiers": [
+            "fileURLToPath"
+          ]
+        },
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "writeFileSync"
+          ]
+        },
+        {
+          "source": "sharp",
+          "specifiers": [
+            "sharp"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 93,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/match-site.mjs": {
+      "filePath": "scripts/match-site.mjs",
+      "contentHash": "75a5bd66db947dc7cb894f2c14ba04845fca832d22ca664edd8e471eb72125c1",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "fs"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "path"
+          ]
+        },
+        {
+          "source": "node:url",
+          "specifiers": [
+            "fileURLToPath"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 47,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/merge-scores.mjs": {
+      "filePath": "scripts/merge-scores.mjs",
+      "contentHash": "e083fc2cacbcf47069dfefcc6216960167bb055fb6a9c2af63134e7ce4244ebf",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "fs",
+          "specifiers": [
+            "readFileSync",
+            "writeFileSync"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 72,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/open-candidate.mjs": {
+      "filePath": "scripts/open-candidate.mjs",
+      "contentHash": "e61e116a15d859ff3f82df0a09f4d634d0d1df552220596696e772c25300d0d2",
+      "functions": [
+        {
+          "name": "parseArgs",
+          "params": [],
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "proxyGet",
+          "params": [
+            "path"
+          ],
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "proxyPost",
+          "params": [
+            "path",
+            "data"
+          ],
+          "exported": false,
+          "lineCount": 21
+        },
+        {
+          "name": "sleep",
+          "params": [
+            "ms"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "randomDelay",
+          "params": [
+            "minMs",
+            "maxMs"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "cdpEval",
+          "params": [
+            "targetId",
+            "expr"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "waitForCandidateList",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "readVisibleGeekItems",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 20
+        },
+        {
+          "name": "scrollListDown",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "scrollListUp",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "scrollListToTop",
+          "params": [
+            "targetId"
+          ],
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "clickCandidateByGeekId",
+          "params": [
+            "targetId",
+            "geekId"
+          ],
+          "exported": false,
+          "lineCount": 56
+        },
+        {
+          "name": "findCandidateByName",
+          "params": [
+            "targetId",
+            "name"
+          ],
+          "exported": false,
+          "lineCount": 27
+        },
+        {
+          "name": "findOrCreateChatTab",
+          "params": [],
+          "exported": false,
+          "lineCount": 23
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 63
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:http",
+          "specifiers": [
+            "http"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 339,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/process-icon.mjs": {
+      "filePath": "scripts/process-icon.mjs",
+      "contentHash": "11fa68e2acad5b3d2969de38626f9bcc73187dabb28983c34cfd80ceec6f5cb6",
+      "functions": [
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 22
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "sharp",
+          "specifiers": [
+            "sharp"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "resolve",
+            "dirname"
+          ]
+        },
+        {
+          "source": "node:url",
+          "specifiers": [
+            "fileURLToPath"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 45,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/score-candidates.mjs": {
+      "filePath": "scripts/score-candidates.mjs",
+      "contentHash": "07d2841edb976974151b0ccc1a25dddbdcb8b047b4b73da8d5083028417f1804",
+      "functions": [
+        {
+          "name": "parseArgs",
+          "params": [],
+          "exported": true,
+          "lineCount": 24
+        },
+        {
+          "name": "educationRank",
+          "params": [
+            "value"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "calcEducationScore",
+          "params": [
+            "education"
+          ],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "calcWorkYearsScore",
+          "params": [
+            "workYearsStr"
+          ],
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "resolveEducationFromRaw",
+          "params": [
+            "rawVisibleText"
+          ],
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "resolveWorkYearsFromRaw",
+          "params": [
+            "rawVisibleText"
+          ],
+          "exported": true,
+          "lineCount": 29
+        },
+        {
+          "name": "getFieldValue",
+          "params": [
+            "obj",
+            "path"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "getFieldValues",
+          "params": [
+            "obj",
+            "path"
+          ],
+          "exported": true,
+          "lineCount": 23
+        },
+        {
+          "name": "resolveField",
+          "params": [
+            "candidate",
+            "fieldPath"
+          ],
+          "exported": true,
+          "lineCount": 31
+        },
+        {
+          "name": "parseWorkYears",
+          "params": [
+            "value"
+          ],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "compareValues",
+          "params": [
+            "actual",
+            "operator",
+            "expected",
+            "flags"
+          ],
+          "exported": true,
+          "lineCount": 52
+        },
+        {
+          "name": "compareOrdered",
+          "params": [
+            "actual",
+            "expected"
+          ],
+          "exported": true,
+          "lineCount": 18
+        },
+        {
+          "name": "getRecommendationLevel",
+          "params": [
+            "score"
+          ],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "scoreCandidate",
+          "params": [
+            "candidate",
+            "rules"
+          ],
+          "exported": true,
+          "lineCount": 111
+        },
+        {
+          "name": "scoreCandidateDefault",
+          "params": [
+            "candidate"
+          ],
+          "exported": true,
+          "lineCount": 29
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 64
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "readFileSync",
+            "writeFileSync",
+            "mkdirSync"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "dirname",
+            "resolve"
+          ]
+        }
+      ],
+      "exports": [
+        "parseArgs",
+        "educationRank",
+        "parseWorkYears",
+        "resolveEducationFromRaw",
+        "resolveWorkYearsFromRaw",
+        "getFieldValue",
+        "getFieldValues",
+        "resolveField",
+        "compareValues",
+        "compareOrdered",
+        "getRecommendationLevel",
+        "scoreCandidate",
+        "scoreCandidateDefault",
+        "calcEducationScore",
+        "calcWorkYearsScore",
+        "EDUCATION_ORDER",
+        "EDUCATION_SCORES"
+      ],
+      "totalLines": 502,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/send-candidates-email.mjs": {
+      "filePath": "scripts/send-candidates-email.mjs",
+      "contentHash": "9960e8304fa2bbb38a2d97c748a9711ad2240d41011e77b6b3170eeadc7e4d36",
+      "functions": [
+        {
+          "name": "fail",
+          "params": [
+            "message"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "parseArgs",
+          "params": [],
+          "exported": true,
+          "lineCount": 28
+        },
+        {
+          "name": "buildRecipient",
+          "params": [
+            "prefix"
+          ],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "readSmtpConfig",
+          "params": [],
+          "exported": true,
+          "lineCount": 33
+        },
+        {
+          "name": "validateAttachment",
+          "params": [
+            "attachmentPath"
+          ],
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "buildMailOptions",
+          "params": [],
+          "exported": true,
+          "lineCount": 14
+        },
+        {
+          "name": "sendCandidateEmail",
+          "params": [],
+          "exported": true,
+          "lineCount": 36
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 6
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "existsSync",
+            "statSync"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "basename",
+            "resolve"
+          ]
+        },
+        {
+          "source": "node:url",
+          "specifiers": [
+            "fileURLToPath"
+          ]
+        },
+        {
+          "source": "nodemailer",
+          "specifiers": [
+            "nodemailer"
+          ]
+        }
+      ],
+      "exports": [
+        "parseArgs",
+        "buildRecipient",
+        "readSmtpConfig",
+        "validateAttachment",
+        "buildMailOptions",
+        "sendCandidateEmail"
+      ],
+      "totalLines": 168,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/send-candidates-email.test.mjs": {
+      "filePath": "scripts/send-candidates-email.test.mjs",
+      "contentHash": "988d651bb89cf93bb5c19c43cc4e66d846313828e757bbf60b1db415dd6e7a56",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:test",
+          "specifiers": [
+            "test"
+          ]
+        },
+        {
+          "source": "node:assert/strict",
+          "specifiers": [
+            "assert"
+          ]
+        },
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "mkdtempSync",
+            "writeFileSync",
+            "rmSync"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "join"
+          ]
+        },
+        {
+          "source": "node:os",
+          "specifiers": [
+            "tmpdir"
+          ]
+        },
+        {
+          "source": "./send-candidates-email.mjs",
+          "specifiers": [
+            "buildRecipient",
+            "readSmtpConfig",
+            "validateAttachment",
+            "buildMailOptions",
+            "sendCandidateEmail"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 120,
+      "hasStructuralAnalysis": true
+    },
+    "SKILL.md": {
+      "filePath": "SKILL.md",
+      "contentHash": "84ecdb6773fe7f332822dd72c7e4a3418d6e0de71ec9ef731146373132a793b2",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 484,
+      "hasStructuralAnalysis": true
+    },
+    "weidu.txt": {
+      "filePath": "weidu.txt",
+      "contentHash": "9192064903b0f64a6d65facce8bf970132435d9e6031e2de10b88b2557bc3bd3",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 17,
+      "hasStructuralAnalysis": false
+    }
+  }
+}

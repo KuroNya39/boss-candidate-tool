@@ -1,6 +1,6 @@
 {
   "name": "web-access",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "Web access and candidate management tools",
   "main": "electron/main.mjs",
@@ -12,6 +12,7 @@
     "pack": "node build.mjs"
   },
   "dependencies": {
+    "buffer": "^5.5.0",
     "core-util-is": "^1.0.3",
     "exceljs": "^4.4.0",
     "iconv-lite": "^0.7.2",
@@ -24,6 +25,7 @@
     "electron-builder": "^26.8.1",
     "png-to-ico": "^3.0.1",
     "rcedit": "^5.0.2",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "unzipper": "^0.12.5"
   }
 }

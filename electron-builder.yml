@@ -16,6 +16,7 @@ files:
   - "!node_modules/png-to-ico/**"
   - "!**/*.map"
   - "!**/*.md"
+  - config/scoretext.md
   - app_icon_rounded.png
   - ocr-lang/**/*
 asarUnpack:

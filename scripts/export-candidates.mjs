@@ -34,7 +34,7 @@ function parseArgs() {
 // ===== 字段配置 =====
 function toAiRating(candidate) {
   const score = candidate.totalScore ?? candidate.score ?? 0;
-  const count = score >= 86 ? 5 : score >= 72 ? 4 : score >= 58 ? 3 : score >= 42 ? 2 : 1;
+  const count = score >= 91 ? 5 : score >= 81 ? 4 : score >= 61 ? 3 : score >= 31 ? 2 : 1;
   return '★'.repeat(count);
 }
 
@@ -82,7 +82,15 @@ const FIELD_CONFIG = {
   },
   eduDegree: {
     header: '学历',
-    extract: (c, rowIdx) => c.educationExperience?.[rowIdx]?.degree || '',
+    extract: (c, rowIdx) => {
+      const degree = c.educationExperience?.[rowIdx]?.degree;
+      if (degree) return degree;
+      // 后备：educationExperience 为空时在第1行显示最高学历
+      if (rowIdx === 0 && (!c.educationExperience || c.educationExperience.length === 0)) {
+        return c.basicInfo?.education || '';
+      }
+      return '';
+    },
   },
   educationScore: {
     header: '学历分',
@@ -647,7 +655,7 @@ async function sendEmailAfterExport(opts, excelPath) {
 }
 
 // 只在直接执行时运行主流程
-const isMainModule = process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'));
+const isMainModule = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
 if (isMainModule) {
   main().catch(err => {
     console.error(`导出失败: ${err.message}`);

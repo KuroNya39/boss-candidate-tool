@@ -2,6 +2,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // ===== CLI 参数解析 =====
 function parseArgs() {
@@ -393,7 +394,7 @@ function main() {
 }
 
 // 只在直接执行时运行主流程（import 时不运行）
-const isMainModule = process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'));
+const isMainModule = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
 if (isMainModule) {
   main();
 }

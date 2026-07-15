@@ -1,0 +1,10 @@
+{
+  "name": "web-access",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Web access and candidate management tools",
+  "dependencies": {
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5"
+  }
+}

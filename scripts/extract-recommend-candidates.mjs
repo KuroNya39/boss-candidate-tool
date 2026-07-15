@@ -664,67 +664,40 @@ async function getRecommendDialogClip(targetId) {
 
 /**
  * 获取推荐牛人页简历弹窗的滚动信息
- * 弹窗内简历通过 iframe + Canvas 渲染，滚动容器不同
+ * 扫描弹窗内所有元素，找到真正可滚动的容器（不依赖特定 class 名）
  */
 async function getRecommendResumeScrollInfo(targetId) {
   const info = await iframeEval(targetId, `(function(){
     var dialog = document.querySelector('.dialog-wrap.active');
     if (!dialog) return {error: 'no dialog'};
 
-    var resumeWrap = dialog.querySelector('.resume-detail-wrap');
-    var iframe = dialog.querySelector('.resume-detail-wrap iframe');
+    // 扫描所有子元素，找 scrollHeight > clientHeight 的
+    var all = dialog.querySelectorAll('*');
+    var best = null;
+    var bestDiff = 0;
 
-    if (resumeWrap && iframe) {
-      var wrapScrollHeight = resumeWrap.scrollHeight;
-      var wrapClientHeight = resumeWrap.clientHeight;
-
-      // 尝试穿透 iframe 获取内容高度
-      try {
-        var idoc = iframe.contentDocument || iframe.contentWindow.document;
-        var resumeDiv = idoc.querySelector('#resume') || idoc.querySelector('div');
-        var canvas = idoc.querySelector('canvas');
-
-        if (resumeDiv && canvas) {
-          var divHeight = resumeDiv.offsetHeight;
-          // 简历内容可能在 iframe 内通过 translateY 滚动
-          // 但弹窗的滚动容器可能是 .resume-detail-wrap
-          return {
-            scrollHeight: Math.max(divHeight, wrapScrollHeight),
-            clientHeight: wrapClientHeight,
-            scrollTop: resumeWrap.scrollTop,
-            scrollTarget: 'resume-detail-wrap',
-            source: 'iframe',
-            canvasSize: canvas.width + 'x' + canvas.height,
-            heights: 'div=' + divHeight + ',wrap=' + wrapScrollHeight
-          };
-        }
-      } catch(e) {}
-
-      // iframe 不可穿透时用 wrap 自身滚动
-      if (wrapScrollHeight > wrapClientHeight) {
-        return {
-          scrollHeight: wrapScrollHeight,
-          clientHeight: wrapClientHeight,
-          scrollTop: resumeWrap.scrollTop,
-          scrollTarget: 'resume-detail-wrap',
-          source: 'wrap-scroll'
-        };
-      }
-
-      // iframe 本身
-      var iframeHeight = iframe.offsetHeight;
-      if (iframeHeight > wrapClientHeight) {
-        return {
-          scrollHeight: iframeHeight,
-          clientHeight: wrapClientHeight,
-          scrollTop: 0,
-          scrollTarget: 'resume-detail-wrap',
-          source: 'iframe-offset'
-        };
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      var sh = el.scrollHeight;
+      var ch = el.clientHeight;
+      var diff = sh - ch;
+      if (diff > 100 && diff > bestDiff) {
+        best = el;
+        bestDiff = diff;
       }
     }
 
-    // 兜底
+    if (best) {
+      return {
+        scrollHeight: best.scrollHeight,
+        clientHeight: best.clientHeight,
+        scrollTop: best.scrollTop,
+        scrollTarget: best.className || best.tagName,
+        source: 'scan'
+      };
+    }
+
+    // 兜底：用弹窗本身
     return {
       scrollHeight: dialog.scrollHeight,
       clientHeight: dialog.clientHeight,
@@ -738,17 +711,38 @@ async function getRecommendResumeScrollInfo(targetId) {
 
 /**
  * 滚动推荐牛人页的简历弹窗
+ * 扫描弹窗内所有元素，找到可滚动的容器并设 scrollTop
  */
 async function scrollRecommendResume(targetId, scrollTop) {
   await iframeEval(targetId, `(function(){
-    var wrap = document.querySelector('.dialog-wrap.active .resume-detail-wrap');
-    if (wrap) {
-      wrap.style.scrollBehavior = 'auto';
-      wrap.scrollTop = ${scrollTop};
+    var dialog = document.querySelector('.dialog-wrap.active');
+    if (!dialog) return;
+
+    // 扫描所有子元素，找到 scrollHeight > clientHeight 的
+    var all = dialog.querySelectorAll('*');
+    var best = null;
+    var bestDiff = 0;
+
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      var sh = el.scrollHeight;
+      var ch = el.clientHeight;
+      var diff = sh - ch;
+      if (diff > 100 && diff > bestDiff) {
+        best = el;
+        bestDiff = diff;
+      }
     }
+
+    // 如果没找到，用弹窗本身
+    if (!best) best = dialog;
+
+    best.style.scrollBehavior = 'auto';
+    best.scrollTop = ${scrollTop};
   })()`);
   await randomDelay(800, 1200);
 }
+
 
 /**
  * 关闭推荐牛人页的简历弹窗
@@ -762,17 +756,19 @@ async function closeRecommendDialog(targetId) {
 
   if (!exists) return true;
 
-  // 1. 按 Escape 键关闭（最通用，兼容各种弹窗结构）
+  // 1. 按 Escape 键关闭（keydown + keyup 兼容 React 等框架）
   await iframeEval(targetId, `(function(){
-    document.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'Escape', keyCode: 27, which: 27, bubbles: true, cancelable: true
-    }));
+    ['keydown','keyup'].forEach(function(type){
+      document.dispatchEvent(new KeyboardEvent(type, {
+        key: 'Escape', keyCode: 27, which: 27, bubbles: true, cancelable: true
+      }));
+    });
   })()`);
-  await randomDelay(500, 1000);
+  await randomDelay(1200, 1600);
 
   const afterEscape = await iframeEval(targetId, `(function(){
     var d = document.querySelector('.dialog-wrap.active');
-    return d ? true : false;
+    return d ? (d.offsetParent !== null) : false;
   })()`);
 
   if (!afterEscape) return true;
@@ -1126,8 +1122,17 @@ async function main() {
             await scrollRecommendResume(targetId, scrollTop);
 
             const actualScrollTop = await iframeEval(targetId, `(function(){
-              var wrap = document.querySelector('.dialog-wrap.active .resume-detail-wrap');
-              return wrap ? wrap.scrollTop : 0;
+              var dialog = document.querySelector('.dialog-wrap.active');
+              if (!dialog) return 0;
+              var all = dialog.querySelectorAll('*');
+              var bestTop = 0;
+              for (var i = 0; i < all.length; i++) {
+                var el = all[i];
+                if (el.scrollHeight > el.clientHeight && el.scrollTop > bestTop) {
+                  bestTop = el.scrollTop;
+                }
+              }
+              return bestTop;
             })()`);
             console.log(`    第${page + 1}页: 目标=${scrollTop}, 实际=${actualScrollTop}`);
 
