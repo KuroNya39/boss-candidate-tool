@@ -123,6 +123,20 @@ function setupInputClears() {
   });
 }
 
+// ===== Toast 通知 =====
+function showToast(message, type = 'info', duration = 3000) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + type;
+  el.textContent = message;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('toast-leaving');
+    setTimeout(() => el.remove(), 250);
+  }, duration);
+}
+
 // ===== 清理函数 =====
 let cleanupFns = [];
 
@@ -157,6 +171,9 @@ function resetSteps() {
   btnSkipExtract.style.display = 'none';
   btnSkipExtract.disabled = false;
   btnSkipExtract.textContent = '⏭ 跳过提取简历';
+  // 重置步骤指示器
+  const stepInd = document.getElementById('step-indicator');
+  if (stepInd) stepInd.textContent = '等待开始';
 }
 
 // ===== 步骤更新处理 =====
@@ -189,6 +206,22 @@ function handleProgress(data) {
   // 步骤1 运行时显示"跳过提取"按钮
   if (step === 1) {
     btnSkipExtract.style.display = status === 'running' ? '' : 'none';
+  }
+
+  // 更新全局进度指示器
+  const stepInd = document.getElementById('step-indicator');
+  if (stepInd) {
+    if (status === 'done') {
+      if (step < 3) {
+        stepInd.textContent = '等待下一步';
+      } else {
+        stepInd.textContent = '全部完成';
+      }
+    } else if (status === 'running') {
+      stepInd.textContent = '步骤 ' + step + '/3';
+    } else if (status === 'idle') {
+      stepInd.textContent = '步骤 ' + step + '/3';
+    }
   }
 }
 
@@ -461,25 +494,16 @@ btnClearHistory.addEventListener('click', async () => {
   try {
     const result = await window.electronAPI.clearHistory();
     if (result.error) {
-      alert('清理失败：' + result.error);
+      showToast('清理失败：' + result.error, 'error');
     } else {
-      let msg = '';
-      if (result.deleted > 0) {
-        msg += `已删除 ${result.deleted} 个历史文件夹。\n`;
-      }
-      if (result.errors > 0) {
-        msg += `${result.errors} 个删除失败（请查看终端日志）。\n`;
-      }
-      if (result.deleted === 0 && result.errors === 0) {
-        msg = '没有找到历史归档数据。';
-      }
-      if (result.matchedDirs?.length) {
-        msg += `\n匹配到的历史文件夹:\n${result.matchedDirs.join('\n')}`;
-      }
-      alert(msg.trim());
+      let parts = [];
+      if (result.deleted > 0) parts.push('已删除 ' + result.deleted + ' 个历史文件夹');
+      if (result.errors > 0) parts.push(result.errors + ' 个删除失败');
+      if (result.deleted === 0 && result.errors === 0) parts.push('没有找到历史归档数据');
+      showToast(parts.join('，'), result.errors > 0 ? 'error' : 'info', 4000);
     }
   } catch (err) {
-    alert('清理失败：' + err.message);
+    showToast('清理失败：' + err.message, 'error');
   } finally {
     btnClearHistory.disabled = false;
     btnClearHistory.textContent = '清空历史数据';
@@ -665,7 +689,7 @@ async function deleteJob(jobName) {
     if (selectedJob === jobName) selectedJob = '';
     await loadJobList();
   } catch (err) {
-    alert('删除失败: ' + err.message);
+    showToast('删除失败: ' + err.message, 'error');
   }
 }
 
@@ -698,7 +722,7 @@ btnDialogSave.addEventListener('click', async () => {
     await loadJobList();
     hideAddJobDialog();
   } catch (err) {
-    alert((editJobName ? '编辑' : '添加') + '失败: ' + err.message);
+    showToast((editJobName ? '编辑' : '添加') + '失败: ' + err.message, 'error');
   }
 });
 
