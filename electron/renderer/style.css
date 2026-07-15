@@ -1240,3 +1240,152 @@ header h1 {
 .btn-save:hover {
   background: #e2e8f0;
 }
+
+/* ===== Step Items ===== */
+.step-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.step-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.step-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.step-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--bg-page);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: all var(--transition-normal);
+}
+.step-item.active .step-number {
+  background: var(--gradient-primary);
+  color: #fff;
+}
+.step-item.done .step-number {
+  background: var(--color-success);
+  color: #fff;
+}
+.step-item-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  transition: color var(--transition-normal);
+}
+.step-item.waiting .step-item-title {
+  color: var(--text-muted);
+}
+.step-item-status {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.step-item.active .step-item-status {
+  color: #4f46e5;
+  font-weight: 500;
+}
+.step-item.done .step-item-status {
+  color: var(--color-success);
+}
+.step-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.progress-track {
+  flex: 1;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.step-item.active .progress-fill {
+  background: var(--gradient-primary);
+}
+.step-item.done .progress-fill {
+  background: var(--color-success);
+}
+.progress-pct {
+  font-size: 12px;
+  color: var(--text-muted);
+  width: 36px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.step-msg {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  min-height: 18px;
+}
+.step-divider {
+  height: 1px;
+  background: var(--border-card);
+}
+
+/* ===== Running Actions ===== */
+.running-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+/* ===== Skip Button ===== */
+.btn-skip {
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid #f59e0b;
+  border-radius: var(--radius-btn);
+  background: rgba(251,191,36,0.1);
+  color: #92400e;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  -webkit-app-region: no-drag;
+}
+.btn-skip:hover {
+  background: rgba(251,191,36,0.2);
+  border-color: #d97706;
+}
+.btn-skip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== Ghost Button ===== */
+.btn-ghost {
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  -webkit-app-region: no-drag;
+}
+.btn-ghost:hover {
+  background: #f1f5f9;
+  color: var(--text-primary);
+}

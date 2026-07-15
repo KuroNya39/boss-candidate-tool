@@ -142,44 +142,68 @@
 
     <!-- 执行中状态 -->
     <div id="state-running" class="state">
-      <div class="steps-container">
-        <div class="step-card" id="step-1">
-          <div class="step-header">
-            <span class="step-icon">1</span>
-            <span class="step-title">提取候选人信息</span>
-            <span class="step-status" id="step-1-status">等待中</span>
+      <div class="card">
+        <div class="card-title">执行进度</div>
+
+        <div class="step-item" id="step-1">
+          <div class="step-item-header">
+            <div class="step-item-left">
+              <span class="step-number">1</span>
+              <span class="step-item-title">提取候选人信息</span>
+            </div>
+            <span class="step-item-status" id="step-1-status">等待中</span>
           </div>
-          <div class="progress-bar-container">
-            <div class="progress-bar" id="step-1-bar"></div>
+          <div class="step-progress">
+            <div class="progress-track">
+              <div class="progress-fill" id="step-1-bar"></div>
+            </div>
+            <span class="progress-pct" id="step-1-pct"></span>
           </div>
-          <div class="step-message" id="step-1-msg"></div>
+          <div class="step-msg" id="step-1-msg"></div>
         </div>
-        <div class="step-card" id="step-2">
-          <div class="step-header">
-            <span class="step-icon">2</span>
-            <span class="step-title">AI 评分</span>
-            <span class="step-status" id="step-2-status">等待中</span>
+
+        <div class="step-divider"></div>
+
+        <div class="step-item" id="step-2">
+          <div class="step-item-header">
+            <div class="step-item-left">
+              <span class="step-number">2</span>
+              <span class="step-item-title">AI 评分</span>
+            </div>
+            <span class="step-item-status" id="step-2-status">等待中</span>
           </div>
-          <div class="progress-bar-container">
-            <div class="progress-bar" id="step-2-bar"></div>
+          <div class="step-progress">
+            <div class="progress-track">
+              <div class="progress-fill" id="step-2-bar"></div>
+            </div>
+            <span class="progress-pct" id="step-2-pct"></span>
           </div>
-          <div class="step-message" id="step-2-msg"></div>
+          <div class="step-msg" id="step-2-msg"></div>
         </div>
-        <div class="step-card" id="step-3">
-          <div class="step-header">
-            <span class="step-icon">3</span>
-            <span class="step-title">导出 Excel</span>
-            <span class="step-status" id="step-3-status">等待中</span>
+
+        <div class="step-divider"></div>
+
+        <div class="step-item" id="step-3">
+          <div class="step-item-header">
+            <div class="step-item-left">
+              <span class="step-number">3</span>
+              <span class="step-item-title">导出 Excel</span>
+            </div>
+            <span class="step-item-status" id="step-3-status">等待中</span>
           </div>
-          <div class="progress-bar-container">
-            <div class="progress-bar" id="step-3-bar"></div>
+          <div class="step-progress">
+            <div class="progress-track">
+              <div class="progress-fill" id="step-3-bar"></div>
+            </div>
+            <span class="progress-pct" id="step-3-pct"></span>
           </div>
-          <div class="step-message" id="step-3-msg"></div>
+          <div class="step-msg" id="step-3-msg"></div>
         </div>
-      </div>
-      <div class="running-actions">
-        <button id="btn-skip-extract" class="btn btn-warning" style="display:none;">⏭ 跳过提取简历，直接 AI 评分</button>
-        <button id="btn-cancel" class="btn btn-secondary">取消</button>
+
+        <div class="running-actions">
+          <button id="btn-skip-extract" class="btn-skip" style="display:none;">⏭ 跳过提取简历</button>
+          <button id="btn-cancel" class="btn-ghost">取消</button>
+        </div>
       </div>
     </div>
 
