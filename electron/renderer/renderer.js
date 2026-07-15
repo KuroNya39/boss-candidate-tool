@@ -7,10 +7,12 @@ const stateDone = document.getElementById('state-done');
 const stateError = document.getElementById('state-error');
 const btnStart = document.getElementById('btn-start');
 const btnCancel = document.getElementById('btn-cancel');
+const btnSkipExtract = document.getElementById('btn-skip-extract');
 const btnRestart = document.getElementById('btn-restart');
 const btnRetry = document.getElementById('btn-retry');
 const btnOpenDir = document.getElementById('btn-open-dir');
 const btnSelectDir = document.getElementById('btn-select-dir');
+const btnClearHistory = document.getElementById('btn-clear-history');
 const countInput = document.getElementById('count-input');
 const extractAllCheck = document.getElementById('extract-all');
 const extractAllSection = document.getElementById('extract-all-section');
@@ -27,13 +29,14 @@ const dialogJobHint = document.getElementById('dialog-job-hint');
 const btnDialogSave = document.getElementById('btn-dialog-save');
 const btnDialogCancel = document.getElementById('btn-dialog-cancel');
 const recommendHint = document.getElementById('recommend-hint');
-const sourceRadios = document.querySelectorAll('input[name="source"]');
+const chatHint = document.getElementById('chat-hint');
 const doneSummary = document.getElementById('done-summary');
 const errorMessage = document.getElementById('error-message');
 
 // 岗位选择状态
 let selectedJob = '';
 let jobList = [];
+let selectedSource = 'chat'; // 当前选中的提取来源
 
 // 编辑岗位模式（非空时表示正在编辑已有岗位）
 let editJobName = '';
@@ -44,6 +47,9 @@ const apiKeyInput = document.getElementById('api-key');
 const apiModelInput = document.getElementById('api-model');
 const btnSaveConfig = document.getElementById('btn-save-config');
 const configStatus = document.getElementById('config-status');
+const apiConfigToggle = document.getElementById('api-config-toggle');
+const apiConfigBody = document.getElementById('api-config-body');
+const apiConfigArrow = document.getElementById('api-config-arrow');
 
 // 邮件配置 DOM
 const emailPrefixInput = document.getElementById('email-prefix');
@@ -59,23 +65,32 @@ const greetProgressBar = document.getElementById('greet-progress-bar');
 const greetProgressText = document.getElementById('greet-progress-text');
 const greetResult = document.getElementById('greet-result');
 
+// 自动打招呼 DOM
+const autoGreetCheck = document.getElementById('auto-greet-check');
+const autoGreetControls = document.getElementById('auto-greet-controls');
+const autoGreetLevel = document.getElementById('auto-greet-level');
+let autoGreetEnabled = false; // 本次分析是否自动打招呼
+
 // ===== 步骤元素 =====
 const stepCards = {
   1: {
     card: document.getElementById('step-1'),
     bar: document.getElementById('step-1-bar'),
+    pct: document.getElementById('step-1-pct'),
     msg: document.getElementById('step-1-msg'),
     status: document.getElementById('step-1-status'),
   },
   2: {
     card: document.getElementById('step-2'),
     bar: document.getElementById('step-2-bar'),
+    pct: document.getElementById('step-2-pct'),
     msg: document.getElementById('step-2-msg'),
     status: document.getElementById('step-2-status'),
   },
   3: {
     card: document.getElementById('step-3'),
     bar: document.getElementById('step-3-bar'),
+    pct: document.getElementById('step-3-pct'),
     msg: document.getElementById('step-3-msg'),
     status: document.getElementById('step-3-status'),
   },
@@ -132,11 +147,16 @@ function showState(stateId) {
 function resetSteps() {
   for (let i = 1; i <= 3; i++) {
     const s = stepCards[i];
-    s.card.className = 'step-card';
+    s.card.className = 'step-item waiting';
     s.bar.style.width = '0%';
+    if (s.pct) s.pct.textContent = '';
     s.msg.textContent = '';
     s.status.textContent = '等待中';
   }
+  // 重置跳过提取按钮
+  btnSkipExtract.style.display = 'none';
+  btnSkipExtract.disabled = false;
+  btnSkipExtract.textContent = '⏭ 跳过提取简历';
 }
 
 // ===== 步骤更新处理 =====
@@ -145,7 +165,7 @@ function handleProgress(data) {
   const s = stepCards[step];
   if (!s) return;
 
-  s.card.className = 'step-card';
+  s.card.className = 'step-item';
   if (status === 'running') {
     s.card.classList.add('active');
     s.status.textContent = '进行中...';
@@ -153,15 +173,22 @@ function handleProgress(data) {
     s.card.classList.add('done');
     s.status.textContent = '✓ 已完成';
   } else if (status === 'idle') {
+    s.card.classList.add('waiting');
     s.status.textContent = '';
   }
 
   if (progress !== null && progress !== undefined) {
     s.bar.style.width = Math.min(progress, 100) + '%';
+    if (s.pct) s.pct.textContent = Math.round(progress) + '%';
   }
 
   if (message) {
     s.msg.textContent = message;
+  }
+
+  // 步骤1 运行时显示"跳过提取"按钮
+  if (step === 1) {
+    btnSkipExtract.style.display = status === 'running' ? '' : 'none';
   }
 }
 
@@ -184,15 +211,35 @@ function setupListeners() {
       summary += `输出目录: ${data.outputDir}`;
       doneSummary.textContent = summary;
 
-      // 检查评分数据，显示批量打招呼
+      // 检查评分数据，显示批量打招呼（沟通页不做打招呼）
       resetGreetUI();
-      try {
-        const counts = await window.electronAPI.getGreetCandidateCounts();
-        if (counts.available) {
-          greetSection.style.display = '';
-          updateGreetCount(counts);
-        }
-      } catch {}
+      if (selectedSource !== 'chat') {
+        try {
+          const counts = await window.electronAPI.getGreetCandidateCounts();
+          if (counts.available) {
+            greetSection.style.display = '';
+            updateGreetCount(counts);
+
+            // 自动打招呼
+            if (autoGreetEnabled) {
+              const level = parseInt(autoGreetLevel.value, 10);
+              greetLevel.value = String(level);
+              updateGreetCount(counts);
+              // 延迟片刻让 UI 渲染完成，再自动开始
+              setTimeout(async () => {
+                btnStartGreet.style.display = 'none';
+                btnCancelGreet.style.display = 'none';
+                greetResult.style.display = 'none';
+                greetProgress.style.display = '';
+                greetProgressBar.style.width = '0%';
+                greetProgressText.textContent = '自动打招呼中...';
+                await window.electronAPI.startGreeting(level);
+                autoGreetEnabled = false;
+              }, 500);
+            }
+          }
+        } catch {}
+      }
     })
   );
 
@@ -206,7 +253,8 @@ function setupListeners() {
   // 打招呼事件
   registerCleanup(
     window.electronAPI.onGreetProgress((data) => {
-      greetProgressText.textContent = data.message;
+      // Fix: show "正在打招呼" instead of per-candidate status messages
+      greetProgressText.textContent = '正在打招呼中...';
     })
   );
 
@@ -221,6 +269,7 @@ function setupListeners() {
         (data.already > 0 ? `，${data.already} 人已打过招呼` : '') +
         (data.notFound > 0 ? `，${data.notFound} 人不在当前列表中` : '') +
         (data.skipped > 0 ? `，${data.skipped} 人跳过` : '');
+      autoGreetEnabled = false;
     })
   );
 
@@ -232,6 +281,7 @@ function setupListeners() {
       greetResult.style.display = '';
       greetResult.className = 'greet-result greet-result-error';
       greetResult.textContent = '❌ 打招呼失败: ' + data.message;
+      autoGreetEnabled = false;
     })
   );
 }
@@ -304,6 +354,13 @@ btnSaveConfig.addEventListener('click', async () => {
   }
 });
 
+// Collapsible API Config
+apiConfigToggle.addEventListener('click', () => {
+  const isHidden = apiConfigBody.style.display === 'none';
+  apiConfigBody.style.display = isHidden ? 'flex' : 'none';
+  apiConfigArrow.classList.toggle('expanded', isHidden);
+});
+
 // ===== 按钮事件 =====
 
 // 开始
@@ -316,24 +373,39 @@ btnStart.addEventListener('click', async () => {
   }
 
   // 获取选中的来源
-  const sourceRadios = document.querySelectorAll('input[name="source"]');
-  const selectedSource = Array.from(sourceRadios).find(r => r.checked)?.value || 'chat';
+  const activeToggle = document.querySelector('.toggle-btn.active');
+  selectedSource = activeToggle ? activeToggle.dataset.source : 'chat';
 
   resetSteps();
   showState('state-running');
-  await window.electronAPI.startExtraction({ count, extractAll, source: selectedSource, job: selectedJob });
+  autoGreetEnabled = autoGreetCheck.checked;
+  const greetLevel2 = parseInt(autoGreetLevel.value, 10);
+  await window.electronAPI.startExtraction({ count, extractAll, source: selectedSource, job: selectedJob, autoGreet: autoGreetEnabled, greetLevel: greetLevel2 });
 });
 
 // 取消
 btnCancel.addEventListener('click', async () => {
   await window.electronAPI.cancelExtraction();
   resetSteps();
+  syncAutoGreetUI();
   showState('state-initial');
+});
+
+// 跳过提取，直接评分
+btnSkipExtract.addEventListener('click', async () => {
+  if (!confirm('确定跳过剩余简历提取，用已提取的数据直接开始 AI 评分吗？')) return;
+  btnSkipExtract.disabled = true;
+  btnSkipExtract.textContent = '⏭ 正在跳过...';
+  const msgEl = stepCards[1].msg;
+  if (msgEl) msgEl.textContent = '正在停止提取，恢复已提取数据...';
+  await window.electronAPI.skipExtraction();
 });
 
 // 重新开始（完成状态）
 btnRestart.addEventListener('click', () => {
   resetSteps();
+  autoGreetEnabled = false;
+  syncAutoGreetUI();
   showState('state-initial');
 });
 
@@ -347,8 +419,8 @@ btnRetry.addEventListener('click', async () => {
   }
 
   // 获取选中的来源
-  const sourceRadios = document.querySelectorAll('input[name="source"]');
-  const selectedSource = Array.from(sourceRadios).find(r => r.checked)?.value || 'chat';
+  const activeToggle = document.querySelector('.toggle-btn.active');
+  selectedSource = activeToggle ? activeToggle.dataset.source : 'chat';
 
   resetSteps();
   showState('state-running');
@@ -376,6 +448,41 @@ btnSelectDir.addEventListener('click', async () => {
   const result = await window.electronAPI.selectOutputDir();
   if (result?.path) {
     outputDirSpan.textContent = result.path;
+  }
+});
+
+// 清空历史归档数据
+btnClearHistory.addEventListener('click', async () => {
+  if (!confirm('确定要删除所有历史归档数据吗？\n\n此操作将删除输出目录下所有 output-YYYYMMDD-HHMM 格式的历史文件夹，不可恢复。')) {
+    return;
+  }
+  btnClearHistory.disabled = true;
+  btnClearHistory.textContent = '清理中...';
+  try {
+    const result = await window.electronAPI.clearHistory();
+    if (result.error) {
+      alert('清理失败：' + result.error);
+    } else {
+      let msg = '';
+      if (result.deleted > 0) {
+        msg += `已删除 ${result.deleted} 个历史文件夹。\n`;
+      }
+      if (result.errors > 0) {
+        msg += `${result.errors} 个删除失败（请查看终端日志）。\n`;
+      }
+      if (result.deleted === 0 && result.errors === 0) {
+        msg = '没有找到历史归档数据。';
+      }
+      if (result.matchedDirs?.length) {
+        msg += `\n匹配到的历史文件夹:\n${result.matchedDirs.join('\n')}`;
+      }
+      alert(msg.trim());
+    }
+  } catch (err) {
+    alert('清理失败：' + err.message);
+  } finally {
+    btnClearHistory.disabled = false;
+    btnClearHistory.textContent = '清空历史数据';
   }
 });
 
@@ -494,21 +601,24 @@ btnPickerCancel.addEventListener('click', hideJobPicker);
 jobPickerOverlay.addEventListener('click', (e) => {
   if (e.target === jobPickerOverlay) hideJobPicker();
 });
-sourceRadios.forEach(radio => {
-  radio.addEventListener('change', () => {
-    const isAttach = radio.value === 'recommend-attach';
-    const isNormal = radio.value === 'recommend';
-    const isChat = radio.value === 'chat';
-    const showJob = isNormal || isAttach;
-    jobSelectSection.style.display = showJob ? 'flex' : 'none';
+// Source toggle (card-style buttons)
+document.querySelectorAll('.toggle-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const source = btn.dataset.source;
+    selectedSource = source;
+    const isAttach = source === 'recommend-attach';
+    const isChat = source === 'chat';
+    jobSelectSection.style.display = isAttach ? 'flex' : 'none';
     recommendHint.style.display = isAttach ? '' : 'none';
-    // 推荐页无限滚动，没有"全部"概念，隐藏提取全部
+    chatHint.style.display = isChat ? '' : 'none';
     extractAllSection.style.display = isChat ? '' : 'none';
     if (!isChat && extractAllCheck.checked) {
       extractAllCheck.checked = false;
       countInput.disabled = false;
     }
-    if (showJob) updateJobDisplay();
+    if (isAttach) updateJobDisplay();
   });
 });
 
@@ -592,6 +702,11 @@ btnDialogSave.addEventListener('click', async () => {
   }
 });
 
+// 自动打招呼 checkbox 切换显示等级下拉
+autoGreetCheck.addEventListener('change', () => {
+  autoGreetControls.style.display = autoGreetCheck.checked ? '' : 'none';
+});
+
 // 提取全部 切换时禁用/启用数量输入
 extractAllCheck.addEventListener('change', () => {
   countInput.disabled = extractAllCheck.checked;
@@ -619,7 +734,7 @@ btnStartGreet.addEventListener('click', async () => {
   greetResult.style.display = 'none';
   greetProgress.style.display = '';
   greetProgressBar.style.width = '0%';
-  greetProgressText.textContent = '准备中...';
+  greetProgressText.textContent = '正在打招呼中...';
   await window.electronAPI.startGreeting(level);
 });
 
@@ -639,7 +754,7 @@ async function updateCdpStatus() {
     const text = document.getElementById('chrome-status-text');
     const retryBtn = document.getElementById('btn-retry-chrome');
 
-    dot.className = 'chrome-status-dot';
+    dot.className = 'status-dot';
     text.textContent = '';
     retryBtn.style.display = 'none';
 
@@ -679,6 +794,12 @@ function resetGreetUI() {
   btnCancelGreet.style.display = 'none';
 }
 
+// 同步自动打招呼 UI（回到初始状态时调用）
+function syncAutoGreetUI() {
+  autoGreetCheck.checked = false;
+  autoGreetControls.style.display = 'none';
+}
+
 // ===== 初始化 =====
 async function init() {
   try {
@@ -704,6 +825,21 @@ async function init() {
     } catch {}
   }, 3000);
   setupListeners();
+  // Set default source from active toggle
+  const activeToggle = document.querySelector('.toggle-btn.active');
+  if (activeToggle) {
+    selectedSource = activeToggle.dataset.source;
+    const isAttach = selectedSource === 'recommend-attach';
+    const isChat = selectedSource === 'chat';
+    jobSelectSection.style.display = isAttach ? 'flex' : 'none';
+    recommendHint.style.display = isAttach ? '' : 'none';
+    chatHint.style.display = isChat ? '' : 'none';
+    extractAllSection.style.display = isChat ? '' : 'none';
+    if (!isChat && extractAllCheck.checked) {
+      extractAllCheck.checked = false;
+      countInput.disabled = false;
+    }
+  }
   await loadJobList();
   showState('state-initial');
 }
