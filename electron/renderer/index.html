@@ -209,49 +209,59 @@
 
     <!-- 完成状态 -->
     <div id="state-done" class="state">
-      <div class="result-icon result-success">&#10003;</div>
-      <h2>任务执行完成！</h2>
-      <div class="result-summary" id="done-summary"></div>
-      <div class="result-actions">
-        <button id="btn-open-dir" class="btn btn-primary">&#128194; 打开输出目录</button>
-        <button id="btn-restart" class="btn btn-secondary">重新开始</button>
-      </div>
-
-      <!-- 批量打招呼（评分完成后显示） -->
-      <div id="greet-section" class="greet-section" style="display:none;">
-        <div class="greet-divider"></div>
-        <div class="greet-title">批量打招呼</div>
-        <div class="greet-controls">
-          <label class="greet-label">选择等级：</label>
-          <select id="greet-level" class="greet-select">
-            <option value="5">五星（91-100分）</option>
-            <option value="4" selected>四星及以上（81-90分）</option>
-            <option value="3">三星及以上（61-80分）</option>
-            <option value="2">二星及以上（31-60分）</option>
-            <option value="0">全部候选人</option>
-          </select>
-          <span id="greet-count" class="greet-count"></span>
-        </div>
-        <div class="greet-actions">
-          <button id="btn-start-greet" class="btn btn-primary btn-small">开始打招呼</button>
-          <button id="btn-cancel-greet" class="btn btn-secondary btn-small" style="display:none;">取消</button>
-        </div>
-        <div id="greet-progress" class="greet-progress" style="display:none;">
-          <div class="greet-progress-bar-container">
-            <div class="greet-progress-bar" id="greet-progress-bar"></div>
+      <div class="card">
+        <div class="result-header">
+          <div class="result-icon-circle success">
+            <span class="result-icon-check">✓</span>
           </div>
-          <div class="greet-progress-text" id="greet-progress-text"></div>
+          <div class="result-title">全部完成！</div>
         </div>
-        <div id="greet-result" class="greet-result" style="display:none;"></div>
+        <div class="result-summary" id="done-summary"></div>
+        <div class="result-actions">
+          <button id="btn-open-dir" class="btn-primary btn-action">📂 打开输出目录</button>
+          <button id="btn-restart" class="btn-ghost">🔄 重新开始</button>
+        </div>
+
+        <div id="greet-section" class="greet-section" style="display:none;">
+          <div class="card-divider"></div>
+          <div class="greet-title">批量打招呼</div>
+          <div class="greet-controls">
+            <select id="greet-level" class="input-select">
+              <option value="5">五星（91-100分）</option>
+              <option value="4" selected>四星及以上（81-90分）</option>
+              <option value="3">三星及以上（61-80分）</option>
+              <option value="2">二星及以上（31-60分）</option>
+              <option value="0">全部候选人</option>
+            </select>
+            <span id="greet-count" class="greet-count-text"></span>
+          </div>
+          <div class="greet-actions">
+            <button id="btn-start-greet" class="btn-primary btn-small">开始打招呼</button>
+            <button id="btn-cancel-greet" class="btn-ghost btn-small" style="display:none;">取消</button>
+          </div>
+          <div id="greet-progress" class="greet-progress" style="display:none;">
+            <div class="progress-track">
+              <div class="progress-fill" id="greet-progress-bar"></div>
+            </div>
+            <div class="greet-progress-text" id="greet-progress-text"></div>
+          </div>
+          <div id="greet-result" class="greet-result" style="display:none;"></div>
+        </div>
       </div>
     </div>
 
     <!-- 错误状态 -->
     <div id="state-error" class="state">
-      <div class="result-icon result-error">&#10007;</div>
-      <h2>执行出错</h2>
-      <div class="error-message" id="error-message"></div>
-      <button id="btn-retry" class="btn btn-primary">重试</button>
+      <div class="card">
+        <div class="result-header">
+          <div class="result-icon-circle error">
+            <span class="result-icon-check">✕</span>
+          </div>
+          <div class="result-title">执行出错</div>
+        </div>
+        <div class="error-message" id="error-message"></div>
+        <button id="btn-retry" class="btn-primary btn-action" style="align-self:center;">重试</button>
+      </div>
     </div>
   </div>
 
@@ -269,8 +279,8 @@
         <textarea id="dialog-job-desc" rows="8" placeholder="请粘贴该岗位的 JD 描述..."></textarea>
       </div>
       <div class="dialog-actions">
-        <button id="btn-dialog-save" class="btn btn-primary">保存</button>
-        <button id="btn-dialog-cancel" class="btn btn-secondary">取消</button>
+        <button id="btn-dialog-save" class="btn-primary">保存</button>
+        <button id="btn-dialog-cancel" class="btn-ghost">取消</button>
       </div>
     </div>
   </div>
@@ -281,7 +291,7 @@
       <div class="dialog-title">目标岗位</div>
       <div class="job-picker-list" id="job-picker-list"></div>
       <div class="dialog-actions">
-        <button id="btn-picker-cancel" class="btn btn-secondary">取消</button>
+        <button id="btn-picker-cancel" class="btn-ghost">取消</button>
       </div>
     </div>
   </div>
