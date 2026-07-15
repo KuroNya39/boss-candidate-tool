@@ -16,10 +16,10 @@
 
     <!-- 初始状态 -->
     <div id="state-initial" class="state active">
-      <div class="chrome-status-bar" id="chrome-status-bar">
-        <span class="chrome-status-dot" id="chrome-status-dot"></span>
-        <span class="chrome-status-text" id="chrome-status-text">正在检查 CDP 代理...</span>
-        <button id="btn-retry-chrome" class="btn-dir-select" style="display:none;">重试</button>
+      <div class="status-bar" id="chrome-status-bar">
+        <span class="status-dot" id="chrome-status-dot"></span>
+        <span class="status-text" id="chrome-status-text">正在检查 CDP 代理...</span>
+        <button id="btn-retry-chrome" class="btn-retry" style="display:none;">重试</button>
       </div>
       <div class="api-config">
         <div class="api-config-title">API 配置</div>
@@ -52,6 +52,7 @@
             <span class="input-clear" data-target="email-prefix">×</span>
           </div>
         </div>
+
         <button id="btn-save-config" class="btn btn-secondary btn-small">保存配置</button>
         <span id="config-status" class="config-status"></span>
       </div>
@@ -59,21 +60,20 @@
       <div class="source-section">
         <div class="source-label">提取来源：</div>
         <label class="radio-label">
-          <input type="radio" name="source" value="chat" checked>
+          <input type="radio" name="source" value="recommend-attach" checked>
+          <span>推荐牛人页</span>
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="source" value="chat">
           <span>沟通页</span>
-        </label>
-        <label class="radio-label">
-          <input type="radio" name="source" value="recommend">
-          <span>推荐页</span>
-        </label>
-        <label class="radio-label">
-          <input type="radio" name="source" value="recommend-attach">
-          <span>推荐页（含筛选）</span>
         </label>
       </div>
 
       <div id="recommend-hint" class="recommend-hint" style="display:none;">
         提示：请先在 Chrome 中打开 Boss 直聘推荐牛人页，并选择岗位、设置筛选条件，不要刷新页面
+      </div>
+      <div id="chat-hint" class="recommend-hint" style="display:none;">
+        提示：请先在 Chrome 中打开 Boss 直聘沟通页
       </div>
 
       <div class="config-row">
@@ -98,7 +98,26 @@
       <div class="output-dir-info">
         输出目录: <span id="output-dir">output/</span>
         <button id="btn-select-dir" class="btn-dir-select">选择目录</button>
+        <button id="btn-clear-history" class="btn-dir-select btn-clear-history" style="margin-left:6px;">清空历史数据</button>
       </div>
+      <!-- 自动打招呼配置 -->
+      <div class="auto-greet-section">
+        <label class="auto-greet-checkbox">
+          <input type="checkbox" id="auto-greet-check">
+          <span>分析完成后自动打招呼</span>
+        </label>
+        <div class="auto-greet-controls" id="auto-greet-controls" style="display:none;">
+          <label class="greet-label">选择等级：</label>
+          <select id="auto-greet-level" class="greet-select">
+            <option value="5">五星（91-100分）</option>
+            <option value="4" selected>四星及以上（81-90分）</option>
+            <option value="3">三星及以上（61-80分）</option>
+            <option value="2">二星及以上（31-60分）</option>
+            <option value="0">全部候选人</option>
+          </select>
+        </div>
+      </div>
+
       <button id="btn-start" class="btn btn-primary btn-large">
         ▶ 开始提取分析
       </button>
@@ -121,7 +140,7 @@
         <div class="step-card" id="step-2">
           <div class="step-header">
             <span class="step-icon">2</span>
-            <span class="step-title">AI 评分（基础分 + 岗位相关性）</span>
+            <span class="step-title">AI 评分</span>
             <span class="step-status" id="step-2-status">等待中</span>
           </div>
           <div class="progress-bar-container">
@@ -141,7 +160,10 @@
           <div class="step-message" id="step-3-msg"></div>
         </div>
       </div>
-      <button id="btn-cancel" class="btn btn-secondary">取消</button>
+      <div class="running-actions">
+        <button id="btn-skip-extract" class="btn btn-warning" style="display:none;">⏭ 跳过提取简历，直接 AI 评分</button>
+        <button id="btn-cancel" class="btn btn-secondary">取消</button>
+      </div>
     </div>
 
     <!-- 完成状态 -->
@@ -161,9 +183,10 @@
         <div class="greet-controls">
           <label class="greet-label">选择等级：</label>
           <select id="greet-level" class="greet-select">
-            <option value="5">五星（强烈推荐）</option>
-            <option value="4" selected>四星及以上（推荐）</option>
-            <option value="3">三星及以上（可考虑）</option>
+            <option value="5">五星（91-100分）</option>
+            <option value="4" selected>四星及以上（81-90分）</option>
+            <option value="3">三星及以上（61-80分）</option>
+            <option value="2">二星及以上（31-60分）</option>
             <option value="0">全部候选人</option>
           </select>
           <span id="greet-count" class="greet-count"></span>

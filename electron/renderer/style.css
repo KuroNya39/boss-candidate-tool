@@ -66,45 +66,55 @@ header h1 {
   display: flex;
 }
 
-/* ===== Chrome 状态栏 ===== */
-.chrome-status-bar {
+/* ===== Chrome Status Bar ===== */
+.status-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  padding: 10px 16px;
-  width: 100%;
-  margin-bottom: 8px;
+  padding: 8px 14px;
   font-size: 13px;
+  color: var(--text-secondary);
 }
-.chrome-status-dot {
-  width: 10px;
-  height: 10px;
+.status-dot {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
-.chrome-status-dot.dot-green {
-  background: #4CAF50;
-  box-shadow: 0 0 4px rgba(76,175,80,0.4);
+.status-dot.dot-green {
+  background: var(--color-success);
+  box-shadow: 0 0 6px rgba(16,185,129,0.4);
 }
-.chrome-status-dot.dot-yellow {
-  background: #FFC107;
-  box-shadow: 0 0 4px rgba(255,193,7,0.4);
-  animation: chrome-pulse 1.5s infinite;
+.status-dot.dot-yellow {
+  background: var(--color-warning);
+  box-shadow: 0 0 6px rgba(245,158,11,0.4);
+  animation: status-pulse 1.5s infinite;
 }
-.chrome-status-dot.dot-red {
-  background: #e53935;
-  box-shadow: 0 0 4px rgba(229,57,53,0.4);
+.status-dot.dot-red {
+  background: var(--color-error);
+  box-shadow: 0 0 6px rgba(239,68,68,0.4);
 }
-@keyframes chrome-pulse {
+@keyframes status-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
-.chrome-status-text {
-  color: #666;
+.status-text {
   flex: 1;
+}
+.btn-retry {
+  font-size: 11px;
+  padding: 3px 12px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-btn);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  -webkit-app-region: no-drag;
+}
+.btn-retry:hover {
+  border-color: var(--color-error);
+  color: var(--color-error);
 }
 
 /* ===== API 配置区 ===== */
