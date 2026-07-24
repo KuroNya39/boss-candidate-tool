@@ -79,6 +79,7 @@
           <label class="field-label">提取来源</label>
           <div class="toggle-group" id="source-toggle-group">
             <button class="toggle-btn active" data-source="recommend-attach">推荐牛人页</button>
+            <button class="toggle-btn" data-source="search">搜索页</button>
             <button class="toggle-btn" data-source="chat">沟通页</button>
           </div>
         </div>
@@ -86,6 +87,10 @@
         <div id="recommend-hint" class="hint-box" style="display:none;">
           <span class="hint-icon">i</span>
           <span>请先在 Chrome 中打开 Boss 直聘推荐牛人页，并选择岗位、设置筛选条件，不要刷新页面</span>
+        </div>
+        <div id="search-hint" class="hint-box" style="display:none;">
+          <span class="hint-icon">i</span>
+          <span>请先在 Chrome 中打开 Boss 直聘搜索页，输入搜索关键词并设置筛选条件，不要刷新页面</span>
         </div>
         <div id="chat-hint" class="hint-box" style="display:none;">
           <span class="hint-icon">i</span>
@@ -119,10 +124,10 @@
         <div class="card-divider"></div>
 
         <!-- Auto Greet -->
-        <div class="auto-greet-section">
+        <div class="auto-greet-section" id="auto-greet-section">
           <label class="checkbox-label">
             <input type="checkbox" id="auto-greet-check">
-            <span>分析完成后自动打招呼</span>
+            <span>提取评分完成后自动打招呼</span>
           </label>
           <div class="auto-greet-controls" id="auto-greet-controls" style="display:none;">
             <select id="auto-greet-level" class="input-select">
@@ -206,7 +211,7 @@
         </div>
 
         <div class="running-actions">
-          <button id="btn-skip-extract" class="btn-skip" style="display:none;">⏭ 跳过提取简历</button>
+          <button id="btn-skip-extract" class="btn-skip" style="display:none;">⏭ 跳过提取候选人</button>
           <button id="btn-cancel" class="btn-ghost">取消</button>
         </div>
       </div>

@@ -1,7 +1,7 @@
 appId: com.web-access.candidate-tool
 productName: Boss直聘候选人提取分析
 directories:
-  output: dist
+  output: build-tmp
 files:
   - electron/**/*
   - scripts/**/*.mjs

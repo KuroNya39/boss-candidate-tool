@@ -29,6 +29,7 @@ const dialogJobHint = document.getElementById('dialog-job-hint');
 const btnDialogSave = document.getElementById('btn-dialog-save');
 const btnDialogCancel = document.getElementById('btn-dialog-cancel');
 const recommendHint = document.getElementById('recommend-hint');
+const searchHint = document.getElementById('search-hint');
 const chatHint = document.getElementById('chat-hint');
 const doneSummary = document.getElementById('done-summary');
 const errorMessage = document.getElementById('error-message');
@@ -66,6 +67,7 @@ const greetProgressText = document.getElementById('greet-progress-text');
 const greetResult = document.getElementById('greet-result');
 
 // 自动打招呼 DOM
+const autoGreetSection = document.getElementById('auto-greet-section');
 const autoGreetCheck = document.getElementById('auto-greet-check');
 const autoGreetControls = document.getElementById('auto-greet-controls');
 const autoGreetLevel = document.getElementById('auto-greet-level');
@@ -170,7 +172,7 @@ function resetSteps() {
   // 重置跳过提取按钮
   btnSkipExtract.style.display = 'none';
   btnSkipExtract.disabled = false;
-  btnSkipExtract.textContent = '⏭ 跳过提取简历';
+  btnSkipExtract.textContent = '⏭ 跳过提取候选人';
   // 重置步骤指示器
   const stepInd = document.getElementById('step-indicator');
   if (stepInd) stepInd.textContent = '等待开始';
@@ -266,7 +268,7 @@ function setupListeners() {
                 greetProgress.style.display = '';
                 greetProgressBar.style.width = '0%';
                 greetProgressText.textContent = '自动打招呼中...';
-                await window.electronAPI.startGreeting(level);
+                await window.electronAPI.startGreeting(level, selectedSource);
                 autoGreetEnabled = false;
               }, 500);
             }
@@ -426,9 +428,9 @@ btnCancel.addEventListener('click', async () => {
 
 // 跳过提取，直接评分
 btnSkipExtract.addEventListener('click', async () => {
-  if (!confirm('确定跳过剩余简历提取，用已提取的数据直接开始 AI 评分吗？')) return;
+  if (!confirm('确定跳过剩余候选人提取，用已提取的数据直接开始 AI 评分吗？')) return;
   btnSkipExtract.disabled = true;
-  btnSkipExtract.textContent = '⏭ 正在跳过...';
+  btnSkipExtract.textContent = '⏭ 正在跳过提取...';
   const msgEl = stepCards[1].msg;
   if (msgEl) msgEl.textContent = '正在停止提取，恢复已提取数据...';
   await window.electronAPI.skipExtraction();
@@ -633,9 +635,12 @@ document.querySelectorAll('.toggle-btn').forEach(btn => {
     const source = btn.dataset.source;
     selectedSource = source;
     const isAttach = source === 'recommend-attach';
+    const isSearch = source === 'search';
     const isChat = source === 'chat';
-    jobSelectSection.style.display = isAttach ? 'flex' : 'none';
+    const showJobSelector = isAttach || isSearch;
+    jobSelectSection.style.display = showJobSelector ? 'flex' : 'none';
     recommendHint.style.display = isAttach ? '' : 'none';
+    searchHint.style.display = isSearch ? '' : 'none';
     chatHint.style.display = isChat ? '' : 'none';
     extractAllSection.style.display = isChat ? '' : 'none';
     if (!isChat && extractAllCheck.checked) {
@@ -643,6 +648,9 @@ document.querySelectorAll('.toggle-btn').forEach(btn => {
       countInput.disabled = false;
     }
     if (isAttach) updateJobDisplay();
+    // 自动打招呼只用于推荐牛人页和搜索页，不用于沟通页
+    autoGreetSection.style.display = isChat ? 'none' : '';
+    if (isChat) autoGreetCheck.checked = false;
   });
 });
 
@@ -759,7 +767,7 @@ btnStartGreet.addEventListener('click', async () => {
   greetProgress.style.display = '';
   greetProgressBar.style.width = '0%';
   greetProgressText.textContent = '正在打招呼中...';
-  await window.electronAPI.startGreeting(level);
+  await window.electronAPI.startGreeting(level, selectedSource);
 });
 
 // 取消打招呼
@@ -854,15 +862,21 @@ async function init() {
   if (activeToggle) {
     selectedSource = activeToggle.dataset.source;
     const isAttach = selectedSource === 'recommend-attach';
+    const isSearch = selectedSource === 'search';
     const isChat = selectedSource === 'chat';
-    jobSelectSection.style.display = isAttach ? 'flex' : 'none';
+    const showJobSelector = isAttach || isSearch;
+    jobSelectSection.style.display = showJobSelector ? 'flex' : 'none';
     recommendHint.style.display = isAttach ? '' : 'none';
+    searchHint.style.display = isSearch ? '' : 'none';
     chatHint.style.display = isChat ? '' : 'none';
     extractAllSection.style.display = isChat ? '' : 'none';
     if (!isChat && extractAllCheck.checked) {
       extractAllCheck.checked = false;
       countInput.disabled = false;
     }
+    // 自动打招呼只用于推荐牛人页和搜索页，不用于沟通页
+    autoGreetSection.style.display = isChat ? 'none' : '';
+    if (isChat) autoGreetCheck.checked = false;
   }
   await loadJobList();
   showState('state-initial');

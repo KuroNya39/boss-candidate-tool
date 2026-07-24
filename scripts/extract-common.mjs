@@ -693,6 +693,268 @@ export async function reportStats({ resume_count, start_time, status }) {
   }
 }
 
+/**
+ * 在 CDP frame tree 中递归查找匹配 URL 的 frame
+ */
+export function findFrameInTree(frameNode, url) {
+  if (!frameNode) return null;
+  const f = frameNode.frame;
+  if (f && f.url && (f.url.includes(url) || url.includes(f.url))) return f;
+  if (frameNode.childFrames) {
+    for (const child of frameNode.childFrames) {
+      const found = findFrameInTree(child, url);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/** 候选人列表滚动容器检测 JS 代码片段 */
+export const FIND_LIST_CONTAINER_JS = `
+var __item = document.querySelector('.geek-item');
+var el = __item ? __item.parentElement : null;
+while (el && el !== document.body && el !== document.documentElement) {
+  if (el.scrollHeight > el.clientHeight + 5) break;
+  el = el.parentElement;
+}
+if (!el || el === document.body || el === document.documentElement) {
+  el = document.documentElement;
+}
+if (el === document.documentElement) {
+  var __fb = document.querySelector('.geek-list') || document.querySelector('.chat-record');
+  if (__fb && __fb.scrollHeight > __fb.clientHeight + 5) el = __fb;
+}
+`;
+
+/**
+ * 尝试直接从 DOM 提取简历文本，跳过截图+OCR 流程
+ */
+export async function tryExtractResumeTextFromDOM(targetId) {
+  try {
+    const iframeSrc = await cdpEval(targetId, `(function(){
+      var detail = document.querySelector('.resume-detail');
+      if (!detail) return '';
+      var iframe = detail.querySelector('iframe');
+      if (!iframe) return '';
+      return iframe.src || iframe.getAttribute('src') || '';
+    })()`);
+    if (!iframeSrc) return null;
+    const framesResp = await proxyGet(`/frames?target=${targetId}`);
+    if (!framesResp.frameTree) return null;
+    let targetFrame = null;
+    function findById(frames, url) {
+      if (!frames) return null;
+      if (frames.frame && frames.frame.url && url.includes(frames.frame.url)) return frames.frame;
+      if (frames.childFrames) { for (const child of frames.childFrames) { const found = findById(child, url); if (found) return found; } }
+      return null;
+    }
+    function findUrlContains(frames, url) {
+      if (!frames) return null;
+      if (frames.frame && frames.frame.url && frames.frame.url.includes(url)) return frames.frame;
+      if (frames.childFrames) { for (const child of frames.childFrames) { const found = findUrlContains(child, url); if (found) return found; } }
+      return null;
+    }
+    targetFrame = findById(framesResp.frameTree, iframeSrc);
+    if (!targetFrame) targetFrame = findUrlContains(framesResp.frameTree, iframeSrc);
+    if (!targetFrame || !targetFrame.id) return null;
+    const contexts = framesResp.executionContexts || [];
+    const ctx = contexts.find(c => c.frameId === targetFrame.id);
+    if (!ctx) return null;
+    const result = await proxyPost(`/eval-context?target=${targetId}&context=${ctx.id}`, `(function(){
+      var resumeDiv = document.querySelector('#resume') || document.querySelector('body');
+      if (!resumeDiv) return null;
+      var text = (resumeDiv.textContent || '').replace(/\\s+/g, ' ').trim();
+      return text.length > 50 ? text : null;
+    })()`);
+    return result.value || null;
+  } catch { return null; }
+}
+
+/**
+ * 从简历文本中解析教育经历条目（时间、学校、专业、学历）
+ * Boss直聘 OCR 简历文本典型格式：教育经历X大学X专业X学历 YYYY-YYYY
+ */
+export function parseEducationFromResume(resumeText) {
+  if (!resumeText || resumeText.length < 50) return [];
+  const results = [];
+
+  // OCR 常见学历关键词错字映射（本科→本秦、硕土→硕士等）
+  const DEGREE_KEYS = ['博士', '硕士', '硕土', '本科', '本秦', '本幸', '大专', '中专', '高中', '学士', '研究生', '双学位'];
+  const DEGREE_NORMALIZE = { '硕土': '硕士', '本秦': '本科', '本幸': '本科' };
+  const TIME_RANGE_RE = /(\d{4})\s*[-–—~～]\s*(\d{4})/;
+  const SCHOOL_RE = /([一-龥]{2,}(?:大学|学院|研究所|学校))/;
+
+  const text = resumeText.replace(/[ \t]+/g, ' ').trim();
+
+  // 定位教育经历段落
+  const eduHeaders = ['教育经历', '教育背景', '学历背景', '教朋经历', '教肓经历', '教育情况'];
+  let eduSection = '';
+  for (const header of eduHeaders) {
+    const idx = text.indexOf(header);
+    if (idx < 0) continue;
+    eduSection = text.substring(idx);
+    break;
+  }
+  if (!eduSection) {
+    for (const line of text.split('\n')) {
+      const eduEntries = parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE);
+      if (eduEntries) { for (const e of eduEntries) { if (e.time) results.push(e); } }
+    }
+    return dedupeEduResults(results);
+  }
+
+  // 截断到下一段落
+  for (const m of ['工作经历', '工作经验']) {
+    const i = eduSection.indexOf(m);
+    if (i > 0) eduSection = eduSection.substring(0, i);
+  }
+
+  for (const rawLine of eduSection.split('\n')) {
+    let line = rawLine.trim();
+    if (!line || line.length < 5 || line.includes('推荐')) continue;
+    for (const h of eduHeaders) {
+      if (line.startsWith(h)) { line = line.slice(h.length).trim(); break; }
+    }
+    line = line.replace(/^[^一-龥]+/, '').trim();
+    if (line.length < 4) continue;
+    const eduEntries = parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE);
+    if (eduEntries) { for (const e of eduEntries) results.push(e); }
+  }
+
+  // 全文本扫描补充
+  const seenKeys = new Set(results.map(r => r.school.substring(0, 3) + '|' + r.degree));
+  for (const extraLine of text.split('\n')) {
+    const extraEntries = parseEduLine(extraLine.trim(), DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE);
+    if (!extraEntries) continue;
+    for (const extraEntry of extraEntries) {
+      if (!extraEntry.time) continue;
+      const key = extraEntry.school.substring(0, 3) + '|' + extraEntry.degree;
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      results.push(extraEntry);
+    }
+  }
+
+  return dedupeEduResults(results);
+}
+
+function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
+  const t = line.trim();
+  if (!t || t.length < 5 || t.length > 200) return null;
+
+  // 整行必须至少包含一个学历关键词
+  if (!DEGREE_KEYS.some(d => t.includes(d))) return null;
+
+  const cleanedLine = t.replace(/^(?:办|色|刺|RN|R |esy |h s |nme|[^一-龥])+/g, '');
+
+  const eduPos = cleanedLine.indexOf('教育经历');
+  const searchArea = eduPos >= 0 ? cleanedLine.substring(eduPos + 4) : cleanedLine;
+
+  // 找行中所有学校名，每个学校名生成一条记录
+  const globalRE = new RegExp(SCHOOL_RE.source, 'g');
+  const NOISE_PREFIXES = ['佛', '岑', '志', '心', '办'];
+  const noiseWords = ['荣誉', '奖学金', '优秀', '共建', '获荣', '一等', '二等', '院校'];
+  const entries = [];
+  let match;
+
+  while ((match = globalRE.exec(searchArea)) !== null) {
+    let schoolName = match[1];
+
+    // 取学校名附近上下文
+    const schoolIdx = searchArea.indexOf(schoolName);
+    const contextStart = Math.max(0, schoolIdx - 30);
+    const contextEnd = Math.min(searchArea.length, schoolIdx + schoolName.length + 60);
+    const context = searchArea.substring(contextStart, contextEnd);
+
+    const degree = DEGREE_KEYS.find(d => context.includes(d));
+    if (!degree) continue;
+
+    const tm = context.match(TIME_RANGE_RE);
+
+    // OCR噪声前缀
+    for (const noise of NOISE_PREFIXES) {
+      if (schoolName.startsWith(noise) && schoolName.length > 4) {
+        const stripped = schoolName.slice(noise.length);
+        if (stripped.length >= 4 && /^[一-龥]{2,}(?:大学|学院)$/.test(stripped)) {
+          schoolName = stripped; break;
+        }
+      }
+    }
+    if (schoolName.length > 10) {
+      let best = schoolName;
+      for (let ci = 1; ci <= schoolName.length - 4; ci++) {
+        const sub = schoolName.substring(ci);
+        if (sub.length >= 4 && /^[一-龥]{4,}(?:大学|学院)$/.test(sub) && sub.length < best.length) best = sub;
+      }
+      if (best.length < schoolName.length) schoolName = best;
+    }
+    if (schoolName.length > 15) {
+      const shorter = schoolName.match(/([一-龥]{2,}(?:大学|学院))/);
+      if (shorter) schoolName = shorter[1];
+      else continue;
+    }
+    if (noiseWords.some(w => schoolName.includes(w))) continue;
+
+    let major = '';
+    const dIdx = context.indexOf(degree);
+    const sIdx = context.indexOf(schoolName);
+    if (sIdx >= 0 && dIdx > sIdx) {
+      let mt = context.substring(sIdx + schoolName.length, dIdx).trim();
+      mt = mt.replace(/^[,，、\s]+/, '').replace(/[,，、\s]+$/, '').replace(/[“”"]/g, '');
+      if (mt && mt.length < 60) major = mt;
+    }
+
+    const normalizedDegree = ({ '硕土': '硕士', '本秦': '本科', '本幸': '本科' })[degree] || degree;
+    entries.push({ time: tm ? tm[0].trim() : '', school: schoolName, major, degree: normalizedDegree });
+  }
+
+  return entries.length > 0 ? entries : null;
+}
+
+function dedupeEduResults(results) {
+  // OCR常见错字纠正
+  const OCR_CORRECTIONS = [
+    ['碑腕', ''], ['碑胺', ''], ['碑腐', ''], ['春学院', '科学院'],
+    ['时学院', '科学院'], ['拼泓', '指挥'], ['州拼泓', '州指挥'],
+    ['R 其', '及其'], ['R其', '及其'], ['友其', '及其'],
+    ['基尿', '基层'], ['春南', '暨南'],
+    ['咤昏', '暨'],
+    ['万程', '工程'], ['万喜理万', '万隆理工'],
+    ['深圭', '深圳'], ['研完生', '研究生'],
+    ['北京理工学院', '北京理工大学'],
+    ['万程', '工程'], ['万喜理万', '万隆理工'],
+    ['深圭', '深圳'], ['研完生', '研究生'],
+  ];
+  for (const entry of results) {
+    for (const [wrong, right] of OCR_CORRECTIONS) {
+      if (entry.school) entry.school = entry.school.split(wrong).join(right);
+      if (entry.major) entry.major = entry.major.split(wrong).join(right);
+    }
+    if (entry.school) entry.school = entry.school.replace(/^中国中国/, '中国科学院').trim();
+  }
+
+  const ORDER = {博士: 0, 硕士: 1, 本科: 2, 大专: 3, 中专: 4, 高中: 5};
+  const final = [];
+  for (const r of results) {
+    let isDup = false;
+    for (const existing of final) {
+      if (existing.degree !== r.degree) continue;
+      if (existing.school.includes(r.school) || r.school.includes(existing.school) || (existing.school.length >= 4 && r.school.length >= 4 && existing.school.substring(0,3) === r.school.substring(0,3))) {
+        isDup = true;
+        if (r.school.length < existing.school.length) {
+          existing.school = r.school;
+          if (r.time && !existing.time) existing.time = r.time;
+          if (r.major && !existing.major) existing.major = r.major;
+        }
+        break;
+      }
+    }
+    if (!isDup) final.push({ ...r });
+  }
+  final.sort((a, b) => (ORDER[a.degree] ?? 99) - (ORDER[b.degree] ?? 99));
+  return final;
+}
+
 // ===== CLI 参数解析（通用） =====
 
 export function parseArgs() {

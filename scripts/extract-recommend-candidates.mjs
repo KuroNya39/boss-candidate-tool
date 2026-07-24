@@ -20,12 +20,12 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  proxyGet, sleep, randomDelay,
+  proxyGet, proxyPost, sleep, randomDelay,
   cdpEval,
   closeBossPopup,
   captureResumeScreenshots,
   ocrScreenshots,
-  safeName,
+  safeName, findFrameInTree,
   getScanCachePath, getProgressPath,
   saveScanCache, loadScanCache, saveProgress, loadProgress, cleanupCacheFiles,
   archiveOldOutput,
@@ -506,7 +506,7 @@ async function clickCardToOpenResume(targetId, geekId, cardIndex) {
       // 估算：每张卡片约 120px，滚到目标卡片的前 3 张位置
       list.scrollTop = Math.max(0, (${cardIndex} - 3)) * 120;
     })()`);
-    await sleep(800);
+    await sleep(500);
   }
 
   const result = await iframeEval(targetId, `(function(){
@@ -566,8 +566,8 @@ async function clickCardToOpenResume(targetId, geekId, cardIndex) {
         const sizeOk = dialogState.width >= 600 && dialogState.height >= 500;
         if (dialogState.width === lastWidth && dialogState.height === lastHeight) {
           stableCount++;
-          if (stableCount >= 2) {
-            const waitForIframe = dialogState.hasCanvas ? 2000 : 4000;
+          if (stableCount >= 1) {
+            const waitForIframe = dialogState.hasCanvas ? 1000 : 500;
             const sizeWarn = sizeOk ? '' : ' ⚠尺寸偏小';
             console.log(`    弹窗尺寸稳定: ${dialogState.width}x${dialogState.height}, iframe=${dialogState.hasIframe}, canvas=${dialogState.hasCanvas}${sizeWarn}`);
             await sleep(waitForIframe);
@@ -710,6 +710,58 @@ async function getRecommendResumeScrollInfo(targetId) {
 }
 
 /**
+ * 尝试直接从 DOM 提取推荐牛人页的简历文本，跳过截图+OCR 流程
+ * 简历内容在弹窗内的嵌套 iframe 中（跨域限制无法用 contentDocument）
+ *
+ * 使用 CDP frame tree + execution context 绕过跨域限制：
+ *   1. 从 recommendFrame 中获取嵌套简历 iframe 的 src URL
+ *   2. 通过 CDP Page.getFrameTree 找到对应 frameId
+ *   3. 通过 CDP Runtime.getExecutionContexts 找到 frame 的 execution context
+ *   4. 在该 context 中直接执行 JS 提取简历文本
+ *
+ * @returns {string|null} 提取到的文本，若 DOM 不可用返回 null
+ */
+async function tryExtractRecommendResumeTextFromDOM(targetId) {
+  try {
+    // 1. 从 recommendFrame 获取嵌套简历 iframe 的 src
+    const nestedSrc = await iframeEval(targetId, `(function(){
+      var dialog = document.querySelector('.dialog-wrap.active');
+      if (!dialog) return '';
+      var resumeWrap = dialog.querySelector('.resume-detail-wrap');
+      if (!resumeWrap) return '';
+      var iframe = resumeWrap.querySelector('iframe');
+      if (!iframe) return '';
+      return iframe.src || iframe.getAttribute('src') || '';
+    })()`);
+    if (!nestedSrc) return null;
+
+    // 2. 获取 CDP frame tree 和 execution contexts
+    const framesResp = await proxyGet(`/frames?target=${targetId}`);
+    if (!framesResp.frameTree) return null;
+
+    // 3. 递归查找匹配嵌套 iframe URL 的 frame
+    const targetFrame = findFrameInTree(framesResp.frameTree, nestedSrc);
+    if (!targetFrame || !targetFrame.id) return null;
+
+    // 4. 找到匹配的 execution context
+    const contexts = framesResp.executionContexts || [];
+    const ctx = contexts.find(c => c.frameId === targetFrame.id);
+    if (!ctx) return null;
+
+    // 5. 在嵌套 iframe 的执行上下文中提取简历文本
+    const result = await proxyPost(`/eval-context?target=${targetId}&context=${ctx.id}`, `(function(){
+      var resumeDiv = document.querySelector('#resume') || document.querySelector('body');
+      if (!resumeDiv) return null;
+      var text = (resumeDiv.textContent || '').replace(/\\s+/g, ' ').trim();
+      return text.length > 50 ? text : null;
+    })()`);
+    return result.value || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 滚动推荐牛人页的简历弹窗
  * 扫描弹窗内所有元素，找到可滚动的容器并设 scrollTop
  */
@@ -764,7 +816,7 @@ async function closeRecommendDialog(targetId) {
       }));
     });
   })()`);
-  await randomDelay(1200, 1600);
+  await randomDelay(400, 800);
 
   const afterEscape = await iframeEval(targetId, `(function(){
     var d = document.querySelector('.dialog-wrap.active');
@@ -780,7 +832,7 @@ async function closeRecommendDialog(targetId) {
     var closeBtn = dialog.querySelector('.close-btn');
     if (closeBtn) closeBtn.click();
   })()`);
-  await randomDelay(500, 1000);
+  await randomDelay(200, 500);
 
   const stillVisible = await iframeEval(targetId, `(function(){
     var d = document.querySelector('.dialog-wrap.active');
@@ -803,9 +855,22 @@ async function closeRecommendDialog(targetId) {
 
 let _cleanupTargetId = null;
 let _cleanupWorker = null;
+let _cleanupProgressVars = null; // { processedGeekIds, candidates, outputPath, prevOcr }
 let _attachMode = false; // --attach 模式不关闭用户 tab
 
 async function doCleanup() {
+  // 保存进度到磁盘（如果有未保存的数据）
+  if (_cleanupProgressVars) {
+    const { processedGeekIds, candidates, outputPath, prevOcr } = _cleanupProgressVars;
+    try {
+      await prevOcr;
+      saveProgress(processedGeekIds, candidates, outputPath);
+      console.log(`  💾 取消前已保存进度 (${processedGeekIds.size} 人)`);
+    } catch (e) {
+      console.warn(`  ⚠ 取消前保存进度失败: ${e.message}`);
+    }
+  }
+
   if (!_cleanupTargetId && !_cleanupWorker) return;
   console.log('\n收到取消指令，清理资源...');
   if (_cleanupTargetId) {
@@ -824,7 +889,7 @@ async function doCleanup() {
 
 process.stdin.on('data', (data) => {
   if (data.toString().trim() === 'CANCEL') {
-    doCleanup().finally(() => process.exit(0));
+    doCleanup().finally(() => process.exit(1));
   }
 });
 if (process.stdin && typeof process.stdin.unref === 'function') {
@@ -832,13 +897,13 @@ if (process.stdin && typeof process.stdin.unref === 'function') {
 }
 
 process.on('SIGTERM', () => {
-  doCleanup().finally(() => process.exit(0));
+  doCleanup().finally(() => process.exit(1));
 });
 
 // ===== 主流程 =====
 
 async function main() {
-  const opts = parseArgs();
+  const opts = parseArgs();
   const outputPath = resolve(opts.output);
   const outputDir = dirname(outputPath);
 
@@ -1099,7 +1164,17 @@ async function main() {
         try {
           const sname = safeName(displayName);
 
-          console.log('  → 截图...');
+          // 先尝试直接从 DOM 提取简历文本（绕过截图+OCR，快 30-100 倍）
+          const domText = await tryExtractRecommendResumeTextFromDOM(targetId);
+          if (domText) {
+            candidateData.resumeText = domText;
+            console.log(`  ✓ DOM提取简历文本 (${domText.length} 字)`);
+            const resumeDir = resolve(dirname(outputPath), 'resumes');
+            mkdirSync(resumeDir, { recursive: true });
+            const txtPath = resolve(resumeDir, `${sname}-${geekId}.txt`);
+            writeFileSync(txtPath, domText, 'utf8');
+          } else {
+            console.log('  → 截图...');
 
           // 使用推荐牛人页特化的截图方法
           const info = await getRecommendResumeScrollInfo(targetId);
@@ -1162,7 +1237,7 @@ async function main() {
             }
             if (!success) throw new Error(`截图第 ${page + 1}/${pages} 页多次失败`);
 
-            if (page < pages - 1) await randomDelay(600, 1000);
+            if (page < pages - 1) await randomDelay(300, 600);
           }
 
           console.log('  → OCR 识别（后台进行，与关闭弹窗重叠）...');
@@ -1181,6 +1256,8 @@ async function main() {
           }).catch(e => {
             console.warn(`  ⚠ OCR 识别失败: ${e.message}`);
           });
+
+          } // end else (DOM extraction fallback)
 
         } catch (e) {
           console.warn(`  ⚠ 简历截图失败: ${e.message}`);
@@ -1203,6 +1280,7 @@ async function main() {
 
       processedGeekIds.add(geekId);
       candidates.push(candidateData);
+      _cleanupProgressVars = { processedGeekIds, candidates, outputPath, prevOcr };
 
       // 每 5 人保存进度（等待 OCR 完成确保数据完整）
       if ((i + 1) % 5 === 0) {
@@ -1211,17 +1289,10 @@ async function main() {
         console.log(`  💾 进度已保存 (${processedGeekIds.size}/${totalCount})`);
       }
 
-      // 每 50 人额外停顿（等待 OCR 完成后再休息）
-      if ((i + 1) % 50 === 0 && i < toProcess.length - 1) {
-        await prevOcr;
-        const pauseMs = 30000;
-        console.log(`  ⏸ 已处理 ${i + 1} 人，暂停 ${(pauseMs / 1000).toFixed(0)}s 防风控...`);
-        await sleep(pauseMs);
-      }
 
       // 候选人之间随机延迟
       if (i < toProcess.length - 1) {
-        const delayMs = 3000 + Math.random() * 5000;
+        const delayMs = 1000 + Math.random() * 2000;
         console.log(`  ⏳ 等待 ${(delayMs / 1000).toFixed(1)}s...\n`);
         await sleep(delayMs);
       }

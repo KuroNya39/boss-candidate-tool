@@ -392,6 +392,53 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // GET /frames?target=xxx - 获取页面的 frame 树和所有执行上下文
+    else if (pathname === '/frames') {
+      const sid = await ensureSession(q.target);
+      // Page.enable 必须在 getFrameTree 前调用
+      try { await sendCDP('Page.enable', {}, sid); } catch {}
+      const [frameTreeResp, contextsResp] = await Promise.all([
+        sendCDP('Page.getFrameTree', {}, sid).catch(() => ({ result: null })),
+        sendCDP('Runtime.getExecutionContexts', {}, sid).catch(() => ({ result: null })),
+      ]);
+      res.end(JSON.stringify({
+        frameTree: frameTreeResp?.result?.frameTree || null,
+        executionContexts: (contextsResp?.result?.contexts || []).map(ctx => ({
+          id: ctx.id,
+          frameId: ctx.auxData?.frameId || '',
+          name: ctx.name || '',
+          origin: ctx.origin || '',
+        })),
+      }));
+    }
+
+    // POST /eval-context?target=xxx&context=123 - 在指定 execution context 中执行 JS
+    else if (pathname === '/eval-context') {
+      const sid = await ensureSession(q.target);
+      const body = await readBody(req);
+      const expr = body || q.expr || 'document.title';
+      const contextId = parseInt(q.context, 10);
+      if (isNaN(contextId)) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: '缺少有效的 context 参数' }));
+        return;
+      }
+      const resp = await sendCDP('Runtime.evaluate', {
+        expression: expr,
+        returnByValue: true,
+        awaitPromise: true,
+        contextId,
+      }, sid);
+      if (resp.result?.result?.value !== undefined) {
+        res.end(JSON.stringify({ value: resp.result.result.value }));
+      } else if (resp.result?.exceptionDetails) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: resp.result.exceptionDetails.text }));
+      } else {
+        res.end(JSON.stringify(resp.result));
+      }
+    }
+
     // POST /click?target=xxx - 点击（body 为 CSS 选择器）
     // POST /click?target=xxx — JS 层面点击（简单快速，覆盖大多数场景）
     else if (pathname === '/click') {
@@ -519,6 +566,53 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ value: resp.result?.result?.value }));
     }
 
+    // POST /wheel?target=xxx — 真实鼠标滚轮事件（触发虚拟滚动懒加载）
+    // body: JSON { "deltaY": 300, "steps": 3 }
+    // deltaY > 0 = 向下滚动, deltaY < 0 = 向上滚动
+    // 自动查找滚动容器中心坐标，发送真实 wheel 事件（Boss直聘虚拟滚动只响应真实鼠标事件）
+    else if (pathname === '/wheel') {
+      const sid = await ensureSession(q.target);
+      const body = JSON.parse(await readBody(req));
+      const deltaY = body.deltaY || -300;
+      const deltaX = body.deltaX || 0;
+      const steps = body.steps || 1;
+
+      let x = body.x;
+      let y = body.y;
+
+      // 如果没提供坐标，自动计算 .geek-item 父滚动容器的中心
+      if (x == null || y == null) {
+        const coordJs = `(() => {
+          var item = document.querySelector('.geek-item');
+          if (!item) return JSON.stringify({ x: 400, y: 400 });
+          var el = item.parentElement;
+          while (el && el.clientHeight < 100) el = el.parentElement;
+          var rect = el.getBoundingClientRect();
+          return JSON.stringify({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
+        })()`;
+        const coordResp = await sendCDP('Runtime.evaluate', {
+          expression: coordJs, returnByValue: true, awaitPromise: true,
+        }, sid);
+        try {
+          const coord = JSON.parse(coordResp.result?.result?.value || '{"x":400,"y":400}');
+          x = coord.x;
+          y = coord.y;
+        } catch { x = 400; y = 400; }
+      }
+
+      // 分步发送 wheel 事件（更平滑，更接近真实用户操作）
+      const stepDeltaY = deltaY / steps;
+      for (let i = 0; i < steps; i++) {
+        await sendCDP('Input.dispatchMouseWheelEvent', {
+          x: Math.round(x), y: Math.round(y),
+          deltaX, deltaY: stepDeltaY,
+          modifier: 0,
+        }, sid);
+      }
+
+      res.end(JSON.stringify({ ok: true, x: Math.round(x), y: Math.round(y), deltaY, steps }));
+    }
+
     // GET /screenshot?target=xxx&file=/tmp/x.png - 截图
     // 可选区域裁剪: &clip=x,y,w,h（设备像素坐标）
     else if (pathname === '/screenshot') {
@@ -587,8 +681,11 @@ const server = http.createServer(async (req, res) => {
           '/back?target=': 'GET - 后退',
           '/info?target=': 'GET - 页面标题/URL/状态',
           '/eval?target=': 'POST body=JS表达式 - 执行 JS',
+          '/frames?target=': 'GET - 获取 frame 树和所有执行上下文',
+          '/eval-context?target=&context=': 'POST body=JS表达式 - 在指定执行上下文执行 JS',
           '/click?target=': 'POST body=CSS选择器 - 点击元素',
           '/scroll?target=&y=&direction=': 'GET - 滚动页面',
+          '/wheel?target=': 'POST body=JSON - 真实鼠标滚轮事件',
           '/screenshot?target=&file=': 'GET - 截图',
           '/emulate?target=&width=&height=': 'GET - 强制设置 viewport（reset=1 清除）',
         },

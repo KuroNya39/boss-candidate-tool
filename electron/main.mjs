@@ -99,6 +99,7 @@ let mainWindow = null;
 let currentProcess = null;
 let cancelled = false;
 let skipToScoring = false; // 跳过提取步骤，直接使用已提取的数据进行评分
+let skipRecovered = false; // skip 恢复成功标记，用于跳过后续 sendProgress 覆盖
 let aiAbortController = null; // 用于中断 AI 评分的正在请求
 let actualExportPath = ''; // 导出脚本实际输出的文件路径（可能被另存）
 
@@ -409,6 +410,7 @@ async function doAiScoring() {
   sendProgress(2, 'running', 50, `AI评分: ${totalCandidates} 人，${positionNames.length} 个岗位`);
 
   // 逐岗位评分
+  let completedInPosition = 0; // 全局累计计数（跨岗位不重置）
   for (const positionName of positionNames) {
     if (cancelled) { termLog('[AI评分] 用户取消'); break; }
 
@@ -420,6 +422,7 @@ async function doAiScoring() {
       if (!c.resumeText) {
         c.jobRelevanceScore = 0;
         c.jobRelevanceComment = '无在线简历';
+        completedInPosition++;
       }
     }
 
@@ -477,19 +480,15 @@ async function doAiScoring() {
       }
     }
 
-    // 逐人评分，最大并发 3（避免 API 限流 + 单请求失败不影响其他人）
-    const CONCURRENCY = 3;
-    let completedInPosition = 0;
+    // 逐人评分，最大并发 5（避免 API 限流 + 单请求失败不影响其他人）
+    const CONCURRENCY = 20;
     const totalInPosition = withResume.length;
     termLog(`[AI评分] 岗位 "${positionName}": ${totalInPosition} 人，并发 ${CONCURRENCY}`);
 
-    for (let i = 0; i < totalInPosition; i += CONCURRENCY) {
-      if (cancelled) { termLog('[AI评分] 用户取消'); break; }
-      const chunk = withResume.slice(i, i + CONCURRENCY);
-      await Promise.all(chunk.map(async (c) => {
-        if (cancelled) return;
-        const displayName = c.basicInfo?.name || c.geekId || '未知';
-        termLog(`[AI评分] 评分: ${displayName}`);
+    async function scoreOneCandidate(c) {
+      if (cancelled) return;
+      const displayName = c.basicInfo?.name || c.geekId || '未知';
+      termLog(`[AI评分] 评分: ${displayName}`);
 
         // 构建单人 prompt
         let prompt;
@@ -504,61 +503,80 @@ async function doAiScoring() {
             .replace('{jdText}', jdContent || dimensionsText || '(无岗位JD描述)');
         }
 
+        // 截断简历文本到 4000 字（覆盖 95% 以上的完整简历，同时避免 prompt 过长导致 API 响应变慢）
+        const MAX_RESUME_LEN = 4000;
+        const resumeForAI = (c.resumeText || '').length > MAX_RESUME_LEN
+          ? (c.resumeText || '').slice(0, MAX_RESUME_LEN) + '\n\n...(后续内容略)'
+          : (c.resumeText || '(无)');
         prompt = prompt.replace('{resumeText}',
           `姓名：${c.basicInfo?.name || '未知'}\n` +
           `学历（来自页面）：${c.basicInfo?.education || '未知'}\n` +
           `工作年限（来自页面）：${c.basicInfo?.workYears || '未知'}\n` +
-          `简历（OCR识别，仅供参考）：\n${c.resumeText || '(无)'}`
+          `简历文本（仅供参考）：\n${resumeForAI}`
         );
 
-        // 要求输出 JSON 格式
         prompt += `\n\n重要：请严格按照上面的"最终输出模板"格式撰写评语，评语的每个模块都要包含，且不要输出多个候选人的评分。\n` +
-          `请只输出以下 JSON 格式（不要包含任何其他内容，不要用 markdown 代码块包裹）：\n` +
-          `{\n  \"score\": <0-100的整数>,\n  \"comment\": "<完整的评语文本，用\\n换行>"\n}`;
+        `请只输出以下 JSON 格式（不要包含任何其他内容，不要用 markdown 代码块包裹）：\n` +
+        `{\n  \"score\": <0-100的整数>,\n  \"comment\": "<完整的评语文本，用\\n换行>"\n}`;
 
-        // 最多重试 2 次
-        let lastError = null;
-        for (let retry = 0; retry <= 2; retry++) {
-          if (cancelled) return;
-          try {
-            const text = await callClaudeAPI(prompt, { signal });
-            const obj = parseSingleScoreResponse(text);
-            if (obj) {
-              c.jobRelevanceScore = obj.score;
-              c.jobRelevanceComment = obj.comment;
-              termLog(`  ✓ ${displayName}: ${obj.score}分`);
-              lastError = null;
-              break;
-            }
-            lastError = new Error('解析失败(无有效JSON)');
-            if (retry < 2) {
-              const ts = Date.now();
-              const debugPath = resolve(OUTPUT_DIR, `api-raw-response-${ts}.txt`);
-              try { writeFileSync(debugPath, text, 'utf-8'); } catch {}
-              termLog(`  ⚠ 解析失败: ${debugPath}，${retry + 1}/2 重试`, 'stderr');
-              await sleep(2000);
-            }
-          } catch (err) {
-            if (signal.aborted) throw err;
-            lastError = err;
-            if (retry < 2) {
-              termLog(`  ⚠ 请求失败: ${err.message}，${retry + 1}/2 重试`, 'stderr');
-              await sleep(2000);
-            }
+      // 最多重试 2 次
+      let lastError = null;
+      for (let retry = 0; retry <= 2; retry++) {
+        if (cancelled) return;
+        try {
+          const text = await callClaudeAPI(prompt, { signal });
+          const obj = parseSingleScoreResponse(text);
+          if (obj) {
+            c.jobRelevanceScore = obj.score;
+            c.jobRelevanceComment = obj.comment;
+            termLog(`  ✓ ${displayName}: ${obj.score}分`);
+            lastError = null;
+            break;
+          }
+          lastError = new Error('解析失败(无有效JSON)');
+          if (retry < 2) {
+            const ts = Date.now();
+            const debugPath = resolve(OUTPUT_DIR, `api-raw-response-${ts}.txt`);
+            try { writeFileSync(debugPath, text, 'utf-8'); } catch {}
+            termLog(`  ⚠ 解析失败: ${debugPath}，${retry + 1}/2 重试`, 'stderr');
+            await sleep(2000);
+          }
+        } catch (err) {
+          if (signal.aborted) throw err;
+          lastError = err;
+          if (retry < 2) {
+            termLog(`  ⚠ 请求失败: ${err.message}，${retry + 1}/2 重试`, 'stderr');
+            await sleep(2000);
           }
         }
+      }
 
-        if (lastError) {
-          c.jobRelevanceScore = 0;
-          c.jobRelevanceComment = `评分失败: ${lastError.message}`;
-          termLog(`  ✗ ${displayName}: ${lastError.message}`, 'stderr');
-        }
+      if (lastError) {
+        c.jobRelevanceScore = 0;
+        c.jobRelevanceComment = `评分失败: ${lastError.message}`;
+        termLog(`  ✗ ${displayName}: ${lastError.message}`, 'stderr');
+      }
 
-        completedInPosition++;
-        const overall = Math.round(50 + (completedInPosition / totalCandidates) * 50);
-        sendProgress(2, 'running', overall, `AI评分: ${completedInPosition}/${totalCandidates} 人`);
-      }));
+      completedInPosition++;
+      const overall = Math.round(50 + (completedInPosition / totalCandidates) * 50);
+      sendProgress(2, 'running', overall, `AI评分: ${completedInPosition}/${totalCandidates} 人`);
     }
+
+    // 滑动窗口执行：前 CONCURRENCY 个立即启动，后续每完成一个启动下一个
+    const executing = new Set();
+    for (let i = 0; i < Math.min(CONCURRENCY, totalInPosition); i++) {
+      if (cancelled) break;
+      const promise = scoreOneCandidate(withResume[i]).finally(() => executing.delete(promise));
+      executing.add(promise);
+    }
+    for (let i = CONCURRENCY; i < totalInPosition; i++) {
+      if (cancelled) break;
+      await Promise.race(executing);
+      if (cancelled) break;
+      const promise = scoreOneCandidate(withResume[i]).finally(() => executing.delete(promise));
+      executing.add(promise);
+    }
+    await Promise.allSettled(executing);
     termLog(`[AI评分] 岗位 "${positionName}" 评分完成 (${totalInPosition} 人)`);
   }
   // 总分 = AI 评分（0-100）
@@ -580,12 +598,10 @@ async function doAiScoring() {
   termLog(`[AI评分] 完成，已写入 ${resultPath}`);
 }
 
-// ===== 清理临时文件 =====
 function cleanupTempFiles() {
   const dir = OUTPUT_DIR;
   if (!existsSync(dir)) return;
 
-  // 1. 删除 .temp-screenshots/ 目录（简历截图PNG）
   const screenshotsDir = resolve(dir, '.temp-screenshots');
   if (existsSync(screenshotsDir)) {
     try {
@@ -596,7 +612,6 @@ function cleanupTempFiles() {
     }
   }
 
-  // 2. 删除 zhipin-candidates.json（原始提取数据，scored-candidates.json 已包含）
   const rawPath = resolve(dir, 'zhipin-candidates.json');
   if (existsSync(rawPath)) {
     try {
@@ -607,7 +622,6 @@ function cleanupTempFiles() {
     }
   }
 
-  // 3. 删除 api-raw-response-*.txt（API调试日志）
   try {
     const entries = readdirSync(dir);
     for (const entry of entries) {
@@ -624,6 +638,7 @@ function cleanupTempFiles() {
 // ===== 主流程编排 =====
 async function runPipeline(count, skipExtract = false, extractAll = false, source = 'chat', job = '') {
   cancelled = false;
+  skipRecovered = false;
 
   try {
     // 归档旧输出目录（在主进程做，避免子进程 rename 时 EBUSY）
@@ -646,13 +661,24 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
 
     const isRecommendMode = source === 'recommend' || source === 'recommend-attach';
+    const isSearchMode = source === 'search';
 
     // 步骤 1: 提取（可跳过）
     if (!skipExtract) {
-      const isAttach = source === 'recommend-attach';
-      const scriptName = isRecommendMode ? 'extract-recommend-candidates.mjs' : 'extract-candidates-full.mjs';
-      const pageLabel = isAttach ? '推荐牛人页（手动筛选）' : (isRecommendMode ? '推荐牛人' : '沟通');
-      sendProgress(1, 'running', 0, extractAll ? `准备提取全部候选人 (${pageLabel}页)...` : '准备提取候选人...');
+      const isAttach = source === 'recommend-attach' || source === 'search';
+      let scriptName;
+      let pageLabel;
+      if (isSearchMode) {
+        scriptName = 'extract-search-candidates.mjs';
+        pageLabel = '搜索';
+      } else if (isRecommendMode) {
+        scriptName = 'extract-recommend-candidates.mjs';
+        pageLabel = isAttach ? '推荐牛人页（手动筛选）' : '推荐牛人';
+      } else {
+        scriptName = 'extract-candidates-full.mjs';
+        pageLabel = '沟通';
+      }
+      sendProgress(1, 'running', 0, extractAll ? `正在提取候选人信息 (${pageLabel}页)...` : '正在提取候选人信息...');
       const extractArgs = extractAll
         ? ['--all', '--output', resolve(OUTPUT_DIR, 'zhipin-candidates.json')]
         : ['--count', String(count), '--output', resolve(OUTPUT_DIR, 'zhipin-candidates.json')];
@@ -667,41 +693,55 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       } catch (err) {
         if (skipToScoring) {
           skipToScoring = false;
-          termLog('[main] 用户跳过提取，尝试从进度文件恢复数据');
-          const progressPath = resolve(OUTPUT_DIR, '.extract-progress.json');
-          if (!existsSync(progressPath)) {
-            throw new Error('跳过提取失败：未找到进度文件，尚无已提取的候选人数据');
+          skipRecovered = true;
+          // 检查是否已有完整输出文件（脚本可能在 kill 前已完成）
+          const candidatesPath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
+          if (existsSync(candidatesPath)) {
+            termLog('[main] 跳过提取，但 zhipin-candidates.json 已存在，直接使用');
+            sendProgress(1, 'done', 100, '已跳过提取步骤');
+          } else {
+            termLog('[main] 用户跳过提取，尝试从进度文件恢复数据');
+            const progressPath = resolve(OUTPUT_DIR, '.extract-progress.json');
+            if (!existsSync(progressPath)) {
+              termLog('[main] 跳过提取失败：尚无已提取的候选人数据');
+              sendError({ message: '暂无已提取的候选人数据，无法跳过。请等待提取到足够数据后再试。' });
+              return;
+            }
+            const progressData = JSON.parse(readFileSync(progressPath, 'utf-8'));
+            const candidates = progressData.candidates || [];
+            if (candidates.length === 0) {
+              termLog('[main] 跳过提取失败：进度文件中无候选人数据');
+              sendError({ message: '进度文件中无候选人数据，无法跳过。请等待提取到足够数据后再试。' });
+              return;
+            }
+            termLog(`[main] 从进度文件恢复 ${candidates.length} 名候选人`);
+            const output = { source: isSearchMode ? 'search' : (isRecommendMode ? 'recommend' : 'chat'), candidates };
+            writeFileSync(candidatesPath, JSON.stringify(output, null, 2), 'utf-8');
+            sendProgress(1, 'done', 100, `已跳过提取，从进度恢复 ${candidates.length} 人数据`);
           }
-          const progressData = JSON.parse(readFileSync(progressPath, 'utf-8'));
-          const candidates = progressData.candidates || [];
-          if (candidates.length === 0) {
-            throw new Error('跳过提取失败：进度文件中无候选人数据');
-          }
-          termLog(`[main] 从进度文件恢复 ${candidates.length} 名候选人`);
-          const output = { source: isRecommendMode ? 'recommend' : 'chat', candidates };
-          writeFileSync(resolve(OUTPUT_DIR, 'zhipin-candidates.json'), JSON.stringify(output, null, 2), 'utf-8');
-          sendProgress(1, 'done', 100, `提取中断（已恢复 ${candidates.length} 人数据）`);
         } else {
           throw err;
         }
       }
       if (cancelled) return;
-      sendProgress(1, 'done', 100, '提取完成');
+      if (!skipRecovered) {
+        sendProgress(1, 'done', 100, '候选人信息提取完成');
+      }
     } else {
-      sendProgress(1, 'done', 100, '已跳过提取');
+      sendProgress(1, 'done', 100, '已跳过提取步骤');
     }
     // 步骤 2: AI 评分（直接从 zhipin-candidates.json 读取）
     const candidatesPath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
     if (!existsSync(candidatesPath)) {
       throw new Error('未找到 zhipin-candidates.json');
     }
-    sendProgress(2, 'running', 0, 'AI岗位相关性评分...');
+    sendProgress(2, 'running', 0, '正在 AI 评分...');
     await doAiScoring();
     if (cancelled) return;
 
     // 步骤 3: 导出
-    sendProgress(2, 'done', 100, '评分完成');
-    sendProgress(3, 'running', 0, '准备导出 Excel...');
+    sendProgress(2, 'done', 100, 'AI 评分完成');
+    sendProgress(3, 'running', 0, '正在导出 Excel...');
     const scoredPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
     if (!existsSync(scoredPath)) throw new Error(`未找到评分结果文件: ${scoredPath}`);
 
@@ -709,7 +749,9 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     let exportArgs = ['--input', scoredPath];
     const smtpEnv = {};
     if (apiConfig.emailPrefix) {
-      const emailSubject = isRecommendMode ? '推荐牛人评分结果' : '候选人评分结果';
+      let emailSubject = '候选人评分结果';
+      if (isRecommendMode) emailSubject = '推荐牛人评分结果';
+      else if (isSearchMode) emailSubject = '搜索页评分结果';
       exportArgs.push('--to-prefix', apiConfig.emailPrefix);
       exportArgs.push('--email-subject', emailSubject);
       // 传递 SMTP 配置给子进程
@@ -724,7 +766,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     await runScript('export-candidates.mjs', exportArgs, 3, parseExportProgress, smtpEnv);
     if (cancelled) return;
 
-    sendProgress(3, 'done', 100, '导出完成');
+    sendProgress(3, 'done', 100, 'Excel 导出完成');
 
     // 清理临时文件（保留 scored-candidates.json 和 candidates.xlsx）
     cleanupTempFiles();
@@ -746,7 +788,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
 }
 
 // ===== 批量打招呼 =====
-async function runGreeting(level) {
+async function runGreeting(level, source = 'recommend') {
   cancelled = false; // 重置取消标志
   const scoredPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
   if (!existsSync(scoredPath)) {
@@ -766,7 +808,7 @@ async function runGreeting(level) {
     termLog(`[greet] 读取评分数据失败: ${err.message}`, 'stderr');
   }
 
-  termLog(`[greet] 开始批量打招呼，level=${level}，目标 ${totalTargets} 人`);
+  termLog(`[greet] 开始批量打招呼，level=${level}，source=${source}，目标 ${totalTargets} 人`);
 
   const MAX_WAIT = 600000; // 最多等 10 分钟
   let greetCancelled = false;
@@ -778,6 +820,7 @@ async function runGreeting(level) {
     const proc = spawn(process.execPath, [greetPath,
       '--input', scoredPath,
       '--level', String(level),
+      '--source', source,
     ], {
       cwd: procCwd,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -834,15 +877,21 @@ async function runGreeting(level) {
 
     proc.on('close', (code) => {
       currentProcess = null;
+      // 超时或用户取消时 cancelled=true，不再重复报错
       if (cancelled) return;
+      // code=null 表示被信号杀死（非正常退出）
       if (code !== 0) {
-        sendGreetError({ message: `greet-candidates.mjs 退出码 ${code}` });
+        const msg = code === null
+          ? '打招呼进程异常终止（可能被系统杀死）'
+          : `greet-candidates.mjs 退出码 ${code}`;
+        sendGreetError({ message: msg });
       }
     });
 
-    // 超时保护
+    // 超时保护（也会设置 cancelled，避免 close 事件重复报错）
     setTimeout(() => {
       if (currentProcess === proc) {
+        cancelled = true; // 也标记全局取消，close 处理时不再报退出码错误
         greetCancelled = true;
         currentProcess = null;
         proc.kill();
@@ -975,7 +1024,14 @@ function registerIPC() {
     cancelled = true;
     if (currentProcess) {
       // 写入 stdin 通知子进程自行清理（Windows 下 SIGTERM 不可靠）
-      try { currentProcess.stdin.write('CANCEL\n'); } catch {}
+      try {
+        if (currentProcess?.stdin?.writable) {
+          const onError = () => {};
+          currentProcess.stdin.on('error', onError);
+          currentProcess.stdin.write('CANCEL\n');
+          currentProcess.stdin.off('error', onError);
+        }
+      } catch {}
       // 等 2s 让子进程清理，超时强制杀
       setTimeout(() => {
         if (currentProcess) { currentProcess.kill(); currentProcess = null; }
@@ -988,7 +1044,14 @@ function registerIPC() {
   ipcMain.handle('skip-extraction', () => {
     skipToScoring = true;
     if (currentProcess) {
-      try { currentProcess.stdin.write('CANCEL\n'); } catch {}
+      try {
+        if (currentProcess?.stdin?.writable) {
+          const onError = () => {};
+          currentProcess.stdin.on('error', onError);
+          currentProcess.stdin.write('CANCEL\n');
+          currentProcess.stdin.off('error', onError);
+        }
+      } catch {}
       setTimeout(() => {
         if (currentProcess) { currentProcess.kill(); currentProcess = null; }
       }, 2000);
@@ -1000,14 +1063,22 @@ function registerIPC() {
   ipcMain.handle('start-greeting', (_event, opts) => {
     if (currentProcess) return { error: '已有任务运行中' };
     const level = opts?.level ?? 4;
-    runGreeting(level);
+    const source = opts?.source || 'recommend';
+    runGreeting(level, source);
     return { ok: true };
   });
 
   ipcMain.handle('cancel-greeting', () => {
     cancelled = true;
     if (currentProcess) {
-      try { currentProcess.stdin.write('CANCEL\n'); } catch {}
+      try {
+        if (currentProcess?.stdin?.writable) {
+          const onError = () => {};
+          currentProcess.stdin.on('error', onError);
+          currentProcess.stdin.write('CANCEL\n');
+          currentProcess.stdin.off('error', onError);
+        }
+      } catch {}
       setTimeout(() => {
         if (currentProcess) { currentProcess.kill(); currentProcess = null; }
       }, 2000);
