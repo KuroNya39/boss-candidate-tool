@@ -446,7 +446,7 @@ async function clickCardToOpenResume(targetId, expectId, cardIndex) {
       // 估算：每张卡片约 140px，滚到目标卡片的前 3 张位置
       list.scrollTop = Math.max(0, (${cardIndex} - 3)) * 140;
     })()`);
-    await sleep(500);
+    await sleep(300);
   }
 
   const result = await iframeEval(targetId, `(function(){
@@ -475,7 +475,7 @@ async function clickCardToOpenResume(targetId, expectId, cardIndex) {
       if (n > 0 && s !== 'no') {
         const [w, h] = s.split('x').map(Number);
         if (stable === 0) console.log(`    弹窗存在: ${s}`);
-        if (w === lastW && h === lastH) { stable++; if (stable>=1) { await sleep(500); return true; } }
+        if (w === lastW && h === lastH) { stable++; if (stable>=1) { await sleep(250); return true; } }
         else { stable=0; lastW=w; lastH=h; }
       }
     } catch(e) { if (Date.now()-start > 2000) console.log(`    弹窗检测异常: ${e.message}`); }
@@ -624,7 +624,7 @@ async function scrollSearchResume(targetId, scrollTop) {
     best.style.scrollBehavior = 'auto';
     best.scrollTop = ${scrollTop};
   })()`);
-  await randomDelay(800, 1200);
+  await randomDelay(250, 400);
 }
 
 /**
@@ -781,7 +781,7 @@ process.on('SIGTERM', () => {
 // ===== 主流程 =====
 
 async function main() {
-  const opts = parseArgs();
+  const opts = parseArgs();
   const outputPath = resolve(opts.output);
   const outputDir = dirname(outputPath);
 
@@ -1087,7 +1087,7 @@ async function main() {
               }
               if (!success) throw new Error(`截图第 ${page + 1}/${pages} 页多次失败`);
 
-              if (page < pages - 1) await randomDelay(300, 600);
+              if (page < pages - 1) await randomDelay(200, 300);
             }
 
             console.log('  → OCR 识别（后台进行，与关闭弹窗重叠）...');
@@ -1143,7 +1143,7 @@ async function main() {
       }
 
       if (i < toProcess.length - 1) {
-        const delayMs = 1000 + Math.random() * 2000;
+        const delayMs = 500 + Math.random() * 500;
         console.log(`  ⏳ 等待 ${(delayMs / 1000).toFixed(1)}s...\n`);
         await sleep(delayMs);
       }

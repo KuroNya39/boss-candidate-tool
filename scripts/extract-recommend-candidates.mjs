@@ -506,7 +506,7 @@ async function clickCardToOpenResume(targetId, geekId, cardIndex) {
       // 估算：每张卡片约 120px，滚到目标卡片的前 3 张位置
       list.scrollTop = Math.max(0, (${cardIndex} - 3)) * 120;
     })()`);
-    await sleep(500);
+    await sleep(300);
   }
 
   const result = await iframeEval(targetId, `(function(){
@@ -567,7 +567,7 @@ async function clickCardToOpenResume(targetId, geekId, cardIndex) {
         if (dialogState.width === lastWidth && dialogState.height === lastHeight) {
           stableCount++;
           if (stableCount >= 1) {
-            const waitForIframe = dialogState.hasCanvas ? 1000 : 500;
+            const waitForIframe = dialogState.hasCanvas ? 400 : 250;
             const sizeWarn = sizeOk ? '' : ' ⚠尺寸偏小';
             console.log(`    弹窗尺寸稳定: ${dialogState.width}x${dialogState.height}, iframe=${dialogState.hasIframe}, canvas=${dialogState.hasCanvas}${sizeWarn}`);
             await sleep(waitForIframe);
@@ -580,7 +580,7 @@ async function clickCardToOpenResume(targetId, geekId, cardIndex) {
         }
       }
     } catch {}
-    await sleep(400);
+    await sleep(200);
   }
 
   console.log('    ⚠ 等待弹窗超时');
@@ -792,7 +792,7 @@ async function scrollRecommendResume(targetId, scrollTop) {
     best.style.scrollBehavior = 'auto';
     best.scrollTop = ${scrollTop};
   })()`);
-  await randomDelay(800, 1200);
+  await randomDelay(250, 400);
 }
 
 
@@ -903,7 +903,7 @@ process.on('SIGTERM', () => {
 // ===== 主流程 =====
 
 async function main() {
-  const opts = parseArgs();
+  const opts = parseArgs();
   const outputPath = resolve(opts.output);
   const outputDir = dirname(outputPath);
 
@@ -1237,7 +1237,7 @@ async function main() {
             }
             if (!success) throw new Error(`截图第 ${page + 1}/${pages} 页多次失败`);
 
-            if (page < pages - 1) await randomDelay(300, 600);
+            if (page < pages - 1) await randomDelay(200, 300);
           }
 
           console.log('  → OCR 识别（后台进行，与关闭弹窗重叠）...');
@@ -1292,7 +1292,7 @@ async function main() {
 
       // 候选人之间随机延迟
       if (i < toProcess.length - 1) {
-        const delayMs = 1000 + Math.random() * 2000;
+        const delayMs = 500 + Math.random() * 500;
         console.log(`  ⏳ 等待 ${(delayMs / 1000).toFixed(1)}s...\n`);
         await sleep(delayMs);
       }

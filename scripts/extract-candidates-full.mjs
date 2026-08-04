@@ -65,7 +65,7 @@ async function waitForCandidateList(targetId, maxWait = 15000) {
       const count = await cdpEval(targetId, `document.querySelectorAll('.geek-item').length`);
       if (count > 0) return count;
     } catch {}
-    await sleep(800);
+    await sleep(400);
   }
   throw new Error('候选人列表未加载');
 }
@@ -1403,7 +1403,7 @@ async function main() {
       }
 
       if (i < toProcess.length - 1) {
-        const delayMs = 1000 + Math.random() * 2000;
+        const delayMs = 500 + Math.random() * 500;
         console.log(`  ⏳ 等待 ${(delayMs / 1000).toFixed(1)}s...\n`);
         await sleep(delayMs);
       }

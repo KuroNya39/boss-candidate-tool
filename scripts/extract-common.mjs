@@ -72,7 +72,8 @@ export async function cdpEval(targetId, expr) {
 }
 
 export async function cdpScreenshot(targetId, filePath, clip) {
-  let url = `/screenshot?target=${targetId}&file=${encodeURIComponent(filePath)}`;
+  // 用 JPEG 编码（q80）替代 PNG：编码更快、文件更小、写入更快，OCR 质量影响可忽略
+  let url = `/screenshot?target=${targetId}&file=${encodeURIComponent(filePath)}&format=jpeg&quality=80`;
   if (clip) {
     url += `&clip=${clip.x},${clip.y},${clip.width},${clip.height}`;
   }
@@ -140,11 +141,12 @@ export async function clickOnlineResume(targetId) {
         const sizeOk = state.width >= 600 && state.height >= 500;
         if (state.width === lastWidth && state.height === lastHeight) {
           stableCount++;
-          if (stableCount >= 2) {
-            const waitForIframe = state.hasIframe && state.hasResume && state.hasCanvas ? 2000 : 4000;
+          if (stableCount >= 1) {
+            // 内容就绪检测：DOM #resume 或 canvas 已加载即视为就绪（替代固定 2-4s 等待）
+            const contentReady = await waitForResumeContentLoaded(targetId, 2000);
             const sizeWarn = sizeOk ? '' : ' ⚠尺寸偏小';
-            console.log(`    弹窗尺寸稳定: ${state.width}x${state.height}, iframe=${state.hasIframe}, resume=${state.hasResume}, canvas=${state.hasCanvas}, 额外等待 ${waitForIframe}ms${sizeWarn}`);
-            await sleep(waitForIframe);
+            console.log(`    弹窗尺寸稳定: ${state.width}x${state.height}, iframe=${state.hasIframe}, resume=${state.hasResume}, canvas=${state.hasCanvas}, 内容${contentReady ? '就绪' : '未就绪'}${sizeWarn}`);
+            await sleep(contentReady ? 300 : 800);
             return true;
           }
         } else {
@@ -154,10 +156,34 @@ export async function clickOnlineResume(targetId) {
         }
       }
     } catch {}
-    await sleep(400);
+    await sleep(200);
   }
 
   console.log('    ⚠ 等待弹窗超时');
+  return false;
+}
+
+/**
+ * 等待简历弹窗 iframe 内容真正加载（#resume 或 canvas 出现），最多 maxWait ms
+ */
+async function waitForResumeContentLoaded(targetId, maxWait) {
+  const start = Date.now();
+  while (Date.now() - start < maxWait) {
+    try {
+      const raw = await cdpEval(targetId, `(function(){
+        var detail = document.querySelector('.resume-detail');
+        if (!detail) return '0';
+        var iframe = detail.querySelector('iframe');
+        if (!iframe) return '0';
+        var idoc;
+        try { idoc = iframe.contentDocument || iframe.contentWindow.document; } catch(e) { return '0'; }
+        if (!idoc) return '0';
+        return (!!idoc.querySelector('#resume') || !!idoc.querySelector('canvas')) ? '1' : '0';
+      })()`);
+      if (raw === '1') return true;
+    } catch {}
+    await sleep(150);
+  }
   return false;
 }
 
@@ -298,7 +324,7 @@ export async function scrollResume(targetId, scrollTop) {
       el.scrollTop = ${scrollTop};
     }
   })()`);
-  await randomDelay(800, 1200);
+  await randomDelay(250, 400);
 }
 
 // ===== 通用弹窗关闭 =====
@@ -439,7 +465,7 @@ export async function captureResumeScreenshots(targetId, safename, tempDir) {
       throw new Error(`截图第 ${page + 1}/${pages} 页多次失败`);
     }
 
-    if (page < pages - 1) await randomDelay(600, 1000);
+    if (page < pages - 1) await randomDelay(200, 350);
   }
 
   await scrollResume(targetId, 0);
