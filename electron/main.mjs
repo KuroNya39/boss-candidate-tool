@@ -266,7 +266,7 @@ async function callClaudeAPI(prompt, { signal } = {}) {
     },
     body: JSON.stringify({
       model: apiConfig.model,
-      max_tokens: 4096,
+      max_tokens: 2000,
       temperature: 0.3,
       messages: [{ role: 'user', content: prompt }],
     }),
@@ -378,6 +378,63 @@ function parseSingleScoreResponse(text) {
     return null;
   }
 
+/**
+ * 解析批量评分返回的 JSON 数组 [{candidateIndex, score, comment}]
+ * 兼容 markdown 代码块包裹和前后多余文本
+ */
+function parseBatchScoreResponse(text) {
+  if (!text) return null;
+
+  const cleanText = text.replace(/^```(?:json)?\s*\n?/m, '').replace(/\n?```\s*$/m, '').trim();
+  if (!cleanText) return null;
+
+  // 逐个尝试解析 [...] JSON 数组
+  let searchPos = 0;
+  while (true) {
+    const start = cleanText.indexOf('[', searchPos);
+    if (start === -1) break;
+
+    let depth = 0;
+    let end = -1;
+    for (let i = start; i < cleanText.length; i++) {
+      if (cleanText[i] === '[') depth++;
+      else if (cleanText[i] === ']') depth--;
+      if (depth === 0) { end = i; break; }
+    }
+
+    if (end > start) {
+      try {
+        const parsed = JSON.parse(cleanText.slice(start, end + 1));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const results = [];
+          let valid = false;
+          for (const item of parsed) {
+            const idx = item?.candidateIndex ?? item?.index ?? null;
+            const score = item?.score ?? item?.jobRelevanceScore ?? null;
+            const comment = item?.comment ?? item?.jobRelevanceComment ?? item?.reason ?? null;
+            if (typeof idx === 'number' && typeof score === 'number' && typeof comment === 'string') {
+              // 格式化评语：在章节标题前强制换行
+              const formatted = comment
+                .replace(/(匹配度评分|首句定性|维度权重|硬性技能|核心领域|刚性扣分说明|综合结论|岗位相关性分数|技术栈匹配|项目经验(?:相关|相关性)|行业经验)/g, '\n$1')
+                .replace(/\n{3,}/g, '\n\n')
+                .replace(/^\n+/, '')
+                .trim();
+              results.push({ candidateIndex: idx, score, comment: formatted });
+              valid = true;
+            } else {
+              results.push({ candidateIndex: idx ?? -1, score: score ?? 0, comment: comment ?? '(AI评分未生成评语)' });
+            }
+          }
+          if (valid) return results;
+        }
+      } catch {}
+    }
+    searchPos = start + 1;
+  }
+
+  return null;
+}
+
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
 }
@@ -480,44 +537,60 @@ async function doAiScoring() {
       }
     }
 
-    // 逐人评分，最大并发 5（避免 API 限流 + 单请求失败不影响其他人）
-    const CONCURRENCY = 20;
+    // 批量评分：每批 BATCH_SIZE 人，1 次 API 调用；按批并发
+    const BATCH_SIZE = 3;
+    const CONCURRENCY = 6; // 并发批数（6批×3人≈18人同时，避免 API 限流）
     const totalInPosition = withResume.length;
-    termLog(`[AI评分] 岗位 "${positionName}": ${totalInPosition} 人，并发 ${CONCURRENCY}`);
 
-    async function scoreOneCandidate(c) {
+    // 分批
+    const batches = [];
+    for (let i = 0; i < totalInPosition; i += BATCH_SIZE) {
+      batches.push(withResume.slice(i, i + BATCH_SIZE));
+    }
+    const totalBatches = batches.length;
+    termLog(`[AI评分] 岗位 "${positionName}": ${totalInPosition} 人，${totalBatches} 批，并发 ${CONCURRENCY} 批`);
+
+    const MAX_RESUME_LEN = 4000; // 每份简历截断，避免 prompt 过长
+
+    async function scoreOneBatch(batch) {
       if (cancelled) return;
-      const displayName = c.basicInfo?.name || c.geekId || '未知';
-      termLog(`[AI评分] 评分: ${displayName}`);
 
-        // 构建单人 prompt
-        let prompt;
-        if (isRecommendScoring) {
-          const dims = jdContent || dimensionsText;
-          const criteria = jdContent || screeningCriteriaText;
-          prompt = template
-            .replace('{dimensions}', dims)
-            .replace('{screeningCriteria}', criteria);
-        } else {
-          prompt = template
-            .replace('{jdText}', jdContent || dimensionsText || '(无岗位JD描述)');
-        }
+      // 构建多人 prompt
+      let prompt;
+      if (isRecommendScoring) {
+        const dims = jdContent || dimensionsText;
+        const criteria = jdContent || screeningCriteriaText;
+        prompt = template
+          .replace('{dimensions}', dims)
+          .replace('{screeningCriteria}', criteria);
+      } else {
+        prompt = template
+          .replace('{jdText}', jdContent || dimensionsText || '(无岗位JD描述)');
+      }
 
-        // 截断简历文本到 4000 字（覆盖 95% 以上的完整简历，同时避免 prompt 过长导致 API 响应变慢）
-        const MAX_RESUME_LEN = 4000;
+      // 拼接本批所有候选人的简历
+      const resumeSections = batch.map((c, i) => {
         const resumeForAI = (c.resumeText || '').length > MAX_RESUME_LEN
           ? (c.resumeText || '').slice(0, MAX_RESUME_LEN) + '\n\n...(后续内容略)'
           : (c.resumeText || '(无)');
-        prompt = prompt.replace('{resumeText}',
+        return `=== 候选人 ${i + 1}/${batch.length} ===\n` +
           `姓名：${c.basicInfo?.name || '未知'}\n` +
           `学历（来自页面）：${c.basicInfo?.education || '未知'}\n` +
           `工作年限（来自页面）：${c.basicInfo?.workYears || '未知'}\n` +
-          `简历文本（仅供参考）：\n${resumeForAI}`
-        );
+          `简历文本（仅供参考）：\n${resumeForAI}`;
+      }).join('\n\n');
 
-        prompt += `\n\n重要：请严格按照上面的"最终输出模板"格式撰写评语，评语的每个模块都要包含，且不要输出多个候选人的评分。\n` +
-        `请只输出以下 JSON 格式（不要包含任何其他内容，不要用 markdown 代码块包裹）：\n` +
-        `{\n  \"score\": <0-100的整数>,\n  \"comment\": "<完整的评语文本，用\\n换行>"\n}`;
+      prompt = prompt.replace('{resumeText}', resumeSections);
+
+      // 附加批量输出格式要求
+      prompt += `\n\n重要：请严格按照上面的"最终输出模板"格式为每位候选人撰写评语，评语的每个模块都要包含。\n` +
+        `请为以上每位候选人分别给出评分，严格按以下 JSON 数组格式输出（不要包含任何其他内容，不要用 markdown 代码块包裹）：\n` +
+        `[\n` +
+        batch.map((_, i) => `  {"candidateIndex": ${i}, "score": <0-100的整数>, "comment": "<完整的评语文本，用\\n换行>"}`).join(',\n') +
+        `\n]`;
+
+      const batchNames = batch.map(c => c.basicInfo?.name || c.geekId || '未知').join('、');
+      termLog(`[AI评分] 评分批: ${batchNames}`);
 
       // 最多重试 2 次
       let lastError = null;
@@ -525,11 +598,17 @@ async function doAiScoring() {
         if (cancelled) return;
         try {
           const text = await callClaudeAPI(prompt, { signal });
-          const obj = parseSingleScoreResponse(text);
-          if (obj) {
-            c.jobRelevanceScore = obj.score;
-            c.jobRelevanceComment = obj.comment;
-            termLog(`  ✓ ${displayName}: ${obj.score}分`);
+          const results = parseBatchScoreResponse(text);
+          if (results && results.length > 0) {
+            for (const r of results) {
+              const idx = r.candidateIndex;
+              if (idx >= 0 && idx < batch.length) {
+                batch[idx].jobRelevanceScore = r.score;
+                batch[idx].jobRelevanceComment = r.comment;
+                const nm = batch[idx].basicInfo?.name || batch[idx].geekId || '未知';
+                termLog(`  ✓ ${nm}: ${r.score}分`);
+              }
+            }
             lastError = null;
             break;
           }
@@ -551,29 +630,32 @@ async function doAiScoring() {
         }
       }
 
+      // 失败批的候选人设 0 分
       if (lastError) {
-        c.jobRelevanceScore = 0;
-        c.jobRelevanceComment = `评分失败: ${lastError.message}`;
-        termLog(`  ✗ ${displayName}: ${lastError.message}`, 'stderr');
+        for (const c of batch) {
+          c.jobRelevanceScore = 0;
+          c.jobRelevanceComment = `评分失败: ${lastError.message}`;
+        }
+        termLog(`  ✗ 批次评分失败: ${lastError.message}`, 'stderr');
       }
 
-      completedInPosition++;
+      completedInPosition += batch.length;
       const overall = Math.round(50 + (completedInPosition / totalCandidates) * 50);
       sendProgress(2, 'running', overall, `AI评分: ${completedInPosition}/${totalCandidates} 人`);
     }
 
-    // 滑动窗口执行：前 CONCURRENCY 个立即启动，后续每完成一个启动下一个
+    // 按批滑动窗口执行
     const executing = new Set();
-    for (let i = 0; i < Math.min(CONCURRENCY, totalInPosition); i++) {
+    for (let i = 0; i < Math.min(CONCURRENCY, totalBatches); i++) {
       if (cancelled) break;
-      const promise = scoreOneCandidate(withResume[i]).finally(() => executing.delete(promise));
+      const promise = scoreOneBatch(batches[i]).finally(() => executing.delete(promise));
       executing.add(promise);
     }
-    for (let i = CONCURRENCY; i < totalInPosition; i++) {
+    for (let i = CONCURRENCY; i < totalBatches; i++) {
       if (cancelled) break;
       await Promise.race(executing);
       if (cancelled) break;
-      const promise = scoreOneCandidate(withResume[i]).finally(() => executing.delete(promise));
+      const promise = scoreOneBatch(batches[i]).finally(() => executing.delete(promise));
       executing.add(promise);
     }
     await Promise.allSettled(executing);

@@ -299,6 +299,7 @@ function setupListeners() {
       btnCancelGreet.style.display = 'none';
       btnStartGreet.style.display = '';
       greetResult.style.display = '';
+      greetResult.className = 'greet-result'; // 重置，避免上一次失败的红色样式残留
       greetResult.textContent =
         `✅ 成功打招呼 ${data.success} 人` +
         (data.already > 0 ? `，${data.already} 人已打过招呼` : '') +
