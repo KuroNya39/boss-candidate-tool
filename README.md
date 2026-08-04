@@ -261,7 +261,6 @@ AI 会按岗位描述里的 **3 个核心评估维度**（带权重）给候选�
   scripts/extract-recommend-candidates.mjs  推荐牛人页提取
   scripts/extract-search-candidates.mjs     搜索页提取
   scripts/extract-candidates-full.mjs       沟通页提取
-  scripts/score-candidates.mjs              评分
   scripts/greet-candidates.mjs              批量打招呼
   scripts/export-candidates.mjs             Excel 导出 + 邮件
   config/scoring-prompt-*.txt               AI 评分提示词模板
