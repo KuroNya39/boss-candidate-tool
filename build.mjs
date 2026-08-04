@@ -7,7 +7,7 @@
  * 4. 重建 NSIS 安装包（含修复图标的 exe）
  */
 import { execSync } from 'node:child_process';
-import { existsSync, rmSync, readdirSync } from 'node:fs';
+import { existsSync, rmSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -34,6 +34,39 @@ const SETUP_NAME = `${APP_NAME} Setup ${VERSION}.exe`;
 function run(cmd) {
   console.log(`> ${cmd}`);
   execSync(cmd, { cwd: ROOT, stdio: 'inherit' });
+}
+
+/**
+ * 生成 Release 更新说明（格式参考 v1.3.2）
+ * 从上一个 tag 到当前 HEAD 收集提交作为「更新内容」，
+ * 若存在 RELEASE_NOTES.md 则将其内容（主题/简介）插在最前面。
+ */
+function buildReleaseNotes() {
+  const oldTag = `v${OLD_VERSION}`;
+  let commits = [];
+  try {
+    const log = execSync(`git log ${oldTag}..HEAD --no-merges --pretty=%s`, { cwd: ROOT, encoding: 'utf-8' });
+    commits = log.split('\n').filter(Boolean);
+  } catch {
+    commits = [];
+  }
+  const items = commits.length > 0
+    ? commits.map(c => `- ${c}`).join('\n')
+    : '- 自动构建发布';
+
+  let header = '';
+  const notesFile = resolve(ROOT, 'RELEASE_NOTES.md');
+  try {
+    if (existsSync(notesFile)) {
+      header = readFileSync(notesFile, 'utf-8').trim() + '\n\n';
+    }
+  } catch {}
+
+  const notesPath = resolve(ROOT, OUT, 'release-notes.md');
+  const notes = `${header}## 更新内容\n${items}\n\n## 下载\n| 文件 | 说明 |\n|------|------|\n| ${SETUP_NAME} | 安装包 |\n| win-unpacked.zip | 绿色版（解压即用） |\n`;
+  writeFileSync(notesPath, notes, 'utf-8');
+  console.log(`  Release 说明已生成: ${notesPath}`);
+  return notesPath;
 }
 
 function findRcedit() {
@@ -129,10 +162,13 @@ async function main() {
     console.log(`  Tag ${tag} 已存在，跳过创建`);
   }
 
+  // 自动生成 Release 更新说明（从 git log 收集本次改动）
+  const notesPath = buildReleaseNotes();
+
   execSync(
     `gh release create "${tag}" ` +
     `--title "${APP_NAME} ${tag}" ` +
-    `--notes "自动构建发布" ` +
+    `--notes-file "${notesPath}" ` +
     `"${resolve(finalDist, SETUP_NAME)}" ` +
     `"${zipPath}"`,
     { cwd: ROOT, stdio: 'inherit' }
