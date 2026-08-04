@@ -13,10 +13,19 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '.');
-const pkg = JSON.parse(await import('node:fs').then(fs => fs.readFileSync(resolve(ROOT, 'package.json'), 'utf-8')));
+
+// 自动递增补丁版本号（如 1.3.0 → 1.3.1）
+const pkgPath = resolve(ROOT, 'package.json');
+const pkg = JSON.parse(await import('node:fs').then(fs => fs.readFileSync(pkgPath, 'utf-8')));
+const OLD_VERSION = pkg.version;
+const _vParts = OLD_VERSION.split('.').map(Number);
+_vParts[2] = (_vParts[2] || 0) + 1;
+const NEW_VERSION = _vParts.join('.');
+pkg.version = NEW_VERSION;
+await import('node:fs').then(fs => fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf-8'));
 
 const APP_NAME = 'Boss直聘候选人提取分析';
-const VERSION = pkg.version;
+const VERSION = NEW_VERSION;
 const REPO = 'KuroNya39/boss-candidate-tool';
 const OUT = 'build-tmp';
 const EXE_NAME = `${APP_NAME}.exe`;
@@ -49,6 +58,8 @@ function findRcedit() {
 }
 
 async function main() {
+  console.log(`\n版本号: ${OLD_VERSION} → ${VERSION}`);
+
   // 1. 生成 ICO
   console.log('\n=== 1/4: 生成 ICO ===');
   run('node scripts/make-ico.mjs');
@@ -85,7 +96,7 @@ async function main() {
   run(`npx electron-builder --win --prepackaged "${resolve(ROOT, OUT, 'win-unpacked')}"`);
 
   // 5. 输出到 release 目录（先 rm 清理再 mv，避免 Windows rename 跨设备/锁问题）
-  console.log('\n=== 5/5: 输出到 release ===');
+  console.log('\n=== 5/6: 输出到 release ===');
   const finalDist = resolve(ROOT, 'release');
   execSync(`cmd.exe /c "if exist "${finalDist}" rmdir /s /q "${finalDist}""`, { stdio: 'pipe' });
   execSync(`cmd.exe /c "move /y "${resolve(ROOT, OUT)}" "${finalDist}" "`, { stdio: 'pipe' });
@@ -109,7 +120,7 @@ async function main() {
 
   // 8. 上传到 GitHub Releases
   const tag = `v${VERSION}`;
-  console.log(`\n=== 8/8: 上传到 GitHub Releases (${tag}) ===`);
+  console.log(`\n=== 7/7: 上传到 GitHub Releases (${tag}) ===`);
   try {
     // 先检查 tag 是否已存在，不存在则创建
     execSync(`git tag "${tag}"`, { cwd: ROOT, stdio: 'pipe' });
