@@ -24,7 +24,7 @@ const NEW_VERSION = _vParts.join('.');
 pkg.version = NEW_VERSION;
 await import('node:fs').then(fs => fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf-8'));
 
-const APP_NAME = 'Boss直聘候选人提取分析';
+const APP_NAME = 'Boss直聘候选人AI评分助手';
 const VERSION = NEW_VERSION;
 const REPO = 'KuroNya39/boss-candidate-tool';
 const OUT = 'build-tmp';

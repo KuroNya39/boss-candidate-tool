@@ -1,5 +1,5 @@
 appId: com.web-access.candidate-tool
-productName: Boss直聘候选人提取分析
+productName: Boss直聘候选人AI评分助手
 directories:
   output: build-tmp
 files:
@@ -37,7 +37,7 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
-  shortcutName: Boss直聘候选人提取分析
+  shortcutName: Boss直聘候选人AI评分助手
   deleteAppDataOnUninstall: false
 extraMetadata:
   main: electron/main.mjs

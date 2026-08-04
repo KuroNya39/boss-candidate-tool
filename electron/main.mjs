@@ -113,7 +113,7 @@ function createWindow() {
     width: 660,
     height: 730,
     resizable: false,
-    title: 'Boss直聘候选人提取分析',
+    title: 'Boss直聘候选人AI评分助手',
     icon: resolve(UNPACKED_ROOT, 'app_icon_rounded.png'),
     webPreferences: {
       preload: resolve(__dirname, 'preload.js'),
