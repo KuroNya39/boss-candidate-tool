@@ -66,11 +66,11 @@
 
 ### 方式一：安装包（推荐）
 
-下载 `Boss.Setup.1.x.x.exe`，双击它，一路点「下一步」完成安装。
+在 [GitHub Releases 页面](https://github.com/KuroNya39/boss-candidate-tool/releases) 下载最新的 **`Boss.AI.Setup.1.x.x.exe`**，双击它，一路点「下一步」完成安装。
 
 ### 方式二：绿色版（免安装）
 
-下载 `Boss.1.x.x.zip`，解压到一个文件夹里，双击里面的 `Boss直聘候选人AI评分助手.exe` 就能直接运行。
+下载最新的 **`win-unpacked.zip`**，解压到一个文件夹里，双击里面的 `Boss直聘候选人AI评分助手.exe` 就能直接运行。
 
 ---
 

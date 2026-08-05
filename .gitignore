@@ -18,6 +18,7 @@ weidu.txt
 node_modules/
 dist/
 release/
+build-tmp/
 tmp/
 
 # Output directories
