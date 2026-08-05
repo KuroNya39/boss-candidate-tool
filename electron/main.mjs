@@ -268,6 +268,9 @@ async function callClaudeAPI(prompt, { signal } = {}) {
       model: apiConfig.model,
       max_tokens: 8000,
       temperature: 0.3,
+      // 禁用思考模式：模型在长 prompt 下思考会占用大量 token，
+      // 把输出 JSON 挤掉导致"解析失败"。禁用后直接输出结果，更稳。
+      thinking: { type: 'disabled' },
       messages: [{ role: 'user', content: prompt }],
     }),
   });
