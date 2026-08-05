@@ -479,6 +479,37 @@ document.getElementById('btn-retry-chrome').addEventListener('click', async () =
   btn.disabled = false;
 });
 
+// "边用边跑"模式：带参数重启 Chrome（关闭 Windows 遮挡暂停渲染）
+document.getElementById('btn-boss-mode-chrome').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-boss-mode-chrome');
+  btn.disabled = true;
+  btn.textContent = '正在启动...';
+  try {
+    let result = await window.electronAPI.launchBossModeChrome({ forceClose: false });
+    if (result?.needClose) {
+      const ok = confirm(result.message + '\n\n是否自动关闭并重启？');
+      if (ok) {
+        result = await window.electronAPI.launchBossModeChrome({ forceClose: true });
+      } else {
+        return;
+      }
+    }
+    if (result?.ok) {
+      alert(result.message);
+      // Chrome 已重启，触发一次重连
+      await window.electronAPI.retryCdpConnection();
+      await updateCdpStatus();
+    } else {
+      alert(result?.message || '启动失败，请重试。');
+    }
+  } catch (e) {
+    alert('启动失败：' + e.message);
+  } finally {
+    btn.textContent = '用"边用边跑"模式启动 Chrome';
+    btn.disabled = false;
+  }
+});
+
 // 选择输出目录
 btnSelectDir.addEventListener('click', async () => {
   const result = await window.electronAPI.selectOutputDir();

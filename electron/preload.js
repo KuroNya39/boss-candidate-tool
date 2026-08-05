@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // CDP/Chrome 状态
   getCdpStatus: () => ipcRenderer.invoke('get-cdp-status'),
   retryCdpConnection: () => ipcRenderer.invoke('retry-cdp-connection'),
+  // "边用边跑"模式：带参数重启 Chrome（关闭遮挡暂停渲染）
+  launchBossModeChrome: (opts) => ipcRenderer.invoke('launch-boss-mode-chrome', opts),
 
   // 批量打招呼
   startGreeting: (level) => ipcRenderer.invoke('start-greeting', { level }),

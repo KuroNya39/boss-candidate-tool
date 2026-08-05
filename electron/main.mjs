@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, renameSync, unlinkSync, rmSync } from 'node:fs';
@@ -437,6 +437,54 @@ function parseBatchScoreResponse(text) {
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
+}
+
+// ===== "边用边跑"模式：带参数启动 Chrome =====
+// Windows 会在 Chrome 窗口被完全盖住/最小化时暂停渲染（遮挡检测），
+// 导致 CDP 截图拿到空白帧。以下参数可关闭该行为，让用户边用电脑边跑。
+
+const BOSS_MODE_CHROME_FLAGS = [
+  '--disable-features=CalculateNativeWinOcclusion',
+  '--disable-backgrounding-occluded-windows',
+  '--disable-renderer-backgrounding',
+  '--disable-background-timer-throttling',
+];
+
+function findChromePath() {
+  const candidates = [
+    process.env.PROGRAMFILES && resolve(process.env.PROGRAMFILES, 'Google/Chrome/Application/chrome.exe'),
+    process.env['PROGRAMFILES(X86)'] && resolve(process.env['PROGRAMFILES(X86)'], 'Google/Chrome/Application/chrome.exe'),
+    process.env.LOCALAPPDATA && resolve(process.env.LOCALAPPDATA, 'Google/Chrome/Application/chrome.exe'),
+    process.env.LOCALAPPDATA && resolve(process.env.LOCALAPPDATA, 'Chromium/Application/chrome.exe'),
+  ].filter(Boolean);
+  return candidates.find(p => existsSync(p)) || null;
+}
+
+function isChromeRunning() {
+  return new Promise((resolveRun) => {
+    execFile('tasklist', ['/FI', 'IMAGENAME eq chrome.exe', '/NH'], (err, stdout) => {
+      if (err) return resolveRun(false);
+      resolveRun(/chrome\.exe/i.test(stdout));
+    });
+  });
+}
+
+function killChrome() {
+  return new Promise((resolveKill) => {
+    execFile('taskkill', ['/IM', 'chrome.exe'], () => resolveKill(true));
+  });
+}
+
+function waitChromeExit(timeoutMs = 8000) {
+  const start = Date.now();
+  return new Promise((resolveWait) => {
+    const poll = async () => {
+      const running = await isChromeRunning();
+      if (!running || Date.now() - start > timeoutMs) return resolveWait(!running);
+      setTimeout(poll, 300);
+    };
+    poll();
+  });
 }
 
 async function doAiScoring() {
@@ -1330,6 +1378,39 @@ function registerIPC() {
     cdpStatus = { state: 'connecting', message: '正在重试...', chromePort: null };
     startCdpProxy().catch(() => {});
     return { ...cdpStatus };
+  });
+
+  // "边用边跑"模式：带参数重启 Chrome，关闭 Windows 遮挡暂停渲染
+  // （否则 Chrome 窗口被完全盖住/最小化时渲染暂停，CDP 截图会拿到空白帧）
+  ipcMain.handle('launch-boss-mode-chrome', async (_event, { forceClose } = {}) => {
+    const chromePath = findChromePath();
+    if (!chromePath) {
+      return {
+        ok: false,
+        message: '没有在常见位置找到 Chrome。请照常打开 Chrome，按 README 第 1 步开启远程调试后使用；'
+               + '也可以手动用带参数方式启动 Chrome，或用闲置电脑方案。',
+      };
+    }
+    if (await isChromeRunning()) {
+      if (!forceClose) {
+        return {
+          ok: false,
+          needClose: true,
+          message: 'Chrome 正在运行。要让新参数生效，需要先完全关闭 Chrome（会关闭当前打开的标签页）。',
+        };
+      }
+      await killChrome();
+      if (!(await waitChromeExit())) {
+        // 优雅关闭超时，强制关闭
+        await new Promise((r) => execFile('taskkill', ['/F', '/IM', 'chrome.exe'], () => r()));
+      }
+    }
+    spawn(chromePath, BOSS_MODE_CHROME_FLAGS, { detached: true, stdio: 'ignore' }).unref();
+    return {
+      ok: true,
+      message: 'Chrome 已用「边用边跑」模式启动。首次使用请按 README 第 1 步，'
+             + '在 chrome://inspect/#remote-debugging 里勾选「允许远程调试」，之后照常使用即可。',
+    };
   });
 
   // 读取推荐牛人页岗位列表（从 jd-descriptions/ 目录的 .txt 文件名反解）
