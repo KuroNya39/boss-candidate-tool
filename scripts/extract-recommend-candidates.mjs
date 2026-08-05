@@ -400,7 +400,9 @@ async function scanUpToCards(targetId, count, opts = {}) {
     if (noNewCount >= noNewThreshold) break;
     if (cardInfos.length >= count) break;
 
-    const scrollResult = await iframeEval(targetId, `(function(){
+    // 用真实鼠标滚轮触发滚动（Boss直聘虚拟滚动只响应真实鼠标事件，
+    // 尤其最小化/后台时 JS scrollTop 修改无法触发懒加载）
+    const scrollInfo = await iframeEval(targetId, `(function(){
       var card = document.querySelector('li.card-item');
       var el = card ? card.parentElement : null;
       while (el && el !== document.body && el !== document.documentElement) {
@@ -415,22 +417,60 @@ async function scanUpToCards(targetId, count, opts = {}) {
       if (!el || el === document.body || el === document.documentElement) {
         el = document.documentElement;
       }
-      var before = el.scrollTop;
-      el.scrollTop += Math.floor(el.clientHeight * 0.9);
-      var after = el.scrollTop;
-      return { ok: true, scrollTop: after, scrollHeight: el.scrollHeight, scrolled: after > before };
+      var rect = el.getBoundingClientRect();
+      return {
+        ok: true,
+        scrollTop: el.scrollTop,
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
+        x: Math.round(rect.x + rect.width / 2),
+        y: Math.round(rect.y + Math.min(rect.height / 2, 400))
+      };
     })()`);
 
-    if (!scrollResult.ok) break;
+    if (!scrollInfo.ok) break;
 
-    if (scrollResult.scrollHeight > prevScrollHeight) {
-      prevScrollHeight = scrollResult.scrollHeight;
+    // 发送真实鼠标滚轮事件（向下滚动，模拟用户操作）
+    try {
+      await proxyPost(`/wheel?target=${targetId}`, JSON.stringify({
+        deltaY: 600,
+        steps: 3,
+        x: scrollInfo.x,
+        y: scrollInfo.y,
+      }));
+    } catch (e) {
+      console.warn(`  滚轮事件失败: ${e.message}`);
+      break;
+    }
+    await sleep(800);
+
+    // 重新读取滚动后状态
+    const afterScroll = await iframeEval(targetId, `(function(){
+      var card = document.querySelector('li.card-item');
+      var el = card ? card.parentElement : null;
+      while (el && el !== document.body && el !== document.documentElement) {
+        var style = window.getComputedStyle(el);
+        if ((style.overflowY === 'scroll' || style.overflowY === 'auto' ||
+             style.overflow === 'scroll' || style.overflow === 'auto') &&
+            el.scrollHeight > el.clientHeight + 5) {
+          break;
+        }
+        el = el.parentElement;
+      }
+      if (!el || el === document.body || el === document.documentElement) {
+        el = document.documentElement;
+      }
+      return { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight };
+    })()`).catch(() => ({ scrollTop: scrollInfo.scrollTop, scrollHeight: scrollInfo.scrollHeight }));
+
+    if (afterScroll.scrollHeight > prevScrollHeight) {
+      prevScrollHeight = afterScroll.scrollHeight;
       prevScrollTop = -1;
       noNewCount = Math.max(0, noNewCount - 2);
     }
 
-    if (scrollResult.scrollTop === prevScrollTop) break;
-    prevScrollTop = scrollResult.scrollTop;
+    if (afterScroll.scrollTop === prevScrollTop) break;
+    prevScrollTop = afterScroll.scrollTop;
 
     await randomDelay(1500, 2500);
   }

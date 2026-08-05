@@ -628,6 +628,8 @@ const server = http.createServer(async (req, res) => {
       const ssParams = {
         format,
         quality: format === 'jpeg' ? 80 : undefined,
+        // 截取完整布局视口（含 emulate 虚拟视口），避免窗口最小化/塌缩时只截到实际窗口大小
+        captureBeyondViewport: true,
       };
       // 支持区域截图: clip=x,y,width,height
       if (q.clip) {
