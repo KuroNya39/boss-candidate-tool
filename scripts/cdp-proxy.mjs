@@ -166,6 +166,13 @@ async function connect() {
         const { sessionId, targetInfo } = msg.params;
         sessions.set(targetInfo.targetId, sessionId);
       }
+      // session 失效时清理缓存，确保下次 ensureSession 重新 attach
+      if (msg.method === 'Target.detachedFromTarget') {
+        const { sessionId } = msg.params;
+        for (const [tid, sid] of sessions) {
+          if (sid === sessionId) sessions.delete(tid);
+        }
+      }
       // 拦截页面对 Chrome 调试端口的探测请求（反风控）
       if (msg.method === 'Fetch.requestPaused') {
         const { requestId, sessionId: sid } = msg.params;
@@ -629,7 +636,23 @@ const server = http.createServer(async (req, res) => {
           ssParams.clip = { x: parts[0], y: parts[1], width: parts[2], height: parts[3], scale: 1 };
         }
       }
-      const resp = await sendCDP('Page.captureScreenshot', ssParams, sid);
+      let resp = await sendCDP('Page.captureScreenshot', ssParams, sid);
+      // session 可能已失效（页面刷新/iframe 重载后旧 session 被销毁）：
+      // 若返回 error，删除失效 session、重新 attach 后重试一次
+      if (resp.error) {
+        sessions.delete(q.target);
+        try {
+          const newSid = await ensureSession(q.target);
+          resp = await sendCDP('Page.captureScreenshot', ssParams, newSid);
+        } catch {
+          res.end(JSON.stringify({ error: 'target not found' }));
+          return;
+        }
+      }
+      if (resp.error) {
+        res.end(JSON.stringify({ error: resp.error.message || JSON.stringify(resp.error) }));
+        return;
+      }
       if (q.file) {
         fs.writeFileSync(q.file, Buffer.from(resp.result.data, 'base64'));
         res.end(JSON.stringify({ saved: q.file }));
