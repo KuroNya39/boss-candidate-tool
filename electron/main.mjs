@@ -266,7 +266,7 @@ async function callClaudeAPI(prompt, { signal } = {}) {
     },
     body: JSON.stringify({
       model: apiConfig.model,
-      max_tokens: 2000,
+      max_tokens: 8000,
       temperature: 0.3,
       messages: [{ role: 'user', content: prompt }],
     }),
@@ -631,10 +631,9 @@ async function doAiScoring() {
       prompt = prompt.replace('{resumeText}', resumeSections);
 
       // 附加批量输出格式要求
-      prompt += `\n\n重要：请严格按照上面的"最终输出模板"格式为每位候选人撰写评语，评语的每个模块都要包含。\n` +
-        `请为以上每位候选人分别给出评分，严格按以下 JSON 数组格式输出（不要包含任何其他内容，不要用 markdown 代码块包裹）：\n` +
+      prompt += `\n\n重要：本次请求要求 JSON 输出。请为以上每位候选人分别给出评分，严格只输出一个 JSON 数组（不要包含任何其他内容，不要用 markdown 代码块包裹）：\n` +
         `[\n` +
-        batch.map((_, i) => `  {"candidateIndex": ${i}, "score": <0-100的整数>, "comment": "<完整的评语文本，用\\n换行>"}`).join(',\n') +
+        batch.map((_, i) => `  {"candidateIndex": ${i}, "score": <0-100的整数>, "comment": "<按上方评语内容规范组织、完整包含匹配度评分/首句定性/维度匹配/任职资格/学历核查/综合结论各模块的评语，用\\n换行>"}`).join(',\n') +
         `\n]`;
 
       const batchNames = batch.map(c => c.basicInfo?.name || c.geekId || '未知').join('、');

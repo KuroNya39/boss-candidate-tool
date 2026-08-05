@@ -447,17 +447,19 @@ export async function captureResumeScreenshots(targetId, safename, tempDir) {
     const ssPath = resolve(tempDir, `${safename}-p${page}.png`);
 
     let success = false;
-    for (let retry = 0; retry < 2; retry++) {
+    for (let retry = 0; retry < 3; retry++) {
       try {
         await cdpScreenshot(targetId, ssPath, clip);
         screenshots.push(ssPath);
         success = true;
         break;
       } catch (e) {
-        console.warn(`    ⚠ 截图第 ${page + 1}/${pages} 页失败 (${retry + 1}/2): ${e.message}`);
-        if (retry < 1) {
-          await randomDelay(800, 1500);
+        console.warn(`    ⚠ 截图第 ${page + 1}/${pages} 页失败 (${retry + 1}/3): ${e.message}`);
+        if (retry < 2) {
+          // 失败多半是内容未渲染完：等待更久 + 重新滚动定位，再重试
+          await randomDelay(1200, 2000);
           await scrollResume(targetId, scrollTop);
+          await sleep(500);
         }
       }
     }
@@ -465,7 +467,7 @@ export async function captureResumeScreenshots(targetId, safename, tempDir) {
       throw new Error(`截图第 ${page + 1}/${pages} 页多次失败`);
     }
 
-    if (page < pages - 1) await randomDelay(200, 350);
+    if (page < pages - 1) await randomDelay(300, 500);
   }
 
   await scrollResume(targetId, 0);
