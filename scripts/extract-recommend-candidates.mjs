@@ -947,6 +947,14 @@ async function main() {
       console.log(`Tab 已创建: ${targetId}`);
     }
 
+    // 强制设置视口，避免最小化/后台时布局塌缩成窄版导致虚拟滚动失效、截图白屏
+    try {
+      await proxyGet(`/emulate?target=${targetId}&width=1440&height=900`);
+      console.log('已强制设置视口 1440x900（兼容最小化/后台运行）');
+    } catch (e) {
+      console.warn(`设置视口失败（不影响运行）: ${e.message}`);
+    }
+
     // 如果指定了岗位，先切换再等待加载（避免浪费等待默认岗位的候选人）
     // 注意：--attach 模式下跳过岗位切换（用户已手动选好岗位和筛选条件）
     if (opts.attach) {

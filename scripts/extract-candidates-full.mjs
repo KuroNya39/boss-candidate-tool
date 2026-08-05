@@ -1269,6 +1269,14 @@ async function main() {
   const targetId = await findChatTab();
   console.log(`已附着到用户打开的沟通页 tab: ${targetId}\n`);
 
+  // 强制设置视口，避免最小化/后台时布局塌缩成窄版导致虚拟滚动失效、截图白屏
+  try {
+    await proxyGet(`/emulate?target=${targetId}&width=1440&height=900`);
+    console.log('已强制设置视口 1440x900（兼容最小化/后台运行）');
+  } catch (e) {
+    console.warn(`设置视口失败（不影响运行）: ${e.message}`);
+  }
+
   // ===== 确保页面在列表页 =====
   await ensureOnChatList(targetId);
 
