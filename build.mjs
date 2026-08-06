@@ -7,7 +7,7 @@
  * 4. 重建 NSIS 安装包（含修复图标的 exe）
  */
 import { execSync } from 'node:child_process';
-import { existsSync, rmSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, rmSync, readdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -129,11 +129,33 @@ async function main() {
   if (existsSync(nsis7z)) rmSync(nsis7z);
   run(`npx electron-builder --win --prepackaged "${resolve(ROOT, OUT, 'win-unpacked')}"`);
 
-  // 5. 输出到 release 目录（先 rm 清理再 mv，避免 Windows rename 跨设备/锁问题）
+  // 5. 输出到 release 目录
+  // v1.3.12 修复: 原实现用 cmd rmdir/move，旧 release 被占用（旧版 exe 残留锁）时
+  // rmdir 只删掉一半、move 把 build-tmp 嵌套成 release/build-tmp，Setup exe 找不到 → 发布失败。
+  // 改为 Node 原生 rename：旧 release 改名让位（rename 不删文件，遇文件锁更宽容），
+  // build-tmp 原子替换成 release，最后尽力清理旧目录，清不掉只告警、不影响构建。
   console.log('\n=== 5/6: 输出到 release ===');
   const finalDist = resolve(ROOT, 'release');
-  execSync(`cmd.exe /c "if exist "${finalDist}" rmdir /s /q "${finalDist}""`, { stdio: 'pipe' });
-  execSync(`cmd.exe /c "move /y "${resolve(ROOT, OUT)}" "${finalDist}" "`, { stdio: 'pipe' });
+  const tmpDist = resolve(ROOT, OUT);
+  // 先清理历史遗留的 release-old-*（占用中的跳过，下次构建再清）
+  for (const entry of readdirSync(ROOT)) {
+    if (entry.startsWith('release-old-')) {
+      try { rmSync(resolve(ROOT, entry), { recursive: true, force: true }); }
+      catch { console.warn(`  警告: ${entry} 仍被占用，保留待下次清理`); }
+    }
+  }
+  if (existsSync(finalDist)) {
+    const oldDist = resolve(ROOT, `release-old-${Date.now()}`);
+    try {
+      renameSync(finalDist, oldDist);
+    } catch (e) {
+      throw new Error(`release 目录被占用（旧版程序可能仍在运行），请关闭后重试。\n详情: ${e.message}`);
+    }
+    // 尽力清理改名让位出的旧目录；被占用则保留，下次构建自动清
+    try { rmSync(oldDist, { recursive: true, force: true }); }
+    catch { console.warn(`  警告: 旧 release 部分文件仍被占用，保留在 release-old-*（下次构建自动清理）`); }
+  }
+  renameSync(tmpDist, finalDist);
 
   // 6. 创建绿色版压缩包
   console.log('\n=== 6/6: 创建绿色版压缩包 ===');
