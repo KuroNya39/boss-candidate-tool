@@ -911,10 +911,11 @@ async function main() {
   const { createWorker } = await import('tesseract.js');
   const localLangDir = resolve(__dirname, '..', 'ocr-lang');
   const workerOpts = {};
-  if (existsSync(resolve(localLangDir, 'chi_sim.traineddata.gz'))) {
+  if (existsSync(resolve(localLangDir, 'chi_sim.traineddata'))) {
     workerOpts.langPath = localLangDir;
-    workerOpts.gzip = true;
-    console.log(`  使用本地语言包: ${localLangDir}`);
+    workerOpts.gzip = false;        // 本地为未压缩文件；gzip 仅控制文件名后缀，读取后按 magic bytes 判断解压
+    workerOpts.cacheMethod = 'none'; // 固定读本地文件，行为确定
+    console.log(`  使用本地语言包: ${localLangDir}/chi_sim.traineddata`);
   } else {
     console.log('  本地未找到语言包，将从 CDN 下载');
   }

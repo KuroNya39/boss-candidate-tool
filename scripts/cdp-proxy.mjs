@@ -639,9 +639,10 @@ const server = http.createServer(async (req, res) => {
         }
       }
       let resp = await sendCDP('Page.captureScreenshot', ssParams, sid);
-      // session 可能已失效（页面刷新/iframe 重载后旧 session 被销毁）：
-      // 若返回 error，删除失效 session、重新 attach 后重试一次
-      if (resp.error) {
+      // session 可能已失效（页面刷新/iframe 重载后旧 session 被销毁），或返回了
+      // "既无 error 也无 result"的空响应（简历弹窗内跨域 OOPIF iframe 加载/销毁竞态）。
+      // 两种情况都按失效 session 处理：删除后重新 attach，重试一次。
+      if (resp.error || !resp?.result?.data) {
         sessions.delete(q.target);
         try {
           const newSid = await ensureSession(q.target);
@@ -651,8 +652,10 @@ const server = http.createServer(async (req, res) => {
           return;
         }
       }
-      if (resp.error) {
-        res.end(JSON.stringify({ error: resp.error.message || JSON.stringify(resp.error) }));
+      // 重试后仍无数据：返回干净错误（不再崩在 resp.result.data），
+      // 客户端会走它现有的 3 次重试循环，期间 iframe 完成渲染即可成功
+      if (resp.error || !resp?.result?.data) {
+        res.end(JSON.stringify({ error: resp.error?.message || '截图失败：未返回图像数据' }));
         return;
       }
       if (q.file) {

@@ -94,8 +94,9 @@ export async function cdpEval(targetId, expr) {
 }
 
 export async function cdpScreenshot(targetId, filePath, clip) {
-  // 用 JPEG 编码（q80）替代 PNG：编码更快、文件更小、写入更快，OCR 质量影响可忽略
-  let url = `/screenshot?target=${targetId}&file=${encodeURIComponent(filePath)}&format=jpeg&quality=80`;
+  // v1.3.11: 改回 PNG 无损。JPEG q80 的块效应 + 色度抽样破坏中文细字边缘，
+  // tesseract 二值化放大噪声；代价是文件更大、编码略慢，OCR 准确率优先。
+  let url = `/screenshot?target=${targetId}&file=${encodeURIComponent(filePath)}&format=png`;
   if (clip) {
     url += `&clip=${clip.x},${clip.y},${clip.width},${clip.height}`;
   }

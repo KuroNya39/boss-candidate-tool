@@ -537,6 +537,35 @@ function safeSheetName(name) {
   return safe || '候选人';
 }
 
+/**
+ * 生成不重复的 sheet 名。ExcelJS 判重大小写不敏感（worksheet.js 用 toLowerCase 比较），
+ * 冲突时追加序号后缀 _2/_3/...；后缀拼接前先截断 base，保证 base+suffix <= 31 字符，
+ * 避免 ExcelJS 内部先截断再判重把后缀吃掉导致仍冲突。
+ */
+function makeUniqueSheetName(baseName, usedLower) {
+  const base = baseName || '候选人';
+  const firstKey = base.toLowerCase();
+  if (!usedLower.has(firstKey)) {
+    usedLower.add(firstKey);
+    return base;
+  }
+  for (let n = 2; n < 100; n++) {
+    const suffix = `_${n}`;
+    const maxBaseLen = 31 - suffix.length;
+    const trimmed = base.length > maxBaseLen ? base.slice(0, maxBaseLen) : base;
+    const candidate = trimmed + suffix;
+    const key = candidate.toLowerCase();
+    if (!usedLower.has(key)) {
+      usedLower.add(key);
+      return candidate;
+    }
+  }
+  // 极端兜底（理论上不可达）
+  const fallback = base.slice(0, 24) + '_' + Date.now().toString().slice(-6);
+  usedLower.add(fallback.toLowerCase());
+  return fallback;
+}
+
 // ===== 主流程 =====
 async function main() {
   const opts = parseArgs();
@@ -570,12 +599,13 @@ async function main() {
   }
 
   let sheetCount = 0;
+  const usedSheetNames = new Set();
   for (const [position, groupCandidates] of positionGroups) {
     // 组内排序
     groupCandidates.sort((a, b) => (b.totalScore ?? b.score ?? 0) - (a.totalScore ?? a.score ?? 0));
 
     const groupData = buildGroupedExportData(groupCandidates, fields, mode);
-    const sheetName = safeSheetName(position);
+    const sheetName = makeUniqueSheetName(safeSheetName(position), usedSheetNames);
 
     await createStyledSheet(wb, sheetName, groupData, fields);
     sheetCount++;
