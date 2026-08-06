@@ -168,7 +168,7 @@ async function main() {
   // 2. 按等级阈值过滤
   const threshold = LEVEL_THRESHOLDS[opts.level];
   if (threshold === undefined) {
-    console.error(`无效的等级: ${opts.level}，可用值: 5, 4, 3, 0`);
+    console.error(`无效的等级: ${opts.level}，可用值: 5, 4, 3, 2, 0`);
     process.exit(1);
   }
 
@@ -256,6 +256,7 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error(`\nGREET_ERROR:${err.message}`);
+  // GREET_ERROR 走 stdout（console.log），main.mjs 的 stdout 解析才能识别并上报真实原因
+  console.log(`\nGREET_ERROR:${err.message}`);
   process.exit(1);
 });

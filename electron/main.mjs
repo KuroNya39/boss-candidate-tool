@@ -1038,8 +1038,12 @@ async function runGreeting(level, source = 'recommend') {
 
   termLog(`[greet] 开始批量打招呼，level=${level}，source=${source}，目标 ${totalTargets} 人`);
 
-  const MAX_WAIT = 600000; // 最多等 10 分钟
+  // 超时随目标人数伸缩：每人约 10 秒预算（点击+验证+防风控间隔+余量），
+  // 下限 5 分钟、上限 30 分钟。81 人 ≈ 13.5 分钟，避免大量候选人逼近旧 10 分钟硬超时被杀。
+  const MAX_WAIT = Math.min(30 * 60 * 1000, Math.max(5 * 60 * 1000, (totalTargets || 0) * 10_000));
   let greetCancelled = false;
+  let greetFatalSent = false; // GREET_ERROR 已上报真实原因，close 时不再重复报泛化退出码
+  let lastStderr = ''; // 脚本最近一行 stderr，供 close 无 GREET_ERROR 时兜底诊断
 
   try {
     const greetPath = resolve(UNPACKED_ROOT, 'scripts', 'greet-candidates.mjs');
@@ -1085,6 +1089,7 @@ async function runGreeting(level, source = 'recommend') {
         // GREET_ERROR: 致命错误
         const errMatch = line.match(/^GREET_ERROR:(.+)/);
         if (errMatch) {
+          greetFatalSent = true; // 真实原因已上报，close 时不再重复报泛化退出码
           sendGreetError({ message: errMatch[1] });
           return;
         }
@@ -1093,7 +1098,10 @@ async function runGreeting(level, source = 'recommend') {
 
     proc.stderr.on('data', (data) => {
       const text = decodeBuffer(data).trim();
-      if (text) termLog(`[greet stderr] ${text}`, 'stderr');
+      if (text) {
+        lastStderr = text; // 记录最近一行，close 无 GREET_ERROR 时兜底展示
+        termLog(`[greet stderr] ${text}`, 'stderr');
+      }
     });
 
     proc.on('error', (err) => {
@@ -1107,12 +1115,16 @@ async function runGreeting(level, source = 'recommend') {
       currentProcess = null;
       // 超时或用户取消时 cancelled=true，不再重复报错
       if (cancelled) return;
+      // 已通过 GREET_ERROR 上报过真实原因，跳过泛化退出码，避免覆盖真实错误
+      if (greetFatalSent) return;
       // code=null 表示被信号杀死（非正常退出）
       if (code !== 0) {
-        const msg = code === null
+        const base = code === null
           ? '打招呼进程异常终止（可能被系统杀死）'
           : `greet-candidates.mjs 退出码 ${code}`;
-        sendGreetError({ message: msg });
+        // 脚本走 console.error + exit(1) 的路径（文件不存在/解析失败/无效等级）没有 GREET_ERROR，
+        // 用最近一行 stderr 兜底，让用户能看到真实原因
+        sendGreetError({ message: lastStderr ? `${base}\n${lastStderr}` : base });
       }
     });
 
