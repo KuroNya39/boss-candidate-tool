@@ -201,9 +201,22 @@ header h1 {
 .job-picker-search {
   margin-bottom: 8px;
 }
-.job-picker-search .input-text {
+.job-picker-search-input {
   width: 100%;
   box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast);
+}
+.job-picker-search-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb),0.1);
 }
 .job-picker-list {
   max-height: 400px;
