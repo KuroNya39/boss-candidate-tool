@@ -490,6 +490,27 @@ function waitChromeExit(timeoutMs = 8000) {
   });
 }
 
+// 判断当前运行的 Chrome 是否处于「边用边跑」模式（命令行含 CalculateNativeWinOcclusion 禁用参数）
+function isChromeBossMode() {
+  return new Promise((resolveMode) => {
+    // 优先用 wmic（Win10 可用、快），失败回退 PowerShell Get-CimInstance
+    const getCmdline = (cmd, args, cb) => {
+      execFile(cmd, args, { maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
+        cb(err ? '' : (stdout || ''));
+      });
+    };
+    getCmdline('wmic', ['process', 'where', "name='chrome.exe'", 'get', 'commandline', '/format:list'], (wmicOut) => {
+      if (wmicOut.includes('CalculateNativeWinOcclusion')) {
+        return resolveMode(true);
+      }
+      getCmdline('powershell', ['-NoProfile', '-NonInteractive', '-Command',
+        "(Get-CimInstance Win32_Process -Filter \"name='chrome.exe'\").CommandLine"], (psOut) => {
+        resolveMode(psOut.includes('CalculateNativeWinOcclusion'));
+      });
+    });
+  });
+}
+
 async function doAiScoring() {
   const sourcePath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
   if (!existsSync(sourcePath)) throw new Error('未找到 zhipin-candidates.json');
@@ -536,9 +557,11 @@ async function doAiScoring() {
 
     if (withResume.length === 0) continue;
 
-    // 根据来源选择 prompt 模板
-    const isRecommendScoring = extractSource === 'recommend' || extractSource === 'recommend-attach';
-    const templateName = isRecommendScoring ? 'scoring-prompt-with-jd.txt' : 'scoring-prompt-chat.txt';
+    // 根据来源选择 prompt 模板：
+    // 只有沟通页用 chat 模板（AI 自行从 JD 提取维度权重）；
+    // 推荐牛人页和搜索页都用 with-jd 模板（直接采用配置好的维度/筛选项）
+    const useWithJd = extractSource !== 'chat';
+    const templateName = useWithJd ? 'scoring-prompt-with-jd.txt' : 'scoring-prompt-chat.txt';
     const templatePath = resolve(UNPACKED_ROOT, 'config', templateName);
     let template;
     try {
@@ -572,7 +595,7 @@ async function doAiScoring() {
       if (raw) jdContent = raw;
     } catch {}
 
-    if (isRecommendScoring && !jdContent && !dimensionsText) {
+    if (useWithJd && !jdContent && !dimensionsText) {
       termLog(`[AI评分] ⚠ 未配置核心评估维度，请先在设置中配置`, 'stderr');
     }
 
@@ -608,7 +631,7 @@ async function doAiScoring() {
 
       // 构建多人 prompt
       let prompt;
-      if (isRecommendScoring) {
+      if (useWithJd) {
         const dims = jdContent || dimensionsText;
         const criteria = jdContent || screeningCriteriaText;
         prompt = template
@@ -619,16 +642,22 @@ async function doAiScoring() {
           .replace('{jdText}', jdContent || dimensionsText || '(无岗位JD描述)');
       }
 
-      // 拼接本批所有候选人的简历
+      // 拼接本批所有候选人的简历（基础信息/教育经历来自页面 DOM，可靠性高；简历正文为 OCR 仅供参考）
       const resumeSections = batch.map((c, i) => {
         const resumeForAI = (c.resumeText || '').length > MAX_RESUME_LEN
           ? (c.resumeText || '').slice(0, MAX_RESUME_LEN) + '\n\n...(后续内容略)'
           : (c.resumeText || '(无)');
+        // 结构化教育经历逐条列出（AI 评学历时不再依赖 OCR 正文）
+        const eduList = Array.isArray(c.educationExperience) && c.educationExperience.length > 0
+          ? c.educationExperience.map(e =>
+              `- ${e.time || ''} | ${e.school || ''} | ${e.major || ''} | ${e.degree || ''}`.replace(/ \| $/, '')).join('\n')
+          : '- 无';
         return `=== 候选人 ${i + 1}/${batch.length} ===\n` +
           `姓名：${c.basicInfo?.name || '未知'}\n` +
           `学历（来自页面）：${c.basicInfo?.education || '未知'}\n` +
+          `教育经历（来自页面，可靠性高）：\n${eduList}\n` +
           `工作年限（来自页面）：${c.basicInfo?.workYears || '未知'}\n` +
-          `简历文本（仅供参考）：\n${resumeForAI}`;
+          `简历文本（OCR 识别，仅供参考，可能有错误）：\n${resumeForAI}`;
       }).join('\n\n');
 
       prompt = prompt.replace('{resumeText}', resumeSections);
@@ -1381,6 +1410,20 @@ function registerIPC() {
     startCdpProxy().catch(() => {});
     return { ...cdpStatus };
   });
+
+  // 供「开始提取分析」按钮做预检：Chrome 是否已在「边用边跑」模式
+  ipcMain.handle('check-boss-mode', async () => {
+    const chromePath = findChromePath();
+    const running = await isChromeRunning();
+    let bossMode = false;
+    if (running) {
+      bossMode = await isChromeBossMode();
+    }
+    return { chromePath, running, bossMode };
+  });
+
+  // GUI 版本号
+  ipcMain.handle('get-app-version', () => app.getVersion());
 
   // "边用边跑"模式：带参数重启 Chrome，关闭 Windows 遮挡暂停渲染
   // （否则 Chrome 窗口被完全盖住/最小化时渲染暂停，CDP 截图会拿到空白帧）

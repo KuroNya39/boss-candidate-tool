@@ -58,6 +58,28 @@ export function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// 按 Chrome 实际窗口尺寸设置视口（DPR=2 提升 OCR 截图清晰度）。
+// 正常窗口下用实际尺寸 → 网页不变形；最小化时 /window-size 仍返回恢复尺寸 → 锁住布局防塌缩。
+// 失败时回退 1440x900。
+export async function forceViewport(targetId) {
+  let width = 1440, height = 900;
+  try {
+    const ws = await proxyGet(`/window-size?target=${targetId}`);
+    if (ws && !ws.error && ws.width && ws.height) {
+      width = ws.width;
+      height = ws.height;
+    }
+  } catch {}
+  try {
+    const r = await proxyGet(`/emulate?target=${targetId}&width=${width}&height=${height}&scale=2`);
+    console.log(`已设置视口 ${width}x${height}（scale=2，兼容最小化 + OCR 清晰度）`);
+    return r;
+  } catch (e) {
+    console.warn(`设置视口失败（不影响运行）: ${e.message}`);
+    return null;
+  }
+}
+
 export function randomDelay(minMs, maxMs) {
   const ms = minMs + Math.random() * (maxMs - minMs);
   return sleep(Math.round(ms));
@@ -573,6 +595,10 @@ export function dedupePages(pages) {
 }
 
 export async function ocrScreenshots(screenshots, worker) {
+  // 简历是单栏文本，PSM6（假设为单一文本块）比默认 auto 更稳定，降低乱码
+  try {
+    await worker.setParameters({ tessedit_pageseg_mode: '6' });
+  } catch { /* 部分版本参数名差异时忽略 */ }
   const texts = [];
   for (let i = 0; i < screenshots.length; i++) {
     console.log(`    OCR 第 ${i + 1}/${screenshots.length} 页...`);

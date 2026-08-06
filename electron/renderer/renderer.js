@@ -412,6 +412,44 @@ btnStart.addEventListener('click', async () => {
   const activeToggle = document.querySelector('.toggle-btn.active');
   selectedSource = activeToggle ? activeToggle.dataset.source : 'chat';
 
+  // 开始前的「边用边跑」预检：确保 Chrome 处于边用边跑模式，否则自动重启
+  try {
+    const bs = await window.electronAPI.checkBossMode();
+    if (bs && !bs.chromePath) {
+      alert('没有在常见位置找到 Chrome。请照常打开 Chrome，按 README 第 1 步开启远程调试后使用。');
+      return;
+    }
+    if (bs && bs.running && !bs.bossMode) {
+      // Chrome 在跑但没开边用边跑 → 询问是否重启
+      const ok = confirm('要用「边用边跑」模式运行（推荐），需要重启 Chrome（会关闭当前标签页，重启后自动恢复）。是否继续？\n\n如果选「取消」，本次将按普通方式运行，运行期间请不要最小化 Chrome 窗口。');
+      if (ok) {
+        const res = await window.electronAPI.launchBossModeChrome({ forceClose: true });
+        if (res?.ok) {
+          await window.electronAPI.retryCdpConnection();
+          await updateCdpStatus();
+          alert('Chrome 已用「边用边跑」模式重启。请确认 Boss 直聘页面已打开，然后再次点击「开始提取分析」。');
+          return;
+        }
+        alert(res?.message || '重启 Chrome 失败，请重试。');
+        return;
+      }
+      // 用户选择普通方式，继续（运行期间不要最小化窗口）
+    } else if (bs && !bs.running) {
+      // Chrome 未启动 → 用边用边跑模式直接启动
+      const res = await window.electronAPI.launchBossModeChrome({ forceClose: false });
+      if (res?.ok) {
+        await window.electronAPI.retryCdpConnection();
+        await updateCdpStatus();
+        alert('Chrome 已用「边用边跑」模式启动。请打开 Boss 直聘页面，然后再次点击「开始提取分析」。');
+        return;
+      }
+      alert(res?.message || '启动 Chrome 失败，请重试。');
+      return;
+    }
+  } catch (e) {
+    // 预检失败不阻塞，按普通方式继续
+  }
+
   resetSteps();
   showState('state-running');
   autoGreetEnabled = autoGreetCheck.checked;
@@ -477,37 +515,6 @@ document.getElementById('btn-retry-chrome').addEventListener('click', async () =
   await updateCdpStatus();
   btn.textContent = '重试';
   btn.disabled = false;
-});
-
-// "边用边跑"模式：带参数重启 Chrome（关闭 Windows 遮挡暂停渲染）
-document.getElementById('btn-boss-mode-chrome').addEventListener('click', async () => {
-  const btn = document.getElementById('btn-boss-mode-chrome');
-  btn.disabled = true;
-  btn.textContent = '正在启动...';
-  try {
-    let result = await window.electronAPI.launchBossModeChrome({ forceClose: false });
-    if (result?.needClose) {
-      const ok = confirm(result.message + '\n\n是否自动关闭并重启？');
-      if (ok) {
-        result = await window.electronAPI.launchBossModeChrome({ forceClose: true });
-      } else {
-        return;
-      }
-    }
-    if (result?.ok) {
-      alert(result.message);
-      // Chrome 已重启，触发一次重连
-      await window.electronAPI.retryCdpConnection();
-      await updateCdpStatus();
-    } else {
-      alert(result?.message || '启动失败，请重试。');
-    }
-  } catch (e) {
-    alert('启动失败：' + e.message);
-  } finally {
-    btn.textContent = '用"边用边跑"模式启动 Chrome';
-    btn.disabled = false;
-  }
 });
 
 // 选择输出目录
@@ -872,6 +879,13 @@ async function init() {
   } catch {
     outputDirSpan.textContent = 'output/';
   }
+
+  // 显示版本号
+  try {
+    const version = await window.electronAPI.getAppVersion();
+    const verEl = document.getElementById('app-version');
+    if (verEl && version) verEl.textContent = `v${version}`;
+  } catch {}
 
   setupInputClears();
   await loadApiConfig();

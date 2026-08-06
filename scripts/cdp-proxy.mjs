@@ -664,11 +664,14 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // GET /emulate?target=xxx&width=1440&height=900 - 强制设置 tab 的 viewport（适用于后台 tab 避免响应式窄版）
+    // GET /emulate?target=xxx&width=1440&height=900&scale=2 - 强制设置 tab 的 viewport
+    // width/height 建议传入实际窗口尺寸（见 /window-size）；scale 为设备像素倍率（DPR），
+    // 只影响截图分辨率不影响 CSS 布局，设 2 可让 OCR 截图清晰一倍
     else if (pathname === '/emulate') {
       const sid = await ensureSession(q.target);
       const width = parseInt(q.width || '1440');
       const height = parseInt(q.height || '900');
+      const scale = parseFloat(q.scale || '1') || 1;
       const reset = q.reset === '1' || q.reset === 'true';
       if (reset) {
         await sendCDP('Emulation.clearDeviceMetricsOverride', {}, sid);
@@ -676,11 +679,37 @@ const server = http.createServer(async (req, res) => {
       } else {
         await sendCDP('Emulation.setDeviceMetricsOverride', {
           width, height,
-          deviceScaleFactor: 1,
+          deviceScaleFactor: scale,
           mobile: false,
         }, sid);
-        res.end(JSON.stringify({ width, height, applied: true }));
+        res.end(JSON.stringify({ width, height, scale, applied: true }));
       }
+    }
+
+    // GET /window-size?target=xxx - 获取 Chrome 窗口实际尺寸（浏览器级命令）
+    // 最小化时 getWindowBounds 仍保留恢复尺寸，可用于按实际窗口设置视口而不变形
+    else if (pathname === '/window-size') {
+      const winResp = await sendCDP('Browser.getWindowForTarget', { targetId: q.target }, null);
+      if (winResp.error) {
+        res.end(JSON.stringify({ error: winResp.error.message || 'Browser.getWindowForTarget failed' }));
+        return;
+      }
+      const windowId = winResp.result?.windowId;
+      if (!windowId) {
+        res.end(JSON.stringify({ error: '未获取到 windowId' }));
+        return;
+      }
+      const boundsResp = await sendCDP('Browser.getWindowBounds', { windowId }, null);
+      if (boundsResp.error) {
+        res.end(JSON.stringify({ error: boundsResp.error.message || 'Browser.getWindowBounds failed' }));
+        return;
+      }
+      const bounds = boundsResp.result?.bounds || {};
+      res.end(JSON.stringify({
+        width: Math.max(bounds.width || 1440, 300),
+        height: Math.max(bounds.height || 900, 300),
+        windowState: bounds.windowState || 'normal',
+      }));
     }
 
     // GET /info?target=xxx - 获取页面信息
@@ -712,7 +741,8 @@ const server = http.createServer(async (req, res) => {
           '/scroll?target=&y=&direction=': 'GET - 滚动页面',
           '/wheel?target=': 'POST body=JSON - 真实鼠标滚轮事件',
           '/screenshot?target=&file=': 'GET - 截图',
-          '/emulate?target=&width=&height=': 'GET - 强制设置 viewport（reset=1 清除）',
+          '/emulate?target=&width=&height=&scale=': 'GET - 强制设置 viewport（scale=DPR 倍率；reset=1 清除）',
+          '/window-size?target=': 'GET - 获取 Chrome 窗口实际尺寸',
         },
       }));
     }

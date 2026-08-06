@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   retryCdpConnection: () => ipcRenderer.invoke('retry-cdp-connection'),
   // "边用边跑"模式：带参数重启 Chrome（关闭遮挡暂停渲染）
   launchBossModeChrome: (opts) => ipcRenderer.invoke('launch-boss-mode-chrome', opts),
+  // 检查 Chrome 是否已在「边用边跑」模式（开始提取前的预检）
+  checkBossMode: () => ipcRenderer.invoke('check-boss-mode'),
+  // 应用版本号
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 
   // 批量打招呼
   startGreeting: (level) => ipcRenderer.invoke('start-greeting', { level }),

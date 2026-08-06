@@ -21,7 +21,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   proxyGet, proxyPost, sleep, randomDelay,
-  cdpEval,
+  cdpEval, forceViewport,
   closeBossPopup,
   captureResumeScreenshots,
   ocrScreenshots,
@@ -400,9 +400,9 @@ async function scanUpToCards(targetId, count, opts = {}) {
     if (noNewCount >= noNewThreshold) break;
     if (cardInfos.length >= count) break;
 
-    // 用真实鼠标滚轮触发滚动（Boss直聘虚拟滚动只响应真实鼠标事件，
-    // 尤其最小化/后台时 JS scrollTop 修改无法触发懒加载）
-    const scrollInfo = await iframeEval(targetId, `(function(){
+    // 用 JS 修改 scrollTop 触发滚动（v1.3.7 方法）。
+    // 注意：滚动提取阶段不要最小化 Chrome；等滚动提取完成后、开始截图时，再最小化窗口。
+    const scrollResult = await iframeEval(targetId, `(function(){
       var card = document.querySelector('li.card-item');
       var el = card ? card.parentElement : null;
       while (el && el !== document.body && el !== document.documentElement) {
@@ -417,60 +417,22 @@ async function scanUpToCards(targetId, count, opts = {}) {
       if (!el || el === document.body || el === document.documentElement) {
         el = document.documentElement;
       }
-      var rect = el.getBoundingClientRect();
-      return {
-        ok: true,
-        scrollTop: el.scrollTop,
-        scrollHeight: el.scrollHeight,
-        clientHeight: el.clientHeight,
-        x: Math.round(rect.x + rect.width / 2),
-        y: Math.round(rect.y + Math.min(rect.height / 2, 400))
-      };
+      var before = el.scrollTop;
+      el.scrollTop += Math.floor(el.clientHeight * 0.9);
+      var after = el.scrollTop;
+      return { ok: true, scrollTop: after, scrollHeight: el.scrollHeight, scrolled: after > before };
     })()`);
 
-    if (!scrollInfo.ok) break;
+    if (!scrollResult.ok) break;
 
-    // 发送真实鼠标滚轮事件（向下滚动，模拟用户操作）
-    try {
-      await proxyPost(`/wheel?target=${targetId}`, JSON.stringify({
-        deltaY: 600,
-        steps: 3,
-        x: scrollInfo.x,
-        y: scrollInfo.y,
-      }));
-    } catch (e) {
-      console.warn(`  滚轮事件失败: ${e.message}`);
-      break;
-    }
-    await sleep(800);
-
-    // 重新读取滚动后状态
-    const afterScroll = await iframeEval(targetId, `(function(){
-      var card = document.querySelector('li.card-item');
-      var el = card ? card.parentElement : null;
-      while (el && el !== document.body && el !== document.documentElement) {
-        var style = window.getComputedStyle(el);
-        if ((style.overflowY === 'scroll' || style.overflowY === 'auto' ||
-             style.overflow === 'scroll' || style.overflow === 'auto') &&
-            el.scrollHeight > el.clientHeight + 5) {
-          break;
-        }
-        el = el.parentElement;
-      }
-      if (!el || el === document.body || el === document.documentElement) {
-        el = document.documentElement;
-      }
-      return { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight };
-    })()`).catch(() => ({ scrollTop: scrollInfo.scrollTop, scrollHeight: scrollInfo.scrollHeight }));
-
-    if (afterScroll.scrollHeight > prevScrollHeight) {
-      prevScrollHeight = afterScroll.scrollHeight;
+    if (scrollResult.scrollHeight > prevScrollHeight) {
+      prevScrollHeight = scrollResult.scrollHeight;
       prevScrollTop = -1;
       noNewCount = Math.max(0, noNewCount - 2);
     }
 
-    if (afterScroll.scrollTop === prevScrollTop) break;
-    prevScrollTop = afterScroll.scrollTop;
+    if (scrollResult.scrollTop === prevScrollTop) break;
+    prevScrollTop = scrollResult.scrollTop;
 
     await randomDelay(1500, 2500);
   }
@@ -762,8 +724,8 @@ async function getRecommendResumeScrollInfo(targetId) {
  * @returns {string|null} 提取到的文本，若 DOM 不可用返回 null
  */
 async function tryExtractRecommendResumeTextFromDOM(targetId) {
+  // 方式一：在嵌套简历 iframe 中提取（在线 HTML 简历走这里，文本干净）
   try {
-    // 1. 从 recommendFrame 获取嵌套简历 iframe 的 src
     const nestedSrc = await iframeEval(targetId, `(function(){
       var dialog = document.querySelector('.dialog-wrap.active');
       if (!dialog) return '';
@@ -773,32 +735,39 @@ async function tryExtractRecommendResumeTextFromDOM(targetId) {
       if (!iframe) return '';
       return iframe.src || iframe.getAttribute('src') || '';
     })()`);
-    if (!nestedSrc) return null;
+    if (nestedSrc) {
+      const framesResp = await proxyGet(`/frames?target=${targetId}`);
+      if (framesResp.frameTree) {
+        const targetFrame = findFrameInTree(framesResp.frameTree, nestedSrc);
+        const contexts = framesResp.executionContexts || [];
+        const ctx = targetFrame ? contexts.find(c => c.frameId === targetFrame.id) : null;
+        if (ctx) {
+          const result = await proxyPost(`/eval-context?target=${targetId}&context=${ctx.id}`, `(function(){
+            var resumeDiv = document.querySelector('#resume') || document.querySelector('body');
+            if (!resumeDiv) return null;
+            var text = (resumeDiv.textContent || '').replace(/\\s+/g, ' ').trim();
+            return text.length > 50 ? text : null;
+          })()`);
+          if (result.value) return result.value;
+        }
+      }
+    }
+  } catch { /* 继续尝试兜底 */ }
 
-    // 2. 获取 CDP frame tree 和 execution contexts
-    const framesResp = await proxyGet(`/frames?target=${targetId}`);
-    if (!framesResp.frameTree) return null;
-
-    // 3. 递归查找匹配嵌套 iframe URL 的 frame
-    const targetFrame = findFrameInTree(framesResp.frameTree, nestedSrc);
-    if (!targetFrame || !targetFrame.id) return null;
-
-    // 4. 找到匹配的 execution context
-    const contexts = framesResp.executionContexts || [];
-    const ctx = contexts.find(c => c.frameId === targetFrame.id);
-    if (!ctx) return null;
-
-    // 5. 在嵌套 iframe 的执行上下文中提取简历文本
-    const result = await proxyPost(`/eval-context?target=${targetId}&context=${ctx.id}`, `(function(){
-      var resumeDiv = document.querySelector('#resume') || document.querySelector('body');
-      if (!resumeDiv) return null;
-      var text = (resumeDiv.textContent || '').replace(/\\s+/g, ' ').trim();
+  // 方式二：直接在弹窗容器提取文本（无嵌套 iframe 时兜底，减少走低质 OCR）
+  try {
+    const direct = await iframeEval(targetId, `(function(){
+      var dialog = document.querySelector('.dialog-wrap.active');
+      if (!dialog) return null;
+      var wrap = dialog.querySelector('.resume-detail-wrap');
+      if (!wrap) return null;
+      var text = (wrap.textContent || '').replace(/\\s+/g, ' ').trim();
       return text.length > 50 ? text : null;
     })()`);
-    return result.value || null;
-  } catch {
-    return null;
-  }
+    if (direct) return direct;
+  } catch {}
+
+  return null;
 }
 
 /**
@@ -987,13 +956,8 @@ async function main() {
       console.log(`Tab 已创建: ${targetId}`);
     }
 
-    // 强制设置视口，避免最小化/后台时布局塌缩成窄版导致虚拟滚动失效、截图白屏
-    try {
-      await proxyGet(`/emulate?target=${targetId}&width=1440&height=900`);
-      console.log('已强制设置视口 1440x900（兼容最小化/后台运行）');
-    } catch (e) {
-      console.warn(`设置视口失败（不影响运行）: ${e.message}`);
-    }
+    // 按实际窗口尺寸设置视口（DPR=2 提升 OCR 清晰度），避免布局塌缩、网页变形
+    await forceViewport(targetId);
 
     // 如果指定了岗位，先切换再等待加载（避免浪费等待默认岗位的候选人）
     // 注意：--attach 模式下跳过岗位切换（用户已手动选好岗位和筛选条件）
