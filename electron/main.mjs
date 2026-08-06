@@ -600,7 +600,7 @@ async function doAiScoring() {
     }
 
     // 沟通页：从候选人提取的 jobDescription 中获取 JD 文本（无 JD 文件时的后备）
-    if (!isRecommendScoring && !jdContent) {
+    if (!useWithJd && !jdContent) {
       for (const c of withResume) {
         if (c.jobDescription?.description) {
           const jdText = `${c.jobDescription.jobName || ''} ${c.jobDescription.salary || ''}\n\n${c.jobDescription.description}`;
