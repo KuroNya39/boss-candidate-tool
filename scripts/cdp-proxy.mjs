@@ -11,6 +11,9 @@ import os from 'node:os';
 import net from 'node:net';
 
 const PORT = parseInt(process.env.CDP_PROXY_PORT || '3456');
+// 代理版本号：升级代理逻辑时递增。main.mjs 的 CDP_PROXY_VERSION 需同步。
+// 版本不同 → 新实例会请求旧实例 /shutdown 退出后接管端口，保证 app 启动时运行的是最新代码。
+const PROXY_VERSION = '1.3.12';
 let ws = null;
 let cmdId = 0;
 const pending = new Map(); // id -> {resolve, timer}
@@ -316,7 +319,7 @@ const server = http.createServer(async (req, res) => {
     // /health 不需要连接 Chrome
     if (pathname === '/health') {
       const connected = ws && (ws.readyState === WS.OPEN || ws.readyState === 1);
-      res.end(JSON.stringify({ status: 'ok', connected, sessions: sessions.size, chromePort }));
+      res.end(JSON.stringify({ status: 'ok', connected, sessions: sessions.size, chromePort, version: PROXY_VERSION }));
       return;
     }
 
@@ -644,6 +647,8 @@ const server = http.createServer(async (req, res) => {
       // 两种情况都按失效 session 处理：删除后重新 attach，重试一次。
       if (resp.error || !resp?.result?.data) {
         sessions.delete(q.target);
+        // v1.3.12: OOPIF iframe 加载/销毁竞态时稍等再重试，给 iframe 完成渲染的时间
+        await new Promise(r => setTimeout(r, 200));
         try {
           const newSid = await ensureSession(q.target);
           resp = await sendCDP('Page.captureScreenshot', ssParams, newSid);
@@ -765,30 +770,48 @@ function checkPortAvailable(port) {
   });
 }
 
+function httpGetJson(url, timeoutMs = 2000) {
+  return new Promise((resolve) => {
+    http.get(url, { timeout: timeoutMs }, (res) => {
+      let d = '';
+      res.on('data', c => d += c);
+      res.on('end', () => {
+        try { resolve(JSON.parse(d)); } catch { resolve(null); }
+      });
+    }).on('error', () => resolve(null));
+  });
+}
+
 async function main() {
   // 检查是否已有 proxy 在运行
   const available = await checkPortAvailable(PORT);
   if (!available) {
-    // 验证已有实例是否健康
-    try {
-      const ok = await new Promise((resolve) => {
-        http.get(`http://127.0.0.1:${PORT}/health`, { timeout: 2000 }, (res) => {
-          let d = '';
-          res.on('data', c => d += c);
-          res.on('end', () => resolve(d.includes('"ok"')));
-        }).on('error', () => resolve(false));
-      });
-      if (ok) {
-        console.log(`[CDP Proxy] 已有实例运行在端口 ${PORT}，退出`);
+    // 端口被占：判断是否已有健康实例。版本相同 → 复用退出；版本不同 → 请求旧实例退出后接管。
+    const health = await httpGetJson(`http://127.0.0.1:${PORT}/health`);
+    if (health && health.status === 'ok') {
+      if (health.version === PROXY_VERSION) {
+        console.log(`[CDP Proxy] 已有同版本实例运行在端口 ${PORT}，退出`);
         process.exit(0);
       }
-    } catch { /* 端口占用但非 proxy，继续报错 */ }
-    console.error(`[CDP Proxy] 端口 ${PORT} 已被占用`);
-    process.exit(1);
+      // 旧版本实例（可能还在跑旧代码，截图守卫缺失）→ 请求它退出，等端口释放后由本实例接管
+      console.log(`[CDP Proxy] 检测到旧版本实例 (version=${health.version})，请求退出以加载新代码...`);
+      await httpGetJson(`http://127.0.0.1:${PORT}/shutdown`);
+      for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, 300));
+        if (await checkPortAvailable(PORT)) break;
+      }
+      if (!(await checkPortAvailable(PORT))) {
+        console.error(`[CDP Proxy] 旧实例退出失败，端口 ${PORT} 仍被占用`);
+        process.exit(1);
+      }
+    } else {
+      console.error(`[CDP Proxy] 端口 ${PORT} 已被占用（非本代理）`);
+      process.exit(1);
+    }
   }
 
   server.listen(PORT, '127.0.0.1', () => {
-    console.log(`[CDP Proxy] 运行在 http://localhost:${PORT}`);
+    console.log(`[CDP Proxy] 运行在 http://localhost:${PORT}（version=${PROXY_VERSION}）`);
     // 启动时尝试连接 Chrome，失败后自动重试
     connectWithRetry();
   });

@@ -490,6 +490,52 @@ function waitChromeExit(timeoutMs = 8000) {
   });
 }
 
+// 推荐牛人页 URL（extract-recommend-candidates.mjs 中的同源常量）
+const RECOMMEND_PAGE_URL = 'https://www.zhipin.com/web/chat/recommend';
+
+// CDP 代理版本号（需与 scripts/cdp-proxy.mjs 的 PROXY_VERSION 同步）。
+// 版本不匹配时强制重启代理，保证运行的是最新代码（避免旧代理的截图守卫缺失问题）。
+const CDP_PROXY_VERSION = '1.3.12';
+
+// 用「边用边跑」模式重启 Chrome，可选带目标 URL 打开（如推荐牛人页）。
+// 被 IPC handler 和 runPipeline 的推荐页缺失弹窗共用。
+// 返回 { ok, needClose?, message }。
+async function launchBossModeChrome({ forceClose = false, openUrl = null } = {}) {
+  const chromePath = findChromePath();
+  if (!chromePath) {
+    return {
+      ok: false,
+      message: '没有在常见位置找到 Chrome。请照常打开 Chrome，按 README 第 1 步开启远程调试后使用；'
+             + '也可以手动用带参数方式启动 Chrome，或用闲置电脑方案。',
+    };
+  }
+  if (await isChromeRunning()) {
+    if (!forceClose) {
+      return {
+        ok: false,
+        needClose: true,
+        message: 'Chrome 正在运行。要让新参数生效，需要先完全关闭 Chrome（会关闭当前打开的标签页）。',
+      };
+    }
+    await killChrome();
+    if (!(await waitChromeExit())) {
+      // 优雅关闭超时，强制关闭
+      await new Promise((r) => execFile('taskkill', ['/F', '/IM', 'chrome.exe'], () => r()));
+    }
+  }
+  const args = [...BOSS_MODE_CHROME_FLAGS];
+  if (openUrl) args.push(openUrl);
+  spawn(chromePath, args, { detached: true, stdio: 'ignore' }).unref();
+  return {
+    ok: true,
+    message: openUrl
+      ? `Chrome 已用「边用边跑」模式启动，并打开推荐牛人页。首次使用请按 README 第 1 步，`
+        + '在 chrome://inspect/#remote-debugging 里勾选「允许远程调试」，之后照常使用即可。'
+      : 'Chrome 已用「边用边跑」模式启动。首次使用请按 README 第 1 步，'
+        + '在 chrome://inspect/#remote-debugging 里勾选「允许远程调试」，之后照常使用即可。',
+  };
+}
+
 // 判断当前运行的 Chrome 是否处于「边用边跑」模式（命令行含 CalculateNativeWinOcclusion 禁用参数）
 function isChromeBossMode() {
   return new Promise((resolveMode) => {
@@ -942,6 +988,27 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       sendProgress(1, 'idle', 0, '已取消');
       sendProgress(2, 'idle', 0, '');
       sendProgress(3, 'idle', 0, '');
+    } else if ((source === 'recommend' || source === 'recommend-attach')
+               && err.message.includes('未找到已打开的推荐牛人页')) {
+      // v1.3.12: 推荐页未打开 → 弹窗询问是否重启 Chrome 并打开推荐页（替代纯红色错误文本）
+      const { response } = await dialog.showMessageBox({
+        type: 'warning',
+        buttons: ['重新启动 Chrome 并打开推荐页', '取消'],
+        defaultId: 0,
+        cancelId: 1,
+        message: '未找到已打开的推荐牛人页',
+        detail: '检测到 Chrome 已打开，但推荐牛人页 (zhipin.com/web/chat/recommend) 未打开。\n'
+              + '是否用「边用边跑」模式重启 Chrome 并打开该页面？\n'
+              + '（会先关闭当前打开的标签页，重启后自动打开推荐页）',
+      });
+      if (response === 0) {
+        const res = await launchBossModeChrome({ forceClose: true, openUrl: RECOMMEND_PAGE_URL });
+        sendProgress(1, 'idle', 0, res.ok
+          ? '已重启 Chrome 并打开推荐页，请设置好筛选条件后再次点击「开始提取分析」'
+          : `重启 Chrome 失败：${res.message}`);
+      } else {
+        sendError({ message: err.message });
+      }
     } else {
       sendError({ message: err.message });
     }
@@ -1086,7 +1153,12 @@ async function startCdpProxy() {
   // 1. 检查 CDP proxy 是否已在运行
   try {
     const health = await httpGet('http://127.0.0.1:3456/health');
-    if (health?.status === 'ok') {
+    if (health?.status === 'ok' && health.version !== CDP_PROXY_VERSION) {
+      // 旧版本代理（可能缺少截图守卫等新代码）→ 不复用，请求它退出后重新 spawn
+      termLog(`[cdp] 检测到旧版 CDP 代理 (version=${health.version})，请求退出以加载新代码...`);
+      try { await httpGet('http://127.0.0.1:3456/shutdown'); } catch {}
+      await sleep(1500);
+    } else if (health?.status === 'ok') {
       cdpProxyProcess = null;
       if (health.connected) {
         cdpStatus = { state: 'connected', message: '' };
@@ -1427,36 +1499,7 @@ function registerIPC() {
 
   // "边用边跑"模式：带参数重启 Chrome，关闭 Windows 遮挡暂停渲染
   // （否则 Chrome 窗口被完全盖住/最小化时渲染暂停，CDP 截图会拿到空白帧）
-  ipcMain.handle('launch-boss-mode-chrome', async (_event, { forceClose } = {}) => {
-    const chromePath = findChromePath();
-    if (!chromePath) {
-      return {
-        ok: false,
-        message: '没有在常见位置找到 Chrome。请照常打开 Chrome，按 README 第 1 步开启远程调试后使用；'
-               + '也可以手动用带参数方式启动 Chrome，或用闲置电脑方案。',
-      };
-    }
-    if (await isChromeRunning()) {
-      if (!forceClose) {
-        return {
-          ok: false,
-          needClose: true,
-          message: 'Chrome 正在运行。要让新参数生效，需要先完全关闭 Chrome（会关闭当前打开的标签页）。',
-        };
-      }
-      await killChrome();
-      if (!(await waitChromeExit())) {
-        // 优雅关闭超时，强制关闭
-        await new Promise((r) => execFile('taskkill', ['/F', '/IM', 'chrome.exe'], () => r()));
-      }
-    }
-    spawn(chromePath, BOSS_MODE_CHROME_FLAGS, { detached: true, stdio: 'ignore' }).unref();
-    return {
-      ok: true,
-      message: 'Chrome 已用「边用边跑」模式启动。首次使用请按 README 第 1 步，'
-             + '在 chrome://inspect/#remote-debugging 里勾选「允许远程调试」，之后照常使用即可。',
-    };
-  });
+  ipcMain.handle('launch-boss-mode-chrome', (_event, opts) => launchBossModeChrome(opts));
 
   // 读取推荐牛人页岗位列表（从 jd-descriptions/ 目录的 .txt 文件名反解）
   ipcMain.handle('get-recommend-jobs', () => {

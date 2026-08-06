@@ -23,7 +23,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   proxyGet, proxyPost, sleep, randomDelay,
-  cdpEval, forceViewport,
+  cdpEval, forceViewport, resetViewport,
   ocrScreenshots,
   safeName, findFrameInTree,
   getScanCachePath, getProgressPath,
@@ -755,7 +755,8 @@ async function doCleanup() {
   if (!_cleanupTargetId && !_cleanupWorker) return;
   console.log('\n收到取消指令，清理资源...');
   if (_cleanupTargetId) {
-    // 搜索页始终 attach 模式，不关闭用户 tab
+    // 搜索页始终 attach 模式，不关闭用户 tab，但要清除视口 override（DPR=2 残留会变形）
+    try { await resetViewport(_cleanupTargetId); } catch {}
     console.log('  [attach 模式] 保留用户打开的 tab');
     _cleanupTargetId = null;
   }
@@ -1163,6 +1164,8 @@ async function main() {
 
   console.log('\n保留页面 tab，供后续操作使用');
   await worker.terminate();
+  // 保留 tab 前必须清除视口 override，否则 DPR=2 残留导致筛选框变形变大
+  await resetViewport(_cleanupTargetId);
   _cleanupTargetId = null;
   _cleanupWorker = null;
 

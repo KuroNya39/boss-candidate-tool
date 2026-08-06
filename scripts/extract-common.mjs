@@ -80,6 +80,18 @@ export async function forceViewport(targetId) {
   }
 }
 
+// v1.3.12: 清除 device metrics override，恢复页面真实 DPR 与视口。
+// forceViewport 设置的 Emulation.setDeviceMetricsOverride 除非 reset 否则永久残留
+// （DPR=2 + 锁定尺寸），提取结束后 Boss 筛选框会变形/变大。
+// 必须在提取结束（正常结束 + 取消/致命退出）时调用。
+export async function resetViewport(targetId) {
+  if (!targetId) return;
+  try {
+    await proxyGet(`/emulate?target=${targetId}&reset=1`);
+    console.log('已清除视口 override，恢复页面真实 DPR');
+  } catch { /* target 已关闭等场景忽略 */ }
+}
+
 export function randomDelay(minMs, maxMs) {
   const ms = minMs + Math.random() * (maxMs - minMs);
   return sleep(Math.round(ms));
@@ -480,7 +492,8 @@ export async function captureResumeScreenshots(targetId, safename, tempDir) {
         console.warn(`    ⚠ 截图第 ${page + 1}/${pages} 页失败 (${retry + 1}/3): ${e.message}`);
         if (retry < 2) {
           // 失败多半是内容未渲染完：等待更久 + 重新滚动定位，再重试
-          await randomDelay(1200, 2000);
+          // v1.3.12: 拉长等待给 OOPIF 简历弹窗 iframe 更多渲染时间
+          await randomDelay(1500, 2500);
           await scrollResume(targetId, scrollTop);
           await sleep(500);
         }
@@ -603,7 +616,10 @@ export async function ocrScreenshots(screenshots, worker) {
   const texts = [];
   for (let i = 0; i < screenshots.length; i++) {
     console.log(`    OCR 第 ${i + 1}/${screenshots.length} 页...`);
-    const { data: { text } } = await worker.recognize(screenshots[i]);
+    // v1.3.12: 内建预处理。isNormalize（对比度归一化）默认已开；
+    // isBinarize（Otsu 二值化）降低彩色/低对比度噪声对中文细字的干扰。
+    // 若实测对低对比度简历过曝，回退为 { isNormalize: true }。
+    const { data: { text } } = await worker.recognize(screenshots[i], { isBinarize: true });
     texts.push(cleanOcrText(text));
   }
   const merged = dedupePages(texts);

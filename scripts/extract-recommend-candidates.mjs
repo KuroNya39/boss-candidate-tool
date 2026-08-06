@@ -21,7 +21,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   proxyGet, proxyPost, sleep, randomDelay,
-  cdpEval, forceViewport,
+  cdpEval, forceViewport, resetViewport,
   closeBossPopup,
   captureResumeScreenshots,
   ocrScreenshots,
@@ -883,6 +883,8 @@ async function doCleanup() {
   if (!_cleanupTargetId && !_cleanupWorker) return;
   console.log('\n收到取消指令，清理资源...');
   if (_cleanupTargetId) {
+    // 无论保留还是关闭 tab，先清除视口 override（DPR=2 残留会导致筛选框变形变大）
+    try { await resetViewport(_cleanupTargetId); } catch {}
     if (_attachMode) {
       console.log('  [手动筛选模式] 保留用户打开的 tab');
     } else {
@@ -1320,6 +1322,8 @@ async function main() {
   // 两种模式都保留 tab，供后续"打招呼"等操作复用
   console.log('\n保留页面 tab，供后续操作使用');
   await worker.terminate();
+  // 保留 tab 前必须清除视口 override，否则 DPR=2 残留导致筛选框变形变大
+  await resetViewport(_cleanupTargetId);
   _cleanupTargetId = null;
   _cleanupWorker = null;
 

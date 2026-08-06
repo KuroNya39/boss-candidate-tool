@@ -198,6 +198,13 @@ header h1 {
 }
 
 /* ===== 目标岗位弹窗列表 ===== */
+.job-picker-search {
+  margin-bottom: 8px;
+}
+.job-picker-search .input-text {
+  width: 100%;
+  box-sizing: border-box;
+}
 .job-picker-list {
   max-height: 400px;
   overflow-y: auto;

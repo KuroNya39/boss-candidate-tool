@@ -21,6 +21,7 @@ const jobSelectSection = document.getElementById('job-select-section');
 const jobDisplay = document.getElementById('job-display');
 const jobPickerOverlay = document.getElementById('job-picker-overlay');
 const jobPickerList = document.getElementById('job-picker-list');
+const jobSearchInput = document.getElementById('job-search-input');
 const btnPickerCancel = document.getElementById('btn-picker-cancel');
 const jobDialogOverlay = document.getElementById('job-dialog-overlay');
 const dialogJobName = document.getElementById('dialog-job-name');
@@ -37,6 +38,7 @@ const errorMessage = document.getElementById('error-message');
 // 岗位选择状态
 let selectedJob = '';
 let jobList = [];
+let jobSearchQuery = ''; // 目标岗位搜索词（实时过滤岗位列表）
 let selectedSource = 'chat'; // 当前选中的提取来源
 
 // 编辑岗位模式（非空时表示正在编辑已有岗位）
@@ -596,7 +598,7 @@ function renderJobPicker() {
   });
   jobPickerList.appendChild(addItem);
 
-  // 岗位列表
+  // 岗位列表（按搜索词实时过滤；jobList 保持不变，只过滤副本）
   if (jobList.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'job-picker-item';
@@ -607,7 +609,19 @@ function renderJobPicker() {
     jobPickerList.appendChild(empty);
     return;
   }
-  jobList.forEach(job => {
+  const query = jobSearchQuery.trim().toLowerCase();
+  const filtered = query ? jobList.filter(job => job.toLowerCase().includes(query)) : jobList;
+  if (filtered.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'job-picker-item';
+    empty.textContent = '未找到匹配的岗位';
+    empty.style.color = '#94a3b8';
+    empty.style.cursor = 'default';
+    empty.style.justifyContent = 'center';
+    jobPickerList.appendChild(empty);
+    return;
+  }
+  filtered.forEach(job => {
     const item = document.createElement('div');
     item.className = 'job-picker-item';
     if (job === selectedJob) item.classList.add('selected');
@@ -665,6 +679,11 @@ jobDisplay.addEventListener('click', showJobPicker);
 btnPickerCancel.addEventListener('click', hideJobPicker);
 jobPickerOverlay.addEventListener('click', (e) => {
   if (e.target === jobPickerOverlay) hideJobPicker();
+});
+// 岗位搜索：输入实时过滤列表
+jobSearchInput.addEventListener('input', () => {
+  jobSearchQuery = jobSearchInput.value;
+  renderJobPicker();
 });
 // Source toggle (card-style buttons)
 document.querySelectorAll('.toggle-btn').forEach(btn => {
