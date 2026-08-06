@@ -25,6 +25,13 @@ import {
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
+// 致命错误统一走 GREET_ERROR（stdout），main.mjs 的 stdout 解析才能识别并上报真实原因；
+// 所有已知致命路径都从这里退出，stderr 只留给未捕获异常的兜底诊断。
+function fatal(msg) {
+  console.log(`\nGREET_ERROR:${msg}`);
+  process.exit(1);
+}
+
 // ===== CLI 参数解析 =====
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -35,8 +42,7 @@ function parseArgs() {
     if (args[i] === '--source' && args[i + 1]) opts.source = args[++i];
   }
   if (!opts.input) {
-    console.error('Usage: node greet-candidates.mjs --input <scored-candidates.json> --level <5|4|3|2|0> --source <recommend|search>');
-    process.exit(1);
+    fatal('缺少 --input 参数。\nUsage: node greet-candidates.mjs --input <scored-candidates.json> --level <5|4|3|2|0> --source <recommend|search>');
   }
   return opts;
 }
@@ -155,21 +161,18 @@ async function main() {
 
   // 1. 读取评分数据
   if (!existsSync(opts.input)) {
-    console.error(`未找到文件: ${opts.input}`);
-    process.exit(1);
+    fatal(`未找到文件: ${opts.input}`);
   }
   const raw = JSON.parse(readFileSync(opts.input, 'utf-8'));
   const candidates = raw.candidates || raw;
   if (!Array.isArray(candidates) || candidates.length === 0) {
-    console.error('候选人列表为空');
-    process.exit(1);
+    fatal('候选人列表为空');
   }
 
   // 2. 按等级阈值过滤
   const threshold = LEVEL_THRESHOLDS[opts.level];
   if (threshold === undefined) {
-    console.error(`无效的等级: ${opts.level}，可用值: 5, 4, 3, 2, 0`);
-    process.exit(1);
+    fatal(`无效的等级: ${opts.level}，可用值: 5, 4, 3, 2, 0`);
   }
 
   const targets = candidates.filter(c => {
@@ -255,8 +258,4 @@ async function main() {
   console.log(`\nGREET_DONE:${successCount}|${alreadyCount}|${notFoundCount}|${skipCount}`);
 }
 
-main().catch(err => {
-  // GREET_ERROR 走 stdout（console.log），main.mjs 的 stdout 解析才能识别并上报真实原因
-  console.log(`\nGREET_ERROR:${err.message}`);
-  process.exit(1);
-});
+main().catch(err => fatal(err.message));

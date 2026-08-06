@@ -1040,10 +1040,12 @@ async function runGreeting(level, source = 'recommend') {
 
   // 超时随目标人数伸缩：每人约 10 秒预算（点击+验证+防风控间隔+余量），
   // 下限 5 分钟、上限 30 分钟。81 人 ≈ 13.5 分钟，避免大量候选人逼近旧 10 分钟硬超时被杀。
-  const MAX_WAIT = Math.min(30 * 60 * 1000, Math.max(5 * 60 * 1000, (totalTargets || 0) * 10_000));
-  let greetCancelled = false;
+  // 预算必须小于脚本侧 PER_CANDIDATE_TIMEOUT(30s) + 单人体检开销，否则主进程会中途杀掉单个候选人。
+  const BUDGET_PER_TARGET = 10_000;
+  const MAX_WAIT = Math.min(30 * 60 * 1000, Math.max(5 * 60 * 1000, totalTargets * BUDGET_PER_TARGET));
   let greetFatalSent = false; // GREET_ERROR 已上报真实原因，close 时不再重复报泛化退出码
   let lastStderr = ''; // 脚本最近一行 stderr，供 close 无 GREET_ERROR 时兜底诊断
+  let greetTimer = null; // 超时定时器，close/error 时清理，避免进程退出后仍被持有
 
   try {
     const greetPath = resolve(UNPACKED_ROOT, 'scripts', 'greet-candidates.mjs');
@@ -1105,6 +1107,7 @@ async function runGreeting(level, source = 'recommend') {
     });
 
     proc.on('error', (err) => {
+      clearTimeout(greetTimer);
       currentProcess = null;
       if (!cancelled) {
         sendGreetError({ message: err.message });
@@ -1112,6 +1115,7 @@ async function runGreeting(level, source = 'recommend') {
     });
 
     proc.on('close', (code) => {
+      clearTimeout(greetTimer);
       currentProcess = null;
       // 超时或用户取消时 cancelled=true，不再重复报错
       if (cancelled) return;
@@ -1122,17 +1126,16 @@ async function runGreeting(level, source = 'recommend') {
         const base = code === null
           ? '打招呼进程异常终止（可能被系统杀死）'
           : `greet-candidates.mjs 退出码 ${code}`;
-        // 脚本走 console.error + exit(1) 的路径（文件不存在/解析失败/无效等级）没有 GREET_ERROR，
-        // 用最近一行 stderr 兜底，让用户能看到真实原因
+        // 已知致命路径脚本已统一走 GREET_ERROR（上面已处理）；这里仅兜底未知异常
+        // （未捕获抛错/被系统杀死）——用最近一行 stderr 让用户看到原始报错
         sendGreetError({ message: lastStderr ? `${base}\n${lastStderr}` : base });
       }
     });
 
     // 超时保护（也会设置 cancelled，避免 close 事件重复报错）
-    setTimeout(() => {
+    greetTimer = setTimeout(() => {
       if (currentProcess === proc) {
         cancelled = true; // 也标记全局取消，close 处理时不再报退出码错误
-        greetCancelled = true;
         currentProcess = null;
         proc.kill();
         sendGreetError({ message: '打招呼超时' });
@@ -1140,9 +1143,7 @@ async function runGreeting(level, source = 'recommend') {
     }, MAX_WAIT);
 
   } catch (err) {
-    if (!greetCancelled) {
-      sendGreetError({ message: err.message });
-    }
+    sendGreetError({ message: err.message });
   }
 }
 
