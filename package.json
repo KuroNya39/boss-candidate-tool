@@ -1,6 +1,6 @@
 {
   "name": "web-access",
-  "version": "1.3.10",
+  "version": "1.3.11",
   "type": "module",
   "description": "Boss直聘候选人AI评分助手：从Boss直聘提取候选人简历，AI匹配评分并导出Excel",
   "main": "electron/main.mjs",
