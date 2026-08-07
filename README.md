@@ -37,7 +37,7 @@
 
 ### ⚠️ 重要：运行中的注意事项
 
-软件是通过 Chrome 的调试接口，在浏览器内部自动操作页面的（自动点开简历 → 截图 → AI 识字 → 打分）。运行期间**不需要你碰电脑**，但有几个要点需要注意：
+软件是通过 Chrome 的调试接口，在浏览器内部自动操作页面的（自动点开简历 → 直接读取简历文本，读不到再截图识别 → AI 打分）。运行期间**不需要你碰电脑**，但有几个要点需要注意：
 
 **1. 点「开始提取分析」时，软件会自动把 Chrome 切成「边用边跑」模式**
 
@@ -318,7 +318,7 @@ AI 会按岗位描述里的 **3 个核心评估维度**（带权重）给候选�
   scripts/greet-candidates.mjs              批量打招呼
   scripts/export-candidates.mjs             Excel 导出 + 邮件
   config/scoring-prompt-*.txt               AI 评分提示词模板
-  config/jd-descriptions/*.txt              每个岗位的岗位描述
+  %AppData%/web-access/web-access/jd-descriptions/   岗位描述（存用户数据目录，重装/升级不丢）
   ```
 - 常用命令：
   ```bash

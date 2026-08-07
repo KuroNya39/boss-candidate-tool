@@ -25,9 +25,10 @@ build.mjs                               ← Full build pipeline (icon → electr
 
 config/scoring-prompt-with-jd.txt   ← AI scoring prompt template (recommend page)
 config/scoring-prompt-chat.txt       ← AI scoring prompt template (chat page)
-config/jd-descriptions/*.txt         ← Per-position JD descriptions
 config/scoretext.md                  ← AI score output format spec
 ```
+> 岗位描述（JD）统一存用户数据目录 `%AppData%\web-access\web-access\jd-descriptions\`（开发/打包一致，重装不丢）。
+> 旧的 `config/jd-descriptions` 已废弃，不要再往里面写。
 
 ### Pipeline Orchestration (in `main.mjs`)
 
@@ -59,7 +60,7 @@ Child process cancellation works by writing `CANCEL\n` to stdin, waiting 2s, the
 - **DOM extraction fallback**: `tryExtractResumeTextFromDOM()` — extracts resume text directly from iframe via CDP `Page.getFrameTree` + `Runtime.executionContexts` before falling back to screenshot+OCR.
 - **Score output parsing**: `parseSingleScoreResponse()` finds the first valid JSON `{score, comment}` object in the API response, handles markdown code blocks, formats comments with newlines before section headers.
 - **API response compatibility**: `callClaudeAPI()` handles Anthropic standard format, Anthropic thinking blocks, OpenAI Chat format, and raw response formats.
-- **Multi-position support**: Candidates grouped by `positionInfo.appliedJob`. Each position's JD loaded from `config/jd-descriptions/{position}.txt`.
+- **Multi-position support**: Candidates grouped by `positionInfo.appliedJob`. Each position's JD loaded from userData `%AppData%\web-access\web-access\jd-descriptions\{position}.txt` (unified for dev/packaged since v1.3.15).
 - **Auto-archiving**: Old output directories renamed to `output-YYYYMMDD-HHMM` before each new run (done in main process to avoid Windows EBUSY).
 - **Windows GBK encoding**: `termLog()` and `decodeBuffer()` handle GBK encoding for stdout/stderr display on Windows terminals.
 
@@ -120,7 +121,7 @@ The proxy (`scripts/cdp-proxy.mjs`) is a core dependency. It:
 - Node.js 22+ required (uses native WebSocket)
 - Chrome must have remote debugging enabled (chrome://inspect/#remote-debugging)
 - OCR language pack: `ocr-lang/chi_sim.traineddata.gz`
-- Config directory: `config/jd-descriptions/` (one .txt file per position, filename = position name)
+- JD descriptions directory: `%AppData%\web-access\web-access\jd-descriptions\` (one .txt file per position, filename = position name; userData since v1.3.15, no longer `config/jd-descriptions/`)
 - SMTP default: `smtp.mxhichina.com:25` (overridable via API config UI)
 - The AI scoring prompt template uses `{dimensions}`, `{screeningCriteria}`, `{resumeText}` placeholders
 - `output/` is gitignored; old runs auto-archived to `output-YYYYMMDD-HHMM/`
