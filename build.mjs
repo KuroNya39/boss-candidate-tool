@@ -24,6 +24,10 @@ if (_vParts.length !== 3 || _vParts.some(n => Number.isNaN(n))) {
   throw new Error(`package.json 版本号格式不正确: "${VERSION}"（应为 x.y.z 三段数字）`);
 }
 
+// REPLACE=1：同一天二次更新时并入当天已发布的 release（规则见 CLAUDE.md「版本号规则」）。
+// 跳过防重校验、跳过新建 tag/release，构建后替换已有 release 的安装包资产。
+const REPLACE = process.env.REPLACE === '1';
+
 const APP_NAME = 'Boss直聘候选人AI评分助手';
 const REPO = 'KuroNya39/boss-candidate-tool';
 const OUT = 'build-tmp';
@@ -108,6 +112,34 @@ function buildReleaseNotes() {
   return notesPath;
 }
 
+/**
+ * REPLACE 模式：以当天已发布的 release 正文为基底，
+ * 把 v${VERSION}..HEAD 的新提交作为「本次修复」小节插到下载表之前，
+ * 只写本地 release/release-notes.md 作记录；正文的最终润色由人工/Claude 用 gh release edit 完成。
+ */
+function buildReplaceNotes() {
+  const tag = `v${VERSION}`;
+  let currentBody = '';
+  try {
+    currentBody = execSync(`gh release view "${tag}" --json body -q .body`, { cwd: ROOT, encoding: 'utf-8' }).trim();
+  } catch {}
+  let newItems = '- 自动构建更新';
+  try {
+    const log = execSync(`git log "${tag}..HEAD" --no-merges --pretty=%s`, { cwd: ROOT, encoding: 'utf-8' });
+    const commits = log.split('\n').filter(Boolean);
+    if (commits.length > 0) newItems = commits.map(c => `- ${c}`).join('\n');
+  } catch {}
+  const section = `### 本次修复（同日内更新，并入 ${tag}）\n${newItems}\n\n`;
+  const idx = currentBody.indexOf('## 下载');
+  const merged = idx > 0
+    ? `${currentBody.slice(0, idx)}${section}${currentBody.slice(idx)}`
+    : `${currentBody}\n\n${section}`;
+  const notesPath = resolve(ROOT, 'release', 'release-notes.md');
+  writeFileSync(notesPath, merged, 'utf-8');
+  console.log(`  Release 说明已生成（并入版）: ${notesPath}`);
+  return notesPath;
+}
+
 function findRcedit() {
   const cacheDir = resolve(
     process.env.USERPROFILE || '',
@@ -130,11 +162,12 @@ function findRcedit() {
 }
 
 async function main() {
-  // 防重校验：目标版本 tag 已存在说明发布过了，需要先升版本号
-  if (tagExists(`v${VERSION}`)) {
-    throw new Error(`版本号 v${VERSION} 已发布过。请先根据本轮改动性质更新 package.json 的 version（见 CLAUDE.md「版本号规则」）再打包。`);
+  // 防重校验：目标版本 tag 已存在说明发布过了，需要先升版本号；
+  // REPLACE=1（同一天二次更新）时允许同名重建并替换已有 release
+  if (tagExists(`v${VERSION}`) && !REPLACE) {
+    throw new Error(`版本号 v${VERSION} 已发布过。请先根据本轮改动性质更新 package.json 的 version（见 CLAUDE.md「版本号规则」）再打包；同一天二次更新时用 REPLACE=1 并入已有 release。`);
   }
-  console.log(`\n版本号: ${VERSION}（打包前已确认，不再自动递增）`);
+  console.log(`\n版本号: ${VERSION}${REPLACE ? '（REPLACE 模式：并入当天已发布的 release，不新建版本）' : '（打包前已确认，不再自动递增）'}`);
 
   // 1. 生成 ICO
   console.log('\n=== 1/4: 生成 ICO ===');
@@ -225,26 +258,37 @@ async function main() {
   // 8. 上传到 GitHub Releases
   const tag = `v${VERSION}`;
   console.log(`\n=== 7/7: 上传到 GitHub Releases (${tag}) ===`);
-  try {
-    // 先检查 tag 是否已存在，不存在则创建
-    execSync(`git tag "${tag}"`, { cwd: ROOT, stdio: 'pipe' });
-    execSync(`git push origin "${tag}"`, { cwd: ROOT, stdio: 'pipe' });
-  } catch {
-    console.log(`  Tag ${tag} 已存在，跳过创建`);
+  if (REPLACE) {
+    // 同一天二次更新：不新建 release，替换已有 release 的安装包资产（规则见 CLAUDE.md「版本号规则」）
+    console.log(`  REPLACE 模式：${tag} 已发布过，替换安装包资产`);
+    buildReplaceNotes();
+    execSync(
+      `gh release upload "${tag}" "${resolve(finalDist, SETUP_NAME)}" "${zipPath}" --clobber`,
+      { cwd: ROOT, stdio: 'inherit' }
+    );
+    console.log(`  ⚠ 请记得用 gh release edit "${tag}" 更新正文（并入本轮新修复）`);
+  } else {
+    try {
+      // 先检查 tag 是否已存在，不存在则创建
+      execSync(`git tag "${tag}"`, { cwd: ROOT, stdio: 'pipe' });
+      execSync(`git push origin "${tag}"`, { cwd: ROOT, stdio: 'pipe' });
+    } catch {
+      console.log(`  Tag ${tag} 已存在，跳过创建`);
+    }
+
+    // 自动生成 Release 更新说明（从 git log 收集本次改动）
+    const notesPath = buildReleaseNotes();
+
+    execSync(
+      `gh release create "${tag}" ` +
+      `--title "${APP_NAME} ${tag}" ` +
+      `--notes-file "${notesPath}" ` +
+      `"${resolve(finalDist, SETUP_NAME)}" ` +
+      `"${zipPath}"`,
+      { cwd: ROOT, stdio: 'inherit' }
+    );
+    console.log(`  已上传到: https://github.com/${REPO}/releases/tag/${tag}`);
   }
-
-  // 自动生成 Release 更新说明（从 git log 收集本次改动）
-  const notesPath = buildReleaseNotes();
-
-  execSync(
-    `gh release create "${tag}" ` +
-    `--title "${APP_NAME} ${tag}" ` +
-    `--notes-file "${notesPath}" ` +
-    `"${resolve(finalDist, SETUP_NAME)}" ` +
-    `"${zipPath}"`,
-    { cwd: ROOT, stdio: 'inherit' }
-  );
-  console.log(`  已上传到: https://github.com/${REPO}/releases/tag/${tag}`);
 
   console.log('\n✅ 构建完成');
   console.log(`   安装包: ${resolve(finalDist, SETUP_NAME)}`);
