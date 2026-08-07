@@ -755,6 +755,18 @@ async function tryExtractRecommendResumeTextFromDOM(targetId) {
           })()`);
           if (result.value) return result.value;
         }
+        // 诊断：简历 iframe 在主页面 session 里找不到执行上下文。
+        // 若它是 OOPIF（跨域 iframe 独立进程），Target.getTargets 里会出现 type=iframe 的独立 target——
+        // 有则可通过 attach 该 target 直接读取简历文本（快 30-100 倍）；没有则只能用截图 OCR。
+        try {
+          const targetsResp = await proxyGet(`/targets?all=1`);
+          const iframeTargets = (targetsResp || []).filter(t => t.type === 'iframe')
+            .map(t => ({ type: t.type, url: (t.url || '').slice(0, 120) }));
+          console.warn(`  🔍 DOM提取诊断: 简历iframe在主session无上下文, nestedSrc=${(nestedSrc || '').slice(0, 80)}, OOPIF iframe targets=${iframeTargets.length}`);
+          for (const it of iframeTargets) console.warn(`      iframe target: ${it.url}`);
+        } catch (e) {
+          console.warn(`  🔍 DOM提取诊断失败: ${e.message}`);
+        }
       }
     }
   } catch { /* 继续尝试兜底 */ }

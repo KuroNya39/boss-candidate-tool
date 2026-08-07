@@ -588,7 +588,20 @@ async function tryExtractSearchResumeTextFromDOM(targetId) {
 
     const contexts = framesResp.executionContexts || [];
     const ctx = contexts.find(c => c.frameId === targetFrame.id);
-    if (!ctx) return null;
+    if (!ctx) {
+      // 诊断：简历 iframe 在主页面 session 找不到执行上下文，可能是 OOPIF（跨域 iframe 独立进程）。
+      // Target.getTargets(all=1) 里若有 type=iframe 且 url 含该简历的独立 target，即可通过 attach 直接读取。
+      try {
+        const targetsResp = await proxyGet(`/targets?all=1`);
+        const iframeTargets = (targetsResp || []).filter(t => t.type === 'iframe')
+          .map(t => ({ type: t.type, url: (t.url || '').slice(0, 120) }));
+        console.warn(`  🔍 DOM提取诊断(搜索): 简历iframe在主session无上下文, nestedSrc=${(parsedSrc || '').slice(0, 80)}, OOPIF iframe targets=${iframeTargets.length}`);
+        for (const it of iframeTargets) console.warn(`      iframe target: ${it.url}`);
+      } catch (e) {
+        console.warn(`  🔍 DOM提取诊断(搜索)失败: ${e.message}`);
+      }
+      return null;
+    }
 
     const result = await proxyPost(`/eval-context?target=${targetId}&context=${ctx.id}`, `(function(){
       var resumeDiv = document.querySelector('#resume') || document.querySelector('body');

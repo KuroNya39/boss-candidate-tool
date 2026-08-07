@@ -335,8 +335,11 @@ const server = http.createServer(async (req, res) => {
     // GET /targets - 列出所有页面
     if (pathname === '/targets') {
       const resp = await sendCDP('Target.getTargets');
-      const pages = resp.result.targetInfos.filter(t => t.type === 'page');
-      res.end(JSON.stringify(pages, null, 2));
+      const targets = resp.result.targetInfos;
+      // all=1 返回全部类型（含 OOPIF iframe/worker，DOM 提取诊断用）；
+      // 默认只返回 page 类型（保持兼容）
+      const list = (q.all === '1') ? targets : targets.filter(t => t.type === 'page');
+      res.end(JSON.stringify(list, null, 2));
     }
 
     // GET /new?url=xxx - 创建新后台 tab
