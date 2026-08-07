@@ -1,5 +1,9 @@
 appId: com.web-access.candidate-tool
 productName: Boss直聘候选人AI评分助手
+# 只打包中英文语言包（省 ~44M），避免带 40+ 种 Chromium 语言
+electronLanguages:
+  - zh-CN
+  - en-US
 directories:
   output: build-tmp
 files:
@@ -16,6 +20,7 @@ files:
   - "!node_modules/png-to-ico/**"
   - "!**/*.map"
   - "!**/*.md"
+  - "!LICENSES.chromium.html"
   - config/scoretext.md
   - app_icon_rounded.png
   - ocr-lang/**/*

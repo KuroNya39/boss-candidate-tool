@@ -119,6 +119,12 @@ async function main() {
 
   // 4. 重建安装包（先清理旧安装包文件，避免 NSIS 输出文件被锁）
   console.log('\n=== 4/4: 重建安装包 ===');
+  // 剔除 electron 分发的 Chromium 许可证文件（约 20M，无功能作用）：
+  // electron-builder 的 files 排除管不到它，需在重建 NSIS 前手动删除
+  try {
+    rmSync(resolve(ROOT, OUT, 'win-unpacked', 'LICENSES.chromium.html'));
+    console.log('  已剔除 LICENSES.chromium.html');
+  } catch {}
   const setupPath = resolve(ROOT, OUT, SETUP_NAME);
   const blockMap = setupPath + '.blockmap';
   const uninstaller = setupPath.replace(/\.exe$/, '.__uninstaller.exe');
