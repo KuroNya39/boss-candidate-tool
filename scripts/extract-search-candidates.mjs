@@ -1021,6 +1021,11 @@ async function main() {
         try {
           const sname = safeName(displayName);
 
+          // 截图区域 clip 提升到 try 作用域：若在 else 块内声明，
+          // 外层 catch 引用它会因块级作用域抛 "clip is not defined"，
+          // 反而把真实截图失败原因覆盖掉（v1.3.16 实测）
+          let clip = null;
+
           // 先尝试直接从 DOM 提取简历文本
           const domText = await tryExtractSearchResumeTextFromDOM(targetId);
           if (domText) {
@@ -1043,9 +1048,11 @@ async function main() {
             const pages = Math.ceil((scrollHeight - clientHeight) / step) + 1;
             const screenshots = [];
 
-            const clip = await getSearchDialogClip(targetId);
+            clip = await getSearchDialogClip(targetId);
             if (clip) {
               console.log(`    弹窗区域: x=${clip.x}, y=${clip.y}, ${clip.width}x${clip.height}`);
+            } else {
+              console.log('    弹窗区域: null（走全屏截图兜底）');
             }
             console.log(`    简历高度: ${scrollHeight}px, 可视: ${clientHeight}px, 步进: ${step}px, 需截 ${pages} 页`);
 
@@ -1082,16 +1089,22 @@ async function main() {
               let success = false;
               for (let retry = 0; retry < 3; retry++) {
                 try {
+                  // clip 尺寸无效（width/height 为 0，常见于弹窗尚未渲染完成）时
+                  // 转全屏截图兜底，避免 CDP 报 "Cannot take screenshot with 0 width"
+                  const shotClip = (clip && clip.width > 0 && clip.height > 0) ? clip : null;
                   const { cdpScreenshot } = await import('./extract-common.mjs');
-                  await cdpScreenshot(targetId, ssPath, clip);
+                  await cdpScreenshot(targetId, ssPath, shotClip);
                   screenshots.push(ssPath);
                   success = true;
                   break;
                 } catch (e) {
                   console.warn(`    ⚠ 截图第 ${page + 1}/${pages} 页失败 (${retry + 1}/3): ${e.message}`);
                   if (retry < 2) {
-                    // 失败多半是内容未渲染完：等待更久 + 重新滚动定位，再重试
+                    // 失败多半是内容未渲染完：等待更久 + 重新获取弹窗区域 + 重新滚动定位，再重试
                     await randomDelay(1200, 2000);
+                    try {
+                      clip = await getSearchDialogClip(targetId);
+                    } catch {}
                     await scrollSearchResume(targetId, scrollTop);
                     await sleep(500);
                   }
