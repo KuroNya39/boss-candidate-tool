@@ -17,6 +17,7 @@ scripts/cdp-proxy.mjs                   ← HTTP → WebSocket CDP proxy daemon 
 scripts/extract-common.mjs              ← Shared utilities (CDP calls, OCR engine, progress save/resume)
 scripts/extract-candidates-full.mjs     ← Chat page candidate extraction
 scripts/extract-recommend-candidates.mjs ← Recommend page candidate extraction
+scripts/extract-search-candidates.mjs   ← Search page candidate extraction
 scripts/greet-candidates.mjs            ← Batch "say hello" to scored candidates
 scripts/export-candidates.mjs           ← Excel export + email sending
 scripts/process-icon.mjs                ← App icon processing (resize + rounded corners)
@@ -47,10 +48,11 @@ Child process cancellation works by writing `CANCEL\n` to stdin, waiting 2s, the
 3. **Scoring**: Candidate data → Anthropic-compatible API (multiple response formats supported) → score + comment → `scored-candidates.json`
 4. **Export**: `scored-candidates.json` → ExcelJS → `.xlsx` (optionally emailed via nodemailer)
 
-### Two Extraction Modes
+### Three Extraction Modes
 
 - **Chat page** (`/web/chat`): Clicks candidate cards in left panel, extracts basic info from DOM, opens online resume overlay via `clickOnlineResume()`. Resume dialog appears in `.resume-detail` element with an iframe.
 - **Recommend page** (`/web/chat/recommend`): Page content is inside an `<iframe name="recommendFrame">`. All DOM operations use `iframeEval()` (evaluates JS in the iframe's `contentWindow`). Cards clicked directly to open resume popup (no separate "online resume" button). Supports `--attach` mode for manual filtering.
+- **Search page** (`/web/chat/search`): Like the recommend page, content lives in an `<iframe name="searchFrame">` and all DOM operations go through `iframeEval()`. Only supports `--attach` mode (attaches to the user's open search tab via `/targets`; no auto-navigation). Resume popup structure: `.boss-popup__wrapper.boss-dialog.dialog-lib-resume` → `.boss-popup__content` → `.resume-detail-wrap` → iframe (`c-resume`, same cross-origin OOPIF situation as recommend). DOM extraction uses the same `findFrameInTree` + execution-context strategy. Greeting uses `--source search`.
 
 ### Key Patterns
 
@@ -78,6 +80,9 @@ node scripts/extract-candidates-full.mjs --count 20
 
 # Extract candidates (recommend page, all)
 node scripts/extract-recommend-candidates.mjs --all
+
+# Extract candidates (search page, attach to user's open tab)
+node scripts/extract-search-candidates.mjs --attach --count 20
 
 # Extract with resume support
 node scripts/extract-candidates-full.mjs --resume --count 20
