@@ -15,7 +15,6 @@ files:
   - config/scoretext.md
   - config/scoring-prompt-chat.txt
   - config/scoring-prompt-with-jd.txt
-  - config/filter-rules.json
   - "!config/jd-descriptions/**"
   - package.json
   - node_modules/**/*
@@ -32,7 +31,6 @@ asarUnpack:
   - "config/scoretext.md"
   - "config/scoring-prompt-chat.txt"
   - "config/scoring-prompt-with-jd.txt"
-  - "config/filter-rules.json"
   - "ocr-lang/**"
   - "app_icon_rounded.png"
   # 子进程(fork)需要访问实体文件，不能放在 asar 里
