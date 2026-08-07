@@ -1040,15 +1040,28 @@ async function main() {
           } else {
             console.log('  → 截图...');
 
-            const info = await getSearchResumeScrollInfo(targetId);
+            // 弹窗刚打开时简历 iframe 可能尚未加载：clip 尺寸和滚动信息会拿到空值
+            // （0x0 / 高度=可视高度），直接截图会报 "Cannot take screenshot with 0 width"，
+            // 且会把"有简历但加载慢"的候选人误判为无简历。先等待内容渲染稳定（最多约 6s）。
+            let info = null;
+            for (let attempt = 0; attempt < 4; attempt++) {
+              info = await getSearchResumeScrollInfo(targetId);
+              clip = await getSearchDialogClip(targetId);
+              const clipOk = clip && clip.width > 50 && clip.height > 50;
+              const scrollOk = info && !info.error && info.scrollHeight > info.clientHeight + 50;
+              if (attempt === 0) {
+                console.log(`    弹窗内容: clip=${clipOk ? `${clip.width}x${clip.height}` : '空'}, 可滚动=${scrollOk ? `${info.scrollHeight}px` : '无'}`);
+              }
+              if (clipOk || scrollOk) break;
+              await randomDelay(1200, 1800);
+            }
             if (info.error) throw new Error(info.error);
 
             const { scrollHeight, clientHeight } = info;
             const step = Math.floor(clientHeight * 0.95);
-            const pages = Math.ceil((scrollHeight - clientHeight) / step) + 1;
+            const pages = Math.max(1, Math.ceil((scrollHeight - clientHeight) / step) + 1);
             const screenshots = [];
 
-            clip = await getSearchDialogClip(targetId);
             if (clip) {
               console.log(`    弹窗区域: x=${clip.x}, y=${clip.y}, ${clip.width}x${clip.height}`);
             } else {
