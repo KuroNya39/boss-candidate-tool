@@ -31,6 +31,25 @@ const OUT = 'build-tmp';
 const EXE_NAME = `${APP_NAME}.exe`;
 const SETUP_NAME = `${APP_NAME} Setup ${VERSION}.exe`;
 
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Windows 下刚生成的安装包可能被 Defender 实时扫描短暂占用（EPERM），
+// 直接 rename 会失败。重试几次等锁释放（v1.3.16 实测撞车一次）。
+async function retryRenameSync(from, to, label, retries = 5, delayMs = 3000) {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      renameSync(from, to);
+      return;
+    } catch (e) {
+      if (i === retries) {
+        throw new Error(`${label}失败（重试 ${retries} 次仍被占用）: ${e.message}`);
+      }
+      console.warn(`  ${label}被占用（第 ${i}/${retries} 次），${delayMs / 1000}s 后重试 (${e.code})`);
+      await sleep(delayMs);
+    }
+  }
+}
+
 function run(cmd) {
   console.log(`> ${cmd}`);
   execSync(cmd, { cwd: ROOT, stdio: 'inherit' });
@@ -153,7 +172,7 @@ async function main() {
   if (existsSync(finalDist)) {
     const oldDist = resolve(ROOT, `release-old-${Date.now()}`);
     try {
-      renameSync(finalDist, oldDist);
+      await retryRenameSync(finalDist, oldDist, '旧 release 让位');
     } catch (e) {
       throw new Error(`release 目录被占用（旧版程序可能仍在运行），请关闭后重试。\n详情: ${e.message}`);
     }
@@ -161,7 +180,7 @@ async function main() {
     try { rmSync(oldDist, { recursive: true, force: true }); }
     catch { console.warn(`  警告: 旧 release 部分文件仍被占用，保留在 release-old-*（下次构建自动清理）`); }
   }
-  renameSync(tmpDist, finalDist);
+  await retryRenameSync(tmpDist, finalDist, '新构建替换到 release');
 
   // 6. 创建绿色版压缩包
   console.log('\n=== 6/6: 创建绿色版压缩包 ===');
