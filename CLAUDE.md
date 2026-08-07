@@ -115,6 +115,8 @@ node electron/main.mjs --score-only
 
 build.mjs 会校验：目标版本 tag 若已存在（发布过）则拒绝打包，提示先升版本号。发布说明的提交范围 = 最近一个已发布 tag 到当前 HEAD。
 
+**一天可更新多个版本号**（同一天可以多次 bump、多次构建发布）。但 **GitHub release 只保留当天最新的一版**：发布新版时自动删除当天较早发布的 release 及其 tag（build.mjs 发布后执行清理，只留当天最新）。**当天全部更新内容合并到当天这一个 release 的 notes 里**（不另开小标题，直接追加进「更新内容」列表）。
+
 ## CDP Proxy
 
 The proxy (`scripts/cdp-proxy.mjs`) is a core dependency. It:
