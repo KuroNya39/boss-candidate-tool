@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import { spawn, execFile } from 'node:child_process';
 import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, renameSync, unlinkSync, rmSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, renameSync, unlinkSync, rmSync, appendFileSync } from 'node:fs';
 import http from 'node:http';
 import iconv from 'iconv-lite';
 
@@ -23,9 +23,9 @@ function getDefaultOutputDir() {
 let OUTPUT_DIR = getDefaultOutputDir();
 const CONFIG_DIR = resolve(app.getPath('userData'), 'web-access');
 const CONFIG_PATH = resolve(CONFIG_DIR, 'api-config.json');
-const JD_DIR = app.isPackaged
-  ? resolve(CONFIG_DIR, 'jd-descriptions')
-  : resolve(APP_ROOT, 'config', 'jd-descriptions');
+// 岗位描述统一存 userData（开发/打包一致）：重新安装/升级不丢，且各电脑独立。
+// 旧的 config/jd-descriptions 已废弃（原始 JD 未处理格式），不再使用。
+const JD_DIR = resolve(CONFIG_DIR, 'jd-descriptions');
 
 // ===== 配置（持久化到 userData） =====
 // SMTP 默认密码（编码存储，避免明文出现在源码中）
@@ -71,6 +71,10 @@ function saveApiConfig(config) {
 }
 
 // ===== 终端日志 GBK 编码 =====
+// 所有日志（含子脚本 stdout/stderr）同时写入日志文件，方便排查
+const LOG_DIR = resolve(app.getPath('userData'), 'web-access');
+const LOG_PATH = resolve(LOG_DIR, 'app.log');
+try { mkdirSync(LOG_DIR, { recursive: true }); } catch {}
 function termLog(msg, stream = 'stdout') {
   try {
     const buf = iconv.encode(msg, 'gbk');
@@ -85,6 +89,8 @@ function termLog(msg, stream = 'stdout') {
     if (stream === 'stderr') process.stderr.write(msg + '\n');
     else process.stdout.write(msg + '\n');
   }
+  // 追加到日志文件（同步 append，量不大，不阻塞主流程）
+  try { appendFileSync(LOG_PATH, msg + '\n'); } catch {}
 }
 
 function decodeBuffer(buf) {
@@ -629,8 +635,13 @@ async function doAiScoring() {
     const dimensionsText = apiConfig.dimensions || '';
     const screeningCriteriaText = apiConfig.screeningCriteria || '';
 
-    // 尝试读取该岗位的 JD 描述文件，如有则覆盖 {dimensions}/{screeningCriteria}
+    // 尝试读取该岗位的 JD 描述文件。
+    // 岗位描述文件有两种可能格式：
+    //   1) 结构化：含「核心评估维度及权重」「任职资格关键筛选项」两个 section → 分别填入对应槽位
+    //   2) 原始 JD：无 section 标记 → 整段作为 JD 文本兜底（老数据兼容）
     let jdContent = null;
+    let jdDimensions = '';
+    let jdScreeningCriteria = '';
     const safeName = positionName.replace(/[\\/:*?"<>|]/g, (c) => ({
       '\\': '＼', '/': '／', ':': '：', '*': '＊',
       '?': '？', '"': '＂', '<': '＜', '>': '＞', '|': '｜'
@@ -639,6 +650,11 @@ async function doAiScoring() {
     try {
       const raw = readFileSync(jdFilePath, 'utf-8').trim();
       if (raw) jdContent = raw;
+      // 按 section 解析：优先取「核心评估维度及权重」和「任职资格关键筛选项」两个部分
+      const dimMatch = raw.match(/核心评估维度及?权重[\s\S]*?(?=(任职资格关键筛选项|$))/);
+      if (dimMatch) jdDimensions = dimMatch[0].trim();
+      const criteriaMatch = raw.match(/任职资格关键筛选项[\s\S]*$/);
+      if (criteriaMatch) jdScreeningCriteria = criteriaMatch[0].trim();
     } catch {}
 
     if (useWithJd && !jdContent && !dimensionsText) {
@@ -678,8 +694,10 @@ async function doAiScoring() {
       // 构建多人 prompt
       let prompt;
       if (useWithJd) {
-        const dims = jdContent || dimensionsText;
-        const criteria = jdContent || screeningCriteriaText;
+        // 结构化岗位文件：维度/筛选项分别填槽（权重、硬性条件真正生效）
+        // 原始 JD 文件（无 section）：整段兜底填两个槽位（与旧行为一致）
+        const dims = jdDimensions || jdContent || dimensionsText;
+        const criteria = jdScreeningCriteria || jdContent || screeningCriteriaText;
         prompt = template
           .replace('{dimensions}', dims)
           .replace('{screeningCriteria}', criteria);

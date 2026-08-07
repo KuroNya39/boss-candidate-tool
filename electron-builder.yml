@@ -12,7 +12,11 @@ files:
   - "!scripts/*.test.mjs"
   - "!scripts/process-icon.mjs"
   - "!scripts/make-ico.mjs"
-  - config/**/*
+  - config/scoretext.md
+  - config/scoring-prompt-chat.txt
+  - config/scoring-prompt-with-jd.txt
+  - config/filter-rules.json
+  - "!config/jd-descriptions/**"
   - package.json
   - node_modules/**/*
   - "!node_modules/electron-builder/**"
@@ -21,12 +25,14 @@ files:
   - "!**/*.map"
   - "!**/*.md"
   - "!LICENSES.chromium.html"
-  - config/scoretext.md
   - app_icon_rounded.png
   - ocr-lang/**/*
 asarUnpack:
   - "scripts/**"
-  - "config/**"
+  - "config/scoretext.md"
+  - "config/scoring-prompt-chat.txt"
+  - "config/scoring-prompt-with-jd.txt"
+  - "config/filter-rules.json"
   - "ocr-lang/**"
   - "app_icon_rounded.png"
   # 子进程(fork)需要访问实体文件，不能放在 asar 里
