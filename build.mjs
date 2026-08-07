@@ -101,7 +101,8 @@ function buildReleaseNotes() {
 
   // 注意：此时 build-tmp 已被移动到 release，必须写进 release 目录
   const notesPath = resolve(ROOT, 'release', 'release-notes.md');
-  const notes = `${header}## 更新内容\n${items}\n\n## 下载\n| 文件 | 说明 |\n|------|------|\n| ${SETUP_NAME} | 安装包 |\n| win-unpacked.zip | 绿色版（解压即用） |\n`;
+  // 安装包在 GitHub 上的资产名是 Boss.AI.Setup.X.X.X.exe（gh 上传后如此命名，README 也一致）
+  const notes = `${header}## 更新内容\n${items}\n\n## 下载\n| 文件 | 说明 |\n|------|------|\n| Boss.AI.Setup.${VERSION}.exe | 安装包 |\n| win-unpacked.zip | 绿色版（解压即用） |\n`;
   writeFileSync(notesPath, notes, 'utf-8');
   console.log(`  Release 说明已生成: ${notesPath}`);
   return notesPath;
