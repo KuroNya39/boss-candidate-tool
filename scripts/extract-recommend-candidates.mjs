@@ -721,8 +721,13 @@ async function getRecommendResumeScrollInfo(targetId) {
  *   3. 通过 CDP Runtime.getExecutionContexts 找到 frame 的 execution context
  *   4. 在该 context 中直接执行 JS 提取简历文本
  *
- * @returns {string|null} 提取到的文本，若 DOM 不可用返回 null
+ * v1.3.15: DOM 提取兜底——文本过短视为只抓到弹窗头部固定文案，
+ * 降级走截图 OCR，避免静默产出残缺简历文本。
+ *
+ * @returns {string|null} 提取到的文本，若 DOM 不可用/过短返回 null
  */
+// DOM 提取文本最短阈值：低于此值视为抓到弹窗壳（头部固定文案等）而非简历正文
+const DOM_MIN_TEXT_LEN = 200;
 async function tryExtractRecommendResumeTextFromDOM(targetId) {
   // 方式一：在嵌套简历 iframe 中提取（在线 HTML 简历走这里，文本干净）
   try {
@@ -746,7 +751,7 @@ async function tryExtractRecommendResumeTextFromDOM(targetId) {
             var resumeDiv = document.querySelector('#resume') || document.querySelector('body');
             if (!resumeDiv) return null;
             var text = (resumeDiv.textContent || '').replace(/\\s+/g, ' ').trim();
-            return text.length > 50 ? text : null;
+            return text.length > ${DOM_MIN_TEXT_LEN} ? text : null;
           })()`);
           if (result.value) return result.value;
         }
@@ -762,7 +767,7 @@ async function tryExtractRecommendResumeTextFromDOM(targetId) {
       var wrap = dialog.querySelector('.resume-detail-wrap');
       if (!wrap) return null;
       var text = (wrap.textContent || '').replace(/\\s+/g, ' ').trim();
-      return text.length > 50 ? text : null;
+      return text.length > ${DOM_MIN_TEXT_LEN} ? text : null;
     })()`);
     if (direct) return direct;
   } catch {}
@@ -1244,6 +1249,29 @@ async function main() {
                 break;
               } catch (e) {
                 console.warn(`    ⚠ 截图第 ${page + 1}/${pages} 页失败 (${retry + 1}/3): ${e.message}`);
+                // 第 3 次（最后一次）失败时，dump 弹窗实时状态，方便定位根因
+                if (retry === 2) {
+                  try {
+                    const diag = await iframeEval(targetId, `(function(){
+                      var dialog = document.querySelector('.dialog-wrap.active');
+                      if (!dialog) return 'no-dialog';
+                      var resumeWrap = dialog.querySelector('.resume-detail-wrap');
+                      var iframeEl = resumeWrap ? resumeWrap.querySelector('iframe') : null;
+                      return JSON.stringify({
+                        dialogW: dialog.offsetWidth,
+                        dialogH: dialog.offsetHeight,
+                        resumeWrap: !!resumeWrap,
+                        hasIframe: !!iframeEl,
+                        iframeSrc: iframeEl ? (iframeEl.src || '').slice(0, 80) : '',
+                        iframeLoaded: iframeEl ? !!iframeEl.contentWindow : false,
+                        iframeRect: iframeEl ? [Math.round(iframeEl.getBoundingClientRect().x), Math.round(iframeEl.getBoundingClientRect().y), Math.round(iframeEl.getBoundingClientRect().width), Math.round(iframeEl.getBoundingClientRect().height)] : null
+                      });
+                    })()`);
+                    console.warn(`      🔍 弹窗状态诊断: ${diag}`);
+                  } catch (diagErr) {
+                    console.warn(`      🔍 弹窗状态诊断失败: ${diagErr.message}`);
+                  }
+                }
                 if (retry < 2) {
                   // 失败多半是内容未渲染完：等待更久 + 重新滚动定位，再重试
                   await randomDelay(1200, 2000);
@@ -1277,7 +1305,15 @@ async function main() {
           } // end else (DOM extraction fallback)
 
         } catch (e) {
-          console.warn(`  ⚠ 简历截图失败: ${e.message}`);
+          // 截图/OCR 失败时给出更完整的上下文：clip 是否拿到、tempDir 里已落盘的截图
+          let clipDiag = clip ? `clip=${clip.x},${clip.y},${clip.width}x${clip.height}(${clip.source})` : 'clip=null(全屏)';
+          let filesDiag = '';
+          try {
+            const { readdirSync } = await import('node:fs');
+            const ssFiles = readdirSync(tempDir).filter(f => f.startsWith(sname)).map(f => `${f}(${readFileSync(resolve(tempDir, f)).length}B)`).join(',');
+            filesDiag = ssFiles ? ` 已落盘: ${ssFiles}` : ' 无已落盘截图';
+          } catch {}
+          console.warn(`  ⚠ 简历截图失败: ${e.message} | ${clipDiag}${filesDiag}`);
         }
 
         // 3. 关闭弹窗（与后台 OCR 并行执行）

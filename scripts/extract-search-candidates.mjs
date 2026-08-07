@@ -561,6 +561,8 @@ async function getSearchResumeScrollInfo(targetId) {
  * 尝试直接从 DOM 提取搜索页简历文本，跳过截图+OCR 流程
  * 搜索页简历弹窗结构与推荐页类似，使用相同的 CDP frame tree 策略
  */
+// DOM 提取文本最短阈值：低于此值视为抓到弹窗壳（头部固定文案等）而非简历正文，降级走截图 OCR
+const DOM_MIN_TEXT_LEN = 200;
 async function tryExtractSearchResumeTextFromDOM(targetId) {
   try {
     // 弹窗在主页面层级，需从主页面 DOM 获取 iframe src
@@ -592,7 +594,7 @@ async function tryExtractSearchResumeTextFromDOM(targetId) {
       var resumeDiv = document.querySelector('#resume') || document.querySelector('body');
       if (!resumeDiv) return null;
       var text = (resumeDiv.textContent || '').replace(/\\s+/g, ' ').trim();
-      return text.length > 50 ? text : null;
+      return text.length > ${DOM_MIN_TEXT_LEN} ? text : null;
     })()`);
     return result.value || null;
   } catch {
@@ -1117,7 +1119,14 @@ async function main() {
             });
           }
         } catch (e) {
-          console.warn(`  ⚠ 简历截图失败: ${e.message}`);
+          let clipDiag = clip ? `clip=${clip.x},${clip.y},${clip.width}x${clip.height}` : 'clip=null(全屏)';
+          let filesDiag = '';
+          try {
+            const { readdirSync } = await import('node:fs');
+            const ssFiles = readdirSync(tempDir).filter(f => f.startsWith(sname)).map(f => `${f}(${readFileSync(resolve(tempDir, f)).length}B)`).join(',');
+            filesDiag = ssFiles ? ` 已落盘: ${ssFiles}` : ' 无已落盘截图';
+          } catch {}
+          console.warn(`  ⚠ 简历截图失败: ${e.message} | ${clipDiag}${filesDiag}`);
         }
 
         // 3. 关闭弹窗

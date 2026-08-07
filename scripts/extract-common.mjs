@@ -799,7 +799,10 @@ if (el === document.documentElement) {
 
 /**
  * 尝试直接从 DOM 提取简历文本，跳过截图+OCR 流程
+ * v1.3.15: 文本过短（<DOM_MIN_TEXT_LEN）视为抓到弹窗壳而非简历正文，返回 null 降级走截图 OCR
  */
+// DOM 提取文本最短阈值：低于此值视为抓到弹窗壳（头部固定文案等）而非简历正文
+const DOM_MIN_TEXT_LEN = 200;
 export async function tryExtractResumeTextFromDOM(targetId) {
   try {
     const iframeSrc = await cdpEval(targetId, `(function(){
@@ -835,7 +838,7 @@ export async function tryExtractResumeTextFromDOM(targetId) {
       var resumeDiv = document.querySelector('#resume') || document.querySelector('body');
       if (!resumeDiv) return null;
       var text = (resumeDiv.textContent || '').replace(/\\s+/g, ' ').trim();
-      return text.length > 50 ? text : null;
+      return text.length > ${DOM_MIN_TEXT_LEN} ? text : null;
     })()`);
     return result.value || null;
   } catch { return null; }

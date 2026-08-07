@@ -1221,7 +1221,13 @@ async function extractSingleCandidate(targetId, geekId, listName, globalIndex, t
         }
 
       } catch (e) {
-        console.warn(`  ⚠ 简历截图失败: ${e.message}`);
+        let filesDiag = '';
+        try {
+          const { readdirSync } = await import('node:fs');
+          const ssFiles = readdirSync(tempDir).filter(f => f.startsWith(sname)).map(f => `${f}(${readFileSync(resolve(tempDir, f)).length}B)`).join(',');
+          filesDiag = ssFiles ? ` 已落盘: ${ssFiles}` : ' 无已落盘截图';
+        } catch {}
+        console.warn(`  ⚠ 简历截图失败: ${e.message}${filesDiag}`);
       }
 
       // 关闭弹窗（与后台 OCR 并行执行）
