@@ -31,6 +31,7 @@ import {
   archiveOldOutput,
   reportStats,
   parseArgs,
+  parseEducationFromResume,
 } from './extract-common.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -928,6 +929,39 @@ process.on('SIGTERM', () => {
   doCleanup().finally(() => process.exit(1));
 });
 
+/**
+ * 从简历文本解析教育经历（推荐页卡片只显示最高学历，完整多段教育在简历文本里）
+ * - 已解析出教育经历（如卡片选择器命中）则跳过
+ * - 简历文本解析无果时兜底：从卡片文本解析"学历 学校 专业 学历"
+ * - 卡片学历（最高学历）补充到第一段（最新/最高学历段）
+ */
+function fillEducationFromResumeText(candidateData) {
+  if (candidateData.educationExperience && candidateData.educationExperience.length > 0) return;
+  if (!candidateData.resumeText) return;
+
+  const parsed = parseEducationFromResume(candidateData.resumeText);
+  if (!parsed || parsed.length === 0) {
+    // 兜底：卡片文本"学历 广西财经学院 公共事业管理 本科"
+    const t = candidateData.rawVisibleText || '';
+    const m = t.match(/学历\s+(\S+)\s+(\S+)\s+(博士|硕士|本科|大专|中专|高中)/);
+    if (m) {
+      candidateData.educationExperience = [{ time: '', school: m[1], major: m[2], degree: m[3] }];
+    }
+    return;
+  }
+
+  // 按时间倒序（最新在前），确保第一段对应最高学历，卡片学历补到第一段
+  parsed.sort((a, b) => {
+    const ta = (a.time || '').match(/(\d{4})/);
+    const tb = (b.time || '').match(/(\d{4})/);
+    return (tb ? +tb[1] : -Infinity) - (ta ? +ta[1] : -Infinity);
+  });
+  const cardDegree = candidateData.basicInfo && candidateData.basicInfo.education;
+  if (cardDegree && !parsed[0].degree) parsed[0].degree = cardDegree;
+
+  candidateData.educationExperience = parsed;
+}
+
 // ===== 主流程 =====
 
 async function main() {
@@ -1210,6 +1244,7 @@ async function main() {
             mkdirSync(resumeDir, { recursive: true });
             const txtPath = resolve(resumeDir, `${sname}-${geekId}.txt`);
             writeFileSync(txtPath, domText, 'utf8');
+            fillEducationFromResumeText(candidateData);
           } else {
             console.log('  → 截图...');
 
@@ -1336,6 +1371,7 @@ async function main() {
             mkdirSync(resumeDir, { recursive: true });
             const txtPath = resolve(resumeDir, `${sname}-${geekId}.txt`);
             writeFileSync(txtPath, resumeText, 'utf8');
+            fillEducationFromResumeText(candidateData);
           }).catch(e => {
             console.warn(`  ⚠ OCR 识别失败: ${e.message}`);
           });

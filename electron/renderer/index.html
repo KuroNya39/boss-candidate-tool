@@ -130,13 +130,19 @@
             <span>提取评分完成后自动打招呼</span>
           </label>
           <div class="auto-greet-controls" id="auto-greet-controls" style="display:none;">
-            <select id="auto-greet-level" class="input-select">
-              <option value="5">五星（91-100分）</option>
-              <option value="4" selected>四星及以上（81-90分）</option>
-              <option value="3">三星及以上（61-80分）</option>
-              <option value="2">二星及以上（31-60分）</option>
-              <option value="0">全部候选人</option>
-            </select>
+            <div class="custom-select" id="auto-greet-level" data-value="4">
+              <button type="button" class="custom-select-trigger">
+                <span class="custom-select-label">四星及以上（81-90分）</span>
+                <span class="custom-select-arrow">▾</span>
+              </button>
+              <div class="custom-select-menu" style="display:none;">
+                <button type="button" class="custom-select-option" data-value="5">五星（91-100分）</button>
+                <button type="button" class="custom-select-option" data-value="4">四星及以上（81-90分）</button>
+                <button type="button" class="custom-select-option" data-value="3">三星及以上（61-80分）</button>
+                <button type="button" class="custom-select-option" data-value="2">二星及以上（31-60分）</button>
+                <button type="button" class="custom-select-option" data-value="0">全部候选人</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -236,13 +242,19 @@
           <div class="card-divider"></div>
           <div class="greet-title">批量打招呼</div>
           <div class="greet-controls">
-            <select id="greet-level" class="input-select">
-              <option value="5">五星（91-100分）</option>
-              <option value="4" selected>四星及以上（81-90分）</option>
-              <option value="3">三星及以上（61-80分）</option>
-              <option value="2">二星及以上（31-60分）</option>
-              <option value="0">全部候选人</option>
-            </select>
+            <div class="custom-select" id="greet-level" data-value="4">
+              <button type="button" class="custom-select-trigger">
+                <span class="custom-select-label">四星及以上（81-90分）</span>
+                <span class="custom-select-arrow">▾</span>
+              </button>
+              <div class="custom-select-menu" style="display:none;">
+                <button type="button" class="custom-select-option" data-value="5">五星（91-100分）</button>
+                <button type="button" class="custom-select-option" data-value="4">四星及以上（81-90分）</button>
+                <button type="button" class="custom-select-option" data-value="3">三星及以上（61-80分）</button>
+                <button type="button" class="custom-select-option" data-value="2">二星及以上（31-60分）</button>
+                <button type="button" class="custom-select-option" data-value="0">全部候选人</button>
+              </div>
+            </div>
             <span id="greet-count" class="greet-count-text"></span>
           </div>
           <div class="greet-actions">

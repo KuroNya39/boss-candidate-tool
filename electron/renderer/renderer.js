@@ -75,6 +75,66 @@ const autoGreetControls = document.getElementById('auto-greet-controls');
 const autoGreetLevel = document.getElementById('auto-greet-level');
 let autoGreetEnabled = false; // 本次分析是否自动打招呼
 
+// ===== 自定义下拉组件 =====
+// 原生 <select> 弹层在 Electron 里有时打不开（drag 区域/合成器问题），
+// 批量打招呼/自动打招呼改为自定义组件。通过 .value getter/setter 保持与原 <select> 读写兼容。
+function initCustomSelect(container) {
+  if (!container) return;
+  const trigger = container.querySelector('.custom-select-trigger');
+  const menu = container.querySelector('.custom-select-menu');
+  const label = trigger.querySelector('.custom-select-label');
+  const options = container.querySelectorAll('.custom-select-option');
+
+  function sync() {
+    const v = String(container.dataset.value);
+    const opt = container.querySelector(`.custom-select-option[data-value="${v}"]`);
+    if (opt) {
+      label.textContent = opt.textContent;
+      options.forEach(o => o.classList.toggle('selected', o.dataset.value === v));
+    }
+  }
+
+  // 暴露 .value，兼容现有 greetLevel.value / autoGreetLevel.value 的读写
+  Object.defineProperty(container, 'value', {
+    get() { return container.dataset.value; },
+    set(v) { container.dataset.value = String(v); sync(); },
+  });
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = menu.style.display !== 'none';
+    document.querySelectorAll('.custom-select-menu').forEach(m => { m.style.display = 'none'; });
+    if (isOpen) return;
+    // 窗口底部空间不足时向上展开（原生 select 会自动翻转，自定义组件需手动处理）
+    const rect = container.getBoundingClientRect();
+    const menuH = options.length * 36 + 12;
+    if (rect.bottom + menuH + 8 > window.innerHeight) {
+      menu.style.top = 'auto';
+      menu.style.bottom = 'calc(100% + 4px)';
+    } else {
+      menu.style.top = 'calc(100% + 4px)';
+      menu.style.bottom = 'auto';
+    }
+    menu.style.display = 'flex';
+  });
+
+  options.forEach(opt => opt.addEventListener('click', (e) => {
+    e.stopPropagation();
+    container.dataset.value = opt.dataset.value;
+    sync();
+    menu.style.display = 'none';
+    // 派发 change 事件，兼容既有监听（updateGreetCount 等）
+    container.dispatchEvent(new Event('change', { bubbles: true }));
+  }));
+
+  // 点击其它位置收起
+  document.addEventListener('click', () => { menu.style.display = 'none'; });
+
+  sync();
+}
+initCustomSelect(greetLevel);
+initCustomSelect(autoGreetLevel);
+
 // ===== 步骤元素 =====
 const stepCards = {
   1: {

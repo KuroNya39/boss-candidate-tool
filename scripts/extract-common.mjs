@@ -916,8 +916,13 @@ function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
   const t = line.trim();
   if (!t || t.length < 5 || t.length > 200) return null;
 
-  // 整行必须至少包含一个学历关键词
-  if (!DEGREE_KEYS.some(d => t.includes(d))) return null;
+  // 行内须含学历关键词；或（学校名 + 4位年份区间）。
+  // OCR 教育条目常见 '学校 | 专业 YYYY - YYYY'，行内未必带学历词（学历在卡片/正文其他位置）。
+  const hasDegree = DEGREE_KEYS.some(d => t.includes(d));
+  if (!hasDegree) {
+    if (!t.match(SCHOOL_RE)) return null;
+    if (!TIME_RANGE_RE.test(t)) return null;
+  }
 
   const cleanedLine = t.replace(/^(?:办|色|刺|RN|R |esy |h s |nme|[^一-龥])+/g, '');
 
@@ -934,6 +939,10 @@ function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
   while ((match = globalRE.exec(searchArea)) !== null) {
     let schoolName = match[1];
 
+    // 'XX大学生/高中生/中学生' 是身份称谓或竞赛名（如"广西高校大学生翻译大赛"），不是学校名
+    const afterChar = searchArea[match.index + match[0].length] || '';
+    if (afterChar === '生') continue;
+
     // 取学校名附近上下文
     const schoolIdx = searchArea.indexOf(schoolName);
     const contextStart = Math.max(0, schoolIdx - 30);
@@ -941,9 +950,9 @@ function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
     const context = searchArea.substring(contextStart, contextEnd);
 
     const degree = DEGREE_KEYS.find(d => context.includes(d));
-    if (!degree) continue;
-
     const tm = context.match(TIME_RANGE_RE);
+    // 学历关键词和年份区间至少要有其一，否则不构成教育条目（过滤社团/活动里提到的学校名）
+    if (!degree && !tm) continue;
 
     // OCR噪声前缀
     for (const noise of NOISE_PREFIXES) {
@@ -970,15 +979,26 @@ function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
     if (noiseWords.some(w => schoolName.includes(w))) continue;
 
     let major = '';
-    const dIdx = context.indexOf(degree);
     const sIdx = context.indexOf(schoolName);
-    if (sIdx >= 0 && dIdx > sIdx) {
-      let mt = context.substring(sIdx + schoolName.length, dIdx).trim();
-      mt = mt.replace(/^[,，、\s]+/, '').replace(/[,，、\s]+$/, '').replace(/[“”"]/g, '');
-      if (mt && mt.length < 60) major = mt;
+    if (degree) {
+      const dIdx = context.indexOf(degree);
+      if (sIdx >= 0 && dIdx > sIdx) {
+        let mt = context.substring(sIdx + schoolName.length, dIdx).trim();
+        mt = mt.replace(/^[,，、|\s]+/, '').replace(/[,，、|\s]+$/, '').replace(/[“”"]/g, '');
+        if (mt && mt.length < 60) major = mt;
+      }
+    } else if (tm) {
+      // 无学历关键词：取学校名到时间区间之间的文本作为专业
+      // '深圳大学 | 国际中文教育 2024 - 2027' → 国际中文教育
+      const tIdx = context.indexOf(tm[0]);
+      if (sIdx >= 0 && tIdx > sIdx) {
+        let mt = context.substring(sIdx + schoolName.length, tIdx).trim();
+        mt = mt.replace(/^[,，、|\s·]+/, '').replace(/[,，、|\s·….…]+$/, '').replace(/[“”"|]+/g, '').replace(/\.{2,}|…+/g, '');
+        if (mt && mt.length < 60) major = mt;
+      }
     }
 
-    const normalizedDegree = ({ '硕土': '硕士', '本秦': '本科', '本幸': '本科' })[degree] || degree;
+    const normalizedDegree = degree ? (({ '硕土': '硕士', '本秦': '本科', '本幸': '本科' })[degree] || degree) : '';
     entries.push({ time: tm ? tm[0].trim() : '', school: schoolName, major, degree: normalizedDegree });
   }
 

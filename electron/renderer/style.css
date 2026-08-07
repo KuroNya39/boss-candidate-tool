@@ -38,7 +38,8 @@ body {
   background: var(--bg-page);
   color: var(--text-primary);
   user-select: none;
-  -webkit-app-region: drag;
+  /* 注意：不再给 body 设 -webkit-app-region: drag。
+     窗口有原生标题栏可拖拽；body 级 drag 区域会干扰原生 <select> 弹层打开（批量打招呼下拉框点了没反应）。 */
 }
 
 #app {
@@ -480,6 +481,72 @@ header h1 {
 .input-select:focus {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb),0.1);
+}
+
+/* ===== Custom Select ===== */
+/* 原生 <select> 弹层在 Electron 里有时打不开（drag 区域/合成器问题），
+   批量打招呼/自动打招呼下拉改为纯页面内自定义组件，任何情况下可展开 */
+.custom-select {
+  position: relative;
+  display: inline-block;
+  -webkit-app-region: no-drag;
+}
+.custom-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 200px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  font-size: 13px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+  -webkit-app-region: no-drag;
+}
+.custom-select-trigger:hover {
+  border-color: var(--color-accent);
+}
+.custom-select-arrow {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.custom-select-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  z-index: 300;
+  background: var(--bg-card);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  box-shadow: var(--shadow-elevated);
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  -webkit-app-region: no-drag;
+}
+.custom-select-option {
+  padding: 8px 12px;
+  font-size: 13px;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius-input);
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.custom-select-option:hover {
+  background: rgba(var(--color-accent-rgb), 0.1);
+}
+.custom-select-option.selected {
+  background: rgba(var(--color-accent-rgb), 0.08);
+  color: var(--color-accent);
+  font-weight: 500;
 }
 
 /* ===== Start Button ===== */
