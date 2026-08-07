@@ -14,18 +14,17 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '.');
 
-// 自动递增补丁版本号（如 1.3.0 → 1.3.1）
+// 版本号不再由脚本自动递增：打包前由人工/Claude 根据改动性质判断改哪一段（见 CLAUDE.md「版本号规则」）。
+// 这里只读取当前版本并校验格式；「目标版本是否已发布过」的校验放在 main() 开头。
 const pkgPath = resolve(ROOT, 'package.json');
 const pkg = JSON.parse(await import('node:fs').then(fs => fs.readFileSync(pkgPath, 'utf-8')));
-const OLD_VERSION = pkg.version;
-const _vParts = OLD_VERSION.split('.').map(Number);
-_vParts[2] = (_vParts[2] || 0) + 1;
-const NEW_VERSION = _vParts.join('.');
-pkg.version = NEW_VERSION;
-await import('node:fs').then(fs => fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf-8'));
+const VERSION = pkg.version;
+const _vParts = VERSION.split('.').map(Number);
+if (_vParts.length !== 3 || _vParts.some(n => Number.isNaN(n))) {
+  throw new Error(`package.json 版本号格式不正确: "${VERSION}"（应为 x.y.z 三段数字）`);
+}
 
 const APP_NAME = 'Boss直聘候选人AI评分助手';
-const VERSION = NEW_VERSION;
 const REPO = 'KuroNya39/boss-candidate-tool';
 const OUT = 'build-tmp';
 const EXE_NAME = `${APP_NAME}.exe`;
@@ -55,17 +54,36 @@ function run(cmd) {
   execSync(cmd, { cwd: ROOT, stdio: 'inherit' });
 }
 
+// 校验某版本 tag 是否已存在（即已发布过）
+function tagExists(tag) {
+  try {
+    execSync(`git show-ref --verify --quiet refs/tags/${tag}`, { cwd: ROOT, stdio: 'ignore' });
+    return true;
+  } catch { return false; }
+}
+
+// 取最近一个已发布版本的 tag（排除当前版本），用于生成更新说明的提交范围
+function getLastTag() {
+  try {
+    const tags = execSync('git tag --sort=-v:refname', { cwd: ROOT, encoding: 'utf-8' })
+      .split('\n').map(s => s.trim()).filter(Boolean);
+    return tags.find(t => t !== `v${VERSION}`) || null;
+  } catch { return null; }
+}
+
 /**
  * 生成 Release 更新说明（格式参考 v1.3.2）
  * 从上一个 tag 到当前 HEAD 收集提交作为「更新内容」，
  * 若存在 RELEASE_NOTES.md 则将其内容（主题/简介）插在最前面。
  */
 function buildReleaseNotes() {
-  const oldTag = `v${OLD_VERSION}`;
+  const prevTag = getLastTag();
   let commits = [];
   try {
-    const log = execSync(`git log ${oldTag}..HEAD --no-merges --pretty=%s`, { cwd: ROOT, encoding: 'utf-8' });
-    commits = log.split('\n').filter(Boolean);
+    if (prevTag) {
+      const log = execSync(`git log ${prevTag}..HEAD --no-merges --pretty=%s`, { cwd: ROOT, encoding: 'utf-8' });
+      commits = log.split('\n').filter(Boolean);
+    }
   } catch {
     commits = [];
   }
@@ -111,7 +129,11 @@ function findRcedit() {
 }
 
 async function main() {
-  console.log(`\n版本号: ${OLD_VERSION} → ${VERSION}`);
+  // 防重校验：目标版本 tag 已存在说明发布过了，需要先升版本号
+  if (tagExists(`v${VERSION}`)) {
+    throw new Error(`版本号 v${VERSION} 已发布过。请先根据本轮改动性质更新 package.json 的 version（见 CLAUDE.md「版本号规则」）再打包。`);
+  }
+  console.log(`\n版本号: ${VERSION}（打包前已确认，不再自动递增）`);
 
   // 1. 生成 ICO
   console.log('\n=== 1/4: 生成 ICO ===');

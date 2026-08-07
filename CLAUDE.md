@@ -105,6 +105,16 @@ node --check scripts/extract-common.mjs
 node electron/main.mjs --score-only
 ```
 
+## 版本号规则
+
+**build.mjs 不再自动递增版本号**。打包前由人工/Claude 判断本轮改动性质，手动改 `package.json` 的 `version`，再执行打包：
+
+- **次版本（x.y.0）**：新增功能 / 明显增强 / 界面或流程变化（如加新页面、改评分逻辑）。例：`1.3.16 → 1.4.0`
+- **补丁位（x.y.z）**：修 bug / 微调 / 无用户可见变化的内部改动。例：`1.4.0 → 1.4.1`
+- **主版本（x.0.0）**：重大不兼容 / 架构级重写（内部工具基本用不上）
+
+build.mjs 会校验：目标版本 tag 若已存在（发布过）则拒绝打包，提示先升版本号。发布说明的提交范围 = 最近一个已发布 tag 到当前 HEAD。
+
 ## CDP Proxy
 
 The proxy (`scripts/cdp-proxy.mjs`) is a core dependency. It:
