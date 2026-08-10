@@ -26,7 +26,6 @@ build.mjs                               ← Full build pipeline (icon → electr
 
 config/scoring-prompt-with-jd.txt   ← AI scoring prompt template (recommend page)
 config/scoring-prompt-chat.txt       ← AI scoring prompt template (chat page)
-config/scoretext.md                  ← AI score output format spec
 ```
 > 岗位描述（JD）统一存用户数据目录 `%AppData%\web-access\web-access\jd-descriptions\`（开发/打包一致，重装不丢）。
 > 旧的 `config/jd-descriptions` 已废弃，不要再往里面写。
@@ -61,6 +60,8 @@ Child process cancellation works by writing `CANCEL\n` to stdin, waiting 2s, the
 - **OCR pipeline**: `captureResumeScreenshots()` scrolls the resume dialog page-by-page → `ocrScreenshots()` runs tesseract.js on each page → `dedupePages()` removes overlap between consecutive pages → `cleanOcrText()` normalizes whitespace, corrects OCR typos, strips boilerplate.
 - **DOM extraction fallback**: `tryExtractResumeTextFromDOM()` — extracts resume text directly from iframe via CDP `Page.getFrameTree` + `Runtime.executionContexts` before falling back to screenshot+OCR.
 - **Score output parsing**: `parseSingleScoreResponse()` finds the first valid JSON `{score, comment}` object in the API response, handles markdown code blocks, formats comments with newlines before section headers.
+- **权威分数 = 程序化计算**（v1.3.18）：AI 手写的「匹配度评分」算术不可靠，`computeMatchScoreFromComment()` 从评语解析各维度「独立得分×权重」重算加权基础分，再减「其他扣分合计」，作为 `totalScore`；评语里手写的匹配度评分只作解析兜底。打招呼等级过滤也据此判断。
+- **教育经历顺序**：Excel 教育经历列最高学历在第一行、按时间由近到远排序（与推荐卡片 DOM 提取顺序一致）。简历解析优先（`fillEducationFromResumeText`），卡片学历只补充简历未覆盖的最高学历段。
 - **API response compatibility**: `callClaudeAPI()` handles Anthropic standard format, Anthropic thinking blocks, OpenAI Chat format, and raw response formats.
 - **Multi-position support**: Candidates grouped by `positionInfo.appliedJob`. Each position's JD loaded from userData `%AppData%\web-access\web-access\jd-descriptions\{position}.txt` (unified for dev/packaged since v1.3.15).
 - **Auto-archiving**: Old output directories renamed to `output-YYYYMMDD-HHMM` before each new run (done in main process to avoid Windows EBUSY).

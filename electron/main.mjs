@@ -622,15 +622,6 @@ async function doAiScoring() {
       throw new Error(`未找到评分模板: ${templatePath}`);
     }
 
-    // 读取固定输出格式模板（scoretext.md）
-    const scoretextPath = resolve(UNPACKED_ROOT, 'config', 'scoretext.md');
-    let scoretextFormat = '';
-    try {
-      scoretextFormat = readFileSync(scoretextPath, 'utf-8').trim();
-    } catch {
-      termLog(`[AI评分] ⚠ 未找到 scoretext.md，使用默认格式`);
-    }
-
     // 读取用户配置的评分维度和任职资格筛选项
     const dimensionsText = apiConfig.dimensions || '';
     const screeningCriteriaText = apiConfig.screeningCriteria || '';
@@ -804,11 +795,13 @@ async function doAiScoring() {
     await Promise.allSettled(executing);
     termLog(`[AI评分] 岗位 "${positionName}" 评分完成 (${totalInPosition} 人)`);
   }
-  // 总分 = AI 评分（0-100）；优先取评语中的「匹配度评分」作为权威分数，
-  // 与输出结果严格一致（打招呼等级过滤据此判断，避免 score 字段与评语分数不一致）
+  // 总分 = AI 评分（0-100）。
+  // 权威分数 = 从评语中解析各维度「独立得分×权重」程序化计算的加权基础分 - 其他扣分合计。
+  // AI 手写的「匹配度评分」算术不可靠（如邹欣瑜 81→写成82、林淳宜 83.5→写成88），
+  // 必须以评语内自带公式重算，保证与评语内容严格一致（打招呼等级过滤据此判断）。
   for (const c of candidates) {
-    const ms = (c.jobRelevanceComment || '').match(/匹配度评分\s*[:：]\s*(\d{1,3})/);
-    c.matchScore = ms ? parseInt(ms[1], 10) : null;
+    c.matchScore = computeMatchScoreFromComment(c.jobRelevanceComment) ??
+      parseMatchScoreFromComment(c.jobRelevanceComment);
     c.totalScore = c.matchScore ?? (c.jobRelevanceScore || 0);
     if (c.totalScore >= 91) c.recommendationLevel = '强烈推荐';
     else if (c.totalScore >= 81) c.recommendationLevel = '推荐';
@@ -824,6 +817,42 @@ async function doAiScoring() {
   const output = raw.candidates ? raw : { candidates: raw };
   writeFileSync(resultPath, JSON.stringify(output, null, 2), 'utf-8');
   termLog(`[AI评分] 完成，已写入 ${resultPath}`);
+}
+
+/**
+ * 从评语程序化计算匹配度评分。
+ * AI 手写的「匹配度评分」经常与评论内公式不自洽（如邹欣瑜 81 写成 82、林淳宜 83.5 写成 88），
+ * 因此以评语中「各维度独立得分 × 权重」重算加权基础分，再减「其他扣分合计」。
+ * 返回 null 表示评论里没有可解析的维度得分（此时回退 parseMatchScoreFromComment）。
+ */
+function computeMatchScoreFromComment(comment) {
+  if (!comment) return null;
+  // 维度条目格式：[评估维度名称]（权重%，独立得分：XX分） 或 （40%，独立得分：90分）
+  const dimRe = /（\s*(\d{1,2})\s*%\s*[，,]\s*独立得分\s*[:：]\s*(\d{1,3})\s*分）/g;
+  let m;
+  let weightedSum = 0;
+  let weightSum = 0;
+  while ((m = dimRe.exec(comment)) !== null) {
+    const w = parseInt(m[1], 10);
+    const s = parseInt(m[2], 10);
+    if (w <= 0 || s < 0 || s > 100) continue;
+    weightedSum += w * s;
+    weightSum += w;
+  }
+  if (weightSum === 0) return null;
+  // 加权基础分 = Σ(得分×权重%)，即 weightedSum / 100。权重和为 100 时等价于 weightedSum / weightSum，
+  // 用 weightSum 归一化兜底 AI 权重未写满 100 的情况。
+  const base = Math.round(weightedSum / weightSum);
+  // 其他扣分合计：XX分（无扣分填 0）
+  const deduct = comment.match(/其他扣分合计\s*[:：]\s*(\d{1,3})\s*分/);
+  const deductVal = deduct ? parseInt(deduct[1], 10) : 0;
+  return Math.max(0, Math.min(100, base - deductVal));
+}
+
+/** 直接解析评语中手写的「匹配度评分：XX分」作为兜底 */
+function parseMatchScoreFromComment(comment) {
+  const ms = (comment || '').match(/匹配度评分\s*[:：]\s*(\d{1,3})/);
+  return ms ? parseInt(ms[1], 10) : null;
 }
 
 function cleanupTempFiles() {

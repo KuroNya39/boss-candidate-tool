@@ -12,7 +12,6 @@ files:
   - "!scripts/*.test.mjs"
   - "!scripts/process-icon.mjs"
   - "!scripts/make-ico.mjs"
-  - config/scoretext.md
   - config/scoring-prompt-chat.txt
   - config/scoring-prompt-with-jd.txt
   - "!config/jd-descriptions/**"
@@ -23,14 +22,11 @@ files:
   - "!node_modules/png-to-ico/**"
   - "!**/*.map"
   - "!**/*.md"
-  # scoretext.md 是评分输出格式模板，需覆盖上方的 !**/*.md 排除规则（放在其后面才生效）
-  - config/scoretext.md
   - "!LICENSES.chromium.html"
   - app_icon_rounded.png
   - ocr-lang/**/*
 asarUnpack:
   - "scripts/**"
-  - "config/scoretext.md"
   - "config/scoring-prompt-chat.txt"
   - "config/scoring-prompt-with-jd.txt"
   - "ocr-lang/**"

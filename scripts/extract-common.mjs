@@ -934,7 +934,10 @@ function splitEduLongLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
     if (afterChar === '生') continue; // 'XX大学生/高中生/中学生' 是身份称谓或竞赛名，不是学校名
     // 过滤 'QS世界大学排名' 这类把"世界大学"当学校名的噪音：学校名前面紧邻 QS/排名 等标识
     const before = line.slice(Math.max(0, m.index - 8), m.index);
-    if (/QS|排名|TOP|院校级/.test(before)) continue;
+    // 只跳过「QS世界大学/排名」这类噪音锚点本身（其后的真实校名不受影响）。
+    // 例：'QS世界大学排名TOP500曲阜师范大学' → '世界大学' 是噪音应跳过，
+    // 但紧跟其后的 '曲阜师范大学' 前面是 '500' 数字，不算噪音，必须保留。
+    if (/QS\s*(?:世界|亚洲|地区)?大学|世界大学排名|院校等级|院校级/.test(before + m[0])) continue;
     // 只保留「学校名后跟学历关键词 或 时间区间」的锚点
     const after = line.slice(m.index + m[0].length, m.index + m[0].length + 20);
     const hasDegreeAfter = DEGREE_KEYS.some(d => after.includes(d));
@@ -1004,8 +1007,10 @@ function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
     if (afterChar === '生') continue;
 
     // 'QS世界大学排名' 等把"世界大学/XX大学"当学校名的噪音：学校名前面紧邻 QS/排名 等标识
+    // 只跳过噪音锚点本身（如 '世界大学'），不误杀紧跟其后的真实校名：
+    // 'QS世界大学排名TOP500曲阜师范大学' 中 '曲阜师范大学' 前是 '500' 数字，不是噪音。
     const beforeSchool = searchArea.slice(Math.max(0, match.index - 8), match.index);
-    if (/QS|排名|TOP/.test(beforeSchool)) continue;
+    if (/QS\s*(?:世界|亚洲|地区)?大学|世界大学排名|院校等级|院校级/.test(beforeSchool + schoolName)) continue;
 
     // 取学校名附近上下文
     const schoolIdx = searchArea.indexOf(schoolName);
@@ -1019,7 +1024,11 @@ function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
     // 不该构成教育条目。
     const afterSchool = searchArea.slice(schoolIdx + schoolName.length, schoolIdx + schoolName.length + 20);
     const degree = DEGREE_KEYS.find(d => afterSchool.includes(d));
-    const tm = afterSchool.match(TIME_RANGE_RE);
+    // 时间区间可能在专业名之后较远处（如 '劳动与社会保障本科 2023 - 2027'），
+    // 20字符截断会把年份尾部切掉（'2023 - 2'），导致 time 缺失。
+    // 改为在 context（学校名后 60 字符）内找时间区间；degree 仍用紧邻 20 字符判断。
+    const afterWide = searchArea.slice(schoolIdx + schoolName.length, Math.min(searchArea.length, schoolIdx + schoolName.length + 60));
+    const tm = afterWide.match(TIME_RANGE_RE);
     // 无学历词且无紧邻时间区间的学校名不算教育条目（过滤社团/活动/经历里提到的学校名）
     if (!degree && !tm) continue;
     // '曾任学校招生办学生代表，支持学校本科...'里"曾任学校/支持学校"不是学校名。
@@ -1042,7 +1051,12 @@ function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
       // 只在匹配串含噪音词时，取最后一个噪音词之后的合法校名子串。
       // 用 lastIndexOf 逐个噪音词取最靠后的结束位置，避免 matchAll 因「曾任/任职」等
       // 重叠词只匹配第一个、丢掉后面的真实校名。
-      const NOISE_WORDS = ['策划','曾任','支持','荣誉','经历','课程','描述','职业道德','专业排名','主修','在校','任职','负责','参与','协助','主管','运营','从事','等','暨','期间','就读','就职'];
+      const NOISE_WORDS = ['策划','曾任','支持','荣誉','经历','课程','描述','职业道德','专业排名','主修','在校','任职','负责','参与','协助','主管','运营','从事','等','暨','期间','就读','就职',
+        // 主修课程内容粘上校名的长词（'数据库原理与应用唐山师范学院'→'唐山师范学院'）。
+        // 用长词避免误伤真实校名（如"云南农业大学"不含这些长词）。
+        '数据库原理','机器学习','数据分析','数据挖掘','与应用','心理测评','与测评','原理','测评','统计学','测量','咨询','建模','管理科学','研究','人工智能',
+        // 平台前缀标签（'新就业形态劳动者怀化学院'→'怀化学院'）
+        '新就业形态劳动者'];
       let lastNoiseEnd = -1;
       for (const w of NOISE_WORDS) {
         const idx = schoolName.lastIndexOf(w);
@@ -1056,12 +1070,21 @@ function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
         // 否则保留原值（防 '暨南大学'→'南大学' 这种误剥）。
         if (/^[一-龥]{2,}(?:大学|学院|学校|研究所)$/.test(candidate)) schoolName = candidate;
       }
+      // 无噪音词但超长：校名后粘了院系名（'黑龙江八一农垦大学经济管理学院'）。
+      // 取「第一个大学」之后、以学院/学校/研究所结尾的段作院系后缀剥离，只留主校名。
+      // 只剥后缀段 ≤12 字、且整串确以院系后缀收尾的（防误伤"大学附属中学"这类校名，
+      // 中学不在后缀列表里，自然不剥；'数据库原理与应用唐山师范学院' 已由 NOISE_WORDS 处理）。
+      if (schoolName.length > 10) {
+        const m = schoolName.match(/^(.+?大学)(?:[一-龥]{1,12}(?:学院|学校|研究所))$/);
+        if (m && m[1].length >= 4) schoolName = m[1];
+      }
     }
-    if (schoolName.length > 15) {
-      const shorter = schoolName.match(/([一-龥]{2,}(?:大学|学院))/);
-      if (shorter) schoolName = shorter[1];
-      else continue;
-    }
+    // 'XX大学附属中学/附属高中' 是中学全名的一部分，不是专业：
+    // '成都大学附属中学高中' → SCHOOL_RE 只匹配到 '成都大学'，'附属中学' 会被误当专业。
+    // 把紧贴校名后的 '附属+中学/学校' 续名并入校名（'附属' 前无空格才合并，防误伤真专业）。
+    // 中间段用惰性匹配取最短（'附属中学高中' → 只并入 '附属中学'，不吃掉紧跟的学历词 '高中'）。
+    const affix = afterSchool.match(/^附属[一-龥]{0,8}?(?:中学|初中|高中|学校)/);
+    if (affix) schoolName += affix[0];
     if (noiseWords.some(w => schoolName.includes(w))) continue;
 
     let major = '';

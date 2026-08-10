@@ -936,30 +936,49 @@ process.on('SIGTERM', () => {
  * - 卡片学历（最高学历）补充到第一段（最新/最高学历段）
  */
 function fillEducationFromResumeText(candidateData) {
-  if (candidateData.educationExperience && candidateData.educationExperience.length > 0) return;
   if (!candidateData.resumeText) return;
 
   const parsed = parseEducationFromResume(candidateData.resumeText);
+  const cardList = candidateData.educationExperience || [];
+
+  let final;
   if (!parsed || parsed.length === 0) {
     // 兜底：卡片文本"学历 广西财经学院 公共事业管理 本科"
-    const t = candidateData.rawVisibleText || '';
-    const m = t.match(/学历\s+(\S+)\s+(\S+)\s+(博士|硕士|本科|大专|中专|高中)/);
-    if (m) {
-      candidateData.educationExperience = [{ time: '', school: m[1], major: m[2], degree: m[3] }];
+    if (cardList.length === 0) {
+      const t = candidateData.rawVisibleText || '';
+      const m = t.match(/学历\s+(\S+)\s+(\S+)\s+(博士|硕士|本科|大专|中专|高中)/);
+      if (m) {
+        candidateData.educationExperience = [{ time: '', school: m[1], major: m[2], degree: m[3] }];
+      }
     }
     return;
   }
 
+  // 简历文本优先（完整多段 + 已按最高学历排序）；卡片里简历没覆盖的最高学历段补进来
+  final = [...parsed];
+  for (const c of cardList) {
+    const dup = final.some(f =>
+      f.degree === c.degree &&
+      (f.school.includes(c.school) || c.school.includes(f.school) ||
+        (f.school.length >= 4 && c.school.length >= 4 && f.school.substring(0, 3) === c.school.substring(0, 3))));
+    if (!dup) final.push(c);
+  }
+
   // 按时间倒序（最新在前），确保第一段对应最高学历，卡片学历补到第一段
-  parsed.sort((a, b) => {
+  // 无时间的段按学历等级（博士→高中）兜底排序
+  const DEGREE_ORDER = {博士: 0, 硕士: 1, 本科: 2, 大专: 3, 中专: 4, 高中: 5};
+  final.sort((a, b) => {
     const ta = (a.time || '').match(/(\d{4})/);
     const tb = (b.time || '').match(/(\d{4})/);
-    return (tb ? +tb[1] : -Infinity) - (ta ? +ta[1] : -Infinity);
+    if (ta && tb) return tb[1] - ta[1];
+    if (ta) return -1;
+    if (tb) return 1;
+    return (DEGREE_ORDER[a.degree] ?? 9) - (DEGREE_ORDER[b.degree] ?? 9);
   });
   const cardDegree = candidateData.basicInfo && candidateData.basicInfo.education;
-  if (cardDegree && !parsed[0].degree) parsed[0].degree = cardDegree;
+  if (cardDegree && final.length > 0 && !final[0].degree) final[0].degree = cardDegree;
 
-  candidateData.educationExperience = parsed;
+  candidateData.educationExperience = final;
 }
 
 // ===== 主流程 =====
