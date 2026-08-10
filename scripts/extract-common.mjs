@@ -891,8 +891,16 @@ export function parseEducationFromResume(resumeText) {
     }
     line = line.replace(/^[^一-龥]+/, '').trim();
     if (line.length < 4) continue;
-    const eduEntries = parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE);
-    if (eduEntries) { for (const e of eduEntries) results.push(e); }
+    // DOM 提取的简历文本通常没有换行，整段教育经历（可能含主修课程/在校经历/社团经历等干扰内容）
+    // 会连成一个超长行。parseEduLine 有 200 字上限，直接解析会整段被拒。
+    // 这里先把超长行按「学校名」切成多个短窗口，每个窗口单独解析，避免漏掉多段教育。
+    const linesToParse = line.length > 200
+      ? splitEduLongLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE)
+      : [line];
+    for (const subLine of linesToParse) {
+      const eduEntries = parseEduLine(subLine, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE);
+      if (eduEntries) { for (const e of eduEntries) results.push(e); }
+    }
   }
 
   // 全文本扫描补充
@@ -910,6 +918,58 @@ export function parseEducationFromResume(resumeText) {
   }
 
   return dedupeEduResults(results);
+}
+
+/**
+ * 把超长无换行的教育经历段落切成多个短窗口，每个窗口以学校名为锚点。
+ * DOM 提取文本形如：'暨南大学工业工程硕士 2025-2027 211院校QS世界大学排名TOP500邵阳学院机械设计制造及其自动化本科 2017-2021'
+ * 以每个学校名为起点，截取到下一个学校名（或段落尾）前，得到一个独立的候选教育条目。
+ */
+function splitEduLongLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
+  const globalRE = new RegExp(SCHOOL_RE.source, 'g');
+  const anchors = [];
+  let m;
+  while ((m = globalRE.exec(line)) !== null) {
+    const afterChar = line[m.index + m[0].length] || '';
+    if (afterChar === '生') continue; // 'XX大学生/高中生/中学生' 是身份称谓或竞赛名，不是学校名
+    // 过滤 'QS世界大学排名' 这类把"世界大学"当学校名的噪音：学校名前面紧邻 QS/排名 等标识
+    const before = line.slice(Math.max(0, m.index - 8), m.index);
+    if (/QS|排名|TOP|院校级/.test(before)) continue;
+    // 只保留「学校名后跟学历关键词 或 时间区间」的锚点
+    const after = line.slice(m.index + m[0].length, m.index + m[0].length + 20);
+    const hasDegreeAfter = DEGREE_KEYS.some(d => after.includes(d));
+    const hasTimeAfter = TIME_RANGE_RE.test(after);
+    if (!hasDegreeAfter && !hasTimeAfter) continue;
+    // 贪婪匹配可能把校名前的主修课程/经历内容吞进来（如"文化活动与会展策划东南大学"），
+    // 校名起点修正为串内最后一个「XX大学/学院」出现的位置，保证窗口从真实校名开始。
+    const lastIdx = m[1].lastIndexOf(line.match(/[一-龥]{2,}(?:大学|学院)$/) ? m[1].match(/([一-龥]{2,}(?:大学|学院))$/)[1] : '');
+    const schoolStart = m.index + m[0].length - m[1].length; // match 串起点
+    const realStart = schoolStart + (m[1].match(/([一-龥]{2,}(?:大学|学院))$/) ? m[1].length - m[1].match(/([一-龥]{2,}(?:大学|学院))$/)[1].length : 0);
+    // 切窗边界用所有「大学/学院/学校」匹配（含噪音如"世界大学"），保证窗口短小不粘连；
+    // 噪音条目在 parseEduLine 内通过 QS/排名/无学历词时间 过滤掉。
+    anchors.push({ start: m.index, len: m[0].length });
+  }
+  if (anchors.length === 0) return [line];
+
+  const windows = [];
+  let prevEnd = 0; // 前一锚点结束位置，避免窗口重叠把前一校名尾部残余带进来
+  for (let i = 0; i < anchors.length; i++) {
+    const start = Math.max(prevEnd, anchors[i].start - 20); // 学校名前留一点上下文，但不越过前一锚点
+    // 末尾取：下一个学校名前，或本学校名 + 时间区间 + 一小段尾巴
+    let end;
+    if (i + 1 < anchors.length) {
+      end = anchors[i + 1].start;
+    } else {
+      // 最后一个学校名：取到时间区间结束后约 30 字符（学历信息通常在时间区间附近）
+      const seg = line.slice(anchors[i].start);
+      const tm = seg.match(TIME_RANGE_RE);
+      end = tm ? anchors[i].start + tm.index + tm[0].length + 30 : line.length;
+    }
+    const win = line.slice(start, end).trim();
+    if (win.length > 4 && win.length <= 300) windows.push(win);
+    prevEnd = end;
+  }
+  return windows;
 }
 
 function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
@@ -931,7 +991,7 @@ function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
 
   // 找行中所有学校名，每个学校名生成一条记录
   const globalRE = new RegExp(SCHOOL_RE.source, 'g');
-  const NOISE_PREFIXES = ['佛', '岑', '志', '心', '办'];
+  const NOISE_PREFIXES = ['佛', '岑', '志', '心', '办', '策划'];
   const noiseWords = ['荣誉', '奖学金', '优秀', '共建', '获荣', '一等', '二等', '院校'];
   const entries = [];
   let match;
@@ -943,18 +1003,31 @@ function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
     const afterChar = searchArea[match.index + match[0].length] || '';
     if (afterChar === '生') continue;
 
+    // 'QS世界大学排名' 等把"世界大学/XX大学"当学校名的噪音：学校名前面紧邻 QS/排名 等标识
+    const beforeSchool = searchArea.slice(Math.max(0, match.index - 8), match.index);
+    if (/QS|排名|TOP/.test(beforeSchool)) continue;
+
     // 取学校名附近上下文
     const schoolIdx = searchArea.indexOf(schoolName);
     const contextStart = Math.max(0, schoolIdx - 30);
     const contextEnd = Math.min(searchArea.length, schoolIdx + schoolName.length + 60);
     const context = searchArea.substring(contextStart, contextEnd);
 
-    const degree = DEGREE_KEYS.find(d => context.includes(d));
-    const tm = context.match(TIME_RANGE_RE);
-    // 学历关键词和年份区间至少要有其一，否则不构成教育条目（过滤社团/活动里提到的学校名）
+    // 学历关键词或年份区间必须紧贴学校名之后（20字符内）。
+    // 真实教育条目形如 '暨南大学工业工程硕士 2025-2027'/'东南大学美术学本科 2021-2025'，
+    // 学历词和时间都在学校名紧后；而'曾任学校招生办学生代表，支持学校本科...'里"本科"距学校名很远，
+    // 不该构成教育条目。
+    const afterSchool = searchArea.slice(schoolIdx + schoolName.length, schoolIdx + schoolName.length + 20);
+    const degree = DEGREE_KEYS.find(d => afterSchool.includes(d));
+    const tm = afterSchool.match(TIME_RANGE_RE);
+    // 无学历词且无紧邻时间区间的学校名不算教育条目（过滤社团/活动/经历里提到的学校名）
     if (!degree && !tm) continue;
+    // '曾任学校招生办学生代表，支持学校本科...'里"曾任学校/支持学校"不是学校名。
+    // 以"学校"结尾的校名（如"上海外国语学校"）合法，但若没有时间区间且degree靠"本科"等远距词，
+    // 多为"支持学校本科招生"这类非教育表述，丢弃。
+    if (/学校$/.test(schoolName) && !tm) continue;
 
-    // OCR噪声前缀
+    // OCR噪声前缀：'策划东南大学'→'东南大学'（主修课程内容"文化活动与会展策划"粘上了校名）
     for (const noise of NOISE_PREFIXES) {
       if (schoolName.startsWith(noise) && schoolName.length > 4) {
         const stripped = schoolName.slice(noise.length);
@@ -963,13 +1036,26 @@ function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
         }
       }
     }
-    if (schoolName.length > 10) {
-      let best = schoolName;
-      for (let ci = 1; ci <= schoolName.length - 4; ci++) {
-        const sub = schoolName.substring(ci);
-        if (sub.length >= 4 && /^[一-龥]{4,}(?:大学|学院)$/.test(sub) && sub.length < best.length) best = sub;
+    if (schoolName.length > 6) {
+      // 贪婪匹配可能把校名前的描述性内容吞进来（如"文化活动与会展策划东南大学"、
+      // "审计职业道德等广东工业大学"）。正常长校名（"黑龙江八一农垦大学"）不含这些噪音词，
+      // 只在匹配串含噪音词时，取最后一个噪音词之后的合法校名子串。
+      // 用 lastIndexOf 逐个噪音词取最靠后的结束位置，避免 matchAll 因「曾任/任职」等
+      // 重叠词只匹配第一个、丢掉后面的真实校名。
+      const NOISE_WORDS = ['策划','曾任','支持','荣誉','经历','课程','描述','职业道德','专业排名','主修','在校','任职','负责','参与','协助','主管','运营','从事','等','暨','期间','就读','就职'];
+      let lastNoiseEnd = -1;
+      for (const w of NOISE_WORDS) {
+        const idx = schoolName.lastIndexOf(w);
+        if (idx >= 0) lastNoiseEnd = Math.max(lastNoiseEnd, idx + w.length);
       }
-      if (best.length < schoolName.length) schoolName = best;
+      if (lastNoiseEnd >= 0) {
+        // '文化活动与会展策划东南大学'→尾'东南大学'；剥掉开头连接字（于/在/就/等）：
+        // '曾任职于华南理工大学'→'华南理工大学'
+        let candidate = schoolName.slice(lastNoiseEnd).replace(/^[于在就其的等暨、]+/, '');
+        // 只接受"2字以上汉字 + 大学/学院/学校/研究所"的合法校名，
+        // 否则保留原值（防 '暨南大学'→'南大学' 这种误剥）。
+        if (/^[一-龥]{2,}(?:大学|学院|学校|研究所)$/.test(candidate)) schoolName = candidate;
+      }
     }
     if (schoolName.length > 15) {
       const shorter = schoolName.match(/([一-龥]{2,}(?:大学|学院))/);

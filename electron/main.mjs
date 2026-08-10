@@ -729,7 +729,7 @@ async function doAiScoring() {
       // 附加批量输出格式要求
       prompt += `\n\n重要：本次请求要求 JSON 输出。请为以上每位候选人分别给出评分，严格只输出一个 JSON 数组（不要包含任何其他内容，不要用 markdown 代码块包裹）：\n` +
         `[\n` +
-        batch.map((_, i) => `  {"candidateIndex": ${i}, "score": <0-100的整数>, "comment": "<按上方评语内容规范组织、完整包含匹配度评分/首句定性/维度匹配/任职资格/学历核查/综合结论各模块的评语，用\\n换行>"}`).join(',\n') +
+        batch.map((_, i) => `  {"candidateIndex": ${i}, "score": <0-100的整数，必须严格等于该候选人评语中的"匹配度评分：XX分">, "comment": "<按上方评语内容规范组织、完整包含匹配度评分/首句定性/维度匹配/任职资格/学历核查/综合结论各模块的评语，用\\n换行>"}`).join(',\n') +
         `\n]`;
 
       const batchNames = batch.map(c => c.basicInfo?.name || c.geekId || '未知').join('、');
@@ -804,9 +804,12 @@ async function doAiScoring() {
     await Promise.allSettled(executing);
     termLog(`[AI评分] 岗位 "${positionName}" 评分完成 (${totalInPosition} 人)`);
   }
-  // 总分 = AI 评分（0-100）
+  // 总分 = AI 评分（0-100）；优先取评语中的「匹配度评分」作为权威分数，
+  // 与输出结果严格一致（打招呼等级过滤据此判断，避免 score 字段与评语分数不一致）
   for (const c of candidates) {
-    c.totalScore = c.jobRelevanceScore || 0;
+    const ms = (c.jobRelevanceComment || '').match(/匹配度评分\s*[:：]\s*(\d{1,3})/);
+    c.matchScore = ms ? parseInt(ms[1], 10) : null;
+    c.totalScore = c.matchScore ?? (c.jobRelevanceScore || 0);
     if (c.totalScore >= 91) c.recommendationLevel = '强烈推荐';
     else if (c.totalScore >= 81) c.recommendationLevel = '推荐';
     else if (c.totalScore >= 61) c.recommendationLevel = '可考虑';
@@ -1049,7 +1052,7 @@ async function runGreeting(level, source = 'recommend') {
     const candidates = raw.candidates || raw;
     const thresholds = { 5: 91, 4: 81, 3: 61, 2: 31, 0: 0 };
     const threshold = thresholds[level] ?? 81;
-    totalTargets = candidates.filter(c => (c.totalScore ?? c.jobRelevanceScore ?? 0) >= threshold).length;
+    totalTargets = candidates.filter(c => (c.matchScore ?? c.totalScore ?? c.jobRelevanceScore ?? 0) >= threshold).length;
   } catch (err) {
     termLog(`[greet] 读取评分数据失败: ${err.message}`, 'stderr');
   }

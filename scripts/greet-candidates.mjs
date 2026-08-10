@@ -176,7 +176,8 @@ async function main() {
   }
 
   const targets = candidates.filter(c => {
-    const score = c.totalScore ?? c.jobRelevanceScore ?? 0;
+    // 匹配度评分优先（与评语/输出结果严格一致），无则退回 totalScore/jobRelevanceScore
+    const score = c.matchScore ?? c.totalScore ?? c.jobRelevanceScore ?? 0;
     return score >= threshold;
   });
 
@@ -204,7 +205,7 @@ async function main() {
     const c = targets[i];
     const name = c.basicInfo?.name || c.geekId || `候选人${i + 1}`;
     const geekId = c.geekId;
-    const score = c.totalScore ?? c.jobRelevanceScore ?? 0;
+    const score = c.matchScore ?? c.totalScore ?? c.jobRelevanceScore ?? 0;
 
     if (!geekId) {
       console.log(`GREET_STATUS:${name}|无geekId|skip|缺少 geekId`);
