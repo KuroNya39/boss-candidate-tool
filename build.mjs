@@ -72,11 +72,31 @@ function getLastTag() {
 }
 
 /**
- * 生成 Release 更新说明（格式参考 v1.3.2）
- * 从上一个 tag 到当前 HEAD 收集提交作为「更新内容」，
- * 若存在 RELEASE_NOTES.md 则将其内容（主题/简介）插在最前面。
+ * 生成 Release 更新说明（手写友好格式，参考 v1.3.14 样式）
+ * 优先使用 ROOT/RELEASE_NOTES.md 手写定稿（完整「更新内容」，不叠加 commit 列表）；
+ * 没有手写文件时自动生成草稿——「## 更新内容（M月D日）」+「### vX.Y.Z 更新内容」小节头 + 最近 tag 到 HEAD 的 commit 列表。
+ * 注意：当天多版本合并的完整内容由发布前手写 RELEASE_NOTES.md 保证（自动草稿只覆盖最近 tag 之后的提交）。
  */
 function buildReleaseNotes() {
+  // 注意：此时 build-tmp 已被移动到 release，必须写进 release 目录
+  const notesPath = resolve(ROOT, 'release', 'release-notes.md');
+  // 安装包在 GitHub 上的资产名是 Boss.AI.Setup.X.X.X.exe（gh 上传后如此命名，README 也一致）
+  const downloadTable = `## 下载\n| 文件 | 说明 |\n|------|------|\n| Boss.AI.Setup.${VERSION}.exe | 安装包 |\n| win-unpacked.zip | 绿色版（解压即用） |\n`;
+
+  // 优先使用手写的 RELEASE_NOTES.md 作为完整更新内容（含日期头与版本小节头）
+  const manualFile = resolve(ROOT, 'RELEASE_NOTES.md');
+  try {
+    if (existsSync(manualFile)) {
+      const manual = readFileSync(manualFile, 'utf-8').trim();
+      if (manual) {
+        writeFileSync(notesPath, `${manual}\n\n${downloadTable}`, 'utf-8');
+        console.log(`  Release 说明已生成（使用 RELEASE_NOTES.md 手写定稿）: ${notesPath}`);
+        return notesPath;
+      }
+    }
+  } catch {}
+
+  // 无手写文件：自动生成友好结构草稿
   const prevTag = getLastTag();
   let commits = [];
   try {
@@ -91,20 +111,11 @@ function buildReleaseNotes() {
     ? commits.map(c => `- ${c}`).join('\n')
     : '- 自动构建发布';
 
-  let header = '';
-  const notesFile = resolve(ROOT, 'RELEASE_NOTES.md');
-  try {
-    if (existsSync(notesFile)) {
-      header = readFileSync(notesFile, 'utf-8').trim() + '\n\n';
-    }
-  } catch {}
-
-  // 注意：此时 build-tmp 已被移动到 release，必须写进 release 目录
-  const notesPath = resolve(ROOT, 'release', 'release-notes.md');
-  // 安装包在 GitHub 上的资产名是 Boss.AI.Setup.X.X.X.exe（gh 上传后如此命名，README 也一致）
-  const notes = `${header}## 更新内容\n${items}\n\n## 下载\n| 文件 | 说明 |\n|------|------|\n| Boss.AI.Setup.${VERSION}.exe | 安装包 |\n| win-unpacked.zip | 绿色版（解压即用） |\n`;
+  const now = new Date();
+  const dateHead = `${now.getMonth() + 1}月${now.getDate()}日`;
+  const notes = `## 更新内容（${dateHead}）\n\n### v${VERSION} 更新内容\n\n${items}\n\n${downloadTable}`;
   writeFileSync(notesPath, notes, 'utf-8');
-  console.log(`  Release 说明已生成: ${notesPath}`);
+  console.log(`  Release 说明已生成（自动草稿，发布前可手写 RELEASE_NOTES.md 定稿）: ${notesPath}`);
   return notesPath;
 }
 
