@@ -89,7 +89,11 @@ function buildReleaseNotes() {
     if (existsSync(manualFile)) {
       const manual = readFileSync(manualFile, 'utf-8').trim();
       if (manual) {
-        writeFileSync(notesPath, `${manual}\n\n${downloadTable}`, 'utf-8');
+        // 手写定稿里已含下载表则直接使用，避免重复追加
+        const final = manual.includes('## 下载')
+          ? manual
+          : `${manual}\n\n${downloadTable}`;
+        writeFileSync(notesPath, final, 'utf-8');
         console.log(`  Release 说明已生成（使用 RELEASE_NOTES.md 手写定稿）: ${notesPath}`);
         return notesPath;
       }
