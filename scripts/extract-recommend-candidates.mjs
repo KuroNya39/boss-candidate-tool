@@ -92,7 +92,8 @@ async function waitForPageLoad(targetId, maxWait = 20000) {
   const start = Date.now();
   while (Date.now() - start < maxWait) {
     try {
-      const count = await iframeEval(targetId, `document.querySelectorAll('li.card-item').length`);
+      // 兼容两种卡片结构：「推荐/精选」导航 li.card-item，「最新」导航 .candidate-card-wrap
+      const count = await iframeEval(targetId, `document.querySelectorAll('li.card-item, .candidate-card-wrap').length`);
       if (count > 0) return count;
     } catch {}
     await sleep(800);
@@ -114,7 +115,8 @@ async function waitForPageLoad(targetId, maxWait = 20000) {
         url: location.href,
         title: document.title,
         cardItems: document.querySelectorAll('li.card-item').length,
-        hasListContainer: !!document.querySelector('.recommend-list-wrap, .card-list, .list-body, #recommend-list'),
+        latestCards: document.querySelectorAll('.candidate-card-wrap').length,
+        hasListContainer: !!document.querySelector('.recommend-list-wrap, .card-list, .list-body, #recommend-list, .recommend-card-list'),
         hasLoginWall: /请登录|扫码登录|登录后查看|登录一下/.test(bodyText),
         liClassNames: liClasses,
       });
@@ -138,23 +140,22 @@ const EXTRACT_CARD_INFO_SCRIPT = `(function(){
     return el.textContent.trim();
   }
 
-  var cards = document.querySelectorAll('li.card-item');
+  // 兼容两种卡片结构：推荐/精选导航 li.card-item，最新导航 .candidate-card-wrap
+  // 统一以 .card-inner 为根提取（两种导航卡片内部结构一致）
+  var cards = document.querySelectorAll('li.card-item .card-inner, .candidate-card-wrap .card-inner');
   var result = [];
   for (var ci = 0; ci < cards.length; ci++) {
-    var card = cards[ci];
+    var cardInner = cards[ci];
     var info = {};
 
-    // geekId: 从 .card-inner 的 data-geekid 属性获取
-    var cardInner = card.querySelector('.card-inner');
-    if (cardInner) {
-      info.geekId = cardInner.getAttribute('data-geekid') || '';
-    }
+    // geekId: 兼容 data-geekid（推荐/精选导航）和 data-geek（最新导航）
+    info.geekId = cardInner.getAttribute('data-geekid') || cardInner.getAttribute('data-geek') || '';
 
     // 构建 rawVisibleText
-    var rawText = safeText(card);
+    var rawText = safeText(cardInner);
 
     // col-2 区域包含主要信息
-    var col2 = card.querySelector('.col-2');
+    var col2 = cardInner.querySelector('.col-2');
     if (col2) {
       var basicInfo = {};
 
@@ -199,7 +200,7 @@ const EXTRACT_CARD_INFO_SCRIPT = `(function(){
     }
 
     // col-3 区域包含工作经历和教育经历
-    var col3 = card.querySelector('.col-3');
+    var col3 = cardInner.querySelector('.col-3');
     if (col3) {
       // 工作经历
       var workExps = col3.querySelectorAll('.timeline-wrap.work-exps .timeline-item');
@@ -244,7 +245,7 @@ const EXTRACT_CARD_INFO_SCRIPT = `(function(){
     }
 
     // 薪资期望（在 col-1 或 salary-wrap 中）
-    var salaryEl = card.querySelector('.salary-wrap span') || card.querySelector('.col-1 span');
+    var salaryEl = cardInner.querySelector('.salary-wrap span') || cardInner.querySelector('.col-1 span');
     if (salaryEl) {
       var salaryText = safeText(salaryEl);
       if (salaryText && /[\\dK]/.test(salaryText)) {
@@ -329,7 +330,7 @@ async function scanAllCards(targetId, opts = {}) {
 
     // 找到滚动容器并滚动：从卡片元素往上找可滚动的父容器
     const scrollResult = await iframeEval(targetId, `(function(){
-      var card = document.querySelector('li.card-item');
+      var card = document.querySelector('li.card-item .card-inner') || document.querySelector('.candidate-card-wrap .card-inner');
       var el = card ? card.parentElement : null;
       while (el && el !== document.body && el !== document.documentElement) {
         var style = window.getComputedStyle(el);
@@ -340,19 +341,32 @@ async function scanAllCards(targetId, opts = {}) {
         }
         el = el.parentElement;
       }
-      if (!el || el === document.body || el === document.documentElement) {
-        el = document.documentElement;
+      // 找不到真正可滚动的容器（「最新」导航由 body/window 整体滚动）→ 兜底用 window 滚动
+      var before, after, scrollHeight, clientHeight, containerTag;
+      if (el && el !== document.body && el !== document.documentElement && el.scrollHeight > el.clientHeight + 5) {
+        before = el.scrollTop;
+        el.scrollTop += Math.floor(el.clientHeight * 0.9);
+        after = el.scrollTop;
+        scrollHeight = el.scrollHeight;
+        clientHeight = el.clientHeight;
+        containerTag = (el.tagName || '') + (el.className ? '.' + el.className.split(' ')[0].replace(/\s/g, '') : '') + (el.id ? '#' + el.id : '');
+      } else {
+        before = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
+        clientHeight = window.innerHeight;
+        var target = before + Math.floor(clientHeight * 0.9);
+        document.documentElement.scrollTop = target;
+        document.body.scrollTop = target;
+        after = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        containerTag = 'window';
       }
-      var before = el.scrollTop;
-      el.scrollTop += Math.floor(el.clientHeight * 0.9);
-      var after = el.scrollTop;
       return {
         ok: true,
         scrollTop: after,
-        scrollHeight: el.scrollHeight,
-        clientHeight: el.clientHeight,
+        scrollHeight: scrollHeight,
+        clientHeight: clientHeight,
         scrolled: after > before,
-        containerTag: (el.tagName || '') + (el.className ? '.' + el.className.split(' ')[0].replace(/\s/g, '') : '') + (el.id ? '#' + el.id : '')
+        containerTag: containerTag
       };
     })()`);
     if (!scrollResult.ok) {
@@ -429,7 +443,7 @@ async function scanUpToCards(targetId, count, opts = {}) {
     // 用 JS 修改 scrollTop 触发滚动（v1.3.7 方法）。
     // 注意：滚动提取阶段不要最小化 Chrome；等滚动提取完成后、开始截图时，再最小化窗口。
     const scrollResult = await iframeEval(targetId, `(function(){
-      var card = document.querySelector('li.card-item');
+      var card = document.querySelector('li.card-item .card-inner') || document.querySelector('.candidate-card-wrap .card-inner');
       var el = card ? card.parentElement : null;
       while (el && el !== document.body && el !== document.documentElement) {
         var style = window.getComputedStyle(el);
@@ -440,13 +454,22 @@ async function scanUpToCards(targetId, count, opts = {}) {
         }
         el = el.parentElement;
       }
-      if (!el || el === document.body || el === document.documentElement) {
-        el = document.documentElement;
+      // 找不到真正可滚动的容器（「最新」导航由 body/window 整体滚动）→ 兜底用 window 滚动
+      var before, after, scrollHeight;
+      if (el && el !== document.body && el !== document.documentElement && el.scrollHeight > el.clientHeight + 5) {
+        before = el.scrollTop;
+        el.scrollTop += Math.floor(el.clientHeight * 0.9);
+        after = el.scrollTop;
+        scrollHeight = el.scrollHeight;
+      } else {
+        before = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
+        var target = before + Math.floor(window.innerHeight * 0.9);
+        document.documentElement.scrollTop = target;
+        document.body.scrollTop = target;
+        after = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
       }
-      var before = el.scrollTop;
-      el.scrollTop += Math.floor(el.clientHeight * 0.9);
-      var after = el.scrollTop;
-      return { ok: true, scrollTop: after, scrollHeight: el.scrollHeight, scrolled: after > before };
+      return { ok: true, scrollTop: after, scrollHeight: scrollHeight, scrolled: after > before };
     })()`);
 
     if (!scrollResult.ok) break;
@@ -538,13 +561,14 @@ async function clickCardToOpenResume(targetId, geekId, cardIndex) {
   }
 
   const result = await iframeEval(targetId, `(function(){
-    var cardInner = document.querySelector('.card-inner[data-geekid="${geekId}"]');
+    var cardInner = document.querySelector('.card-inner[data-geekid="${geekId}"], .card-inner[data-geek="${geekId}"]');
     if (!cardInner) {
-      // 通过索引查找：遍历所有 card-item 找匹配的 geekId
-      var items = document.querySelectorAll('li.card-item');
+      // 通过索引查找：遍历所有卡片（兼容 data-geekid/data-geek 两种属性）找匹配的 geekId
+      var items = document.querySelectorAll('li.card-item .card-inner, .candidate-card-wrap .card-inner');
       for (var i = 0; i < items.length; i++) {
-        var inner = items[i].querySelector('.card-inner');
-        if (inner && inner.getAttribute('data-geekid') === '${geekId}') {
+        var inner = items[i];
+        var gid = inner.getAttribute('data-geekid') || inner.getAttribute('data-geek') || '';
+        if (gid === '${geekId}') {
           inner.click();
           return 'clicked-by-search';
         }

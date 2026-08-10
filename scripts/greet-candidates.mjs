@@ -92,8 +92,9 @@ async function greetCandidate(targetId, geekId, name, source = 'recommend') {
   const isSearch = source === 'search';
   const cardSelector = isSearch
     ? `a[data-jid="${geekId}"]`
-    : `.card-inner[data-geekid="${geekId}"]`;
-  const liSelector = isSearch ? 'li.geek-info-card' : 'li.card-item';
+    : `.card-inner[data-geekid="${geekId}"], .card-inner[data-geek="${geekId}"]`;
+  // 兼容两种卡片结构：推荐/精选导航 li.card-item，最新导航 .candidate-card-wrap
+  const liSelector = isSearch ? 'li.geek-info-card' : 'li.card-item, .candidate-card-wrap';
   const btnSelector = isSearch ? 'button.btn-getcontact' : 'button.btn.btn-greet';
 
   // 搜索页的"联系Ta"按钮有 btn-getcontact 类，推荐页是 btn-greet
