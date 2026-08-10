@@ -1024,21 +1024,24 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     const smtpEnv = {};
     if (apiConfig.emailPrefix) {
       if (!apiConfig.smtpPass) {
-        throw new Error('未配置 SMTP 密码：请到「API 配置」填写「SMTP 密码」后再发送邮件（密码可向公司 IT 获取）');
+        throw new Error('未配置邮箱密码：请到「API 配置」填写你的邮箱密码后再发送邮件（密码可向公司 IT 获取）');
       }
       let emailSubject = '候选人评分结果';
       if (isRecommendMode) emailSubject = '推荐牛人评分结果';
       else if (isSearchMode) emailSubject = '搜索页评分结果';
-      exportArgs.push('--to-prefix', apiConfig.emailPrefix);
+      // 发件邮箱 = 收件邮箱 = 填的邮箱（填完整邮箱直接使用；只填前缀则补域名，兼容旧配置）
+      const rawEmail = apiConfig.emailPrefix.trim();
+      const emailUser = rawEmail.includes('@') ? rawEmail : `${rawEmail}@allwinnertech.com`;
+      exportArgs.push('--to-prefix', emailUser);
       exportArgs.push('--email-subject', emailSubject);
       // 传递 SMTP 配置给子进程
       if (apiConfig.smtpHost) smtpEnv.SMTP_HOST = apiConfig.smtpHost;
       if (apiConfig.smtpPort) smtpEnv.SMTP_PORT = apiConfig.smtpPort;
       if (apiConfig.smtpSecure) smtpEnv.SMTP_SECURE = apiConfig.smtpSecure;
-      if (apiConfig.smtpUser) smtpEnv.SMTP_USER = apiConfig.smtpUser;
+      smtpEnv.SMTP_USER = emailUser;
       if (apiConfig.smtpPass) smtpEnv.SMTP_PASS = apiConfig.smtpPass;
-      if (apiConfig.smtpFrom) smtpEnv.SMTP_FROM = apiConfig.smtpFrom;
-      termLog(`[main] 将发送邮件到 ${apiConfig.emailPrefix}@allwinnertech.com`);
+      smtpEnv.SMTP_FROM = emailUser;
+      termLog(`[main] 将发送邮件到 ${emailUser}`);
     }
     await runScript('export-candidates.mjs', exportArgs, 3, parseExportProgress, smtpEnv);
     if (cancelled) return;

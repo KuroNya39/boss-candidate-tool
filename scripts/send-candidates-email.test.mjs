@@ -16,6 +16,22 @@ test('buildRecipient appends default allwinnertech.com domain', () => {
   assert.equal(buildRecipient('zhangsan'), 'zhangsan@allwinnertech.com');
 });
 
+test('buildRecipient accepts full email address as-is', () => {
+  assert.equal(buildRecipient('zhangsan@allwinnertech.com'), 'zhangsan@allwinnertech.com');
+  assert.equal(buildRecipient('zhangsan@example.com'), 'zhangsan@example.com');
+});
+
+test('buildRecipient rejects invalid full email address', () => {
+  assert.throws(
+    () => buildRecipient('zhangsan@'),
+    /Invalid --to-prefix/
+  );
+  assert.throws(
+    () => buildRecipient('zhang san@allwinnertech.com'),
+    /Invalid --to-prefix/
+  );
+});
+
 test('buildRecipient rejects invalid email prefix', () => {
   assert.throws(
     () => buildRecipient('zhang san'),

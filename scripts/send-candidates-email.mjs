@@ -43,14 +43,25 @@ export function parseArgs(argv = process.argv.slice(2)) {
   };
 }
 
+const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
 export function buildRecipient(prefix, domain = DEFAULT_DOMAIN) {
-  if (!prefix || !PREFIX_PATTERN.test(prefix)) {
+  const input = String(prefix || '');
+  // 填的是完整邮箱（含 @）：直接作为收件人，不再拼域名
+  if (input.includes('@')) {
+    if (!EMAIL_PATTERN.test(input)) {
+      fail('Invalid --to-prefix: email address format is wrong');
+    }
+    return input;
+  }
+  // 只填了前缀：拼上默认域名（兼容旧配置）
+  if (!input || !PREFIX_PATTERN.test(input)) {
     fail('Invalid --to-prefix: only letters, numbers, dot, underscore, percent, plus, and hyphen are allowed');
   }
   if (!domain || !PREFIX_PATTERN.test(domain.replace(/@/g, ''))) {
     fail('Invalid --domain');
   }
-  return `${prefix}@${domain}`;
+  return `${input}@${domain}`;
 }
 
 export function readSmtpConfig(env = process.env) {
