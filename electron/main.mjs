@@ -225,11 +225,16 @@ function runScript(scriptName, args, step, parseFn, extraEnv = {}) {
     proc.stderr.on('data', (data) => {
       const text = decodeBuffer(data).trim();
       if (text) {
-        stderrLines.push(text);
-        if (stderrLines.length > 20) stderrLines.shift();
+        // 过滤状态上报噪音：往公司内网统计服务器上报失败/成功是无关紧要的，
+        // 不该混进致命错误消息吓到用户（如 "Stats report failed: ..."）
+        const isStatsNoise = /^Stats report/.test(text);
+        if (!isStatsNoise) {
+          stderrLines.push(text);
+          if (stderrLines.length > 20) stderrLines.shift();
+          // 将 stderr 也回传给 UI，使用户能看到邮件错误等
+          sendProgress(step, 'running', null, text);
+        }
         termLog(`[${scriptName} stderr] ${text}`, 'stderr');
-        // 将 stderr 也回传给 UI，使用户能看到邮件错误等
-        sendProgress(step, 'running', null, text);
       }
     });
 
@@ -364,9 +369,9 @@ function parseSingleScoreResponse(text) {
           const score = parsed.score ?? parsed.jobRelevanceScore ?? null;
           const comment = parsed.comment ?? parsed.jobRelevanceComment ?? parsed.reason ?? null;
           if (typeof score === 'number' && typeof comment === 'string') {
-            // 格式化评语：在章节标题前强制换行
+            // 格式化评语：在章节标题前强制换行（与 export-candidates.mjs 的 formatComment 对齐当前模板）
             const formatted = comment
-              .replace(/(匹配度评分|首句定性|维度权重|硬性技能|核心领域|刚性扣分说明|综合结论|岗位相关性分数|技术栈匹配|项目经验(?:相关|相关性)|行业经验)/g, '\n$1')
+              .replace(/(匹配度评分|首句定性|任职资格的匹配情况|学历硬性门槛核查|综合结论|加权基础分计算|其他扣分合计)/g, '\n$1')
               .replace(/\n{3,}/g, '\n\n')
               .replace(/^\n+/, '')
               .trim();
@@ -419,9 +424,9 @@ function parseBatchScoreResponse(text) {
             const score = item?.score ?? item?.jobRelevanceScore ?? null;
             const comment = item?.comment ?? item?.jobRelevanceComment ?? item?.reason ?? null;
             if (typeof idx === 'number' && typeof score === 'number' && typeof comment === 'string') {
-              // 格式化评语：在章节标题前强制换行
+              // 格式化评语：在章节标题前强制换行（与 export-candidates.mjs 的 formatComment 对齐当前模板）
               const formatted = comment
-                .replace(/(匹配度评分|首句定性|维度权重|硬性技能|核心领域|刚性扣分说明|综合结论|岗位相关性分数|技术栈匹配|项目经验(?:相关|相关性)|行业经验)/g, '\n$1')
+                .replace(/(匹配度评分|首句定性|任职资格的匹配情况|学历硬性门槛核查|综合结论|加权基础分计算|其他扣分合计)/g, '\n$1')
                 .replace(/\n{3,}/g, '\n\n')
                 .replace(/^\n+/, '')
                 .trim();

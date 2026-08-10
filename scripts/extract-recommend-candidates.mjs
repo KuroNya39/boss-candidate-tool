@@ -97,7 +97,32 @@ async function waitForPageLoad(targetId, maxWait = 20000) {
     } catch {}
     await sleep(800);
   }
-  throw new Error('推荐牛人页面未加载');
+  // 超时：采集页面真实状态，帮助定位原因（是否在「精选/最新」导航、是否有登录墙、iframe 是否存活）
+  let diag = '';
+  try {
+    diag = await iframeEval(targetId, `(function(){
+      var bodyText = (document.body && document.body.textContent || '').trim();
+      // 探测页面上实际存在的卡片类名（可能因 tab 不同而不同，如推荐/精选/最新）
+      var liClasses = [];
+      var lis = document.querySelectorAll('li');
+      for (var i = 0; i < lis.length && i < 10; i++) {
+        var cls = (lis[i].className || '').toString().trim();
+        if (cls) liClasses.push(cls);
+      }
+      return JSON.stringify({
+        iframeOk: true,
+        url: location.href,
+        title: document.title,
+        cardItems: document.querySelectorAll('li.card-item').length,
+        hasListContainer: !!document.querySelector('.recommend-list-wrap, .card-list, .list-body, #recommend-list'),
+        hasLoginWall: /请登录|扫码登录|登录后查看|登录一下/.test(bodyText),
+        liClassNames: liClasses,
+      });
+    })()`);
+  } catch (e) {
+    diag = 'iframe 诊断失败: ' + e.message;
+  }
+  throw new Error('推荐牛人页面未加载（诊断: ' + diag + '）');
 }
 
 // ===== 卡片信息提取脚本 =====

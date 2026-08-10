@@ -1005,6 +1005,10 @@ function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
     // 'XX大学生/高中生/中学生' 是身份称谓或竞赛名（如"广西高校大学生翻译大赛"），不是学校名
     const afterChar = searchArea[match.index + match[0].length] || '';
     if (afterChar === '生') continue;
+    // 组织名后缀：'XX大学研究生会/学生会/校友会/团委' 是学生组织，不是学历教育。
+    // '广西大学公共管理学院研究生会' → 校名后紧跟 '研究生会'，'研究生' 是组织名的一部分，不是学历词。
+    const afterOrg = searchArea.slice(match.index + match[0].length, match.index + match[0].length + 4);
+    if (/^(研究生会|学生会|校友会|团委|党支部|研究生处)/.test(afterOrg)) continue;
 
     // 'QS世界大学排名' 等把"世界大学/XX大学"当学校名的噪音：学校名前面紧邻 QS/排名 等标识
     // 只跳过噪音锚点本身（如 '世界大学'），不误杀紧跟其后的真实校名：

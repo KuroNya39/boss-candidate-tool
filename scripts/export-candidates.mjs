@@ -39,15 +39,53 @@ function toAiRating(candidate) {
 }
 
 // 统一评语换行格式（与 main.mjs 中的格式化逻辑保持一致）
+// 把 AI 输出的评语重排成 config/scoring-prompt-*.txt「最终输出模板」的编号结构：
+//   1.首句定性 / 2.3个评估维度的匹配情况(3维度+计分) / 3.任职资格的匹配情况 / 4.学历硬性门槛核查 / 5.综合结论
+// 无论 AI 是否自带编号/换行，导出 Excel 时都强制按模板排版。
+const FORMAT_COMMENT_DIM_RE = '[^\\s：。，,；;！?！？…（）()]{2,30}（\\d{1,3}%，独立得分：\\d{1,3}分）\\s*[:：]';
 function formatComment(text) {
   if (!text) return '';
-  return text
-    .replace(/(匹配度评分|首句定性|维度权重|硬性技能|核心领域|刚性扣分说明|综合结论|岗位相关性分数|技术栈匹配|项目经验(?:相关|相关性)|行业经验)/g, '\n$1')
-    .replace(/\n{3,}/g, '\n\n')
-    // 修复旧数据中误换行的"刚性扣分"（非标题场景，如"刚性扣分。学历..."）
-    .replace(/\n刚性扣分(?!说明)/g, '刚性扣分')
-    .replace(/^\n+/, '')
-    .trim();
+  let t = String(text);
+
+  // 0) 去掉 AI 可能自带的板块编号/标题，避免重复（如 "1.首句定性"、"2.3个评估维度的匹配情况："）
+  t = t.replace(/[0-9一二三四五六七八九十]*[.、．]?\s*3个评估维度的匹配情况\s*[:：]?/, '');
+  t = t.replace(/([0-9一二三四五六七八九十]+[.、．]\s*)(?=(首句定性|任职资格的匹配情况|学历硬性门槛核查|综合结论))/g, '');
+
+  // 1) 四个固定板块标题统一编号（模板结构），吞掉原冒号避免双冒号
+  const blocks = [
+    [/首句定性/, '1.首句定性：'],
+    [/任职资格的匹配情况/, '3.任职资格的匹配情况：'],
+    [/学历硬性门槛核查/, '4.学历硬性门槛核查：'],
+    [/综合结论/, '5.综合结论：'],
+  ];
+  for (const [re, label] of blocks) {
+    t = t.replace(new RegExp(re.source + '\\s*[:：]?'), '\n' + label);
+  }
+
+  // 2) 每个维度行前统一为一个换行（AI 没换行就补上，AI 换多了就并掉）
+  t = t.replace(new RegExp('(' + FORMAT_COMMENT_DIM_RE + ')', 'g'), '\n$1');
+  t = t.replace(new RegExp('\\n{2,}(?=' + FORMAT_COMMENT_DIM_RE + ')', 'g'), '\n');
+
+  // 3) 计分行、学历核查子行：行首换行统一为一个
+  //    （关键词后必须跟冒号才视为标题，避免误切"匹配度评分：91分（=...其他扣分合计0...）"里的同名词）
+  t = t.replace(/(\n+)(加权基础分计算|其他扣分合计|匹配度评分)\s*[:：]?/g, '\n$2：');
+  t = t.replace(/(\n+)(第一学历|最高学历|合规性结论)\s*[:：]?/g, '\n$2：');
+  //    AI 挤成一行时，句号/分号后出现的关键词也补换行（句号是安全的句子边界）
+  t = t.replace(/(?<=。|；|）)(加权基础分计算|其他扣分合计|匹配度评分)\s*[:：]/g, '\n$1：');
+  t = t.replace(/(?<=。|；|）)(第一学历|最高学历|合规性结论)\s*[:：]/g, '\n$1：');
+
+  // 4) 维度块标题（"2.3个评估维度的匹配情况："独占一行），插在第一条维度行前
+  t = t.replace(new RegExp('(\\n+)(?=' + FORMAT_COMMENT_DIM_RE + ')'), '\n2.3个评估维度的匹配情况：\n');
+
+  // 5) 板块之间空一行
+  t = t.replace(/\n(?=[1-5]\.(?:首句定性|3个评估维度|任职资格的匹配情况|学历硬性门槛核查|综合结论))/g, '\n\n');
+
+  // 6) 清理
+  t = t.replace(/\n{3,}/g, '\n\n');
+  // 修复旧数据中误换行的"刚性扣分"（非标题场景，如"刚性扣分。学历..."）
+  t = t.replace(/\n刚性扣分(?!说明)/g, '刚性扣分');
+  t = t.replace(/^\n+/, '');
+  return t.trim();
 }
 
 const FIELD_CONFIG = {
@@ -491,14 +529,18 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
       cell.border = THIN_BORDER;
     });
 
-    // AI评级理由 自动撑高行（按字数估算，留足余量）
+    // AI评级理由 自动撑高行（按显式换行 + 每段字数估算，留足余量）
     const commentIdx = fields.indexOf('jobRelevanceComment');
     if (commentIdx >= 0) {
       const commentText = String(groupData[r - 1]?.[commentIdx] ?? '');
       if (commentText) {
-        // 列宽约90字符，中文字符占2个单位 → 每行约45个中文字
-        const charCount = commentText.length;
-        const lineCount = Math.ceil(charCount / 35); // 保守估算每行35字
+        // 列宽约90字符，中文字符占2个单位 → 每行约45个中文字。
+        // 先按显式换行拆分再逐段估行数，避免重排后行数变多导致被截断。
+        const commentLines = commentText.split('\n');
+        let lineCount = 0;
+        for (const ln of commentLines) {
+          lineCount += Math.max(1, Math.ceil(ln.length / 35)); // 保守估算每行35字
+        }
         rowRef.height = Math.max(lineCount * 22, 60);
       }
     }
