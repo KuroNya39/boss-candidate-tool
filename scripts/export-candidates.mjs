@@ -720,8 +720,12 @@ async function sendEmailAfterExport(opts, excelPath) {
       domain: opts['email-domain'] || undefined,
       subject: opts['email-subject'] || undefined,
     });
+    // MAIL_OK / MAIL_FAIL 是给主进程解析的机器标记，主进程据此判断邮件是否真的发出去了，
+    // 避免导出脚本退出码为 0 时界面误报「邮件已发送」（实际可能认证失败没发出去）
+    console.log(`MAIL_OK:${result.to}`);
     console.log(`邮件发送成功: ${result.to}`);
   } catch (err) {
+    console.log(`MAIL_FAIL:${err.message}`);
     console.error(`邮件发送失败: ${err.message}`);
   }
 }

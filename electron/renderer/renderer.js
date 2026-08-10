@@ -35,6 +35,21 @@ const chatHint = document.getElementById('chat-hint');
 const doneSummary = document.getElementById('done-summary');
 const errorMessage = document.getElementById('error-message');
 
+// 把邮件服务器返回的英文报错翻译成大白话，方便非技术用户看懂下一步该做什么
+function explainMailError(raw) {
+  const text = String(raw || '');
+  if (/526|Authentication failure|Invalid login|Login fail|credentials|auth/i.test(text)) {
+    return '发件邮箱的 SMTP 密码不对，或账号已被邮箱服务器锁定。请找 IT 确认发件邮箱的正确密码，到「API 配置 → SMTP 密码」里更新后，重新导出一遍即可';
+  }
+  if (/ETIMEDOUT|ECONNREFUSED|ECONNRESET|ENOTFOUND|connect/i.test(text)) {
+    return '连不上邮件服务器（可能是公司网络或端口问题），请检查网络后重试';
+  }
+  if (/quota|storage|size|附件/.test(text)) {
+    return '邮件或附件过大被服务器拒绝，请压缩后重试';
+  }
+  return text;
+}
+
 // 岗位选择状态
 let selectedJob = '';
 let jobList = [];
@@ -305,6 +320,9 @@ function setupListeners() {
       }
       if (data.emailTo) {
         summary += `邮件已发送至: ${data.emailTo}\n`;
+      }
+      if (data.emailError) {
+        summary += `⚠ 邮件发送失败：${explainMailError(data.emailError)}\n`;
       }
       summary += `输出目录: ${data.outputDir}`;
       doneSummary.textContent = summary;

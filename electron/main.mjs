@@ -105,6 +105,7 @@ let skipToScoring = false; // 跳过提取步骤，直接使用已提取的数�
 let skipRecovered = false; // skip 恢复成功标记，用于跳过后续 sendProgress 覆盖
 let aiAbortController = null; // 用于中断 AI 评分的正在请求
 let actualExportPath = ''; // 导出脚本实际输出的文件路径（可能被另存）
+let exportMailResult = { status: 'none', to: '', error: '' }; // 导出步骤的邮件发送结果（由 MAIL_OK/MAIL_FAIL 标记更新）
 
 // CDP proxy & Chrome 状态
 let cdpProxyProcess = null;
@@ -185,6 +186,17 @@ function parseExportProgress(line) {
   }
   if (line.includes('导出成功')) return { progress: 100, message: line.trim() };
   if (line.includes('共导出')) return { progress: 90, message: line.trim() };
+  // 邮件发送结果标记（不显示到进度条，只记录状态供完成页判断是否真发成功）
+  const mailOkMatch = line.match(/^MAIL_OK:(.+)$/);
+  if (mailOkMatch) {
+    exportMailResult = { status: 'ok', to: mailOkMatch[1].trim(), error: '' };
+    return { skip: true };
+  }
+  const mailFailMatch = line.match(/^MAIL_FAIL:(.+)$/);
+  if (mailFailMatch) {
+    exportMailResult = { status: 'fail', to: '', error: mailFailMatch[1].trim() };
+    return { skip: true };
+  }
   return null;
 }
 
@@ -1004,6 +1016,9 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     const scoredPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
     if (!existsSync(scoredPath)) throw new Error(`未找到评分结果文件: ${scoredPath}`);
 
+    // 每次导出前重置邮件结果，避免残留上一次的状态
+    exportMailResult = { status: 'none', to: '', error: '' };
+
     // 构建导出参数：若有 emailPrefix，传给导出脚本自动发邮件
     let exportArgs = ['--input', scoredPath];
     const smtpEnv = {};
@@ -1033,10 +1048,14 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     // 清理临时文件（保留 scored-candidates.json 和 candidates.xlsx）
     cleanupTempFiles();
 
+    // 邮件是否真的发出去了以脚本标记为准：只有 MAIL_OK 才算已发送，
+    // 认证失败等情况下不再误报「邮件已发送至」
+    const emailSent = exportMailResult.status === 'ok';
     sendDone({
       outputDir: OUTPUT_DIR,
       excelPath: actualExportPath || resolve(OUTPUT_DIR, 'candidates.xlsx'),
-      emailTo: apiConfig.emailPrefix ? `${apiConfig.emailPrefix}@allwinnertech.com` : null,
+      emailTo: emailSent ? exportMailResult.to : null,
+      emailError: exportMailResult.status === 'fail' ? exportMailResult.error : '',
     });
   } catch (err) {
     if (err.message === '已取消') {
