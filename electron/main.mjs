@@ -28,13 +28,10 @@ const CONFIG_PATH = resolve(CONFIG_DIR, 'api-config.json');
 const JD_DIR = resolve(CONFIG_DIR, 'jd-descriptions');
 
 // ===== 配置（持久化到 userData） =====
-// SMTP 默认密码（编码存储，避免明文出现在源码中）
-const DEFAULT_SMTP_PASS = Buffer.from('SmUxMjM0NTY=', 'base64').toString();  // Je123456
-
 let apiConfig = {
   url: '', key: '', model: '',
   smtpHost: 'smtp.mxhichina.com', smtpPort: '25', smtpSecure: 'false',
-  smtpUser: 'jenkins@allwinnertech.com', smtpPass: DEFAULT_SMTP_PASS, smtpFrom: '',
+  smtpUser: 'jenkins@allwinnertech.com', smtpPass: '', smtpFrom: '',
   emailPrefix: '', outputDir: '',
   dimensions: '',    // 3个核心评估维度及权重（JSON字符串）
   screeningCriteria: '', // 任职资格关键筛选项（换行分隔）
@@ -797,7 +794,7 @@ async function doAiScoring() {
   }
   // 总分 = AI 评分（0-100）。
   // 权威分数 = 从评语中解析各维度「独立得分×权重」程序化计算的加权基础分 - 其他扣分合计。
-  // AI 手写的「匹配度评分」算术不可靠（如邹欣瑜 81→写成82、林淳宜 83.5→写成88），
+  // AI 手写的「匹配度评分」算术不可靠（实测多例手写分对不上公式），
   // 必须以评语内自带公式重算，保证与评语内容严格一致（打招呼等级过滤据此判断）。
   for (const c of candidates) {
     c.matchScore = computeMatchScoreFromComment(c.jobRelevanceComment) ??
@@ -821,7 +818,7 @@ async function doAiScoring() {
 
 /**
  * 从评语程序化计算匹配度评分。
- * AI 手写的「匹配度评分」经常与评论内公式不自洽（如邹欣瑜 81 写成 82、林淳宜 83.5 写成 88），
+ * AI 手写的「匹配度评分」经常与评论内公式不自洽（实测多例手写分对不上公式），
  * 因此以评语中「各维度独立得分 × 权重」重算加权基础分，再减「其他扣分合计」。
  * 返回 null 表示评论里没有可解析的维度得分（此时回退 parseMatchScoreFromComment）。
  */
@@ -1006,6 +1003,9 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     let exportArgs = ['--input', scoredPath];
     const smtpEnv = {};
     if (apiConfig.emailPrefix) {
+      if (!apiConfig.smtpPass) {
+        throw new Error('未配置 SMTP 密码：请到「API 配置」填写「SMTP 密码」后再发送邮件（密码可向公司 IT 获取）');
+      }
       let emailSubject = '候选人评分结果';
       if (isRecommendMode) emailSubject = '推荐牛人评分结果';
       else if (isSearchMode) emailSubject = '搜索页评分结果';

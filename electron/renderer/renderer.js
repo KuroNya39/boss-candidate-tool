@@ -56,6 +56,7 @@ const apiConfigArrow = document.getElementById('api-config-arrow');
 
 // 邮件配置 DOM
 const emailPrefixInput = document.getElementById('email-prefix');
+const smtpPassInput = document.getElementById('smtp-pass');
 
 // 批量打招呼 DOM
 const greetSection = document.getElementById('greet-section');
@@ -392,6 +393,7 @@ async function loadApiConfig() {
     if (config.key) apiKeyInput.value = config.key;
     if (config.model) apiModelInput.value = config.model;
     if (config.emailPrefix) emailPrefixInput.value = config.emailPrefix;
+    if (config.smtpPass) smtpPassInput.value = config.smtpPass;
   } catch {}
   updateConfigStatus();
 }
@@ -442,6 +444,7 @@ btnSaveConfig.addEventListener('click', async () => {
     await window.electronAPI.setApiConfig({
       url, key, model,
       emailPrefix: emailPrefixInput.value.trim(),
+      smtpPass: smtpPassInput.value.trim(),
     });
     configStatus.textContent = '✓ 已保存';
     configStatus.className = 'config-badge config-ok';
