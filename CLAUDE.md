@@ -10,6 +10,7 @@ Electron desktop app for extracting candidate profiles from Boss直聘 (Boss Zhi
 
 ```
 electron/main.mjs        ← Electron main process (pipeline orchestration, IPC, CDP proxy mgmt)
+electron/score-comment.mjs ← Shared scoring helpers: compute match score from comment (weighted base − deductions, with 学历硬性门槛 programmatic backstop) + patch education-deduction comment text
 electron/preload.js      ← Context bridge (electronAPI exposed to renderer)
 electron/renderer/       ← UI (index.html, renderer.js, style.css)
 
@@ -61,6 +62,7 @@ Child process cancellation works by writing `CANCEL\n` to stdin, waiting 2s, the
 - **DOM extraction fallback**: `tryExtractResumeTextFromDOM()` — extracts resume text directly from iframe via CDP `Page.getFrameTree` + `Runtime.executionContexts` before falling back to screenshot+OCR.
 - **Score output parsing**: `parseSingleScoreResponse()` finds the first valid JSON `{score, comment}` object in the API response, handles markdown code blocks, formats comments with newlines before section headers.
 - **权威分数 = 程序化计算**（v1.3.18）：AI 手写的「匹配度评分」算术不可靠，`computeMatchScoreFromComment()` 从评语解析各维度「独立得分×权重」重算加权基础分，再减「其他扣分合计」，作为 `totalScore`；评语里手写的匹配度评分只作解析兜底。打招呼等级过滤也据此判断。
+- **学历硬性门槛程序化兜底**（v1.3.26）：AI 常以「最高学历已达标」为由豁免第一学历扣分。只要评语「第一学历」明确为大专/专科或非全日制，`computeMatchScoreFromComment()` 就强制扣 20 分（任职资格扣分从评语独立解析，不依赖 AI 合计）；`patchEducationDeductionComment()` 同步修正评语数字并视情况追加「系统说明」。这两个函数在 `electron/score-comment.mjs`，主进程与重算脚本共用。
 - **教育经历顺序**：Excel 教育经历列最高学历在第一行、按时间由近到远排序（与推荐卡片 DOM 提取顺序一致）。简历解析优先（`fillEducationFromResumeText`），卡片学历只补充简历未覆盖的最高学历段。
 - **API response compatibility**: `callClaudeAPI()` handles Anthropic standard format, Anthropic thinking blocks, OpenAI Chat format, and raw response formats.
 - **Multi-position support**: Candidates grouped by `positionInfo.appliedJob`. Each position's JD loaded from userData `%AppData%\web-access\web-access\jd-descriptions\{position}.txt` (unified for dev/packaged since v1.3.15).

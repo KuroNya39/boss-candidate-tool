@@ -317,6 +317,7 @@ AI 会按岗位描述里的 **3 个核心评估维度**（带权重）给候选�
 - 主要模块：
   ```
   electron/main.mjs                         主进程：流程编排、IPC、CDP 管理
+  electron/score-comment.mjs                评语→评分的程序化计算 + 学历硬性门槛兜底扣分（共享模块）
   electron/renderer/                        界面（index.html / renderer.js / style.css）
   scripts/cdp-proxy.mjs                     HTTP → WebSocket 代理，控制 Chrome（端口 3456）
   scripts/extract-recommend-candidates.mjs  推荐牛人页提取
