@@ -21,7 +21,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   proxyGet, proxyPost, sleep, randomDelay,
-  cdpEval, forceViewport, resetViewport,
+  cdpEval, prepareTab,
   closeBossPopup,
   captureResumeScreenshots,
   ocrScreenshots,
@@ -950,8 +950,6 @@ async function doCleanup() {
   if (!_cleanupTargetId && !_cleanupWorker) return;
   console.log('\n收到取消指令，清理资源...');
   if (_cleanupTargetId) {
-    // 无论保留还是关闭 tab，先清除视口 override（DPR=2 残留会导致筛选框变形变大）
-    try { await resetViewport(_cleanupTargetId); } catch {}
     if (_attachMode) {
       console.log('  [手动筛选模式] 保留用户打开的 tab');
     } else {
@@ -1078,7 +1076,7 @@ async function main() {
     }
 
     // 按实际窗口尺寸设置视口（DPR=2 提升 OCR 清晰度），避免布局塌缩、网页变形
-    await forceViewport(targetId);
+    await prepareTab(targetId);
 
     // 如果指定了岗位，先切换再等待加载（避免浪费等待默认岗位的候选人）
     // 注意：--attach 模式下跳过岗位切换（用户已手动选好岗位和筛选条件）
@@ -1500,8 +1498,6 @@ async function main() {
   // 两种模式都保留 tab，供后续"打招呼"等操作复用
   console.log('\n保留页面 tab，供后续操作使用');
   await worker.terminate();
-  // 保留 tab 前必须清除视口 override，否则 DPR=2 残留导致筛选框变形变大
-  await resetViewport(_cleanupTargetId);
   _cleanupTargetId = null;
   _cleanupWorker = null;
 

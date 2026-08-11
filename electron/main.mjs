@@ -467,7 +467,9 @@ function sleep(ms) {
 // 导致 CDP 截图拿到空白帧。以下参数可关闭该行为，让用户边用电脑边跑。
 
 const BOSS_MODE_CHROME_FLAGS = [
-  '--disable-features=CalculateNativeWinOcclusion',
+  // v1.3.24: 同时关闭节能模式/后台标签页冻结/唤醒节流——
+  // 否则用户切到别的标签页后 Boss 标签页被 Chrome 冻结，简历 canvas 停止绘制导致截图空白
+  '--disable-features=CalculateNativeWinOcclusion,EnergySaver,BackgroundTabFreeze,IntensiveWakeUpThrottling',
   '--disable-backgrounding-occluded-windows',
   '--disable-renderer-backgrounding',
   '--disable-background-timer-throttling',
@@ -515,7 +517,7 @@ const RECOMMEND_PAGE_URL = 'https://www.zhipin.com/web/chat/recommend';
 
 // CDP 代理版本号（需与 scripts/cdp-proxy.mjs 的 PROXY_VERSION 同步）。
 // 版本不匹配时强制重启代理，保证运行的是最新代码（避免旧代理的截图守卫缺失问题）。
-const CDP_PROXY_VERSION = '1.3.12';
+const CDP_PROXY_VERSION = '1.3.14';
 
 // 用「边用边跑」模式重启 Chrome，可选带目标 URL 打开（如推荐牛人页）。
 // 被 IPC handler 和 runPipeline 的推荐页缺失弹窗共用。

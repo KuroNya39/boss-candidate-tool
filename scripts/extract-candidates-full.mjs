@@ -21,7 +21,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   proxyGet, proxyPost, sleep, randomDelay,
-  cdpEval, cdpScreenshot, forceViewport, resetViewport,
+  cdpEval, prepareTab,
   clickOnlineResume,
   closeResumeDialog,
   captureResumeScreenshots,
@@ -988,8 +988,6 @@ async function doCleanup() {
   if (!_cleanupTargetId && !_cleanupWorker) return;
   console.log('\n收到取消指令，清理资源...');
   if (_cleanupTargetId) {
-    // 先清除视口 override 再关 tab（DPR=2 残留会导致筛选框变形变大）
-    try { await resetViewport(_cleanupTargetId); } catch {}
     try { await proxyGet(`/close?target=${_cleanupTargetId}`); } catch {}
     _cleanupTargetId = null;
   }
@@ -1278,7 +1276,7 @@ async function main() {
   console.log(`已附着到用户打开的沟通页 tab: ${targetId}\n`);
 
   // 按实际窗口尺寸设置视口（DPR=2 提升 OCR 清晰度），避免布局塌缩、网页变形
-  await forceViewport(targetId);
+  await prepareTab(targetId);
 
   // ===== 确保页面在列表页 =====
   await ensureOnChatList(targetId);
@@ -1428,8 +1426,6 @@ async function main() {
   // 保留页面 tab
   console.log('\n保留页面 tab，供后续操作使用');
   await worker.terminate();
-  // 保留 tab 前必须清除视口 override，否则 DPR=2 残留导致筛选框变形变大
-  await resetViewport(_cleanupTargetId);
   _cleanupTargetId = null;
   _cleanupWorker = null;
 

@@ -13,7 +13,7 @@ import net from 'node:net';
 const PORT = parseInt(process.env.CDP_PROXY_PORT || '3456');
 // 代理版本号：升级代理逻辑时递增。main.mjs 的 CDP_PROXY_VERSION 需同步。
 // 版本不同 → 新实例会请求旧实例 /shutdown 退出后接管端口，保证 app 启动时运行的是最新代码。
-const PROXY_VERSION = '1.3.12';
+const PROXY_VERSION = '1.3.14';
 let ws = null;
 let cmdId = 0;
 const pending = new Map(); // id -> {resolve, timer}
@@ -630,6 +630,10 @@ const server = http.createServer(async (req, res) => {
     // 可选区域裁剪: &clip=x,y,w,h（设备像素坐标）
     else if (pathname === '/screenshot') {
       const sid = await ensureSession(q.target);
+      // 唤醒页面：Boss 标签页被用户切走后可能被 Chrome 冻结（节能/后台优化），
+      // 在线简历 canvas 会停在上一次绘制的状态（甚至空白）。截图前强制解除冻结。
+      try { await sendCDP('Page.setWebLifecycleState', { state: 'active' }, sid); } catch {}
+      try { await sendCDP('Emulation.setFocusEmulationEnabled', { enabled: true }, sid); } catch {}
       const format = q.format || 'png';
       const ssParams = {
         format,
@@ -638,10 +642,14 @@ const server = http.createServer(async (req, res) => {
         captureBeyondViewport: true,
       };
       // 支持区域截图: clip=x,y,width,height
+      // scale=2 可放大截图画面提升 OCR 清晰度（只影响分辨率，不改页面布局/DPR）
       if (q.clip) {
         const parts = q.clip.split(',').map(Number);
         if (parts.length === 4 && parts.every(n => !isNaN(n))) {
-          ssParams.clip = { x: parts[0], y: parts[1], width: parts[2], height: parts[3], scale: 1 };
+          ssParams.clip = {
+            x: parts[0], y: parts[1], width: parts[2], height: parts[3],
+            scale: parseFloat(q.scale || '1') || 1,
+          };
         }
       }
       let resp = await sendCDP('Page.captureScreenshot', ssParams, sid);
@@ -673,6 +681,16 @@ const server = http.createServer(async (req, res) => {
         res.setHeader('Content-Type', 'image/' + format);
         res.end(Buffer.from(resp.result.data, 'base64'));
       }
+    }
+
+    // GET /activate?target=xxx - 把标签页真实带到最前（前台才持续出帧）
+    // 用户切到别的标签页后，即使解除了冻结/节能，隐藏页面的合成器也可能停止出帧，
+    // Page.captureScreenshot 会一直收不到画面而卡到 CDP 超时（30s）。
+    // Target.activateTarget 让标签页真实可见 → 合成恢复 → 截图稳定。
+    // 副作用：提取期间 Boss 页会保持在最前（用户已接受「沟通页保持最前」）。
+    else if (pathname === '/activate') {
+      const resp = await sendCDP('Target.activateTarget', { targetId: q.target }, null);
+      res.end(JSON.stringify({ ok: !resp.error, error: resp.error?.message }));
     }
 
     // GET /emulate?target=xxx&width=1440&height=900&scale=2 - 强制设置 tab 的 viewport
@@ -752,6 +770,7 @@ const server = http.createServer(async (req, res) => {
           '/scroll?target=&y=&direction=': 'GET - 滚动页面',
           '/wheel?target=': 'POST body=JSON - 真实鼠标滚轮事件',
           '/screenshot?target=&file=': 'GET - 截图',
+          '/activate?target=': 'GET - 把标签页带到最前（截图前保证前台出帧）',
           '/emulate?target=&width=&height=&scale=': 'GET - 强制设置 viewport（scale=DPR 倍率；reset=1 清除）',
           '/window-size?target=': 'GET - 获取 Chrome 窗口实际尺寸',
         },

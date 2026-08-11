@@ -58,38 +58,15 @@ export function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-// 按 Chrome 实际窗口尺寸设置视口（DPR=2 提升 OCR 截图清晰度）。
-// 正常窗口下用实际尺寸 → 网页不变形；最小化时 /window-size 仍返回恢复尺寸 → 锁住布局防塌缩。
-// 失败时回退 1440x900。
-export async function forceViewport(targetId) {
-  let width = 1440, height = 900;
-  try {
-    const ws = await proxyGet(`/window-size?target=${targetId}`);
-    if (ws && !ws.error && ws.width && ws.height) {
-      width = ws.width;
-      height = ws.height;
-    }
-  } catch {}
-  try {
-    const r = await proxyGet(`/emulate?target=${targetId}&width=${width}&height=${height}&scale=2`);
-    console.log(`已设置视口 ${width}x${height}（scale=2，兼容最小化 + OCR 清晰度）`);
-    return r;
-  } catch (e) {
-    console.warn(`设置视口失败（不影响运行）: ${e.message}`);
-    return null;
-  }
-}
-
-// v1.3.12: 清除 device metrics override，恢复页面真实 DPR 与视口。
-// forceViewport 设置的 Emulation.setDeviceMetricsOverride 除非 reset 否则永久残留
-// （DPR=2 + 锁定尺寸），提取结束后 Boss 筛选框会变形/变大。
-// 必须在提取结束（正常结束 + 取消/致命退出）时调用。
-export async function resetViewport(targetId) {
-  if (!targetId) return;
-  try {
-    await proxyGet(`/emulate?target=${targetId}&reset=1`);
-    console.log('已清除视口 override，恢复页面真实 DPR');
-  } catch { /* target 已关闭等场景忽略 */ }
+// 提取开始时把标签页带到最前（前台才持续出帧，截图才稳定）+ 唤醒页面
+// 解除后台冻结/节能暂停（否则切到别的标签页后简历 canvas 停画、截图空白）。
+// 页面尺寸、DPR 全程不被触碰——之前的 setDeviceMetricsOverride 锁视口会让网页重排变形，
+// 已彻底弃用；OCR 清晰度改由 cdpScreenshot 的 clip.scale=2 保证（只放大截图画面，不改布局）。
+export async function prepareTab(targetId) {
+  // /activate 用 Target.activateTarget 把标签页真实带到最前：前台页面 Chrome 不会冻结/节能，
+  // 懒加载内容开始渲染。截图时 /screenshot 端点内部还会再唤醒一次（双保险，见 cdp-proxy）。
+  try { await proxyGet(`/activate?target=${targetId}`); } catch {}
+  console.log('已激活页面（带到最前）；不再锁视口，页面布局不受影响');
 }
 
 export function randomDelay(minMs, maxMs) {
@@ -106,12 +83,20 @@ export async function cdpEval(targetId, expr) {
 }
 
 export async function cdpScreenshot(targetId, filePath, clip) {
+  // 截图前先把标签页真实带到最前（Target.activateTarget）。
+  // 用户切到别的标签页后，隐藏页面的合成器可能停止出帧，Page.captureScreenshot
+  // 会卡到 CDP 超时（之前实测 30s 超时、截图失败）。activate 让页面前台出帧 → 截图稳定。
+  // 副作用：提取期间 Boss 页会保持最前（用户已接受「沟通页保持最前」方案）。
+  try { await proxyGet(`/activate?target=${targetId}`); } catch {}
   // v1.3.11: 改回 PNG 无损。JPEG q80 的块效应 + 色度抽样破坏中文细字边缘，
   // tesseract 二值化放大噪声；代价是文件更大、编码略慢，OCR 准确率优先。
   let url = `/screenshot?target=${targetId}&file=${encodeURIComponent(filePath)}&format=png`;
   if (clip) {
     url += `&clip=${clip.x},${clip.y},${clip.width},${clip.height}`;
   }
+  // scale=2 把截图画面放大 2 倍（OCR 清晰度），只影响截图分辨率，不改页面布局/视口/DPR。
+  // 无条件带上：clip 与全屏兜底截图都保持同样的 2 倍清晰度（否则同一份简历清晰度会不一致）。
+  url += `&scale=2`;
   const result = await proxyGet(url);
   // 验证文件是否真正保存成功
   if (!existsSync(filePath)) {
@@ -286,6 +271,7 @@ export async function getResumeScrollInfo(targetId) {
               scrollTop: detail.scrollTop,
               scrollTarget: 'resume-detail',
               source: 'iframe-canvas-div',
+              divHeight: divHeight,
               canvasSize: canvas.width + 'x' + canvas.height,
               heights: 'div=' + divHeight + ',detail=' + detailHeight + ',iframe=' + iframeHeight
             });
@@ -302,6 +288,7 @@ export async function getResumeScrollInfo(targetId) {
           scrollTop: detail.scrollTop,
           scrollTarget: 'resume-detail',
           source: 'iframe-debug',
+          divHeight: resumeDiv ? resumeDiv.offsetHeight : 0,
           debug: 'resumeDiv=' + (resumeDiv ? resumeDiv.tagName + '#' + (resumeDiv.id || 'none') + '(' + resumeDiv.offsetWidth + 'x' + resumeDiv.offsetHeight + ')' : 'null') +
                  ', canvas=' + (canvas ? canvas.tagName + '#' + (canvas.id || 'none') + '(' + canvas.width + 'x' + canvas.height + ')' : 'null') +
                  ', bodyChildren=[' + bodyChildren + ']' +
@@ -444,12 +431,14 @@ export async function captureResumeScreenshots(targetId, safename, tempDir) {
   let info = await getResumeScrollInfo(targetId);
   if (info.error) throw new Error(info.error);
 
-  if (info.scrollHeight <= info.clientHeight && (info.source?.includes('fallback') || info.source?.includes('debug'))) {
+  // 等待内容渲染：简历 canvas 画出来之前 DIV#resume 高度为 0、scrollHeight 恒等于可视高度，
+  // 旧判断（scrollHeight > clientHeight）对这种空白状态永远等不到。改用 divHeight > 0 判定。
+  if (info.scrollHeight <= info.clientHeight || !(info.divHeight > 0)) {
     for (let retry = 0; retry < 5; retry++) {
       console.log(`    等待内容渲染... (第${retry + 1}次)`);
       await sleep(2000);
       info = await getResumeScrollInfo(targetId);
-      if (info.scrollHeight > info.clientHeight) break;
+      if (info.scrollHeight > info.clientHeight || info.divHeight > 0) break;
     }
   }
 

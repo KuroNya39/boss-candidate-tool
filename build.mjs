@@ -268,6 +268,13 @@ async function main() {
   }
 
   // 8. 上传到 GitHub Releases
+  // 本地测试模式：SKIP_UPLOAD=1 时只打安装包、不上传 GitHub（先让用户测试，通过后再正式发布）
+  if (process.env.SKIP_UPLOAD === '1') {
+    console.log('\n（SKIP_UPLOAD=1，跳过 GitHub 上传，仅生成本地测试安装包）');
+    console.log(`   安装包: ${resolve(finalDist, SETUP_NAME)}`);
+    console.log(`   绿色版: ${resolve(finalDist, 'win-unpacked', EXE_NAME)}`);
+    return;
+  }
   const tag = `v${VERSION}`;
   console.log(`\n=== 7/7: 上传到 GitHub Releases (${tag}) ===`);
   try {
