@@ -508,7 +508,7 @@ btnStart.addEventListener('click', async () => {
     }
     if (bs && bs.running && !bs.bossMode) {
       // Chrome 在跑但没开边用边跑 → 询问是否重启
-      const ok = confirm('要用「边用边跑」模式运行（推荐），需要重启 Chrome（会关闭当前标签页，重启后自动恢复）。是否继续？\n\n如果选「取消」，本次将按普通方式运行，运行期间请不要最小化 Chrome 窗口。');
+      const ok = confirm('要用「边用边跑」模式运行（推荐），需要重启 Chrome（会关闭当前标签页）。重启后请重新打开 Boss 直聘页面。是否继续？\n\n如果选「取消」，本次将按普通方式运行，运行期间请不要最小化 Chrome 窗口。');
       if (ok) {
         const res = await window.electronAPI.launchBossModeChrome({ forceClose: true });
         if (res?.ok) {
