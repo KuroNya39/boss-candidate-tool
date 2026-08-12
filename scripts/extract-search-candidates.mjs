@@ -564,82 +564,110 @@ async function getSearchResumeScrollInfo(targetId) {
 // DOM 提取文本最短阈值：低于此值视为抓到弹窗壳（头部固定文案等）而非简历正文，降级走截图 OCR
 const DOM_MIN_TEXT_LEN = 200;
 async function tryExtractSearchResumeTextFromDOM(targetId) {
+  // 弹窗结构诊断（全部方法失败时输出一次，便于定位是哪一层没匹配到）
+  let diag = { wrapper: false, content: false, detailWrap: false, iframe: false, src: '' };
+
+  // ===== 方式一：在嵌套简历 iframe 中提取（在线 HTML 简历走这里，文本干净） =====
   try {
-    // 弹窗在主页面层级，需从主页面 DOM 获取 iframe src
-    const nestedSrc = await cdpEval(targetId, `JSON.stringify(function(){
+    // 弹窗在主页面层级，需从主页面 DOM 获取 iframe src；同时记录结构便于诊断
+    const struct = await cdpEval(targetId, `JSON.stringify(function(){
       var wrap = document.querySelector('.boss-popup__wrapper.boss-dialog.dialog-lib-resume');
-      if (!wrap) return '';
-      var content = wrap.querySelector('.boss-popup__content');
-      if (!content) return '';
-      var detailWrap = content.querySelector('.resume-detail-wrap');
-      if (!detailWrap) return '';
-      var iframe = detailWrap.querySelector('iframe');
-      if (!iframe) return '';
-      return iframe.src || iframe.getAttribute('src') || '';
+      var content = wrap ? wrap.querySelector('.boss-popup__content') : null;
+      var detailWrap = content ? content.querySelector('.resume-detail-wrap') : null;
+      var iframe = detailWrap ? detailWrap.querySelector('iframe') : null;
+      return {
+        wrapper: !!wrap,
+        content: !!content,
+        detailWrap: !!detailWrap,
+        iframe: !!iframe,
+        src: iframe ? (iframe.src || iframe.getAttribute('src') || '') : ''
+      };
     }())`);
-    const parsedSrc = JSON.parse(nestedSrc);
-    if (!parsedSrc) return null;
-
-    const framesResp = await proxyGet(`/frames?target=${targetId}`);
-    if (!framesResp.frameTree) return null;
-
-    const targetFrame = findFrameInTree(framesResp.frameTree, parsedSrc);
-    if (!targetFrame || !targetFrame.id) return null;
-
-    const contexts = framesResp.executionContexts || [];
-    const ctx = contexts.find(c => c.frameId === targetFrame.id);
-    if (!ctx) {
-      // 方式一B（v1.3.27）：同域简历 iframe 直接从主页面读 iframe.contentDocument。
-      // 有的电脑上简历弹窗用「同网站小网页」（iframe，非 OOPIF），CDP 拿不到独立 execution context，
-      // 但主页面能直接访问 iframe.contentDocument，把 #resume 文本捞出来（比截图 OCR 快 30-100 倍）。
-      try {
-        const sameOriginText = await cdpEval(targetId, `(function(){
-          var wrap = document.querySelector('.boss-popup__wrapper.boss-dialog.dialog-lib-resume');
-          if (!wrap) return null;
-          var content = wrap.querySelector('.boss-popup__content');
-          if (!content) return null;
-          var detailWrap = content.querySelector('.resume-detail-wrap');
-          if (!detailWrap) return null;
-          var iframe = detailWrap.querySelector('iframe');
-          if (!iframe) return null;
-          try {
-            var idoc = iframe.contentDocument || iframe.contentWindow.document;
-            if (!idoc) return null;
-            var resumeDiv = idoc.querySelector('#resume') || idoc.querySelector('body');
+    diag = Object.assign(diag, JSON.parse(struct));
+    const nestedSrc = diag.src;
+    if (nestedSrc) {
+      const framesResp = await proxyGet(`/frames?target=${targetId}`);
+      if (framesResp.frameTree) {
+        const targetFrame = findFrameInTree(framesResp.frameTree, nestedSrc);
+        const contexts = framesResp.executionContexts || [];
+        const ctx = targetFrame ? contexts.find(c => c.frameId === targetFrame.id) : null;
+        if (ctx) {
+          const result = await proxyPost(`/eval-context?target=${targetId}&context=${ctx.id}`, `(function(){
+            var resumeDiv = document.querySelector('#resume') || document.querySelector('body');
             if (!resumeDiv) return null;
             var text = (resumeDiv.textContent || '').replace(/\\s+/g, ' ').trim();
             return text.length > ${DOM_MIN_TEXT_LEN} ? text : null;
-          } catch (e) { return null; }
-        })()`);
-        if (sameOriginText) {
-          console.log(`  ✓ DOM提取简历文本 (搜索同域iframe, ${sameOriginText.length} 字)`);
-          return sameOriginText;
+          })()`);
+          if (result.value) return result.value;
         }
-      } catch {}
-      // 诊断：简历 iframe 在主页面 session 找不到执行上下文，可能是 OOPIF（跨域 iframe 独立进程）。
-      // Target.getTargets(all=1) 里若有 type=iframe 且 url 含该简历的独立 target，即可通过 attach 直接读取。
-      try {
-        const targetsResp = await proxyGet(`/targets?all=1`);
-        const iframeTargets = (targetsResp || []).filter(t => t.type === 'iframe')
-          .map(t => ({ type: t.type, url: (t.url || '').slice(0, 120) }));
-        console.warn(`  🔍 DOM提取诊断(搜索): 简历iframe在主session无上下文, nestedSrc=${(parsedSrc || '').slice(0, 80)}, OOPIF iframe targets=${iframeTargets.length}`);
-        for (const it of iframeTargets) console.warn(`      iframe target: ${it.url}`);
-      } catch (e) {
-        console.warn(`  🔍 DOM提取诊断(搜索)失败: ${e.message}`);
+        // 方式一B（v1.3.27）：同域简历 iframe 直接从主页面读 iframe.contentDocument。
+        // 有的电脑上简历弹窗用「同网站小网页」（iframe，非 OOPIF），CDP 拿不到独立 execution context，
+        // 但主页面能直接访问 iframe.contentDocument，把 #resume 文本捞出来（比截图 OCR 快 30-100 倍）。
+        try {
+          const sameOriginText = await cdpEval(targetId, `(function(){
+            var wrap = document.querySelector('.boss-popup__wrapper.boss-dialog.dialog-lib-resume');
+            if (!wrap) return null;
+            var content = wrap.querySelector('.boss-popup__content');
+            if (!content) return null;
+            var detailWrap = content.querySelector('.resume-detail-wrap');
+            if (!detailWrap) return null;
+            var iframe = detailWrap.querySelector('iframe');
+            if (!iframe) return null;
+            try {
+              var idoc = iframe.contentDocument || iframe.contentWindow.document;
+              if (!idoc) return null;
+              var resumeDiv = idoc.querySelector('#resume') || idoc.querySelector('body');
+              if (!resumeDiv) return null;
+              var text = (resumeDiv.textContent || '').replace(/\\s+/g, ' ').trim();
+              return text.length > ${DOM_MIN_TEXT_LEN} ? text : null;
+            } catch (e) { return null; }
+          })()`);
+          if (sameOriginText) {
+            console.log(`  ✓ DOM提取简历文本 (搜索同域iframe, ${sameOriginText.length} 字)`);
+            return sameOriginText;
+          }
+        } catch {}
+        // 诊断：简历 iframe 在主页面 session 找不到执行上下文，可能是 OOPIF（跨域 iframe 独立进程）。
+        // Target.getTargets(all=1) 里若有 type=iframe 且 url 含该简历的独立 target，即可通过 attach 直接读取。
+        try {
+          const targetsResp = await proxyGet(`/targets?all=1`);
+          const iframeTargets = (targetsResp || []).filter(t => t.type === 'iframe')
+            .map(t => ({ type: t.type, url: (t.url || '').slice(0, 120) }));
+          console.warn(`  🔍 DOM提取诊断(搜索): 简历iframe在主session无上下文, nestedSrc=${(nestedSrc || '').slice(0, 80)}, OOPIF iframe targets=${iframeTargets.length}`);
+          for (const it of iframeTargets) console.warn(`      iframe target: ${it.url}`);
+        } catch (e) {
+          console.warn(`  🔍 DOM提取诊断(搜索)失败: ${e.message}`);
+        }
       }
-      return null;
     }
+  } catch {}
 
-    const result = await proxyPost(`/eval-context?target=${targetId}&context=${ctx.id}`, `(function(){
-      var resumeDiv = document.querySelector('#resume') || document.querySelector('body');
-      if (!resumeDiv) return null;
-      var text = (resumeDiv.textContent || '').replace(/\\s+/g, ' ').trim();
+  // ===== 方式二：直接在弹窗容器提取文本（无嵌套 iframe 时兜底，与推荐页一致，v1.3.28） =====
+  // 有的电脑上简历直接渲染在弹窗 DOM 里（无 iframe 或 iframe 读不到），
+  // 直接从容器读 textContent 就能拿到简历文本，避免退回慢速截图 OCR。
+  try {
+    const direct = await cdpEval(targetId, `(function(){
+      var wrap = document.querySelector('.boss-popup__wrapper.boss-dialog.dialog-lib-resume');
+      if (!wrap) return null;
+      var content = wrap.querySelector('.boss-popup__content');
+      if (!content) return null;
+      var detailWrap = content.querySelector('.resume-detail-wrap');
+      if (detailWrap) {
+        var t = (detailWrap.textContent || '').replace(/\\s+/g, ' ').trim();
+        if (t.length > ${DOM_MIN_TEXT_LEN}) return t;
+      }
+      var text = (content.textContent || '').replace(/\\s+/g, ' ').trim();
       return text.length > ${DOM_MIN_TEXT_LEN} ? text : null;
     })()`);
-    return result.value || null;
-  } catch {
-    return null;
-  }
+    if (direct) {
+      console.log(`  ✓ DOM提取简历文本 (搜索弹窗直接读取, ${direct.length} 字)`);
+      return direct;
+    }
+  } catch {}
+
+  // 全部方法失败：输出一次弹窗结构诊断（wrapper/content/detailWrap/iframe 是否存在的关键信息）
+  console.warn(`  🔍 DOM提取诊断(搜索): 全部方法未读到简历, 弹窗结构=${JSON.stringify(diag)}`);
+  return null;
 }
 
 /**
@@ -785,8 +813,11 @@ let _cleanupProgressVars = null; // { processedExpectIds, candidates, outputPath
 async function doCleanup() {
   if (_cleanupProgressVars) {
     const { processedExpectIds, candidates, outputPath, prevOcr } = _cleanupProgressVars;
+    // v1.3.28：取消/跳过后先尽快保存当前进度。原来等 OCR 全部收尾才存，
+    // 会被主进程的强杀超时抢先，导致最近几人白干、恢复时丢数据。
+    // 这里最多等 3s 拿当前 OCR 结果，拿不到完整文本也先落盘，保住已完成人数。
     try {
-      await prevOcr;
+      await Promise.race([prevOcr, sleep(3000).then(() => 'timeout')]);
       saveProgress(processedExpectIds, candidates, outputPath);
       console.log(`  💾 取消前已保存进度 (${processedExpectIds.size} 人)`);
     } catch (e) {

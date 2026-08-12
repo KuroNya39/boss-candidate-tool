@@ -1344,9 +1344,10 @@ function registerIPC() {
         }
       } catch {}
       // 等 2s 让子进程清理，超时强制杀
+      // v1.3.28：强杀等待放宽到 6s，让子进程 doCleanup 先落盘进度再退出
       setTimeout(() => {
         if (currentProcess) { currentProcess.kill(); currentProcess = null; }
-      }, 2000);
+      }, 6000);
     }
     if (aiAbortController) { aiAbortController.abort(); aiAbortController = null; }
     return { ok: true };
@@ -1363,9 +1364,10 @@ function registerIPC() {
           currentProcess.stdin.off('error', onError);
         }
       } catch {}
+      // v1.3.28：强杀等待放宽到 6s，让子进程 doCleanup 先落盘进度再退出
       setTimeout(() => {
         if (currentProcess) { currentProcess.kill(); currentProcess = null; }
-      }, 2000);
+      }, 6000);
     }
     return { ok: true };
   });
@@ -1390,9 +1392,10 @@ function registerIPC() {
           currentProcess.stdin.off('error', onError);
         }
       } catch {}
+      // v1.3.28：强杀等待放宽到 6s，让子进程 doCleanup 先落盘进度再退出
       setTimeout(() => {
         if (currentProcess) { currentProcess.kill(); currentProcess = null; }
-      }, 2000);
+      }, 6000);
     }
     return { ok: true };
   });

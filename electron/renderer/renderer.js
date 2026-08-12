@@ -83,6 +83,7 @@ const greetProgress = document.getElementById('greet-progress');
 const greetProgressBar = document.getElementById('greet-progress-bar');
 const greetProgressText = document.getElementById('greet-progress-text');
 const greetResult = document.getElementById('greet-result');
+const searchGreetHint = document.getElementById('search-greet-hint');
 
 // 自动打招呼 DOM
 const autoGreetSection = document.getElementById('auto-greet-section');
@@ -327,9 +328,12 @@ function setupListeners() {
       summary += `输出目录: ${data.outputDir}`;
       doneSummary.textContent = summary;
 
-      // 检查评分数据，显示批量打招呼（沟通页不做打招呼）
+      // 检查评分数据，显示批量打招呼（沟通页/搜索页不做打招呼：搜索页打招呼需畅聊卡）
       resetGreetUI();
-      if (selectedSource !== 'chat') {
+      if (selectedSource === 'search') {
+        // 搜索页：不提供自动打招呼，提示查看 Excel 结果手动打招呼
+        if (searchGreetHint) searchGreetHint.style.display = '';
+      } else if (selectedSource !== 'chat') {
         try {
           const counts = await window.electronAPI.getGreetCandidateCounts();
           if (counts.available) {
@@ -787,9 +791,9 @@ document.querySelectorAll('.toggle-btn').forEach(btn => {
       countInput.disabled = false;
     }
     if (isAttach) updateJobDisplay();
-    // 自动打招呼只用于推荐牛人页和搜索页，不用于沟通页
-    autoGreetSection.style.display = isChat ? 'none' : '';
-    if (isChat) autoGreetCheck.checked = false;
+    // 自动打招呼只用于推荐牛人页，不用于沟通页和搜索页（搜索页打招呼需畅聊卡）
+    autoGreetSection.style.display = isChat || isSearch ? 'none' : '';
+    if (isChat || isSearch) autoGreetCheck.checked = false;
   });
 });
 
@@ -963,6 +967,7 @@ function resetGreetUI() {
   btnStartGreet.disabled = false;
   btnStartGreet.style.opacity = '1';
   btnCancelGreet.style.display = 'none';
+  if (searchGreetHint) searchGreetHint.style.display = 'none';
 }
 
 // 同步自动打招呼 UI（回到初始状态时调用）
@@ -1020,9 +1025,9 @@ async function init() {
       extractAllCheck.checked = false;
       countInput.disabled = false;
     }
-    // 自动打招呼只用于推荐牛人页和搜索页，不用于沟通页
-    autoGreetSection.style.display = isChat ? 'none' : '';
-    if (isChat) autoGreetCheck.checked = false;
+    // 自动打招呼只用于推荐牛人页，不用于沟通页和搜索页（搜索页打招呼需畅聊卡）
+    autoGreetSection.style.display = isChat || isSearch ? 'none' : '';
+    if (isChat || isSearch) autoGreetCheck.checked = false;
   }
   await loadJobList();
   showState('state-initial');

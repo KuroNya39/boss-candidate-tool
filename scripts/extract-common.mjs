@@ -82,12 +82,31 @@ export async function cdpEval(targetId, expr) {
   return result.value;
 }
 
+// 检查标签页当前是否可见。只有「被切到后台/最小化」（不可见）时才需要 /activate 拉回最前，
+// 否则每次截图都把 Boss 的 Chrome 窗口强顶到最前，会打断用户用别的窗口（v1.3.28）。
+async function isTabVisible(targetId) {
+  try {
+    const result = await Promise.race([
+      cdpEval(targetId, `document.visibilityState === 'visible'`),
+      sleep(2000).then(() => 'timeout'),
+    ]);
+    return result === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function cdpScreenshot(targetId, filePath, clip) {
-  // 截图前先把标签页真实带到最前（Target.activateTarget）。
+  // 截图前按需把标签页真实带到最前（Target.activateTarget）。
   // 用户切到别的标签页后，隐藏页面的合成器可能停止出帧，Page.captureScreenshot
   // 会卡到 CDP 超时（之前实测 30s 超时、截图失败）。activate 让页面前台出帧 → 截图稳定。
-  // 副作用：提取期间 Boss 页会保持最前（用户已接受「沟通页保持最前」方案）。
-  try { await proxyGet(`/activate?target=${targetId}`); } catch {}
+  // v1.3.28：Boss 页本来就在最前（如「开两个 Chrome」边跑边用）时不再强制拉回，不抢用户焦点；
+  // 只有真的被切走（隐藏）时才激活。拿不到可见状态时保守处理：照旧 activate 保证截图稳定。
+  try {
+    if (!(await isTabVisible(targetId))) {
+      try { await proxyGet(`/activate?target=${targetId}`); } catch {}
+    }
+  } catch {}
   // v1.3.11: 改回 PNG 无损。JPEG q80 的块效应 + 色度抽样破坏中文细字边缘，
   // tesseract 二值化放大噪声；代价是文件更大、编码略慢，OCR 准确率优先。
   let url = `/screenshot?target=${targetId}&file=${encodeURIComponent(filePath)}&format=png`;

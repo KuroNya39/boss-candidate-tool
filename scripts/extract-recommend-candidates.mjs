@@ -963,8 +963,11 @@ async function doCleanup() {
   // 保存进度到磁盘（如果有未保存的数据）
   if (_cleanupProgressVars) {
     const { processedGeekIds, candidates, outputPath, prevOcr } = _cleanupProgressVars;
+    // v1.3.28：取消/跳过后先尽快保存当前进度。原来等 OCR 全部收尾才存，
+    // 会被主进程的强杀超时抢先，导致最近几人白干、恢复时丢数据。
+    // 这里最多等 3s 拿当前 OCR 结果，拿不到完整文本也先落盘，保住已完成人数。
     try {
-      await prevOcr;
+      await Promise.race([prevOcr, sleep(3000).then(() => 'timeout')]);
       saveProgress(processedGeekIds, candidates, outputPath);
       console.log(`  💾 取消前已保存进度 (${processedGeekIds.size} 人)`);
     } catch (e) {
