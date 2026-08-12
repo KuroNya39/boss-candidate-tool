@@ -59,7 +59,7 @@ Child process cancellation works by writing `CANCEL\n` to stdin, waiting 2s, the
 - **Progress persistence**: `.scan-cache.json` (candidate list cache) + `.extract-progress.json` (per-candidate progress) in output dir. `--resume` flag reads these to skip already-processed candidates.
 - **Cleanup**: `doCleanup()` pattern in extraction scripts handles SIGTERM/stdin CANCEL. Main process sends `CANCEL\n` to child process stdin, waits 2s, then force-kills.
 - **OCR pipeline**: `captureResumeScreenshots()` scrolls the resume dialog page-by-page → `ocrScreenshots()` runs tesseract.js on each page → `dedupePages()` removes overlap between consecutive pages → `cleanOcrText()` normalizes whitespace, corrects OCR typos, strips boilerplate.
-- **DOM extraction fallback**: `tryExtractResumeTextFromDOM()` — extracts resume text directly from iframe via CDP `Page.getFrameTree` + `Runtime.executionContexts` before falling back to screenshot+OCR.
+- **DOM extraction fallback**: `tryExtractResumeTextFromDOM()` — extracts resume text directly from iframe via CDP `Page.getFrameTree` + `Runtime.executionContexts` before falling back to screenshot+OCR. v1.3.27 起再加一道「同域 iframe 直接读取」兜底：execution context 拿不到（非 OOPIF 的简历小网页）时，直接从父页面读 `iframe.contentDocument` 的 `#resume` 文本，绕过 CDP context 查找。
 - **Score output parsing**: `parseSingleScoreResponse()` finds the first valid JSON `{score, comment}` object in the API response, handles markdown code blocks, formats comments with newlines before section headers.
 - **权威分数 = 程序化计算**（v1.3.18）：AI 手写的「匹配度评分」算术不可靠，`computeMatchScoreFromComment()` 从评语解析各维度「独立得分×权重」重算加权基础分，再减「其他扣分合计」，作为 `totalScore`；评语里手写的匹配度评分只作解析兜底。打招呼等级过滤也据此判断。
 - **学历硬性门槛程序化兜底**（v1.3.26）：AI 常以「最高学历已达标」为由豁免第一学历扣分。只要评语「第一学历」明确为大专/专科或非全日制，`computeMatchScoreFromComment()` 就强制扣 20 分（任职资格扣分从评语独立解析，不依赖 AI 合计）；`patchEducationDeductionComment()` 同步修正评语数字并视情况追加「系统说明」。这两个函数在 `electron/score-comment.mjs`，主进程与重算脚本共用。
@@ -123,7 +123,7 @@ node electron/main.mjs --score-only
 
 build.mjs 会校验：目标版本 tag 若已存在（发布过）则拒绝打包，提示先升版本号。发布说明的提交范围 = 最近一个已发布 tag 到当前 HEAD。
 
-**一天可更新多个版本号**（同一天可以多次 bump、多次构建发布）。但 **GitHub release 只保留当天最新的一版**：发布新版时自动删除当天较早发布的 release 及其 tag（build.mjs 发布后执行清理，只留当天最新）。**当天全部更新内容合并到当天这一个 release 的 notes 里**（不另开小标题，直接追加进「更新内容」列表）。
+**一天可更新多个版本号**（同一天可以多次 bump、多次构建发布）。但 **GitHub release 只保留当天最新的一版**：发布新版时自动删除当天较早发布的 release 及其 tag（build.mjs 发布后执行清理，只留当天最新）。**当天全部版本的更新内容合并到当天这一个 release 的 notes 里**，**每个版本各列一个「### vX.Y.Z 更新内容」小节**，同一版本的多条改动按时间顺序排在该小节下。
 
 **Release note 格式（手写友好风格，参考 v1.3.14）**：`## 更新内容（M月D日）` 头 + `### vX.Y.Z 更新内容` 小节头 + 描述性 bullet（`**要点**：说明`），不要用 git commit 列表（`chore:`/`fix:` 前缀）作为更新内容。发布前在项目根目录手写 `RELEASE_NOTES.md`（含日期头、版本小节头、当天全部更新内容），build.mjs 会把它作为完整定稿直接使用（下载表自动追加）；不写则自动生成友好结构草稿（版本小节头 + 最近 tag 到 HEAD 的 commit 列表，需发布前人工改写成描述性 bullet）。
 

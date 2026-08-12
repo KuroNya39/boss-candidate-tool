@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog, powerSaveBlocker } from 'electron';
 import { spawn, execFile } from 'node:child_process';
 import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -880,6 +880,11 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
   cancelled = false;
   skipRecovered = false;
 
+  // 运行期间阻止系统休眠/显示器关闭（v1.3.27）：
+  // 同事实测跑一批会因系统休眠后锁屏而暂停。powerSaveBlocker('prevent-display-sleep')
+  // 让显示器不自动关闭、系统不自动睡眠，从而不会触发"唤醒后要重新登录"的锁屏。
+  // 注意：公司 IT 强制锁屏策略（域策略/屏保锁定）压不住，那种需联系 IT 或运行前手动设置。
+  const keepAwakeId = powerSaveBlocker.start('prevent-display-sleep');
   try {
     // 归档旧输出目录（在主进程做，避免子进程 rename 时 EBUSY）
     if (!skipExtract && existsSync(OUTPUT_DIR)) {
@@ -1058,6 +1063,11 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     } else {
       sendError({ message: err.message });
     }
+  } finally {
+    // 无论成功/取消/报错，结束运行都要恢复系统原有电源行为
+    try {
+      if (powerSaveBlocker.isStarted(keepAwakeId)) powerSaveBlocker.stop(keepAwakeId);
+    } catch {}
   }
 }
 
@@ -1083,6 +1093,12 @@ async function runGreeting(level, source = 'recommend') {
   }
 
   termLog(`[greet] 开始批量打招呼，level=${level}，source=${source}，目标 ${totalTargets} 人`);
+
+  // 打招呼也是长任务，运行期间同样阻止系统休眠/显示器关闭（与 runPipeline 一致）
+  const greetKeepAwakeId = powerSaveBlocker.start('prevent-display-sleep');
+  const stopGreetKeepAwake = () => {
+    try { if (powerSaveBlocker.isStarted(greetKeepAwakeId)) powerSaveBlocker.stop(greetKeepAwakeId); } catch {}
+  };
 
   // 超时随目标人数伸缩：每人约 10 秒预算（点击+验证+防风控间隔+余量），
   // 下限 5 分钟、上限 30 分钟。81 人 ≈ 13.5 分钟，避免大量候选人逼近旧 10 分钟硬超时被杀。
@@ -1155,6 +1171,7 @@ async function runGreeting(level, source = 'recommend') {
     proc.on('error', (err) => {
       clearTimeout(greetTimer);
       currentProcess = null;
+      stopGreetKeepAwake();
       if (!cancelled) {
         sendGreetError({ message: err.message });
       }
@@ -1163,6 +1180,7 @@ async function runGreeting(level, source = 'recommend') {
     proc.on('close', (code) => {
       clearTimeout(greetTimer);
       currentProcess = null;
+      stopGreetKeepAwake();
       // 超时或用户取消时 cancelled=true，不再重复报错
       if (cancelled) return;
       // 已通过 GREET_ERROR 上报过真实原因，跳过泛化退出码，避免覆盖真实错误
@@ -1189,6 +1207,7 @@ async function runGreeting(level, source = 'recommend') {
     }, MAX_WAIT);
 
   } catch (err) {
+    stopGreetKeepAwake();
     sendGreetError({ message: err.message });
   }
 }

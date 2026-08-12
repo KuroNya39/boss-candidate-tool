@@ -805,6 +805,31 @@ async function tryExtractRecommendResumeTextFromDOM(targetId) {
           })()`);
           if (result.value) return result.value;
         }
+        // 方式一B（v1.3.27）：同域简历 iframe 直接从父页面读 iframe.contentDocument。
+        // 有的电脑上简历弹窗用「同网站小网页」（iframe，非 OOPIF），CDP 拿不到独立 execution context，
+        // 但父页面能直接访问 iframe.contentDocument，把 #resume 文本捞出来（比截图 OCR 快 30-100 倍）。
+        try {
+          const sameOriginText = await iframeEval(targetId, `(function(){
+            var dialog = document.querySelector('.dialog-wrap.active');
+            if (!dialog) return null;
+            var resumeWrap = dialog.querySelector('.resume-detail-wrap');
+            if (!resumeWrap) return null;
+            var iframe = resumeWrap.querySelector('iframe');
+            if (!iframe) return null;
+            try {
+              var idoc = iframe.contentDocument || iframe.contentWindow.document;
+              if (!idoc) return null;
+              var resumeDiv = idoc.querySelector('#resume') || idoc.querySelector('body');
+              if (!resumeDiv) return null;
+              var text = (resumeDiv.textContent || '').replace(/\\s+/g, ' ').trim();
+              return text.length > ${DOM_MIN_TEXT_LEN} ? text : null;
+            } catch (e) { return null; }
+          })()`);
+          if (sameOriginText) {
+            console.log(`  ✓ DOM提取简历文本 (同域iframe, ${sameOriginText.length} 字)`);
+            return sameOriginText;
+          }
+        } catch {}
         // 诊断：简历 iframe 在主页面 session 里找不到执行上下文。
         // 若它是 OOPIF（跨域 iframe 独立进程），Target.getTargets 里会出现 type=iframe 的独立 target——
         // 有则可通过 attach 该 target 直接读取简历文本（快 30-100 倍）；没有则只能用截图 OCR。
