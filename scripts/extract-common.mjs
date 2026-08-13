@@ -839,8 +839,14 @@ export async function tryExtractResumeTextFromDOM(targetId) {
     targetFrame = findById(framesResp.frameTree, iframeSrc);
     if (!targetFrame) targetFrame = findUrlContains(framesResp.frameTree, iframeSrc);
     if (!targetFrame || !targetFrame.id) return null;
-    const contexts = framesResp.executionContexts || [];
-    const ctx = contexts.find(c => c.frameId === targetFrame.id);
+    // v1.3.30: Chrome 151+ 移除了 Runtime.getExecutionContexts，优先旧 context，拿不到则用 createIsolatedWorld
+    let ctx = (framesResp.executionContexts || []).find(c => c.frameId === targetFrame.id) || null;
+    if (!ctx) {
+      try {
+        const iw = await proxyGet(`/isolated-world?target=${targetId}&frame=${encodeURIComponent(targetFrame.id)}`);
+        if (iw && iw.executionContextId) ctx = { id: iw.executionContextId };
+      } catch {}
+    }
     if (!ctx) return null;
     const result = await proxyPost(`/eval-context?target=${targetId}&context=${ctx.id}`, `(function(){
       var resumeDiv = document.querySelector('#resume') || document.querySelector('body');

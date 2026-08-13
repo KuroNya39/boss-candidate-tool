@@ -794,8 +794,19 @@ async function tryExtractRecommendResumeTextFromDOM(targetId) {
       const framesResp = await proxyGet(`/frames?target=${targetId}`);
       if (framesResp.frameTree) {
         const targetFrame = findFrameInTree(framesResp.frameTree, nestedSrc);
-        const contexts = framesResp.executionContexts || [];
-        const ctx = targetFrame ? contexts.find(c => c.frameId === targetFrame.id) : null;
+        let ctx = null;
+        if (targetFrame) {
+          const contexts = framesResp.executionContexts || [];
+          ctx = contexts.find(c => c.frameId === targetFrame.id) || null;
+          // v1.3.30: Chrome 151+ 移除了 Runtime.getExecutionContexts（executionContexts 恒为空），
+          // 改用 Page.createIsolatedWorld 按 frameId 拿 contextId，再配合 /eval-context 读简历文本
+          if (!ctx) {
+            try {
+              const iw = await proxyGet(`/isolated-world?target=${targetId}&frame=${encodeURIComponent(targetFrame.id)}`);
+              if (iw && iw.executionContextId) ctx = { id: iw.executionContextId };
+            } catch {}
+          }
+        }
         if (ctx) {
           const result = await proxyPost(`/eval-context?target=${targetId}&context=${ctx.id}`, `(function(){
             var resumeDiv = document.querySelector('#resume') || document.querySelector('body');

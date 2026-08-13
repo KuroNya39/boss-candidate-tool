@@ -452,6 +452,32 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // GET /isolated-world?target=xxx&frame=yyy - 为指定 frame 创建执行上下文
+    // Chrome 151+ 移除了 Runtime.getExecutionContexts（/frames 里的 executionContexts 会一直为空），
+    // DOM 提取改用 Page.createIsolatedWorld 按 frameId 拿 contextId，再配合 /eval-context 读简历文本。
+    else if (pathname === '/isolated-world') {
+      const sid = await ensureSession(q.target);
+      const frameId = q.frame;
+      if (!frameId) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: '缺少 frame 参数' }));
+        return;
+      }
+      try { await sendCDP('Page.enable', {}, sid); } catch {}
+      const worldName = 'resume_' + Math.random().toString(36).slice(2, 10);
+      const resp = await sendCDP('Page.createIsolatedWorld', {
+        frameId,
+        worldName,
+        grantUniversalAccess: true,
+      }, sid);
+      if (resp.result?.executionContextId !== undefined) {
+        res.end(JSON.stringify({ executionContextId: resp.result.executionContextId }));
+      } else {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: resp.error?.message || 'createIsolatedWorld 失败' }));
+      }
+    }
+
     // POST /click?target=xxx - 点击（body 为 CSS 选择器）
     // POST /click?target=xxx — JS 层面点击（简单快速，覆盖大多数场景）
     else if (pathname === '/click') {
@@ -765,6 +791,7 @@ const server = http.createServer(async (req, res) => {
           '/info?target=': 'GET - 页面标题/URL/状态',
           '/eval?target=': 'POST body=JS表达式 - 执行 JS',
           '/frames?target=': 'GET - 获取 frame 树和所有执行上下文',
+          '/isolated-world?target=&frame=': 'GET - 用 Page.createIsolatedWorld 为 frame 创建执行上下文（Chrome 151+）',
           '/eval-context?target=&context=': 'POST body=JS表达式 - 在指定执行上下文执行 JS',
           '/click?target=': 'POST body=CSS选择器 - 点击元素',
           '/scroll?target=&y=&direction=': 'GET - 滚动页面',
