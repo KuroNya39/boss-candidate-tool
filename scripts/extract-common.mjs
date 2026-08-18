@@ -1357,7 +1357,8 @@ export async function tryExtractCanvasResumeByDragCopy(targetId, label = 'DOM') 
     const raw = readSystemClipboard();
     const text = (raw || '').replace(/^﻿/, '').replace(/\r\n/g, '\n').trim();
     if (text.length >= DOM_MIN_TEXT_LEN && !new RegExp(COPY_JUNK_RE, 'i').test(text)) {
-      console.log(`  ✓ 复制提取(canvas拖拽滚动): ${text.length} 字 (滚动 ${r.scrollMax}px, 容器 ${r.scrollSel || '?'})`);
+      const d1 = r.diag ? `, 容器SH/CH=${r.diag.outerSH}/${r.diag.outerCH}, iframe内=${r.diag.innerSH}/${r.diag.innerVH}` : '';
+      console.log(`  ✓ 复制提取(canvas拖拽滚动): ${text.length} 字 (滚动 ${r.scrollMax}px, 容器 ${r.scrollSel || '?'}${d1})`);
       return text;
     }
     if (text.length > 0) console.log(`  ${label}🔍 canvas复制: 首次剪贴板 ${text.length} 字不可用，重试一次`);
@@ -1371,7 +1372,8 @@ export async function tryExtractCanvasResumeByDragCopy(targetId, label = 'DOM') 
       const raw2 = readSystemClipboard();
       const text2 = (raw2 || '').replace(/^﻿/, '').replace(/\r\n/g, '\n').trim();
       if (text2.length >= DOM_MIN_TEXT_LEN && !new RegExp(COPY_JUNK_RE, 'i').test(text2)) {
-        console.log(`  ✓ 复制提取(canvas拖拽滚动, 重试): ${text2.length} 字 (滚动 ${r2.scrollMax}px, 容器 ${r2.scrollSel || '?'})`);
+        const d2 = r2.diag ? `, 容器SH/CH=${r2.diag.outerSH}/${r2.diag.outerCH}, iframe内=${r2.diag.innerSH}/${r2.diag.innerVH}` : '';
+        console.log(`  ✓ 复制提取(canvas拖拽滚动, 重试): ${text2.length} 字 (滚动 ${r2.scrollMax}px, 容器 ${r2.scrollSel || '?'}${d2})`);
         return text2;
       }
     }

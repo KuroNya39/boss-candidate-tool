@@ -634,8 +634,16 @@ const server = http.createServer(async (req, res) => {
         var rf = firstByName(document,'recommendFrame');
         var rd = (rf && rf.contentDocument) ? rf.contentDocument : document;
         var wrap = window.__resumeScrollEl || rd.querySelector('.resume-detail-wrap') || rd.querySelector('.resume-detail');
-        if (wrap) { wrap.style.scrollBehavior = 'auto'; wrap.scrollTop = 0; return 'reset:' + wrap.scrollTop; }
-        return 'no-wrap';
+        var out = '';
+        if (wrap) { wrap.style.scrollBehavior = 'auto'; wrap.scrollTop = 0; out += 'outer:ok;'; }
+        var f = window.__resumeIframe;
+        if (f) {
+          try {
+            var idoc = f.contentDocument || (f.contentWindow && f.contentWindow.document);
+            if (idoc && idoc.documentElement) { idoc.documentElement.scrollTop = 0; out += 'inner:ok;'; }
+          } catch(e) {}
+        }
+        return out || 'no-wrap';
       })()`;
       // 卡死恢复：重载 c-resume iframe → Boss 简历渲染器全新启动，canvas 必然回顶（translateY=0）
       const reloadJs = `(function(){
@@ -672,7 +680,9 @@ const server = http.createServer(async (req, res) => {
           if (el.scrollHeight <= el.clientHeight + 1) return null;
           var cs = window.getComputedStyle ? window.getComputedStyle(el) : null;
           var oy = cs ? (cs.overflowY || '') : '';
-          if (oy === 'auto' || oy === 'scroll' || oy === 'overlay') return el;
+          // 需同时接受 hidden：Boss 弹窗滚动容器常为 overflow:hidden（隐藏滚动条，但 scrollTop 仍可滚）。
+          // 只认 auto/scroll/overlay 会把沟通页的 .resume-detail 排除 → scrollMax=0 → 复制不全。
+          if (oy === 'auto' || oy === 'scroll' || oy === 'overlay' || oy === 'hidden') return el;
           return null;
         }
         function findScrollEl(iframe, doc){
@@ -707,10 +717,23 @@ const server = http.createServer(async (req, res) => {
           var cr = cv2.getBoundingClientRect();
           var off = frameOffset(iframe);
           var sc = findScrollEl(iframe, doc);
+          var outerMax = Math.max(0, sc.scrollHeight - sc.clientHeight);
+          // iframe 内部滚动兜底：若外层容器不可滚（沟通页个别情况），简历可能改在 c-resume iframe 内部滚动
+          var idocSH = 0, idocVH = 0, innerMax = 0;
+          try {
+            idocSH = (idoc.documentElement ? idoc.documentElement.scrollHeight : 0) || (idoc.body ? idoc.body.scrollHeight : 0);
+            idocVH = (iframe.contentWindow && iframe.contentWindow.innerHeight) || (idoc.documentElement ? (idoc.documentElement.clientHeight || 0) : 0);
+            if (idocSH > idocVH) innerMax = idocSH - idocVH;
+          } catch(e) {}
           window.__resumeScrollEl = sc;
+          window.__resumeIframe = iframe;
+          window.__resumeOuterMax = outerMax;
+          window.__resumeInnerMax = innerMax;
           var canvasMain = { x: Math.round(off.x + cr.x), y: Math.round(off.y + cr.y), w: Math.round(cr.width), h: Math.round(cr.height) };
-          var scrollMax = Math.max(0, sc.scrollHeight - sc.clientHeight);
-          return JSON.stringify({ canvasMain: canvasMain, scrollMax: scrollMax, scope: s, winH: window.innerHeight, scrollSel: (sc.className || sc.id || sc.tagName) });
+          var scrollMax = Math.max(outerMax, innerMax);
+          var scrollSel = (sc.className || sc.id || sc.tagName || '?');
+          var diag = { outer: scrollSel, outerSH: sc.scrollHeight, outerCH: sc.clientHeight, innerSH: idocSH, innerVH: idocVH };
+          return JSON.stringify({ canvasMain: canvasMain, scrollMax: scrollMax, scope: s, winH: window.innerHeight, scrollSel: scrollSel, diag: diag });
         }
         return JSON.stringify({ error: 'no-canvas-scope' });
       })()`;
@@ -775,8 +798,20 @@ const server = http.createServer(async (req, res) => {
             var rd = (rf && rf.contentDocument) ? rf.contentDocument : document;
             sc = rd.querySelector('.resume-detail-wrap') || rd.querySelector('.resume-detail');
           }
-          if (!sc) return 'no';
-          sc.scrollTop=${scrolled}; return 'ok';
+          var t = ${scrolled}, out = '';
+          if (sc) {
+            var om = window.__resumeOuterMax || 0;
+            if (om > 0) { sc.scrollTop = Math.min(t, om); out += 'o'; }
+          }
+          var f = window.__resumeIframe;
+          var im = window.__resumeInnerMax || 0;
+          if (f && im > 0) {
+            try {
+              var idoc = f.contentDocument || (f.contentWindow && f.contentWindow.document);
+              if (idoc && idoc.documentElement) { idoc.documentElement.scrollTop = Math.min(t, im); out += 'i'; }
+            } catch(e) {}
+          }
+          return out || 'no';
         })()`;
         await sendCDP('Runtime.evaluate', { expression: scrollJs, returnByValue: true }, sid);
         await sleepMs(350);   // 等 Boss 平滑滚动 + 重绘
@@ -807,7 +842,7 @@ const server = http.createServer(async (req, res) => {
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyUp', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL }, sid);
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17, modifiers: 0 }, sid);
       await sleepMs(500);
-      res.end(JSON.stringify({ ok: true, canvasMain, scrollMax, scrolled, scope, winH: info.winH, yBottom: (info.winH || 900) - 2 }));
+      res.end(JSON.stringify({ ok: true, canvasMain, scrollMax, scrolled, scope, winH: info.winH, yBottom: (info.winH || 900) - 2, scrollSel: info.scrollSel, diag: info.diag }));
     }
 
     // POST /setFiles?target=xxx — 给 file input 设置本地文件（绕过文件对话框）
