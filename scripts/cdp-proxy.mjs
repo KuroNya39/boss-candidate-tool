@@ -625,13 +625,15 @@ const server = http.createServer(async (req, res) => {
     else if (pathname === '/canvas-copy') {
       const sid = await ensureSession(q.target);
       const sleepMs = ms => new Promise(r => setTimeout(r, ms));
-      // 0) 轻量归零：canvas translateY 由 Boss 内部状态驱动，直接改 .resume-detail-wrap.scrollTop 同步不稳定
+      // 0) 轻量归零：canvas translateY 由 Boss 内部状态驱动，直接改滚动容器 scrollTop 同步不稳定
       //    （连续调用时 DOM scrollTop 归零但 canvas 停在底部 → 卡死态，滚轮也救不回）。普通情况（新弹窗）这样够用。
+      //    滚动容器各页面不同：推荐/搜索页=.resume-detail-wrap，沟通页=.resume-detail；
+      //    优先用 info 阶段缓存的 window.__resumeScrollEl，拿不到再按容器名找。
       const resetJs = `(function(){
         function firstByName(doc,name){ var fs=doc.querySelectorAll('iframe'); for(var i=0;i<fs.length;i++){if(fs[i].name===name)return fs[i];} return null; }
         var rf = firstByName(document,'recommendFrame');
         var rd = (rf && rf.contentDocument) ? rf.contentDocument : document;
-        var wrap = rd.querySelector('.resume-detail-wrap');
+        var wrap = window.__resumeScrollEl || rd.querySelector('.resume-detail-wrap') || rd.querySelector('.resume-detail');
         if (wrap) { wrap.style.scrollBehavior = 'auto'; wrap.scrollTop = 0; return 'reset:' + wrap.scrollTop; }
         return 'no-wrap';
       })()`;
@@ -640,15 +642,17 @@ const server = http.createServer(async (req, res) => {
         function firstByName(doc,name){ var fs=doc.querySelectorAll('iframe'); for(var i=0;i<fs.length;i++){if(fs[i].name===name)return fs[i];} return null; }
         var rf = firstByName(document,'recommendFrame');
         var rd = (rf && rf.contentDocument) ? rf.contentDocument : document;
-        var wrap = rd.querySelector('.resume-detail-wrap');
+        var wrap = rd.querySelector('.resume-detail-wrap') || rd.querySelector('.resume-detail');
         var iframe = wrap ? wrap.querySelector('iframe') : null;
         if (!iframe) return 'no-iframe';
         iframe.src = iframe.src; return 'reloading';
       })()`;
       await sendCDP('Runtime.evaluate', { expression: resetJs, returnByValue: true }, sid);
-      // 1) 主页面穿透（通用，推荐页/搜索页都支持）：
-      //    找 .resume-detail-wrap 滚动容器 → 其内简历 iframe → canvas；用 frameOffset 逐层累加 iframe 偏移到主视口坐标。
-      //    推荐页：recommendFrame.contentDocument 里有弹窗；搜索页：弹窗直接在主页面 DOM。优先 recommendFrame，回退主页面。
+      // 1) 主页面穿透（通用，推荐页/搜索页/沟通页都支持）：
+      //    找简历弹窗容器（.resume-detail-wrap 或 .resume-detail）→ 其内简历 iframe → canvas；
+      //    用 frameOffset 逐层累加 iframe 偏移到主视口坐标。
+      //    滚动容器各页面不同（推荐/搜索页=.resume-detail-wrap，沟通页=.resume-detail），
+      //    从简历 iframe 向上探测「真正可滚动」的祖先作为滚动容器，缓存到 window.__resumeScrollEl 供滚动阶段复用。
       const infoJs = `(function(){
         function firstByName(doc,name){ var fs=doc.querySelectorAll('iframe'); for(var i=0;i<fs.length;i++){if(fs[i].name===name)return fs[i];} return null; }
         function frameOffset(el){
@@ -663,13 +667,34 @@ const server = http.createServer(async (req, res) => {
           }
           return { x: ox, y: oy };
         }
+        function isScr(el){
+          if (!el || el.nodeType !== 1) return null;
+          if (el.scrollHeight <= el.clientHeight + 1) return null;
+          var cs = window.getComputedStyle ? window.getComputedStyle(el) : null;
+          var oy = cs ? (cs.overflowY || '') : '';
+          if (oy === 'auto' || oy === 'scroll' || oy === 'overlay') return el;
+          return null;
+        }
+        function findScrollEl(iframe, doc){
+          var p = iframe.parentElement;
+          while (p && p !== doc.documentElement && p !== doc.body) {
+            var sc = isScr(p);
+            if (sc) return sc;
+            p = p.parentElement;
+          }
+          var w = isScr(doc.querySelector('.resume-detail-wrap'));
+          if (w) return w;
+          var d = isScr(doc.querySelector('.resume-detail'));
+          if (d) return d;
+          return iframe.parentElement;
+        }
         var scopes = [];
         var rf = firstByName(document,'recommendFrame');
         if (rf && rf.contentDocument) scopes.push(rf.contentDocument);
         scopes.push(document);
         for (var s=0; s<scopes.length; s++) {
           var doc = scopes[s];
-          var wrap = doc.querySelector('.resume-detail-wrap');
+          var wrap = doc.querySelector('.resume-detail-wrap') || doc.querySelector('.resume-detail');
           if (!wrap) continue;
           var iframe = wrap.querySelector('iframe');
           if (!iframe) continue;
@@ -681,8 +706,11 @@ const server = http.createServer(async (req, res) => {
           if (!cv2 || cv2.width < 50 || cv2.height < 50) continue;
           var cr = cv2.getBoundingClientRect();
           var off = frameOffset(iframe);
+          var sc = findScrollEl(iframe, doc);
+          window.__resumeScrollEl = sc;
           var canvasMain = { x: Math.round(off.x + cr.x), y: Math.round(off.y + cr.y), w: Math.round(cr.width), h: Math.round(cr.height) };
-          return JSON.stringify({ canvasMain: canvasMain, scrollMax: Math.max(0, wrap.scrollHeight - wrap.clientHeight), scope: s, winH: window.innerHeight });
+          var scrollMax = Math.max(0, sc.scrollHeight - sc.clientHeight);
+          return JSON.stringify({ canvasMain: canvasMain, scrollMax: scrollMax, scope: s, winH: window.innerHeight, scrollSel: (sc.className || sc.id || sc.tagName) });
         }
         return JSON.stringify({ error: 'no-canvas-scope' });
       })()`;
@@ -734,17 +762,21 @@ const server = http.createServer(async (req, res) => {
       await sleepMs(150);
 
       // 3) 按住滚动容器到底（Boss 选中基于文档坐标，滚动后选区持续扩展）
-      //    与 info 阶段同一 scope：scope===0 → recommendFrame.contentDocument，否则主页面
+      //    window.__resumeScrollEl 由 info 阶段缓存（各页面滚动容器不同，统一用它）
       const stepH = Math.max(300, Math.round(canvasMain.h * 0.9));
       let scrolled = 0;
       while (scrolled < scrollMax) {
         scrolled = Math.min(scrolled + stepH, scrollMax);
         const scrollJs = `(function(){
-          function firstByName(doc,name){ var fs=doc.querySelectorAll('iframe'); for(var i=0;i<fs.length;i++){if(fs[i].name===name)return fs[i];} return null; }
-          var rf = firstByName(document,'recommendFrame');
-          var rd = (${scope === 0}) && rf && rf.contentDocument ? rf.contentDocument : document;
-          var wrap = rd.querySelector('.resume-detail-wrap'); if(!wrap) return 'no';
-          wrap.scrollTop=${scrolled}; return 'ok';
+          var sc = window.__resumeScrollEl;
+          if (!sc) {
+            function firstByName(doc,name){ var fs=doc.querySelectorAll('iframe'); for(var i=0;i<fs.length;i++){if(fs[i].name===name)return fs[i];} return null; }
+            var rf = firstByName(document,'recommendFrame');
+            var rd = (rf && rf.contentDocument) ? rf.contentDocument : document;
+            sc = rd.querySelector('.resume-detail-wrap') || rd.querySelector('.resume-detail');
+          }
+          if (!sc) return 'no';
+          sc.scrollTop=${scrolled}; return 'ok';
         })()`;
         await sendCDP('Runtime.evaluate', { expression: scrollJs, returnByValue: true }, sid);
         await sleepMs(350);   // 等 Boss 平滑滚动 + 重绘
