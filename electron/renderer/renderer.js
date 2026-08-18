@@ -39,7 +39,13 @@ const errorMessage = document.getElementById('error-message');
 function explainMailError(raw) {
   const text = String(raw || '');
   if (/526|Authentication failure|Invalid login|Login fail|credentials|auth/i.test(text)) {
-    return '发件邮箱的 SMTP 密码不对，或账号已被邮箱服务器锁定。请找 IT 确认发件邮箱的正确密码，到「API 配置 → SMTP 密码」里更新后，重新导出一遍即可';
+    return '发件邮箱没能通过邮件服务器的验证（服务器说账号或密码不对）。公司邮箱最常见的原因是：这个邮箱账号开启了"三方客户端安全密码"后，原来的登录密码就不能再用来配软件了，必须换专用密码。\n'
+      + '处理办法（按顺序试）：\n'
+      + '1. 到网页版邮箱：邮箱设置 → 账户与安全 → 账户安全 → 三方客户端登录安全管理，获取一次性展示的"客户端安全密码"，填到「API 配置 → 邮箱密码」\n'
+      + '2. 如果那个页面没有这个入口（账号没开启该功能），就填这个邮箱的普通登录密码，先到网页版邮箱登录验证密码没记错\n'
+      + '3. 账号被临时锁定时，到网页版邮箱登录一次即可解锁\n'
+      + '换个说法：网页版邮箱能正常登录发信，但软件还是报这个错，多半就是第 1 条——要用"客户端安全密码"，不是登录密码。\n'
+      + '如果登录密码、客户端安全密码都试过还是不行，那多半是这个邮箱账号本身的状态有问题（账号没激活/被锁定/或管理员没开发信权限），请找 IT 查这个账号的状态。';
   }
   if (/ETIMEDOUT|ECONNREFUSED|ECONNRESET|ENOTFOUND|connect/i.test(text)) {
     return '连不上邮件服务器（可能是公司网络或端口问题），请检查网络后重试';

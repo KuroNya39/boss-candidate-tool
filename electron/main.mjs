@@ -518,7 +518,7 @@ const RECOMMEND_PAGE_URL = 'https://www.zhipin.com/web/chat/recommend';
 
 // CDP 代理版本号（需与 scripts/cdp-proxy.mjs 的 PROXY_VERSION 同步）。
 // 版本不匹配时强制重启代理，保证运行的是最新代码（避免旧代理的截图守卫缺失问题）。
-const CDP_PROXY_VERSION = '1.3.14';
+const CDP_PROXY_VERSION = '1.3.16';
 
 // 用「边用边跑」模式重启 Chrome，可选带目标 URL 打开（如推荐牛人页）。
 // 被 IPC handler 和 runPipeline 的推荐页缺失弹窗共用。
@@ -998,7 +998,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     const smtpEnv = {};
     if (apiConfig.emailPrefix) {
       if (!apiConfig.smtpPass) {
-        throw new Error('未配置邮箱密码：请到「API 配置」填写你的邮箱密码后再发送邮件（密码可向公司 IT 获取）');
+        throw new Error('未配置邮箱密码：请到「API 配置」填写发件邮箱的密码后再发送邮件（公司邮箱若开启了三方客户端安全密码，要填邮箱设置里获取的"客户端安全密码"，不是登录密码）');
       }
       let emailSubject = '候选人评分结果';
       if (isRecommendMode) emailSubject = '推荐牛人评分结果';

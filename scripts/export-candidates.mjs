@@ -608,6 +608,174 @@ function makeUniqueSheetName(baseName, usedLower) {
   return fallback;
 }
 
+// ===== 教育经历修正：以 AI 评语中的「第一学历/最高学历」为准绳 =====
+// 正则从 OCR 简历文本里抠教育经历对噪音很脆弱：OCR 会把校名前的汉字吞进学校名
+// （'起东北财经大学'）、把校内二级学院误当学校（'通识学院 2022-2023'）。
+// 而 AI 评语模板强制含格式稳定的两行：
+//   第一学历：重庆工商大学，大数据管理与应用，本科，全日制。
+//   最高学历：重庆工商大学，大数据管理与应用，本科（在读），全日制。
+// 导出前用这两行修正 educationExperience：校名/专业/学历以 AI 为准，时间沿用原条目。
+
+// 校名像不像真学校：以大学/学院/学校/研究所结尾、不含 OCR 噪音词（证书/资格/收藏/英语等）。
+// 用于过滤 OCR 把证书列表、页面文案误认成学校的假条目（如'资格证书大学'）。
+function schoolLooksReal(name) {
+  const n = (name || '').replace(/\s+/g, '');
+  if (!n || n.length < 4) return false;
+  if (!/(?:大学|学院|学校|研究所)$/.test(n)) return false;
+  if (/证书|资格|英语|人力资源|收藏|经历概览|招聘|比赛|大赛|奖学金|志愿|竞赛|实习/.test(n)) return false;
+  return true;
+}
+
+// 从 AI 评语解析教育条目，返回 [{school, major, degree}]，按「学校+学历」去重。
+function parseEducationFromComment(comment) {
+  if (!comment) return [];
+  const DEGREE_RE = /(?:本科|硕士|博士|研究生|大专|专科|高职|专升本|高中|中专|初中)/;
+  const SCHOOL_START_RE = /^([一-龥]{2,}?(?:大学|学院|学校|研究所))/;
+  const results = [];
+  const seen = new Set();
+  const lineRe = /(?:第一学历|最高学历)\s*[:：]\s*([^\n。；;]+)/g;
+  let m;
+  while ((m = lineRe.exec(comment)) !== null) {
+    const raw = m[1].trim();
+    if (!raw || /^(无|未明确|未提供|不详|未找到|没有)/.test(raw)) continue;
+    // 统一格式：AI 有时用逗号分隔（'XX大学，专业，本科，全日制'）、有时用空格
+    // （'XX大学 专业 本科（全日制），2023-2027在读'）。先去尾时间尾巴和「全日制/在读」注释，
+    // 让学校名始终出现在行首；时间区间先捕获（AI 按提示词会带就读时间），供教育条目补空时间用。
+    let line = raw.replace(/^(?:毕业院校|学校)\s*[:：]?\s*/, '').trim();
+    const timeMatch = line.match(/(\d{4})\s*[-–—~～至]\s*(\d{4})/);
+    const aiTime = timeMatch ? `${timeMatch[1]} - ${timeMatch[2]}` : '';
+    line = line.replace(/\d{4}\s*[-–—~～至]\s*\d{4}[^，,。；;]*/g, '')
+               .replace(/[（(][^）)]*[)）]/g, '')
+               .replace(/[,，、]?\s*(?:全日制|非全日制)\s*[^，,。；;]*/g, '')
+               .replace(/[,，、|\s]+$/, '').trim();
+    if (!line) continue;
+    // 行首第一个「X大学/学院」即学校名（非贪婪，避免吞掉后面的专业）
+    const sm = line.match(SCHOOL_START_RE);
+    if (!sm) continue;
+    const school = sm[1];
+    if (!schoolLooksReal(school)) continue; // 疑似识别错误的垃圾校名，跳过该行
+    const dm = line.match(DEGREE_RE);
+    const degree = dm ? dm[0] : '';
+    let major = '';
+    if (dm) {
+      // 学校名与学历词之间的文本即专业
+      const between = line.slice(sm[0].length, dm.index).replace(/[,，、|\s]+/g, ' ').trim();
+      major = between.replace(/专业$/, '').trim();
+    }
+    const key = school + '|' + degree;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    results.push({ school, major, degree, time: aiTime });
+  }
+  return results;
+}
+
+// 学校名模糊匹配：OCR 抓出的校名可能带前缀噪音（'起东北财经大学' vs '东北财经大学'）
+function schoolNamesMatch(a, b) {
+  const na = (a || '').replace(/\s+/g, '');
+  const nb = (b || '').replace(/\s+/g, '');
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  if (na.includes(nb) || nb.includes(na)) {
+    // 短名要足够具体，避免 'XX大学' 与 'XX大学附属中学' 这类包含关系乱配
+    return Math.min(na.length, nb.length) >= 4;
+  }
+  return false;
+}
+
+// 用 AI 评语修正候选人的 educationExperience
+function enrichEducationFromComment(c) {
+  const aiList = parseEducationFromComment(c.jobRelevanceComment);
+  if (aiList.length === 0) return;
+  const existing = Array.isArray(c.educationExperience) ? c.educationExperience : [];
+  const merged = [];
+  const used = new Set();
+  for (const ai of aiList) {
+    // 找现有条目里学校模糊匹配的，复用其时间
+    let hit = -1;
+    for (let i = 0; i < existing.length; i++) {
+      if (used.has(i)) continue;
+      if (schoolNamesMatch(existing[i].school, ai.school)) { hit = i; break; }
+    }
+    if (hit >= 0) {
+      used.add(hit);
+      const ex = existing[hit];
+      merged.push({
+        time: ai.time || ex.time || '',
+        school: ai.school,
+        major: ai.major || ex.major || '',
+        degree: ai.degree || ex.degree || '',
+      });
+    } else {
+      merged.push({ time: ai.time || '', school: ai.school, major: ai.major, degree: ai.degree });
+    }
+  }
+  // 现有条目若与 AI 校名都不匹配：多是误抓的二级学院名/OCR噪音（特征：缺学历或缺专业，或校名不像真学校），丢弃；
+  // 完整（有学历+专业）且校名像真学校的条目 AI 漏了也保留，避免误删。
+  for (let i = 0; i < existing.length; i++) {
+    if (used.has(i)) continue;
+    const ex = existing[i];
+    if (ex.degree && ex.major && schoolLooksReal(ex.school)) merged.push(ex);
+  }
+  if (merged.length > 0) c.educationExperience = merged;
+}
+
+// ===== 从简历文本补教育条目的时间/专业（导出兜底） =====
+// OCR 常把一条教育记录拆到相邻两行（一行校名、一行时间），parseEduLine 要求学历词/时间
+// 紧跟校名后，跨行的条目会被漏掉；AI 补进的条目时间/专业因此是空（如徐女士本科）。
+// 这里在校名前后窗口里找年份区间补时间；专业只在「校名后是干净文本」时才补，防把
+// "负责人/专业排名"这类 OCR 噪音当专业。
+function findSchoolContextFromText(resumeText, school) {
+  if (!resumeText || !school) return { time: '', major: '' };
+  const t = resumeText.replace(/[ \t]+/g, ' ').trim();
+  const idx = t.indexOf(school);
+  if (idx < 0) return { time: '', major: '' };
+  const before = t.slice(Math.max(0, idx - 60), idx);
+  const after = t.slice(idx + school.length, Math.min(t.length, idx + school.length + 90));
+  const win = before + school + after;
+  const tm = win.match(/(\d{4})\s*[-–—~～至]\s*(\d{4})/);
+  const time = tm ? `${tm[1]} - ${tm[2]}` : '';
+  // 专业：校名后到「时间/专业排名/主修课程」等锚点前的文本；含 OCR 噪音词则放弃
+  const mj = after.match(/^[,，、|\s:：·]*([^,，、|\s:：·\d][^,，、|\s:：·\n]{1,24}?)(?=\s*(?:\d{4}|专业排名|主修课程|排名|在校经历|荣誉|工作经历|经历概览|证书|本科|硕士|博士|学历))/);
+  let major = '';
+  // 必须含汉字（防 OCR 标点残片如 '.…' 当专业），且不含噪音词
+  if (mj && /[一-龥]/.test(mj[1]) &&
+      !/负责人|专业排名|主修课程|统计|调研|收藏|经历概览|排名|四级|六级|证[书件]|竞赛|协会|社团|志愿服务|奖学金|主修/.test(mj[1])) {
+    major = mj[1];
+  }
+  return { time, major };
+}
+
+function fillEducationGapsFromResumeText(c) {
+  const edu = Array.isArray(c.educationExperience) ? c.educationExperience : [];
+  if (edu.length === 0) return;
+  const text = c.resumeText || c.rawVisibleText || '';
+  for (const e of edu) {
+    if (e.time && e.major) continue;
+    const { time, major } = findSchoolContextFromText(text, e.school);
+    if (e.time || !time) { /* 已有时间则不动 */ } else { e.time = time; }
+    if (e.major || !major) { /* 已有专业则不动 */ } else { e.major = major; }
+  }
+}
+
+// ===== 教育经历排序：最高学历排最上面 =====
+// AI 评语按「第一学历 → 最高学历」顺序生成，直接照搬会让本科排硕士上面。
+// 导出前按学历层次从高到低重排（博士 > 硕士 > 本科 > 大专/专科 > 高中 > 中专/初中），同级别保持原顺序。
+const DEGREE_RANK = { '博士': 6, '研究生': 5, '硕士': 5, '本科': 4, '学士': 4, '专升本': 4, '大专': 3, '专科': 3, '高职': 3, '高专': 3, '高中': 2, '中专': 2, '职高': 2, '中技': 2, '初中': 1, '小学': 0 };
+function degreeRank(d) {
+  const s = String(d || '').trim();
+  for (const [k, v] of Object.entries(DEGREE_RANK)) if (s.includes(k)) return v;
+  return -1; // 未知学历 → 排最后
+}
+function sortEducationByDegree(c) {
+  const edu = Array.isArray(c.educationExperience) ? c.educationExperience : [];
+  if (edu.length < 2) return;
+  c.educationExperience = edu
+    .map((e, i) => ({ e, i }))
+    .sort((a, b) => degreeRank(b.e.degree) - degreeRank(a.e.degree) || a.i - b.i)
+    .map((x) => x.e);
+}
+
 // ===== 主流程 =====
 async function main() {
   const opts = parseArgs();
@@ -616,6 +784,13 @@ async function main() {
   const inputPath = resolve(opts.input);
   const input = JSON.parse(readFileSync(inputPath, 'utf-8'));
   const candidates = input.candidates || input;
+
+  // 用 AI 评语修正教育经历（校名/专业/学历以 AI 为准，修复 OCR 抓脏的学校名、丢掉误抓条目）
+  candidates.forEach(enrichEducationFromComment);
+  // 从简历文本补空时间/专业（OCR 跨行拆散的条目，如徐女士本科）
+  candidates.forEach(fillEducationGapsFromResumeText);
+  // 教育经历按学历从高到低排序（最高学历排最上面）
+  candidates.forEach(sortEducationByDegree);
 
   // 按总分降序排序
   candidates.sort((a, b) => (b.totalScore ?? b.score ?? 0) - (a.totalScore ?? a.score ?? 0));

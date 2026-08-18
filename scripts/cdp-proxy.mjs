@@ -13,7 +13,7 @@ import net from 'node:net';
 const PORT = parseInt(process.env.CDP_PROXY_PORT || '3456');
 // 代理版本号：升级代理逻辑时递增。main.mjs 的 CDP_PROXY_VERSION 需同步。
 // 版本不同 → 新实例会请求旧实例 /shutdown 退出后接管端口，保证 app 启动时运行的是最新代码。
-const PROXY_VERSION = '1.3.14';
+const PROXY_VERSION = '1.3.16';
 let ws = null;
 let cmdId = 0;
 const pending = new Map(); // id -> {resolve, timer}
@@ -425,6 +425,32 @@ const server = http.createServer(async (req, res) => {
       }));
     }
 
+    // GET /isolated-world?target=xxx&frame=yyy - 为指定 frame 创建执行上下文
+    // Chrome 151+ 移除了 Runtime.getExecutionContexts（/frames 里的 executionContexts 会一直为空），
+    // DOM 提取改用 Page.createIsolatedWorld 按 frameId 拿 contextId，再配合 /eval-context 读简历文本。
+    else if (pathname === '/isolated-world') {
+      const sid = await ensureSession(q.target);
+      const frameId = q.frame;
+      if (!frameId) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: '缺少 frame 参数' }));
+        return;
+      }
+      try { await sendCDP('Page.enable', {}, sid); } catch {}
+      const worldName = 'resume_' + Math.random().toString(36).slice(2, 10);
+      const resp = await sendCDP('Page.createIsolatedWorld', {
+        frameId,
+        worldName,
+        grantUniversalAccess: true,
+      }, sid);
+      if (resp.result?.executionContextId !== undefined) {
+        res.end(JSON.stringify({ executionContextId: resp.result.executionContextId }));
+      } else {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: resp.error?.message || 'createIsolatedWorld 失败' }));
+      }
+    }
+
     // POST /eval-context?target=xxx&context=123 - 在指定 execution context 中执行 JS
     else if (pathname === '/eval-context') {
       const sid = await ensureSession(q.target);
@@ -549,6 +575,207 @@ const server = http.createServer(async (req, res) => {
         type: 'mouseReleased', x: coord.x, y: coord.y, button: 'left', clickCount: 1
       }, sid);
       res.end(JSON.stringify({ clicked: true, x: coord.x, y: coord.y, tag: coord.tag, text: coord.text }));
+    }
+
+    // POST /keyseq?target=xxx — 发送真实（trusted）按键序列，用于触发页面 copy 处理器
+    // body: JSON { "keys": "ctrl+c" }；CDP Input 事件被浏览器视为真人按键，
+    // 能通过 event.isTrusted 校验（合成 ClipboardEvent 做不到）。modifiers: Alt=1 Ctrl=2 Meta=4 Shift=8
+    else if (pathname === '/keyseq') {
+      const sid = await ensureSession(q.target);
+      let body = {};
+      try { body = JSON.parse(await readBody(req) || '{}'); } catch {}
+      const CTRL = 2;
+      const SEQ = {
+        // 先全选再复制：部分简历页的 copy 处理器要求「有选中内容」才生成全文（手动 Ctrl+A→Ctrl+C 才能复制全简历）
+        'ctrl+a+c': [
+          { type: 'keyDown', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17, modifiers: 0 },
+          { type: 'keyDown', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65, modifiers: CTRL },
+          { type: 'char', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65, modifiers: CTRL },
+          { type: 'keyUp', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65, modifiers: CTRL },
+          { type: 'keyDown', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL },
+          { type: 'char', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL },
+          { type: 'keyUp', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL },
+          { type: 'keyUp', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17, modifiers: CTRL },
+        ],
+        'ctrl+c': [
+          { type: 'keyDown', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17, modifiers: 0 },
+          { type: 'keyDown', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL },
+          { type: 'char', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL },
+          { type: 'keyUp', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL },
+          { type: 'keyUp', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17, modifiers: CTRL },
+        ],
+      };
+      const events = SEQ[body.keys] || [];
+      if (!events.length) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: '不支持的按键序列: ' + body.keys }));
+        return;
+      }
+      for (const ev of events) {
+        await sendCDP('Input.dispatchKeyEvent', ev, sid);
+      }
+      res.end(JSON.stringify({ sent: events.length }));
+    }
+
+    // POST /canvas-copy?target=xxx — WASM canvas 简历拖拽滚动复制（模拟用户手动操作）
+    // Boss 新版简历是 canvas 绘制（DOM 零文字），复制走 navigator.clipboard.writeText（系统剪贴板），
+    // 页面内截获 copy 事件永远拿不到文本。正确做法：真实鼠标按住拖选 + 滚动简历容器 + 真实 Ctrl+C，
+    // 文本进入系统剪贴板，由调用方用系统命令（powershell Get-Clipboard）读取。
+    // 端点封装完整流程：计算 canvas 主视口坐标 → mousedown 顶部 → 拖到屏底 → 滚动容器到底 → mouseup → Ctrl+C。
+    else if (pathname === '/canvas-copy') {
+      const sid = await ensureSession(q.target);
+      const sleepMs = ms => new Promise(r => setTimeout(r, ms));
+      // 0) 轻量归零：canvas translateY 由 Boss 内部状态驱动，直接改 .resume-detail-wrap.scrollTop 同步不稳定
+      //    （连续调用时 DOM scrollTop 归零但 canvas 停在底部 → 卡死态，滚轮也救不回）。普通情况（新弹窗）这样够用。
+      const resetJs = `(function(){
+        function firstByName(doc,name){ var fs=doc.querySelectorAll('iframe'); for(var i=0;i<fs.length;i++){if(fs[i].name===name)return fs[i];} return null; }
+        var rf = firstByName(document,'recommendFrame');
+        var rd = (rf && rf.contentDocument) ? rf.contentDocument : document;
+        var wrap = rd.querySelector('.resume-detail-wrap');
+        if (wrap) { wrap.style.scrollBehavior = 'auto'; wrap.scrollTop = 0; return 'reset:' + wrap.scrollTop; }
+        return 'no-wrap';
+      })()`;
+      // 卡死恢复：重载 c-resume iframe → Boss 简历渲染器全新启动，canvas 必然回顶（translateY=0）
+      const reloadJs = `(function(){
+        function firstByName(doc,name){ var fs=doc.querySelectorAll('iframe'); for(var i=0;i<fs.length;i++){if(fs[i].name===name)return fs[i];} return null; }
+        var rf = firstByName(document,'recommendFrame');
+        var rd = (rf && rf.contentDocument) ? rf.contentDocument : document;
+        var wrap = rd.querySelector('.resume-detail-wrap');
+        var iframe = wrap ? wrap.querySelector('iframe') : null;
+        if (!iframe) return 'no-iframe';
+        iframe.src = iframe.src; return 'reloading';
+      })()`;
+      await sendCDP('Runtime.evaluate', { expression: resetJs, returnByValue: true }, sid);
+      // 1) 主页面穿透（通用，推荐页/搜索页都支持）：
+      //    找 .resume-detail-wrap 滚动容器 → 其内简历 iframe → canvas；用 frameOffset 逐层累加 iframe 偏移到主视口坐标。
+      //    推荐页：recommendFrame.contentDocument 里有弹窗；搜索页：弹窗直接在主页面 DOM。优先 recommendFrame，回退主页面。
+      const infoJs = `(function(){
+        function firstByName(doc,name){ var fs=doc.querySelectorAll('iframe'); for(var i=0;i<fs.length;i++){if(fs[i].name===name)return fs[i];} return null; }
+        function frameOffset(el){
+          var ox=0, oy=0, curWin = el.ownerDocument ? el.ownerDocument.defaultView : null;
+          var guard = 0;
+          while (curWin && curWin !== window && guard++ < 10) {
+            var fe = curWin.frameElement;
+            if (!fe) break;
+            var r = fe.getBoundingClientRect();
+            ox += r.x; oy += r.y;
+            curWin = curWin.parent;
+          }
+          return { x: ox, y: oy };
+        }
+        var scopes = [];
+        var rf = firstByName(document,'recommendFrame');
+        if (rf && rf.contentDocument) scopes.push(rf.contentDocument);
+        scopes.push(document);
+        for (var s=0; s<scopes.length; s++) {
+          var doc = scopes[s];
+          var wrap = doc.querySelector('.resume-detail-wrap');
+          if (!wrap) continue;
+          var iframe = wrap.querySelector('iframe');
+          if (!iframe) continue;
+          var idoc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+          if (!idoc) continue;
+          var cv = idoc.querySelector('#resume canvas') || idoc.querySelector('#resume') || idoc.querySelector('canvas');
+          if (!cv) continue;
+          var cv2 = cv.tagName === 'CANVAS' ? cv : (cv.querySelector ? cv.querySelector('canvas') : null);
+          if (!cv2 || cv2.width < 50 || cv2.height < 50) continue;
+          var cr = cv2.getBoundingClientRect();
+          var off = frameOffset(iframe);
+          var canvasMain = { x: Math.round(off.x + cr.x), y: Math.round(off.y + cr.y), w: Math.round(cr.width), h: Math.round(cr.height) };
+          return JSON.stringify({ canvasMain: canvasMain, scrollMax: Math.max(0, wrap.scrollHeight - wrap.clientHeight), scope: s, winH: window.innerHeight });
+        }
+        return JSON.stringify({ error: 'no-canvas-scope' });
+      })()`;
+      // 1.5) 轮询等待 canvas 回顶。先短轮询 ≤2s（新弹窗通常立即在顶）；若一直没回顶（卡死态）→ 重载 iframe 重建
+      //      渲染状态（确定性回顶），再轮询 ≤8s。仍不归顶则报错走截图。
+      const pollInfo = async (rounds, gapMs) => {
+        let last = { info: null, canvasY: null };
+        for (let i = 0; i < rounds; i++) {
+          const pollResp = await sendCDP('Runtime.evaluate', { expression: infoJs, returnByValue: true }, sid);
+          try { last.info = JSON.parse(pollResp.result?.result?.value); } catch { last.info = null; }
+          if (last.info && last.info.canvasMain) {
+            last.canvasY = last.info.canvasMain.y;
+            if (last.canvasY < 120) break;
+          }
+          await sleepMs(gapMs);
+        }
+        return last;
+      };
+      let { info, canvasY } = await pollInfo(4, 500);
+      if (info && !info.error && canvasY !== null && canvasY >= 120) {
+        console.log(`[canvas-copy] canvas 未回顶(y=${canvasY})，重载 c-resume iframe 重建渲染状态`);
+        await sendCDP('Runtime.evaluate', { expression: reloadJs, returnByValue: true }, sid);
+        await sleepMs(500);
+        await sendCDP('Runtime.evaluate', { expression: resetJs, returnByValue: true }, sid);
+        ({ info, canvasY } = await pollInfo(16, 500));
+      }
+      if (!info || info.error || canvasY === null || canvasY >= 120) {
+        res.end(JSON.stringify({ error: `canvas 未归顶或找不到 (y=${canvasY})` }));
+        return;
+      }
+      const { canvasMain, scrollMax, scope } = info;
+      if (!canvasMain || canvasMain.h < 100) { res.end(JSON.stringify({ error: 'canvas 不在简历弹窗内' })); return; }
+
+      // 2) 拖拽选中：从简历顶部文字区按住，拖到当前屏底部（不超出视口）
+      const X0 = canvasMain.x + Math.round(canvasMain.w * 0.4);
+      const Y0 = canvasMain.y + 60;                       // 顶部文字（跳过头部留白，尽量抓首行）
+      let Y1 = canvasMain.y + canvasMain.h - 30;          // 当前屏底部
+      if (info.winH) Y1 = Math.min(Y1, info.winH - 40);   // 视口钳制
+      if (Y1 <= Y0 + 40) Y1 = Y0 + 40;
+      await sendCDP('Input.dispatchMouseEvent', { type: 'mouseMoved', x: X0, y: Y0 }, sid);
+      await sleepMs(100);
+      await sendCDP('Input.dispatchMouseEvent', { type: 'mousePressed', x: X0, y: Y0, button: 'left', clickCount: 1, buttons: 1 }, sid);
+      await sleepMs(80);
+      const dragSteps = 16;
+      for (let i = 1; i <= dragSteps; i++) {
+        await sendCDP('Input.dispatchMouseEvent', { type: 'mouseMoved', x: X0, y: Y0 + Math.round((Y1 - Y0) * i / dragSteps), button: 'left', buttons: 1 }, sid);
+        await sleepMs(22);
+      }
+      await sleepMs(150);
+
+      // 3) 按住滚动容器到底（Boss 选中基于文档坐标，滚动后选区持续扩展）
+      //    与 info 阶段同一 scope：scope===0 → recommendFrame.contentDocument，否则主页面
+      const stepH = Math.max(300, Math.round(canvasMain.h * 0.9));
+      let scrolled = 0;
+      while (scrolled < scrollMax) {
+        scrolled = Math.min(scrolled + stepH, scrollMax);
+        const scrollJs = `(function(){
+          function firstByName(doc,name){ var fs=doc.querySelectorAll('iframe'); for(var i=0;i<fs.length;i++){if(fs[i].name===name)return fs[i];} return null; }
+          var rf = firstByName(document,'recommendFrame');
+          var rd = (${scope === 0}) && rf && rf.contentDocument ? rf.contentDocument : document;
+          var wrap = rd.querySelector('.resume-detail-wrap'); if(!wrap) return 'no';
+          wrap.scrollTop=${scrolled}; return 'ok';
+        })()`;
+        await sendCDP('Runtime.evaluate', { expression: scrollJs, returnByValue: true }, sid);
+        await sleepMs(350);   // 等 Boss 平滑滚动 + 重绘
+        await sendCDP('Input.dispatchMouseEvent', { type: 'mouseMoved', x: X0 + 30, y: Y1, button: 'left', buttons: 1 }, sid);
+        await sleepMs(150);
+      }
+
+      // 3.5) 选区延伸到内容最底部：滚到底后最后一行（页脚「…任何第三方平台…存储」）贴近画布底边，
+      //      之前 Y1 留了 30px 余量，会把末字漏选，这里把选区终点压到画布底（视口内钳制）。
+      let YB = Y1;
+      const yBottom = Math.min(canvasMain.y + canvasMain.h - 2, (info.winH || 900) - 2);
+      if (yBottom > Y1 + 10) {
+        YB = yBottom;
+        const extSteps = 10;
+        for (let i = 1; i <= extSteps; i++) {
+          await sendCDP('Input.dispatchMouseEvent', { type: 'mouseMoved', x: X0 + 30, y: Y1 + Math.round((YB - Y1) * i / extSteps), button: 'left', buttons: 1 }, sid);
+          await sleepMs(25);
+        }
+        await sleepMs(200);
+      }
+
+      // 4) 松开 + 真实 Ctrl+C → 全文进入系统剪贴板
+      await sendCDP('Input.dispatchMouseEvent', { type: 'mouseReleased', x: X0 + 30, y: YB, button: 'left', clickCount: 1, buttons: 0 }, sid);
+      await sleepMs(300);
+      const CTRL = 2;
+      await sendCDP('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17, modifiers: 0 }, sid);
+      await sendCDP('Input.dispatchKeyEvent', { type: 'keyDown', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL }, sid);
+      await sendCDP('Input.dispatchKeyEvent', { type: 'keyUp', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL }, sid);
+      await sendCDP('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17, modifiers: 0 }, sid);
+      await sleepMs(500);
+      res.end(JSON.stringify({ ok: true, canvasMain, scrollMax, scrolled, scope, winH: info.winH, yBottom: (info.winH || 900) - 2 }));
     }
 
     // POST /setFiles?target=xxx — 给 file input 设置本地文件（绕过文件对话框）
@@ -794,6 +1021,7 @@ const server = http.createServer(async (req, res) => {
           '/isolated-world?target=&frame=': 'GET - 用 Page.createIsolatedWorld 为 frame 创建执行上下文（Chrome 151+）',
           '/eval-context?target=&context=': 'POST body=JS表达式 - 在指定执行上下文执行 JS',
           '/click?target=': 'POST body=CSS选择器 - 点击元素',
+          '/keyseq?target=': 'POST body=JSON - 发送真实按键序列（Ctrl+C 触发页面 copy 处理器）',
           '/scroll?target=&y=&direction=': 'GET - 滚动页面',
           '/wheel?target=': 'POST body=JSON - 真实鼠标滚轮事件',
           '/screenshot?target=&file=': 'GET - 截图',

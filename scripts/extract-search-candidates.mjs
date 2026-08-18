@@ -25,7 +25,9 @@ import {
   proxyGet, proxyPost, sleep, randomDelay,
   cdpEval, prepareTab,
   ocrScreenshots,
-  safeName, findFrameInTree,
+  safeName, findFrameInTree, diagnoseResumeIframeDom, probeFramesForResumeText, COPY_JUNK_RE,
+  tryExtractResumeTextByTrustedCopy,
+  tryExtractCanvasResumeByDragCopy,
   getScanCachePath, getProgressPath,
   saveScanCache, loadScanCache, saveProgress, loadProgress, cleanupCacheFiles,
   archiveOldOutput,
@@ -589,55 +591,117 @@ async function tryExtractSearchResumeTextFromDOM(targetId) {
       const framesResp = await proxyGet(`/frames?target=${targetId}`);
       if (framesResp.frameTree) {
         const targetFrame = findFrameInTree(framesResp.frameTree, nestedSrc);
-        let ctx = null;
-        if (targetFrame) {
-          const contexts = framesResp.executionContexts || [];
-          ctx = contexts.find(c => c.frameId === targetFrame.id) || null;
-          // v1.3.30: Chrome 151+ 移除了 Runtime.getExecutionContexts（executionContexts 恒为空），
-          // 改用 Page.createIsolatedWorld 按 frameId 拿 contextId，再配合 /eval-context 读简历文本
-          if (!ctx) {
-            try {
-              const iw = await proxyGet(`/isolated-world?target=${targetId}&frame=${encodeURIComponent(targetFrame.id)}`);
-              if (iw && iw.executionContextId) ctx = { id: iw.executionContextId };
-            } catch {}
+        const contexts = framesResp.executionContexts || [];
+        let ctx = targetFrame ? contexts.find(c => c.frameId === targetFrame.id) : null;
+        // v1.3.30: Chrome 151+ 移除了 Runtime.getExecutionContexts，优先旧 context，拿不到则用 createIsolatedWorld
+        if (!ctx && targetFrame) {
+          try {
+            const iw = await proxyGet(`/isolated-world?target=${targetId}&frame=${encodeURIComponent(targetFrame.id)}`);
+            if (iw && iw.executionContextId) ctx = { id: iw.executionContextId };
+            else console.warn(`  🔍 DOM提取诊断(搜索): createIsolatedWorld 未返回 contextId: ${JSON.stringify(iw)}`);
+          } catch (e) {
+            console.warn(`  🔍 DOM提取诊断(搜索): createIsolatedWorld 异常: ${e.message}`);
           }
         }
         if (ctx) {
-          const result = await proxyPost(`/eval-context?target=${targetId}&context=${ctx.id}`, `(function(){
-            var resumeDiv = document.querySelector('#resume') || document.querySelector('body');
-            if (!resumeDiv) return null;
-            var text = (resumeDiv.textContent || '').replace(/\\s+/g, ' ').trim();
-            return text.length > ${DOM_MIN_TEXT_LEN} ? text : null;
-          })()`);
-          if (result.value) return result.value;
+          // 内容可能加载慢：轮询最多约 5s，等 iframe 内简历正文渲染出来再读。
+          // v1.3.32: 首次读取即探测 canvas —— Boss 简历弹窗把部分简历渲染成 canvas 图片（DOM 无文字），
+          //           探测到"有 canvas 像素、无文字"立刻放弃 DOM 提取，避免每人都空转轮询 5s 再降级截图。
+          const ctxDeadline = Date.now() + 5000;
+          while (Date.now() < ctxDeadline) {
+            const result = await proxyPost(`/eval-context?target=${targetId}&context=${ctx.id}`, `(function(){
+              var resumeDiv = document.querySelector('#resume') || document.querySelector('body');
+              if (!resumeDiv) return null;
+              var text = (resumeDiv.textContent || '').replace(/\\s+/g, ' ').trim();
+              if (text.length > ${DOM_MIN_TEXT_LEN}) { if (/${COPY_JUNK_RE}/.test(text)) return null; return text; }
+              var cv = document.querySelector('canvas');
+              if (cv && cv.width > 50 && cv.height > 50) {
+                // v1.3.42: Boss 新版 wasm-resume-container 把简历画成 canvas，复制处理器不生成文本，直接标记 WASM 走截图
+                if (/wasm-resume-container|zhipin-boss\\/wasm|wasm-resume/i.test(document.body.innerHTML || '')) return '__WASM_CANVAS_RESUME__';
+                return '__CANVAS_RESUME__';
+              }
+              return null;
+            })()`);
+            if (result && result.value) {
+              if (result.value === '__WASM_CANVAS_RESUME__') {
+                // v1.3.43: WASM canvas 简历复制走系统剪贴板，改为模拟「拖拽滚动选中 + Ctrl+C」再从系统剪贴板读取
+                const copied = await tryExtractCanvasResumeByDragCopy(targetId, '搜索');
+                if (copied) return copied;
+                console.log('  → 简历为 WASM 图片渲染（拖拽复制也未命中），跳过 DOM 提取直接截图');
+                return null;
+              }
+              if (result.value === '__CANVAS_RESUME__') {
+                // v1.3.39: 旧版 canvas 简历仍尝试真实 Ctrl+C（部分环境复制处理器会生成简历全文）
+                const copied = await tryExtractResumeTextByTrustedCopy(targetId, ctx, '搜索');
+                if (copied) return copied;
+                console.log('  → 简历为 canvas 图片渲染（真实复制也未命中），跳过 DOM 提取直接截图');
+                return null;
+              }
+              console.log(`  ✓ DOM提取简历文本 (搜索 iframe内, ${result.value.length} 字)`);
+              return result.value;
+            }
+            await sleep(500);
+          }
         }
         // 方式一B（v1.3.27）：同域简历 iframe 直接从主页面读 iframe.contentDocument。
         // 有的电脑上简历弹窗用「同网站小网页」（iframe，非 OOPIF），CDP 拿不到独立 execution context，
         // 但主页面能直接访问 iframe.contentDocument，把 #resume 文本捞出来（比截图 OCR 快 30-100 倍）。
+        // v1.3.31: 轮询等待 iframe 内容加载（加载慢时单次读取是空壳）。
         try {
-          const sameOriginText = await cdpEval(targetId, `(function(){
-            var wrap = document.querySelector('.boss-popup__wrapper.boss-dialog.dialog-lib-resume');
-            if (!wrap) return null;
-            var content = wrap.querySelector('.boss-popup__content');
-            if (!content) return null;
-            var detailWrap = content.querySelector('.resume-detail-wrap');
-            if (!detailWrap) return null;
-            var iframe = detailWrap.querySelector('iframe');
-            if (!iframe) return null;
-            try {
-              var idoc = iframe.contentDocument || iframe.contentWindow.document;
-              if (!idoc) return null;
-              var resumeDiv = idoc.querySelector('#resume') || idoc.querySelector('body');
-              if (!resumeDiv) return null;
-              var text = (resumeDiv.textContent || '').replace(/\\s+/g, ' ').trim();
-              return text.length > ${DOM_MIN_TEXT_LEN} ? text : null;
-            } catch (e) { return null; }
-          })()`);
-          if (sameOriginText) {
-            console.log(`  ✓ DOM提取简历文本 (搜索同域iframe, ${sameOriginText.length} 字)`);
-            return sameOriginText;
+          const bDeadline = Date.now() + 4000;
+          while (Date.now() < bDeadline) {
+            const sameOriginText = await cdpEval(targetId, `(function(){
+              var wrap = document.querySelector('.boss-popup__wrapper.boss-dialog.dialog-lib-resume');
+              if (!wrap) return null;
+              var content = wrap.querySelector('.boss-popup__content');
+              if (!content) return null;
+              var detailWrap = content.querySelector('.resume-detail-wrap');
+              if (!detailWrap) return null;
+              var iframe = detailWrap.querySelector('iframe');
+              if (!iframe) return null;
+              try {
+                var idoc = iframe.contentDocument || iframe.contentWindow.document;
+                if (!idoc) return null;
+                var resumeDiv = idoc.querySelector('#resume') || idoc.querySelector('body');
+                if (!resumeDiv) return null;
+                var text = (resumeDiv.textContent || '').replace(/\\s+/g, ' ').trim();
+                if (text.length > ${DOM_MIN_TEXT_LEN}) { if (/${COPY_JUNK_RE}/.test(text)) return null; return text; }
+                var cv = idoc.querySelector('canvas');
+                if (cv && cv.width > 50 && cv.height > 50) {
+                  if (/wasm-resume-container|zhipin-boss\\/wasm|wasm-resume/i.test(idoc.body.innerHTML || '')) return '__WASM_CANVAS_RESUME__';
+                  return '__CANVAS_RESUME__';
+                }
+                return null;
+              } catch (e) { return null; }
+            })()`);
+            if (sameOriginText === '__WASM_CANVAS_RESUME__') {
+              // v1.3.43: WASM canvas 简历改为模拟拖拽滚动复制 + 读系统剪贴板（不依赖 ctx）
+              const copied = await tryExtractCanvasResumeByDragCopy(targetId, '搜索');
+              if (copied) return copied;
+              console.log('  → 简历为 WASM 图片渲染（同域iframe，拖拽复制也未命中），跳过 DOM 提取直接截图');
+              return null;
+            }
+            if (sameOriginText === '__CANVAS_RESUME__') {
+              // v1.3.39: 旧版 canvas 简历，尝试真实 Ctrl+C 复制提取（ctx 存在时）
+              const copied = ctx ? await tryExtractResumeTextByTrustedCopy(targetId, ctx, '搜索') : null;
+              if (copied) return copied;
+              console.log('  → 简历为 canvas 图片渲染（同域iframe 无文字），跳过 DOM 提取直接截图');
+              return null;
+            }
+            if (sameOriginText) {
+              console.log(`  ✓ DOM提取简历文本 (搜索同域iframe, ${sameOriginText.length} 字)`);
+              return sameOriginText;
+            }
+            await sleep(500);
           }
-        } catch {}
+        } catch (e) {
+          console.warn(`  🔍 DOM提取诊断(搜索): 方式一B 同域iframe读取异常: ${e.message}`);
+        }
+        // 兜底：简历可能在更深一层的 iframe 里（frame 树逐个轮询，最多约 6s）
+        const deepText = await probeFramesForResumeText(targetId, nestedSrc, '搜索');
+        if (deepText) return deepText;
+        // 详细诊断：逐环节打印 frame 匹配 / isolatedWorld / canvas 探测（区分 HTML 简历 vs 图片简历）
+        await diagnoseResumeIframeDom(targetId, nestedSrc, '搜索');
         // 诊断：简历 iframe 在主页面 session 找不到执行上下文，可能是 OOPIF（跨域 iframe 独立进程）。
         // Target.getTargets(all=1) 里若有 type=iframe 且 url 含该简历的独立 target，即可通过 attach 直接读取。
         try {
@@ -651,7 +715,9 @@ async function tryExtractSearchResumeTextFromDOM(targetId) {
         }
       }
     }
-  } catch {}
+  } catch (e) {
+    console.warn(`  🔍 DOM提取诊断(搜索): 方式一异常: ${e.message}`);
+  }
 
   // ===== 方式二：直接在弹窗容器提取文本（无嵌套 iframe 时兜底，与推荐页一致，v1.3.28） =====
   // 有的电脑上简历直接渲染在弹窗 DOM 里（无 iframe 或 iframe 读不到），
@@ -665,10 +731,11 @@ async function tryExtractSearchResumeTextFromDOM(targetId) {
       var detailWrap = content.querySelector('.resume-detail-wrap');
       if (detailWrap) {
         var t = (detailWrap.textContent || '').replace(/\\s+/g, ' ').trim();
-        if (t.length > ${DOM_MIN_TEXT_LEN}) return t;
+        if (t.length > ${DOM_MIN_TEXT_LEN}) { if (/${COPY_JUNK_RE}/.test(t)) return null; return t; }
       }
       var text = (content.textContent || '').replace(/\\s+/g, ' ').trim();
-      return text.length > ${DOM_MIN_TEXT_LEN} ? text : null;
+      if (text.length > ${DOM_MIN_TEXT_LEN}) { if (/${COPY_JUNK_RE}/.test(text)) return null; return text; }
+      return null;
     })()`);
     if (direct) {
       console.log(`  ✓ DOM提取简历文本 (搜索弹窗直接读取, ${direct.length} 字)`);
@@ -705,7 +772,8 @@ async function scrollSearchResume(targetId, scrollTop) {
     best.style.scrollBehavior = 'auto';
     best.scrollTop = ${scrollTop};
   })()`);
-  await randomDelay(250, 400);
+  // v1.3.31: 滚动等待 250-400 → 180-280ms（截图提速，仍保留防反爬节奏）
+  await randomDelay(180, 280);
 }
 
 /**
@@ -1088,6 +1156,10 @@ async function main() {
       if (card.advantage) candidateData.advantage = card.advantage;
 
       try {
+        // 截图区域 clip：声明在外层 try 作用域，内层截图 try/catch 都能引用。
+        // 若只在内层 try 里用 let 声明，catch 是独立块作用域看不到它，
+        // 出错时会抛 "clip is not defined" 把真实截图失败原因覆盖掉（v1.3.16/1.3.42 实测）。
+        let clip = null;
         // 1. 点击卡片打开简历弹窗
         console.log('  → 点击卡片打开简历...');
         const dialogOpened = await clickCardToOpenResume(targetId, expectId, globalIndex - 1);
@@ -1101,11 +1173,6 @@ async function main() {
         // 2. 截图 + OCR
         try {
           const sname = safeName(displayName);
-
-          // 截图区域 clip 提升到 try 作用域：若在 else 块内声明，
-          // 外层 catch 引用它会因块级作用域抛 "clip is not defined"，
-          // 反而把真实截图失败原因覆盖掉（v1.3.16 实测）
-          let clip = null;
 
           // 先尝试直接从 DOM 提取简历文本
           const domText = await tryExtractSearchResumeTextFromDOM(targetId);
@@ -1134,7 +1201,8 @@ async function main() {
                 console.log(`    弹窗内容: clip=${clipOk ? `${clip.width}x${clip.height}` : '空'}, 可滚动=${scrollOk ? `${info.scrollHeight}px` : '无'}`);
               }
               if (clipOk || scrollOk) break;
-              await randomDelay(1200, 1800);
+              // v1.3.31: 内容就绪等待 1200-1800 → 800-1100ms（仅内容未就绪时才等，多数情况第一轮就 break）
+              await randomDelay(800, 1100);
             }
             if (info.error) throw new Error(info.error);
 
@@ -1195,7 +1263,8 @@ async function main() {
                   console.warn(`    ⚠ 截图第 ${page + 1}/${pages} 页失败 (${retry + 1}/3): ${e.message}`);
                   if (retry < 2) {
                     // 失败多半是内容未渲染完：等待更久 + 重新获取弹窗区域 + 重新滚动定位，再重试
-                    await randomDelay(1200, 2000);
+                    // v1.3.31: 重试等待 1200-2000 → 800-1200ms（截图提速，重试不频繁触发）
+                    await randomDelay(800, 1200);
                     try {
                       clip = await getSearchDialogClip(targetId);
                     } catch {}
@@ -1206,7 +1275,8 @@ async function main() {
               }
               if (!success) throw new Error(`截图第 ${page + 1}/${pages} 页多次失败`);
 
-              if (page < pages - 1) await randomDelay(300, 500);
+              // v1.3.31: 页间等待 300-500 → 220-350ms（截图提速，仍保留防反爬节奏）
+              if (page < pages - 1) await randomDelay(220, 350);
             }
 
             console.log('  → OCR 识别（后台进行，与关闭弹窗重叠）...');
