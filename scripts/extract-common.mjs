@@ -371,6 +371,14 @@ export async function scrollResume(targetId, scrollTop) {
 
 // ===== 通用弹窗关闭 =====
 
+async function popupStillVisible(targetId, popupSelector) {
+  const r = await cdpEval(targetId, `(function(){
+    var popup = document.querySelector('${popupSelector}');
+    return !!(popup && popup.offsetParent !== null);
+  })()`);
+  return r;
+}
+
 export async function closeBossPopup(targetId, popupSelector, label = '弹窗') {
   // 先尝试 Escape 键关闭（keydown + keyup 兼容 React 等框架）
   await cdpEval(targetId, `(function(){
@@ -402,12 +410,7 @@ export async function closeBossPopup(targetId, popupSelector, label = '弹窗') 
   // 弹窗已响应（Escape 生效或已点关闭按钮）：短等确认收起即返回，不空等
   await randomDelay(180, 320);
 
-  const stillVisible = await cdpEval(targetId, `(function(){
-    var popup = document.querySelector('${popupSelector}');
-    if (popup && popup.offsetParent !== null) return 'still-visible';
-    return 'closed';
-  })()`);
-  if (stillVisible !== 'still-visible') {
+  if (!(await popupStillVisible(targetId, popupSelector))) {
     await randomDelay(120, 240);
     return true;
   }
@@ -426,12 +429,7 @@ export async function closeBossPopup(targetId, popupSelector, label = '弹窗') 
   })()`);
   await randomDelay(400, 700);
 
-  const retryCheck = await cdpEval(targetId, `(function(){
-    var popup = document.querySelector('${popupSelector}');
-    if (popup && popup.offsetParent !== null) return 'still-visible';
-    return 'closed';
-  })()`);
-  if (retryCheck === 'still-visible') {
+  if (await popupStillVisible(targetId, popupSelector)) {
     await cdpEval(targetId, `(function(){
       var dialogWrap = document.querySelector('.dialog-wrap.active');
       if (dialogWrap) dialogWrap.remove();

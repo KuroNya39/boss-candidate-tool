@@ -638,27 +638,17 @@ async function extractJobDescription(targetId) {
   })()`);
   if (clickResult === 'not-found') return null;
 
-  // 点击岗位名后轮询等待 JD 弹窗内容就绪（快则早读，慢则最多等约 2.3s）
-  // 替代固定 500-800ms：弹窗秒开就秒读，省掉空等
+  // 页面内单次求值：等待 JD 弹窗内容就绪后直接读取（/eval 支持 awaitPromise，
+  // 一次往返完成"等待+读取"，替代固定 500-800ms 空等，也避免多次 HTTP 轮询往返）
   await randomDelay(120, 240);
-  let dialogReady = false;
-  for (let i = 0; i < 20; i++) {
-    const state = await cdpEval(targetId, `(function(){
+  const detail = await cdpEval(targetId, `(async function(){
+    var deadline = Date.now() + 2600;
+    while (Date.now() < deadline) {
       var d = document.querySelector('.job-details-dialog');
-      if (!d || d.offsetParent === null) return 'none';
-      var c = d.querySelector('.job-details, .job-detail-content, .detail-content, .job-sec');
-      if (c && c.textContent.trim().length > 30) return 'ready';
-      return 'loading';
-    })()`);
-    if (state === 'ready') { dialogReady = true; break; }
-    await sleep(90 + Math.floor(Math.random() * 40));
-  }
-  if (!dialogReady) {
-    // 迟迟没就绪：补一个固定等待再读（保持原有兜底）
-    await randomDelay(300, 500);
-  }
-
-  const detail = await cdpEval(targetId, `(function(){
+      var c = d && d.querySelector('.job-details,.job-detail-content,.detail-content,.job-sec');
+      if (c && c.textContent.trim().length > 30) break;
+      await new Promise(function(r){ setTimeout(r, 100); });
+    }
     var dialog = document.querySelector('.job-details-dialog');
     if (!dialog) return JSON.stringify(null);
     var info = {};
@@ -671,10 +661,7 @@ async function extractJobDescription(targetId) {
       if (salaryEl) info.salary = salaryEl.textContent.trim();
     } catch(e) {}
     try {
-      var detailContent = dialog.querySelector('.job-details')
-        || dialog.querySelector('.job-detail-content')
-        || dialog.querySelector('.detail-content')
-        || dialog.querySelector('.job-sec');
+      var detailContent = dialog.querySelector('.job-details,.job-detail-content,.detail-content,.job-sec');
       if (detailContent) info.description = detailContent.textContent.trim();
       else info.description = dialog.textContent.trim();
     } catch(e) {}
