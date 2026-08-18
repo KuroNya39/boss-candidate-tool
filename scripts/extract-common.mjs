@@ -380,7 +380,7 @@ export async function closeBossPopup(targetId, popupSelector, label = '弹窗') 
       }));
     });
   })()`);
-  await randomDelay(400, 800);
+  await randomDelay(250, 450);
 
   const closed = await cdpEval(targetId, `(function(){
     var popup = document.querySelector('${popupSelector}');
@@ -397,47 +397,51 @@ export async function closeBossPopup(targetId, popupSelector, label = '弹窗') 
     if (pageClose) { pageClose.click(); return 'clicked-page'; }
     return 'no-close-btn';
   })()`);
-  await randomDelay(800, 1500);
-
   if (closed === 'not-exist') return true;
+
+  // 弹窗已响应（Escape 生效或已点关闭按钮）：短等确认收起即返回，不空等
+  await randomDelay(180, 320);
 
   const stillVisible = await cdpEval(targetId, `(function(){
     var popup = document.querySelector('${popupSelector}');
     if (popup && popup.offsetParent !== null) return 'still-visible';
     return 'closed';
   })()`);
-
-  if (stillVisible === 'still-visible') {
-    await cdpEval(targetId, `(function(){
-      var dialogWrap = document.querySelector('.dialog-wrap.active');
-      var closeBtn = dialogWrap && dialogWrap.querySelector('.close-btn');
-      if (!closeBtn) {
-        var popup = document.querySelector('${popupSelector}');
-        closeBtn = popup && (popup.querySelector('.close-btn')
-          || popup.querySelector('.boss-popup__close')
-          || popup.querySelector('[class*="close"]'));
-      }
-      if (closeBtn) closeBtn.click();
-    })()`);
-    await randomDelay(800, 1500);
-
-    const retryCheck = await cdpEval(targetId, `(function(){
-      var popup = document.querySelector('${popupSelector}');
-      if (popup && popup.offsetParent !== null) return 'still-visible';
-      return 'closed';
-    })()`);
-
-    if (retryCheck === 'still-visible') {
-      await cdpEval(targetId, `(function(){
-        var dialogWrap = document.querySelector('.dialog-wrap.active');
-        if (dialogWrap) dialogWrap.remove();
-      })()`);
-      console.warn(`  ⚠ ${label}关闭失败，已强制移除DOM`);
-      await randomDelay(300, 500);
-      return false;
-    }
+  if (stillVisible !== 'still-visible') {
+    await randomDelay(120, 240);
+    return true;
   }
 
+  // 弹窗还在 → 再点一次关闭按钮
+  await cdpEval(targetId, `(function(){
+    var dialogWrap = document.querySelector('.dialog-wrap.active');
+    var closeBtn = dialogWrap && dialogWrap.querySelector('.close-btn');
+    if (!closeBtn) {
+      var popup = document.querySelector('${popupSelector}');
+      closeBtn = popup && (popup.querySelector('.close-btn')
+        || popup.querySelector('.boss-popup__close')
+        || popup.querySelector('[class*="close"]'));
+    }
+    if (closeBtn) closeBtn.click();
+  })()`);
+  await randomDelay(400, 700);
+
+  const retryCheck = await cdpEval(targetId, `(function(){
+    var popup = document.querySelector('${popupSelector}');
+    if (popup && popup.offsetParent !== null) return 'still-visible';
+    return 'closed';
+  })()`);
+  if (retryCheck === 'still-visible') {
+    await cdpEval(targetId, `(function(){
+      var dialogWrap = document.querySelector('.dialog-wrap.active');
+      if (dialogWrap) dialogWrap.remove();
+    })()`);
+    console.warn(`  ⚠ ${label}关闭失败，已强制移除DOM`);
+    await randomDelay(300, 500);
+    return false;
+  }
+
+  await randomDelay(120, 240);
   return true;
 }
 

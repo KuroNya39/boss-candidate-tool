@@ -638,7 +638,25 @@ async function extractJobDescription(targetId) {
   })()`);
   if (clickResult === 'not-found') return null;
 
-  await randomDelay(500, 800);
+  // 点击岗位名后轮询等待 JD 弹窗内容就绪（快则早读，慢则最多等约 2.3s）
+  // 替代固定 500-800ms：弹窗秒开就秒读，省掉空等
+  await randomDelay(120, 240);
+  let dialogReady = false;
+  for (let i = 0; i < 20; i++) {
+    const state = await cdpEval(targetId, `(function(){
+      var d = document.querySelector('.job-details-dialog');
+      if (!d || d.offsetParent === null) return 'none';
+      var c = d.querySelector('.job-details, .job-detail-content, .detail-content, .job-sec');
+      if (c && c.textContent.trim().length > 30) return 'ready';
+      return 'loading';
+    })()`);
+    if (state === 'ready') { dialogReady = true; break; }
+    await sleep(90 + Math.floor(Math.random() * 40));
+  }
+  if (!dialogReady) {
+    // 迟迟没就绪：补一个固定等待再读（保持原有兜底）
+    await randomDelay(300, 500);
+  }
 
   const detail = await cdpEval(targetId, `(function(){
     var dialog = document.querySelector('.job-details-dialog');
