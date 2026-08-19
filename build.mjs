@@ -89,10 +89,18 @@ function buildReleaseNotes() {
     if (existsSync(manualFile)) {
       const manual = readFileSync(manualFile, 'utf-8').trim();
       if (manual) {
+        // 只取第一个「## 更新内容（X月X日）」段落：GitHub release 只保留当天最新一版，
+        // 即使 RELEASE_NOTES.md 里堆积了历史日期，发布说明也不会把多天内容混在一起
+        let section = manual;
+        const firstHead = manual.indexOf('## 更新内容（');
+        if (firstHead >= 0) {
+          const secondHead = manual.indexOf('## 更新内容（', firstHead + 1);
+          if (secondHead > firstHead) section = manual.slice(firstHead, secondHead).trim();
+        }
         // 手写定稿里已含下载表则直接使用，避免重复追加
-        const final = manual.includes('## 下载')
-          ? manual
-          : `${manual}\n\n${downloadTable}`;
+        const final = section.includes('## 下载')
+          ? section
+          : `${section}\n\n${downloadTable}`;
         writeFileSync(notesPath, final, 'utf-8');
         console.log(`  Release 说明已生成（使用 RELEASE_NOTES.md 手写定稿）: ${notesPath}`);
         return notesPath;
