@@ -21,7 +21,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   proxyGet, proxyPost, sleep, randomDelay,
-  cdpEval, prepareTab,
+  cdpEval, prepareTab, ensureChromeWindowVisible,
   closeBossPopup,
   captureResumeScreenshots,
   ocrScreenshots,
@@ -302,6 +302,8 @@ async function scanAllCards(targetId, opts = {}) {
   let prevScrollHeight = 0;
 
   for (let attempt = 0; attempt < maxScrollAttempts; attempt++) {
+    // 扫描期若被最小化会冻结渲染，列表加载不出来 → 自动恢复窗口（4s 缓存，开销可忽略）
+    await ensureChromeWindowVisible(targetId, '推荐牛人页');
     // 读取当前可见的卡片信息
     let visibleCards;
     try {
@@ -409,6 +411,8 @@ async function scanUpToCards(targetId, count, opts = {}) {
   let prevScrollHeight = 0;
 
   for (let attempt = 0; attempt < maxScrollAttempts; attempt++) {
+    // 扫描期若被最小化会冻结渲染，列表加载不出来 → 自动恢复窗口（4s 缓存，开销可忽略）
+    await ensureChromeWindowVisible(targetId, '推荐牛人页');
     if (cardInfos.length >= count) break;
 
     let visibleCards;
@@ -1204,6 +1208,8 @@ async function main() {
 
     // 按实际窗口尺寸设置视口（DPR=2 提升 OCR 清晰度），避免布局塌缩、网页变形
     await prepareTab(targetId);
+    // 确保 Chrome 窗口非最小化（最小化会冻结渲染，扫描/拖拽复制明显变慢，自动恢复）
+    await ensureChromeWindowVisible(targetId, '推荐牛人页');
 
     // 如果指定了岗位，先切换再等待加载（避免浪费等待默认岗位的候选人）
     // 注意：--attach 模式下跳过岗位切换（用户已手动选好岗位和筛选条件）

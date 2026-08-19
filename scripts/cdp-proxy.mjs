@@ -1061,6 +1061,36 @@ const server = http.createServer(async (req, res) => {
       }));
     }
 
+    // GET /window-restore?target=xxx - 若 Chrome 窗口被最小化则恢复为普通窗口
+    // 提取期间（列表滚动加载、WASM 画布简历「拖拽滚动复制」）需要页面持续重绘；
+    // 窗口最小化会被浏览器冻结渲染/重绘 → 画布滚动后不更新 → 复制拿不到新内容、
+    // 反复重试并退回截图 OCR，明显变慢。自动恢复窗口后用户无需记着"别最小化"。
+    // 仅在状态为 minimized 时才 setWindowBounds，普通状态是零副作用只读查询。
+    else if (pathname === '/window-restore') {
+      const winResp = await sendCDP('Browser.getWindowForTarget', { targetId: q.target }, null);
+      if (winResp.error) {
+        res.end(JSON.stringify({ error: winResp.error.message || 'Browser.getWindowForTarget failed', restored: false, wasMinimized: false }));
+        return;
+      }
+      const windowId = winResp.result?.windowId;
+      if (!windowId) {
+        res.end(JSON.stringify({ error: '未获取到 windowId', restored: false, wasMinimized: false }));
+        return;
+      }
+      const boundsResp = await sendCDP('Browser.getWindowBounds', { windowId }, null);
+      if (boundsResp.error) {
+        res.end(JSON.stringify({ error: boundsResp.error.message || 'Browser.getWindowBounds failed', restored: false, wasMinimized: false }));
+        return;
+      }
+      const bounds = boundsResp.result?.bounds || {};
+      if (bounds.windowState === 'minimized') {
+        const setResp = await sendCDP('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } }, null);
+        res.end(JSON.stringify({ restored: !setResp.error, wasMinimized: true, error: setResp.error?.message }));
+      } else {
+        res.end(JSON.stringify({ restored: false, wasMinimized: false }));
+      }
+    }
+
     // GET /info?target=xxx - 获取页面信息
     else if (pathname === '/info') {
       const sid = await ensureSession(q.target);
@@ -1095,6 +1125,7 @@ const server = http.createServer(async (req, res) => {
           '/activate?target=': 'GET - 把标签页带到最前（截图前保证前台出帧）',
           '/emulate?target=&width=&height=&scale=': 'GET - 强制设置 viewport（scale=DPR 倍率；reset=1 清除）',
           '/window-size?target=': 'GET - 获取 Chrome 窗口实际尺寸',
+          '/window-restore?target=': 'GET - Chrome 窗口最小化时自动恢复（提取期间保证重绘，避免变慢）',
         },
       }));
     }

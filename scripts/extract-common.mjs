@@ -75,6 +75,29 @@ export function randomDelay(minMs, maxMs) {
   return sleep(Math.round(ms));
 }
 
+// 提取期间需要 Chrome 窗口保持非最小化：窗口最小化会被浏览器冻结页面渲染/重绘，
+// 列表滚动加载、WASM 画布简历「拖拽滚动复制」都会因画布不重绘而明显变慢甚至失败。
+// 发现最小化就自动恢复为普通窗口（带 4s 缓存，避免每个候选人都做浏览器级查询）。
+let _lastChromeVisibleCheck = 0;
+export async function ensureChromeWindowVisible(targetId, label = '') {
+  const now = Date.now();
+  if (now - _lastChromeVisibleCheck < 4000) return true;
+  _lastChromeVisibleCheck = now;
+  try {
+    const r = await proxyGet(`/window-restore?target=${encodeURIComponent(targetId)}`);
+    if (r && r.wasMinimized) {
+      if (r.restored) {
+        console.log(`  ${label}检测到 Chrome 窗口被最小化，已自动恢复（提取期间请保持 Chrome 窗口不最小化，否则提取会明显变慢）`);
+      } else {
+        console.log(`  ${label}⚠ Chrome 窗口处于最小化且自动恢复失败：${r.error || '未知原因'}`);
+      }
+    }
+    return true;
+  } catch {
+    return true; // 拿不到窗口状态时不阻塞流程
+  }
+}
+
 // ===== CDP 快捷操作 =====
 
 export async function cdpEval(targetId, expr) {
@@ -1345,7 +1368,10 @@ export async function tryExtractCanvasResumeByDragCopy(targetId, label = 'DOM') 
   // 只需要 targetId（页面会话）。端点每次会先重载 c-resume iframe（确定性全新状态），
   // 拖拽失败时重试一次即可拿到全新状态。
   try {
-    // 0) 清空系统剪贴板（避免读到上一次/用户复制的旧内容）
+    // 0) 确保 Chrome 窗口非最小化：最小化会冻结画布重绘，拖拽复制拿不到新内容（带 4s 缓存）
+    await ensureChromeWindowVisible(targetId, label);
+
+    // 1) 清空系统剪贴板（避免读到上一次/用户复制的旧内容）
     clearSystemClipboard();
     await sleep(500);
 

@@ -21,7 +21,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   proxyGet, proxyPost, sleep, randomDelay,
-  cdpEval, prepareTab,
+  cdpEval, prepareTab, ensureChromeWindowVisible,
   clickOnlineResume,
   closeResumeDialog,
   captureResumeScreenshots,
@@ -180,6 +180,8 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
   await scrollListToTop(targetId);
 
   for (let attempt = 0; attempt < maxScrollAttempts; attempt++) {
+    // 扫描期若被最小化会冻结渲染，列表加载不出来 → 自动恢复窗口（4s 缓存，开销可忽略）
+    await ensureChromeWindowVisible(targetId, '沟通页');
     const visibleItems = await readVisibleGeekItems(targetId);
     let newInThisBatch = 0;
 
@@ -313,6 +315,8 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
   await scrollListToTop(targetId);
 
   for (let attempt = 0; attempt < maxScrollAttempts; attempt++) {
+    // 扫描期若被最小化会冻结渲染，列表加载不出来 → 自动恢复窗口（4s 缓存，开销可忽略）
+    await ensureChromeWindowVisible(targetId, '沟通页');
     if (candidateList.length >= count) break;
 
     const visibleItems = await readVisibleGeekItems(targetId);
@@ -1285,6 +1289,8 @@ async function main() {
 
   // 按实际窗口尺寸设置视口（DPR=2 提升 OCR 清晰度），避免布局塌缩、网页变形
   await prepareTab(targetId);
+  // 确保 Chrome 窗口非最小化（最小化会冻结渲染，扫描/拖拽复制明显变慢，自动恢复）
+  await ensureChromeWindowVisible(targetId, '沟通页');
 
   // ===== 确保页面在列表页 =====
   await ensureOnChatList(targetId);
