@@ -13,7 +13,7 @@ import net from 'node:net';
 const PORT = parseInt(process.env.CDP_PROXY_PORT || '3456');
 // 代理版本号：升级代理逻辑时递增。main.mjs 的 CDP_PROXY_VERSION 需同步。
 // 版本不同 → 新实例会请求旧实例 /shutdown 退出后接管端口，保证 app 启动时运行的是最新代码。
-const PROXY_VERSION = '1.3.17';
+const PROXY_VERSION = '1.3.18';
 let ws = null;
 let cmdId = 0;
 const pending = new Map(); // id -> {resolve, timer}

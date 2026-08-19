@@ -518,7 +518,7 @@ const RECOMMEND_PAGE_URL = 'https://www.zhipin.com/web/chat/recommend';
 
 // CDP 代理版本号（需与 scripts/cdp-proxy.mjs 的 PROXY_VERSION 同步）。
 // 版本不匹配时强制重启代理，保证运行的是最新代码（避免旧代理的截图守卫缺失问题）。
-const CDP_PROXY_VERSION = '1.3.17';
+const CDP_PROXY_VERSION = '1.3.18';
 
 // 用「边用边跑」模式重启 Chrome，可选带目标 URL 打开（如推荐牛人页）。
 // 被 IPC handler 和 runPipeline 的推荐页缺失弹窗共用。
