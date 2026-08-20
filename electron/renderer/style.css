@@ -448,6 +448,58 @@ header h1 {
   accent-color: var(--color-accent);
 }
 
+/* ===== 模拟复制开关 + 悬浮提示（v1.4.4） ===== */
+.copy-opt-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+.tip-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-muted);
+  background: var(--border-card);
+  cursor: help;
+  user-select: none;
+}
+.tip-icon::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 240px;
+  padding: 8px 10px;
+  background: var(--text-primary);
+  color: var(--bg-card);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--transition-fast), visibility var(--transition-fast);
+  z-index: 100;
+  box-shadow: var(--shadow-elevated);
+}
+.tip-icon:hover::after,
+.tip-icon:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+}
+
 /* ===== Card Divider ===== */
 .card-divider {
   height: 1px;

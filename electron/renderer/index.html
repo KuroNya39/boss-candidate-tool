@@ -93,15 +93,15 @@
 
         <div id="recommend-hint" class="hint-box" style="display:none;">
           <span class="hint-icon">i</span>
-          <span>请先在 Chrome 中打开 Boss 直聘推荐牛人页，并选择岗位、设置筛选条件，不要刷新页面</span>
+          <span>请先在 Chrome 中打开 Boss 直聘推荐牛人页，并设置筛选条件</span>
         </div>
         <div id="search-hint" class="hint-box" style="display:none;">
           <span class="hint-icon">i</span>
-          <span>请先在 Chrome 中打开 Boss 直聘搜索页，输入搜索关键词并设置筛选条件，不要刷新页面</span>
+          <span>请先在 Chrome 中打开 Boss 直聘搜索页，并设置筛选条件</span>
         </div>
         <div id="chat-hint" class="hint-box" style="display:none;">
           <span class="hint-icon">i</span>
-          <span>请先在 Chrome 中打开 Boss 直聘沟通页</span>
+          <span>请先在 Chrome 中打开 Boss 直聘沟通页，并选择未读</span>
         </div>
 
         <!-- Job selector (recommend only) -->
@@ -130,11 +130,20 @@
         <!-- Divider -->
         <div class="card-divider"></div>
 
-        <!-- Auto Greet -->
+        <!-- 模拟复制（一行） -->
+        <div class="field-group copy-opt-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="enable-copy">
+            <span>开启模拟复制提取</span>
+          </label>
+          <span class="tip-icon" data-tip="电脑闲置状态建议开启，提取速度更快">ⓘ</span>
+        </div>
+
+        <!-- 自动打招呼 -->
         <div class="auto-greet-section" id="auto-greet-section">
           <label class="checkbox-label">
             <input type="checkbox" id="auto-greet-check">
-            <span>提取评分完成后自动打招呼</span>
+            <span>完成后自动打招呼</span>
           </label>
           <div class="auto-greet-controls" id="auto-greet-controls" style="display:none;">
             <div class="custom-select" id="auto-greet-level" data-value="4">

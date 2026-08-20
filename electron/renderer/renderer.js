@@ -16,6 +16,7 @@ const btnClearHistory = document.getElementById('btn-clear-history');
 const countInput = document.getElementById('count-input');
 const extractAllCheck = document.getElementById('extract-all');
 const extractAllSection = document.getElementById('extract-all-section');
+const enableCopyCheck = document.getElementById('enable-copy');
 const outputDirSpan = document.getElementById('output-dir');
 const jobSelectSection = document.getElementById('job-select-section');
 const jobDisplay = document.getElementById('job-display');
@@ -547,7 +548,7 @@ btnStart.addEventListener('click', async () => {
   showState('state-running');
   autoGreetEnabled = autoGreetCheck.checked;
   const greetLevel2 = parseInt(autoGreetLevel.value, 10);
-  await window.electronAPI.startExtraction({ count, extractAll, source: selectedSource, job: selectedJob, autoGreet: autoGreetEnabled, greetLevel: greetLevel2 });
+  await window.electronAPI.startExtraction({ count, extractAll, source: selectedSource, job: selectedJob, autoGreet: autoGreetEnabled, greetLevel: greetLevel2, enableCopy: enableCopyCheck.checked });
 });
 
 // 取消
@@ -591,7 +592,7 @@ btnRetry.addEventListener('click', async () => {
 
   resetSteps();
   showState('state-running');
-  await window.electronAPI.startExtraction({ count, extractAll, source: selectedSource, job: selectedJob });
+  await window.electronAPI.startExtraction({ count, extractAll, source: selectedSource, job: selectedJob, enableCopy: enableCopyCheck.checked });
 });
 
 // 打开目录

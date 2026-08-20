@@ -75,29 +75,6 @@ export function randomDelay(minMs, maxMs) {
   return sleep(Math.round(ms));
 }
 
-// 提取期间需要 Chrome 窗口保持非最小化：窗口最小化会被浏览器冻结页面渲染/重绘，
-// 列表滚动加载、WASM 画布简历「拖拽滚动复制」都会因画布不重绘而明显变慢甚至失败。
-// 发现最小化就自动恢复为普通窗口（带 4s 缓存，避免每个候选人都做浏览器级查询）。
-let _lastChromeVisibleCheck = 0;
-export async function ensureChromeWindowVisible(targetId, label = '') {
-  const now = Date.now();
-  if (now - _lastChromeVisibleCheck < 4000) return true;
-  _lastChromeVisibleCheck = now;
-  try {
-    const r = await proxyGet(`/window-restore?target=${encodeURIComponent(targetId)}`);
-    if (r && r.wasMinimized) {
-      if (r.restored) {
-        console.log(`  ${label}检测到 Chrome 窗口被最小化，已自动恢复（提取期间请保持 Chrome 窗口不最小化，否则提取会明显变慢）`);
-      } else {
-        console.log(`  ${label}⚠ Chrome 窗口处于最小化且自动恢复失败：${r.error || '未知原因'}`);
-      }
-    }
-    return true;
-  } catch {
-    return true; // 拿不到窗口状态时不阻塞流程
-  }
-}
-
 // ===== CDP 快捷操作 =====
 
 export async function cdpEval(targetId, expr) {
@@ -1009,6 +986,13 @@ export async function probeFramesForResumeText(targetId, preferredSrc, label = '
 // 页面 script/style 噪音特征：检测到即视为非简历文本（v1.3.36 防把 JS 代码误当简历文字）
 export const COPY_JUNK_RE = 'APM\\.init|import\\.meta\\.url|System\\.import|__vite_is_modern_browser|vite-legacy|createElement\\(\\s*["\']script';
 
+// 模拟复制总开关（v1.4.4 新增）：界面「开启模拟复制」选项。
+// 开启=DOM提取→模拟复制→截图OCR；关闭=DOM提取→截图OCR（不碰系统剪贴板）。
+// 默认开启（向后兼容）；三个提取脚本 main() 都调用 parseArgs()，由 --enable-copy 参数统一设置。
+let enableCopyFlag = true;
+export function setEnableCopyFlag(v) { enableCopyFlag = !!v; }
+export function getEnableCopyFlag() { return enableCopyFlag; }
+
 // 读系统剪贴板文本（PowerShell 兜底通道：页面复制处理器把全文写进 OS 剪贴板，直接读它最贴近手动复制）
 function readOsClipboard() {
   try {
@@ -1080,6 +1064,7 @@ async function readCopyHooks(targetId, ctx) {
 
 export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = 'DOM') {
   if (!ctx || !ctx.id) return null;
+  if (!enableCopyFlag) { console.log(`  ${label}🔍 模拟复制已关闭（界面设置），跳过复制直接截图`); return null; } // v1.4.4
 
   // v1.3.42: Boss 新版简历用 wasm-resume-container 渲染成 canvas（<div id=resume><canvas id=resume></canvas></div>），
   // DOM 零文字，且复制处理器不会为自动化复制生成文本（实测 iframe事件[BODY:0]、剪贴板不变）。
@@ -1364,14 +1349,12 @@ function readSystemClipboard() {
 }
 
 export async function tryExtractCanvasResumeByDragCopy(targetId, label = 'DOM') {
+  if (!enableCopyFlag) { console.log(`  ${label}🔍 模拟复制已关闭（界面设置），跳过复制直接截图`); return null; }
   // 注意：不依赖 ctx —— /canvas-copy 端点自己在浏览器里穿透 find 主页面/recommendFrame/c-resume，
   // 只需要 targetId（页面会话）。端点每次会先重载 c-resume iframe（确定性全新状态），
   // 拖拽失败时重试一次即可拿到全新状态。
   try {
-    // 0) 确保 Chrome 窗口非最小化：最小化会冻结画布重绘，拖拽复制拿不到新内容（带 4s 缓存）
-    await ensureChromeWindowVisible(targetId, label);
-
-    // 1) 清空系统剪贴板（避免读到上一次/用户复制的旧内容）
+    // 0) 清空系统剪贴板（避免读到上一次/用户复制的旧内容）
     clearSystemClipboard();
     await sleep(500);
 
@@ -1535,7 +1518,10 @@ export async function tryExtractResumeTextFromDOM(targetId) {
       console.log('  → 简历为 canvas 图片渲染（真实复制也未命中），跳过 DOM 提取直接截图');
       return null;
     }
-    if (result && result.value) return result.value;
+    if (result && result.value) {
+      console.log(`  ✓ DOM提取简历文本 (iframe执行上下文, ${result.value.length} 字)`);
+      return result.value;
+    }
     await sleep(500);
   }
   // 兜底：简历可能在更深一层的 iframe 里，轮询所有 resume 相关 frame
@@ -1897,5 +1883,9 @@ export function parseArgs() {
   }
 
   opts.output = opts.output || 'output/zhipin-candidates.json';
+
+  // v1.4.4：模拟复制开关（界面「开启模拟复制」传入 --enable-copy 1/0，默认开启）
+  opts.enableCopy = opts['enable-copy'] !== '0';
+  enableCopyFlag = opts.enableCopy;
   return opts;
 }
