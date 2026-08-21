@@ -689,10 +689,11 @@ async function doAiScoring() {
     }
 
     // 批量评分：每批 BATCH_SIZE 人，1 次 API 调用；按批并发
-    // v1.4.5: 3 → 1。deepseek 系列思考量随批内人数暴涨：完整模板 3 人一批实测思考可超 16000 token
-    // 仍停不下来（输出预算全被 <antml-thinking> 烧光 → 解析失败）；单候选人实测 3/3 稳定出分（2026-08-21）。
-    const BATCH_SIZE = 1;
-    const CONCURRENCY = 6; // 并发批数（6批×1人≈6人同时，避免 API 限流）
+    // 保持 3 人一批（用户决定）。注意：deepseek-v4-flash_DeepSeek 当前思考无上限，3 人一批会
+    // 把输出预算全烧在 <antml-thinking> 上导致解析失败（2026-08-21 实测）；换 GLM-5_SLB/kimi-k2.5-SLB
+    // 这类非无界思考模型后 3 人一批正常。若日后换回深思考模型，可考虑 BATCH_SIZE=1（单候选人实测稳定）。
+    const BATCH_SIZE = 3;
+    const CONCURRENCY = 6; // 并发批数（6批×3人≈18人同时，避免 API 限流）
     const totalInPosition = withResume.length;
 
     // 分批
