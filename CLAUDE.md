@@ -68,7 +68,9 @@ Child process cancellation works by writing `CANCEL\n` to stdin, waiting 2s, the
 - **权威分数 = 程序化计算**（v1.3.18）：AI 手写的「匹配度评分」算术不可靠，`computeMatchScoreFromComment()` 从评语解析各维度「独立得分×权重」重算加权基础分，再减「其他扣分合计」，作为 `totalScore`；评语里手写的匹配度评分只作解析兜底。打招呼等级过滤也据此判断。
 - **学历硬性门槛程序化兜底**（v1.3.26）：AI 常以「最高学历已达标」为由豁免第一学历扣分。只要评语「第一学历」明确为大专/专科或非全日制，`computeMatchScoreFromComment()` 就强制扣 20 分（任职资格扣分从评语独立解析，不依赖 AI 合计）；`patchEducationDeductionComment()` 同步修正评语数字并视情况追加「系统说明」。这两个函数在 `electron/score-comment.mjs`，主进程与重算脚本共用。
 - **教育经历顺序**：Excel 教育经历列最高学历在第一行、按时间由近到远排序（与推荐卡片 DOM 提取顺序一致）。简历解析优先（`fillEducationFromResumeText`），卡片学历只补充简历未覆盖的最高学历段。
-- **API response compatibility**: `callClaudeAPI()` handles Anthropic standard format, Anthropic thinking blocks, OpenAI Chat format, and raw response formats.
+- **API response compatibility**: `callClaudeAPI()` handles Anthropic standard format, Anthropic thinking blocks, OpenAI Chat format, and raw response formats。**v1.4.5 双管齐下修复评分解析失败（2026-08-21 实测定论）**：
+  1. **剥思考块**：公司代理会把模型的「思考」包成 `<antml-thinking>` **text 块**放在 content 最前（即使请求 `thinking:disabled`），真正的回答在后续块——只取第一个 text 块会拿到思考、丢掉回答 → 系统性「解析失败(无有效JSON)」。现在拼所有块再剥掉 antml-thinking/thinking 块，让解析器在剩余文本找 JSON。
+  2. **换模型**：`deepseek-v4-flash_DeepSeek` 已变更为思考型模型，思考**无上限**（实测输出 16000 token 全是 `<antml-thinking>`、一个字答案都没有；`budget_tokens`/提示词禁止思考都不可靠，有随机性），评分不可用。代理 `/v1/models` 现暴露 `GLM-5_SLB`、`kimi-k2.5-SLB`、`deepseek-v4-flash_DeepSeek2`、`deepseek-v4-pro_Deepseek4` 等；实测 **GLM-5_SLB 最稳最快**（完整模板 3 人 16s 出分，评语 1000+ 字），kimi-k2.5-SLB 也可（21s）。用户运行时配置（`%AppData%\web-access\web-access\api-config.json`）model 已改为 `GLM-5_SLB`；README 第 4 步推荐同步改。max_tokens 8000→16000 保留（防长批输出被截断）。
 - **Multi-position support**: Candidates grouped by `positionInfo.appliedJob`. Each position's JD loaded from userData `%AppData%\web-access\web-access\jd-descriptions\{position}.txt` (unified for dev/packaged since v1.3.15).
 - **Auto-archiving**: Old output directories renamed to `output-YYYYMMDD-HHMM` before each new run (done in main process to avoid Windows EBUSY).
 - **Windows GBK encoding**: `termLog()` and `decodeBuffer()` handle GBK encoding for stdout/stderr display on Windows terminals.
