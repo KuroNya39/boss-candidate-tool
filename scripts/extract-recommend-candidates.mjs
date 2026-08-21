@@ -1021,7 +1021,7 @@ async function closeRecommendDialog(targetId) {
       }));
     });
   })()`);
-  await randomDelay(400, 800);
+  await randomDelay(250, 500);
 
   const afterEscape = await iframeEval(targetId, `(function(){
     var d = document.querySelector('.dialog-wrap.active');
@@ -1037,7 +1037,7 @@ async function closeRecommendDialog(targetId) {
     var closeBtn = dialog.querySelector('.close-btn');
     if (closeBtn) closeBtn.click();
   })()`);
-  await randomDelay(200, 500);
+  await randomDelay(150, 300);
 
   const stillVisible = await iframeEval(targetId, `(function(){
     var d = document.querySelector('.dialog-wrap.active');
@@ -1620,7 +1620,7 @@ async function main() {
 
       // 候选人之间随机延迟
       if (i < toProcess.length - 1) {
-        const delayMs = 500 + Math.random() * 500;
+        const delayMs = 300 + Math.random() * 300;
         console.log(`  ⏳ 等待 ${(delayMs / 1000).toFixed(1)}s...\n`);
         await sleep(delayMs);
       }

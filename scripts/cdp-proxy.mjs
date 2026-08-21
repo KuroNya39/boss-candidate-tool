@@ -777,12 +777,12 @@ const server = http.createServer(async (req, res) => {
       await sleepMs(100);
       await sendCDP('Input.dispatchMouseEvent', { type: 'mousePressed', x: X0, y: Y0, button: 'left', clickCount: 1, buttons: 1 }, sid);
       await sleepMs(80);
-      const dragSteps = 16;
+      const dragSteps = 12;
       for (let i = 1; i <= dragSteps; i++) {
         await sendCDP('Input.dispatchMouseEvent', { type: 'mouseMoved', x: X0, y: Y0 + Math.round((Y1 - Y0) * i / dragSteps), button: 'left', buttons: 1 }, sid);
-        await sleepMs(22);
+        await sleepMs(20);
       }
-      await sleepMs(150);
+      await sleepMs(100);
 
       // 3) 按住滚动容器到底（Boss 选中基于文档坐标，滚动后选区持续扩展）
       //    window.__resumeScrollEl 由 info 阶段缓存（各页面滚动容器不同，统一用它）
@@ -814,9 +814,9 @@ const server = http.createServer(async (req, res) => {
           return out || 'no';
         })()`;
         await sendCDP('Runtime.evaluate', { expression: scrollJs, returnByValue: true }, sid);
-        await sleepMs(250);   // 等 Boss 平滑滚动 + 重绘（v1.4.5: 350→250，选区基于文档坐标，同步扩展）
+        await sleepMs(200);   // 等 Boss 平滑滚动 + 重绘（v1.4.5: 350→200，选区基于文档坐标，同步扩展）
         await sendCDP('Input.dispatchMouseEvent', { type: 'mouseMoved', x: X0 + 30, y: Y1, button: 'left', buttons: 1 }, sid);
-        await sleepMs(100);
+        await sleepMs(70);
       }
 
       // 3.5) 选区延伸到内容最底部：滚到底后最后一行（页脚「…任何第三方平台…存储」）贴近画布底边，
@@ -825,12 +825,12 @@ const server = http.createServer(async (req, res) => {
       const yBottom = Math.min(canvasMain.y + canvasMain.h - 2, (info.winH || 900) - 2);
       if (yBottom > Y1 + 10) {
         YB = yBottom;
-        const extSteps = 10;
+        const extSteps = 8;
         for (let i = 1; i <= extSteps; i++) {
           await sendCDP('Input.dispatchMouseEvent', { type: 'mouseMoved', x: X0 + 30, y: Y1 + Math.round((YB - Y1) * i / extSteps), button: 'left', buttons: 1 }, sid);
-          await sleepMs(25);
+          await sleepMs(20);
         }
-        await sleepMs(200);
+        await sleepMs(150);
       }
 
       // 4) 松开 + 真实 Ctrl+C → 全文进入系统剪贴板
@@ -841,7 +841,7 @@ const server = http.createServer(async (req, res) => {
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyDown', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL }, sid);
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyUp', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL }, sid);
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17, modifiers: 0 }, sid);
-      await sleepMs(500);
+      await sleepMs(350);
       res.end(JSON.stringify({ ok: true, canvasMain, scrollMax, scrolled, scope, winH: info.winH, yBottom: (info.winH || 900) - 2, scrollSel: info.scrollSel, diag: info.diag }));
     }
 
