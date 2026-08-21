@@ -184,33 +184,6 @@ const stepCards = {
   },
 };
 
-// ===== 输入框清除按钮 =====
-function setupInputClears() {
-  document.addEventListener('input', (e) => {
-    const wrap = e.target.closest('.input-wrap');
-    if (!wrap) return;
-    const clear = wrap.querySelector('.input-clear');
-    if (clear) {
-      clear.classList.toggle('visible', e.target.value.length > 0);
-    }
-  });
-  document.addEventListener('click', (e) => {
-    const clear = e.target.closest('.input-clear');
-    if (!clear) return;
-    const targetId = clear.getAttribute('data-target');
-    if (targetId) {
-      const input = document.getElementById(targetId);
-      if (input) {
-        input.value = '';
-        clear.classList.remove('visible');
-        input.focus();
-        // 触发 input 事件，让其他监听器感知变化
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    }
-  });
-}
-
 // ===== Toast 通知 =====
 function showToast(message, type = 'info', duration = 3000) {
   const container = document.getElementById('toast-container');
@@ -999,7 +972,6 @@ async function init() {
     if (verEl && version) verEl.textContent = `v${version}`;
   } catch {}
 
-  setupInputClears();
   await loadApiConfig();
   await updateCdpStatus();
   // 轮询 CDP 状态（未连接时持续刷新，用户勾选 Chrome 远程调试后自动变绿）

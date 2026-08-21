@@ -134,32 +134,11 @@ header h1 {
 }
 
 
-.input-clear {
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 18px;
-  height: 18px;
-  line-height: 18px;
-  text-align: center;
-  font-size: 14px;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: 50%;
+/* 隐藏输入框自带的一键清空 ×（Chromium 原生，悬浮/有内容时出现） */
+input::-webkit-clear-button {
+  -webkit-appearance: none;
+  appearance: none;
   display: none;
-  transition: all 0.15s;
-  -webkit-app-region: no-drag;
-}
-.input-clear:hover {
-  color: var(--text-secondary);
-  background: var(--bg-page);
-}
-.input-wrap:hover .input-clear:not(.hidden) {
-  display: block;
-}
-.input-wrap .input-clear.visible {
-  display: block;
 }
 
 
