@@ -706,26 +706,24 @@ async function doAiScoring() {
 
     const MAX_RESUME_LEN = 4000; // 每份简历截断，避免 prompt 过长
 
-    async function scoreOneBatch(batch) {
-      if (cancelled) return;
-
-      // 构建多人 prompt
-      let prompt;
+    // 构建批量评分 prompt（批内候选人数任意；失败逐人重试时复用）
+    function buildBatchPrompt(cands) {
+      let p;
       if (useWithJd) {
         // 结构化岗位文件：维度/筛选项分别填槽（权重、硬性条件真正生效）
         // 原始 JD 文件（无 section）：整段兜底填两个槽位（与旧行为一致）
         const dims = jdDimensions || jdContent || dimensionsText;
         const criteria = jdScreeningCriteria || jdContent || screeningCriteriaText;
-        prompt = template
+        p = template
           .replace('{dimensions}', dims)
           .replace('{screeningCriteria}', criteria);
       } else {
-        prompt = template
+        p = template
           .replace('{jdText}', jdContent || dimensionsText || '(无岗位JD描述)');
       }
 
       // 拼接本批所有候选人的简历（基础信息/教育经历来自页面 DOM，可靠性高；简历正文为 OCR 仅供参考）
-      const resumeSections = batch.map((c, i) => {
+      const resumeSections = cands.map((c, i) => {
         const resumeForAI = (c.resumeText || '').length > MAX_RESUME_LEN
           ? (c.resumeText || '').slice(0, MAX_RESUME_LEN) + '\n\n...(后续内容略)'
           : (c.resumeText || '(无)');
@@ -734,7 +732,7 @@ async function doAiScoring() {
           ? c.educationExperience.map(e =>
               `- ${e.time || ''} | ${e.school || ''} | ${e.major || ''} | ${e.degree || ''}`.replace(/ \| $/, '')).join('\n')
           : '- 无';
-        return `=== 候选人 ${i + 1}/${batch.length} ===\n` +
+        return `=== 候选人 ${i + 1}/${cands.length} ===\n` +
           `姓名：${c.basicInfo?.name || '未知'}\n` +
           `学历（来自页面）：${c.basicInfo?.education || '未知'}\n` +
           `教育经历（来自页面，可靠性高）：\n${eduList}\n` +
@@ -742,14 +740,20 @@ async function doAiScoring() {
           `简历文本（OCR 识别，仅供参考，可能有错误）：\n${resumeForAI}`;
       }).join('\n\n');
 
-      prompt = prompt.replace('{resumeText}', resumeSections);
+      p = p.replace('{resumeText}', resumeSections);
 
       // 附加批量输出格式要求
-      prompt += `\n\n重要：本次请求要求 JSON 输出。请为以上每位候选人分别给出评分，严格只输出一个 JSON 数组（不要包含任何其他内容，不要用 markdown 代码块包裹）：\n` +
+      p += `\n\n重要：本次请求要求 JSON 输出。请为以上每位候选人分别给出评分，严格只输出一个 JSON 数组（不要包含任何其他内容，不要用 markdown 代码块包裹）：\n` +
         `[\n` +
-        batch.map((_, i) => `  {"candidateIndex": ${i}, "score": <0-100的整数，必须严格等于该候选人评语中的"匹配度评分：XX分">, "comment": "<按上方评语内容规范组织、完整包含匹配度评分/首句定性/维度匹配/任职资格/学历核查/综合结论各模块的评语，用\\n换行>"}`).join(',\n') +
+        cands.map((_, i) => `  {"candidateIndex": ${i}, "score": <0-100的整数，必须严格等于该候选人评语中的"匹配度评分：XX分">, "comment": "<按上方评语内容规范组织、完整包含匹配度评分/首句定性/维度匹配/任职资格/学历核查/综合结论各模块的评语，用\\n换行>"}`).join(',\n') +
         `\n]`;
+      return p;
+    }
 
+    async function scoreOneBatch(batch) {
+      if (cancelled) return;
+
+      const prompt = buildBatchPrompt(batch);
       const batchNames = batch.map(c => c.basicInfo?.name || c.geekId || '未知').join('、');
       termLog(`[AI评分] 评分批: ${batchNames}`);
 
@@ -793,11 +797,50 @@ async function doAiScoring() {
 
       // 失败批的候选人设 0 分
       if (lastError) {
-        for (const c of batch) {
-          c.jobRelevanceScore = 0;
-          c.jobRelevanceComment = `评分失败: ${lastError.message}`;
+        // v1.4.5 兜底：多人的批整体失败时，拆成单候选人逐个重试——
+        // 单候选人 prompt 触发模型过度思考的概率远低于多人批（deepseek 3人批实测思考无上限，
+        // 单候选人稳定出分），模型偶尔抽风时不至于整批丢失。
+        if (batch.length > 1) {
+          let recovered = 0;
+          termLog(`  ↻ 批次评分失败(${lastError.message})，改为逐人重试 ${batch.length} 人`, 'stderr');
+          for (const c of batch) {
+            if (cancelled) return;
+            const singlePrompt = buildBatchPrompt([c]);
+            const nm = c.basicInfo?.name || c.geekId || '未知';
+            let singleError = null;
+            for (let retry = 0; retry <= 2; retry++) {
+              if (cancelled) return;
+              try {
+                const text = await callClaudeAPI(singlePrompt, { signal });
+                const results = parseBatchScoreResponse(text);
+                if (results && results.length > 0 && typeof results[0].score === 'number') {
+                  c.jobRelevanceScore = results[0].score;
+                  c.jobRelevanceComment = results[0].comment;
+                  termLog(`  ✓ ${nm}: ${results[0].score}分 (逐人重试)`);
+                  recovered++;
+                  singleError = null;
+                  break;
+                }
+                singleError = new Error('解析失败(无有效JSON)');
+              } catch (err) {
+                if (signal.aborted) throw err;
+                singleError = err;
+              }
+              if (retry < 2) await sleep(2000);
+            }
+            if (singleError) {
+              c.jobRelevanceScore = 0;
+              c.jobRelevanceComment = `评分失败: ${singleError.message}`;
+            }
+          }
+          termLog(`  ↻ 逐人重试完成：成功 ${recovered}/${batch.length} 人`, 'stderr');
+        } else {
+          for (const c of batch) {
+            c.jobRelevanceScore = 0;
+            c.jobRelevanceComment = `评分失败: ${lastError.message}`;
+          }
+          termLog(`  ✗ 批次评分失败: ${lastError.message}`, 'stderr');
         }
-        termLog(`  ✗ 批次评分失败: ${lastError.message}`, 'stderr');
       }
 
       completedInPosition += batch.length;
