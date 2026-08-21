@@ -814,9 +814,9 @@ const server = http.createServer(async (req, res) => {
           return out || 'no';
         })()`;
         await sendCDP('Runtime.evaluate', { expression: scrollJs, returnByValue: true }, sid);
-        await sleepMs(350);   // 等 Boss 平滑滚动 + 重绘
+        await sleepMs(250);   // 等 Boss 平滑滚动 + 重绘（v1.4.5: 350→250，选区基于文档坐标，同步扩展）
         await sendCDP('Input.dispatchMouseEvent', { type: 'mouseMoved', x: X0 + 30, y: Y1, button: 'left', buttons: 1 }, sid);
-        await sleepMs(150);
+        await sleepMs(100);
       }
 
       // 3.5) 选区延伸到内容最底部：滚到底后最后一行（页脚「…任何第三方平台…存储」）贴近画布底边，

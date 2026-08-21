@@ -287,7 +287,10 @@ async function callClaudeAPI(prompt, { signal } = {}) {
     },
     body: JSON.stringify({
       model: apiConfig.model,
-      max_tokens: 8000,
+      // v1.4.5: 8000 → 16000。deepseek 系列推理模型即使 thinking 禁用，代理仍会把思考
+      // 作为 <antml-thinking> 文本块返回，占用大部分输出预算；预算不足时 JSON 答案被截断
+      // → "解析失败"。加大预算保证完整答案落盘（代理实测支持 16000）。
+      max_tokens: 16000,
       temperature: 0.3,
       // 禁用思考模式：模型在长 prompt 下思考会占用大量 token，
       // 把输出 JSON 挤掉导致"解析失败"。禁用后直接输出结果，更稳。
@@ -307,13 +310,17 @@ async function callClaudeAPI(prompt, { signal } = {}) {
   let text = null;
 
   if (Array.isArray(data.content)) {
-    // Anthropic 标准: type=text 的块
-    const textBlock = data.content.find(c => c.type === 'text');
-    if (textBlock?.text) {
-      text = textBlock.text;
-    } else {
-      // 公司代理: 所有内容在 thinking 块中，拼接所有 thinking/text 字段
-      text = data.content.map(c => c.thinking || c.text || '').filter(Boolean).join('\n');
+    // v1.4.5: 公司代理会把模型的「思考」包成 <antml-thinking> 文本块放在最前，
+    // 真正的回答是后面的 text 块。之前只取第一个 text 块 = 拿到思考、丢掉回答 →
+    // 系统性"解析失败(无有效JSON)"（2026-08-21 实测：content 为 [思考块, 答案块]）。
+    // 改为：拼接所有块，剥掉 antml-thinking / thinking 思考块，让解析器在剩余文本里找 JSON。
+    const blocks = data.content.map(c => c.thinking || c.text || '').filter(Boolean);
+    if (blocks.length > 0) {
+      text = blocks
+        .join('\n')
+        .replace(/<antml-thinking>[\s\S]*?<\/antml-thinking>/g, '')
+        .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
+        .trim();
     }
   }
   // 回退：取 content[0].text（旧格式）

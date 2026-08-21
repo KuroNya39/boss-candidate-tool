@@ -390,7 +390,8 @@ async function scanAllCards(targetId, opts = {}) {
     // 连续无新人
     if (noNewCount >= noNewThreshold) break;
 
-    await randomDelay(1500, 3000);
+    // v1.4.5: 1500-3000 → 800-1500（提速）。noNewThreshold=10 且有 scrollHeight 增长回补，慢网下也不会误停
+    await randomDelay(800, 1500);
   }
 
   return cardInfos;
@@ -485,7 +486,8 @@ async function scanUpToCards(targetId, count, opts = {}) {
     if (scrollResult.scrollTop === prevScrollTop) break;
     prevScrollTop = scrollResult.scrollTop;
 
-    await randomDelay(1500, 2500);
+    // v1.4.5: 1500-2500 → 800-1500（提速），与 scanAllCards 保持一致
+    await randomDelay(800, 1500);
   }
 
   return cardInfos;

@@ -1356,15 +1356,15 @@ export async function tryExtractCanvasResumeByDragCopy(targetId, label = 'DOM') 
   try {
     // 0) 清空系统剪贴板（避免读到上一次/用户复制的旧内容）
     clearSystemClipboard();
-    await sleep(500);
+    await sleep(250);
 
     // 1) 代理端点：重载+拖拽滚动选中+Ctrl+C（端点内自动计算 canvas 主视口坐标与滚动距离）
     const r = await proxyPost(`/canvas-copy?target=${targetId}`, '{}');
     if (!r) { console.log(`  ${label}🔍 canvas复制: 无响应`); return null; }
     if (r.error || !r.ok) { console.log(`  ${label}🔍 canvas复制: 拖拽复制失败 ${r.error || 'unknown'}`); return null; }
 
-    // 2) 从系统剪贴板读取全文
-    await sleep(300);
+    // 2) 从系统剪贴板读取全文（端点内 Ctrl+C 后已等 500ms，这里再等 100ms 兜底即可）
+    await sleep(100);
     const raw = readSystemClipboard();
     const text = (raw || '').replace(/^﻿/, '').replace(/\r\n/g, '\n').trim();
     if (text.length >= DOM_MIN_TEXT_LEN && !new RegExp(COPY_JUNK_RE, 'i').test(text)) {
@@ -1376,10 +1376,10 @@ export async function tryExtractCanvasResumeByDragCopy(targetId, label = 'DOM') 
 
     // 3) 重试一次（端点内部会再重载 iframe，刷新 Boss 渲染状态）
     clearSystemClipboard();
-    await sleep(400);
+    await sleep(250);
     const r2 = await proxyPost(`/canvas-copy?target=${targetId}`, '{}');
     if (r2 && r2.ok && !r2.error) {
-      await sleep(300);
+      await sleep(100);
       const raw2 = readSystemClipboard();
       const text2 = (raw2 || '').replace(/^﻿/, '').replace(/\r\n/g, '\n').trim();
       if (text2.length >= DOM_MIN_TEXT_LEN && !new RegExp(COPY_JUNK_RE, 'i').test(text2)) {
