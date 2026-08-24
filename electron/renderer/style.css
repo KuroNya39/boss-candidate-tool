@@ -709,6 +709,26 @@ input::-webkit-clear-button {
 .input-text::placeholder {
   color: var(--text-muted);
 }
+/* 密码框显示/隐藏眼睛按钮 */
+.input-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
+  text-align: center;
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  -webkit-app-region: no-drag;
+}
+.input-toggle:hover {
+  opacity: 1;
+}
 
 /* ===== Output Row ===== */
 .output-row {

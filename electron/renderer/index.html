@@ -32,7 +32,7 @@
         </div>
         <div class="collapsible-body" id="api-config-body">
           <div class="field-group">
-            <label class="field-label">API 地址</label>
+            <label class="field-label">API 地址（填 Anthropic 格式的接口地址；OpenAI 格式的返回也能识别）</label>
             <div class="input-wrap">
               <input type="text" id="api-url" class="input-text" placeholder="https://api.xxx.com">
             </div>
@@ -41,6 +41,7 @@
             <label class="field-label">API Key</label>
             <div class="input-wrap">
               <input type="password" id="api-key" class="input-text" placeholder="sk-...">
+              <span class="input-toggle" data-target="api-key" title="点击显示/隐藏">👁</span>
             </div>
           </div>
           <div class="field-group">
@@ -60,6 +61,7 @@
             <label class="field-label">邮箱密码（发件邮箱的登录密码，或"客户端安全密码"）</label>
             <div class="input-wrap">
               <input type="password" id="smtp-pass" class="input-text" placeholder="公司邮箱：若开启了三方客户端安全密码，填邮箱设置里获取的客户端安全密码；否则填登录密码">
+              <span class="input-toggle" data-target="smtp-pass" title="点击显示/隐藏">👁</span>
             </div>
           </div>
           <div class="card-divider"></div>

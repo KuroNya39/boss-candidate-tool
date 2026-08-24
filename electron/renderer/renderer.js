@@ -972,6 +972,23 @@ async function init() {
     if (verEl && version) verEl.textContent = `v${version}`;
   } catch {}
 
+  // 密码框显示/隐藏切换（👁 点击切换）
+  document.addEventListener('click', (e) => {
+    const toggle = e.target.closest('.input-toggle');
+    if (!toggle) return;
+    const targetId = toggle.getAttribute('data-target');
+    const input = targetId && document.getElementById(targetId);
+    if (input && input.type === 'password') {
+      input.type = 'text';
+      toggle.textContent = '🙈';
+      toggle.title = '点击隐藏';
+    } else if (input) {
+      input.type = 'password';
+      toggle.textContent = '👁';
+      toggle.title = '点击显示/隐藏';
+    }
+  });
+
   await loadApiConfig();
   await updateCdpStatus();
   // 轮询 CDP 状态（未连接时持续刷新，用户勾选 Chrome 远程调试后自动变绿）

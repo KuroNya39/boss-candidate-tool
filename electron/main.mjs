@@ -520,8 +520,17 @@ function waitChromeExit(timeoutMs = 8000) {
   });
 }
 
-// 推荐牛人页 URL（extract-recommend-candidates.mjs 中的同源常量）
+// 三个提取来源的页面 URL（提取脚本内同源常量）
 const RECOMMEND_PAGE_URL = 'https://www.zhipin.com/web/chat/recommend';
+const SEARCH_PAGE_URL = 'https://www.zhipin.com/web/chat/search';
+const CHAT_PAGE_URL = 'https://www.zhipin.com/web/chat/index';
+
+// 按提取来源返回要打开的 Boss 页面（v1.4.6：Chrome 未运行时自动打开对应页面）
+function getSourcePageUrl(source) {
+  if (source === 'search') return SEARCH_PAGE_URL;
+  if (source === 'recommend' || source === 'recommend-attach') return RECOMMEND_PAGE_URL;
+  return CHAT_PAGE_URL; // 沟通页
+}
 
 // CDP 代理版本号（需与 scripts/cdp-proxy.mjs 的 PROXY_VERSION 同步）。
 // 版本不匹配时强制重启代理，保证运行的是最新代码（避免旧代理的截图守卫缺失问题）。
@@ -559,7 +568,7 @@ async function launchBossModeChrome({ forceClose = false, openUrl = null } = {})
   return {
     ok: true,
     message: openUrl
-      ? `Chrome 已用「边用边跑」模式启动，并打开推荐牛人页。首次使用请按 README 第 1 步，`
+      ? `Chrome 已用「边用边跑」模式启动，并打开目标页面。首次使用请按 README 第 1 步，`
         + '在 chrome://inspect/#remote-debugging 里勾选「允许远程调试」，之后照常使用即可。'
       : 'Chrome 已用「边用边跑」模式启动。首次使用请按 README 第 1 步，'
         + '在 chrome://inspect/#remote-debugging 里勾选「允许远程调试」，之后照常使用即可。',
@@ -975,6 +984,20 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       } else {
         scriptName = 'extract-candidates-full.mjs';
         pageLabel = '沟通';
+      }
+      // v1.4.6: Chrome 未运行时，自动用「边用边跑」模式启动并打开对应页面，
+      // 提示用户设置好筛选条件后再次点击「开始提取分析」（不再直接报连接失败）
+      if (!(await isChromeRunning())) {
+        const openUrl = getSourcePageUrl(source);
+        const launchRes = await launchBossModeChrome({ openUrl });
+        if (launchRes.ok) {
+          termLog(`[main] Chrome 未运行，已自动启动并打开 ${pageLabel}页: ${openUrl}`);
+          sendProgress(1, 'idle', 0,
+            `检测到 Chrome 未运行，已自动用「边用边跑」模式启动并打开${pageLabel}页。`
+            + '请等待页面加载、登录 Boss 直聘并设置好筛选条件后，再次点击「开始提取分析」。');
+          return;
+        }
+        termLog(`[main] Chrome 未运行，自动启动失败: ${launchRes.message}`, 'stderr');
       }
       sendProgress(1, 'running', 0, extractAll ? `正在提取候选人信息 (${pageLabel}页)...` : '正在提取候选人信息...');
       const extractArgs = extractAll
