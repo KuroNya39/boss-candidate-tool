@@ -982,11 +982,11 @@ async function init() {
     const input = targetId && document.getElementById(targetId);
     if (input && input.type === 'password') {
       input.type = 'text';
-      toggle.innerHTML = EYE_OFF_SVG;
+      toggle.innerHTML = EYE_SVG; // 明文 → 睁眼
       toggle.title = '点击隐藏';
     } else if (input) {
       input.type = 'password';
-      toggle.innerHTML = EYE_SVG;
+      toggle.innerHTML = EYE_OFF_SVG; // 隐藏 → 闭眼
       toggle.title = '点击显示';
     }
   });
