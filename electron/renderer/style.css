@@ -710,24 +710,32 @@ input::-webkit-clear-button {
   color: var(--text-muted);
 }
 /* 密码框显示/隐藏眼睛按钮 */
+.input-wrap {
+  position: relative;
+}
 .input-toggle {
   position: absolute;
-  right: 6px;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
   width: 20px;
   height: 20px;
-  line-height: 20px;
-  text-align: center;
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   user-select: none;
-  opacity: 0.6;
+  color: var(--text-muted);
+  opacity: 0.65;
   transition: opacity 0.15s;
+  background: none;
+  border: none;
+  padding: 0;
   -webkit-app-region: no-drag;
 }
 .input-toggle:hover {
   opacity: 1;
+  color: var(--text-secondary);
 }
 
 /* ===== Output Row ===== */

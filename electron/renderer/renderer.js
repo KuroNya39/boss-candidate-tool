@@ -972,7 +972,9 @@ async function init() {
     if (verEl && version) verEl.textContent = `v${version}`;
   } catch {}
 
-  // 密码框显示/隐藏切换（👁 点击切换）
+  // 密码框显示/隐藏切换（👁 点击切换，睁眼/闭眼 SVG 图标）
+  const EYE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const EYE_OFF_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 11 8 11 8a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 1 12s4 8 11 8a9.74 9.74 0 0 0 5.39-1.61"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
   document.addEventListener('click', (e) => {
     const toggle = e.target.closest('.input-toggle');
     if (!toggle) return;
@@ -980,12 +982,12 @@ async function init() {
     const input = targetId && document.getElementById(targetId);
     if (input && input.type === 'password') {
       input.type = 'text';
-      toggle.textContent = '🙈';
+      toggle.innerHTML = EYE_OFF_SVG;
       toggle.title = '点击隐藏';
     } else if (input) {
       input.type = 'password';
-      toggle.textContent = '👁';
-      toggle.title = '点击显示/隐藏';
+      toggle.innerHTML = EYE_SVG;
+      toggle.title = '点击显示';
     }
   });
 
