@@ -713,8 +713,8 @@ button.is-loading::before {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 9px 20px;
-  font-size: var(--text-lg);
+  padding: 7px 16px;
+  font-size: var(--text-md);
   font-weight: 500;
   line-height: 1.4;
   border: 1px solid transparent;
@@ -758,7 +758,7 @@ button.is-loading::before {
 .btn--retry:hover:not(:disabled) { border-color: var(--color-error); color: var(--color-error); }
 
 /* 尺寸 */
-.btn--sm { padding: 7px 18px; font-size: var(--text-md); }
+.btn--sm { padding: 4px 12px; font-size: var(--text-sm); }
 .btn--lg { padding: 11px 24px; font-size: var(--text-lg); font-weight: 600; letter-spacing: 0.5px; }
 .btn--block { display: flex; width: 100%; }
 

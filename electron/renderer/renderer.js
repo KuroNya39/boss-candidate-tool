@@ -1007,22 +1007,27 @@ function closeHistoryDrawer() {
 
 async function loadHistory() {
   historyList.innerHTML = '';
+  historyList.style.display = '';
   historyEmpty.style.display = 'none';
   let data;
   try {
     data = await window.electronAPI.listHistory();
   } catch (err) {
+    historyList.style.display = 'none';
     historyEmpty.style.display = '';
     historyEmpty.textContent = '读取历史记录失败：' + err.message;
     return;
   }
   if (data?.error) {
+    historyList.style.display = 'none';
     historyEmpty.style.display = '';
     historyEmpty.textContent = data.error;
     return;
   }
   const items = data?.list || [];
   if (items.length === 0) {
+    // 空态时隐藏列表容器，空态文字才能在整个中间区域垂直居中（否则被空的列表占一半高度）
+    historyList.style.display = 'none';
     historyEmpty.style.display = '';
     historyEmpty.textContent = '暂无历史记录。跑完一批数据后，这里会按时间列出各批次。';
     return;
