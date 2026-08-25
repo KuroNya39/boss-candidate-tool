@@ -1379,3 +1379,198 @@ button.is-loading::before {
     scroll-behavior: auto !important;
   }
 }
+
+/* ===== 完成页结果可视化（v1.5.0）===== */
+.results-visual {
+  margin-top: var(--space-2);
+}
+
+.results-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: var(--space-2) 0 var(--space-3);
+}
+
+/* 统计条：4 个指标并排 */
+.results-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.stat-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.stat-value {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.stat-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: center;
+  line-height: var(--leading-tight);
+}
+
+/* 档位分布：5 段迷你条形 */
+.tier-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+.tier-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.tier-bar-label {
+  flex: 0 0 32px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.tier-bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.tier-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width var(--transition-slow);
+}
+.tier-bar-count {
+  flex: 0 0 auto;
+  min-width: 76px;
+  text-align: right;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.tier-bar-fill--5 { background: var(--color-success); }
+.tier-bar-fill--4 { background: var(--color-accent); }
+.tier-bar-fill--3 { background: var(--color-warning); }
+.tier-bar-fill--2 { background: #f97316; }
+.tier-bar-fill--1 { background: var(--color-disabled-text); }
+
+/* 候选人列表 */
+.results-candidates-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+}
+.results-count {
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.results-list {
+  max-height: 210px;
+  overflow-y: auto;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+}
+.result-item {
+  border-bottom: 1px solid var(--border-card);
+}
+.result-item:last-child {
+  border-bottom: none;
+}
+.result-item-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: var(--text-md);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.result-item-head:hover {
+  background: var(--bg-hover);
+}
+.result-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.result-item-score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.result-item-tier {
+  font-size: var(--text-sm);
+  letter-spacing: 1px;
+}
+.result-item-arrow {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  transition: transform var(--transition-fast);
+}
+.result-item-head[aria-expanded="true"] .result-item-arrow {
+  transform: rotate(90deg);
+}
+.tier--5 { color: var(--color-success-strong); }
+.tier--4 { color: var(--color-accent); }
+.tier--3 { color: var(--color-warning-strong); }
+.tier--2 { color: #ea580c; }
+.tier--1 { color: var(--color-disabled-text); }
+
+.result-item-body {
+  padding: var(--space-1) var(--space-3) var(--space-3);
+}
+.result-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+.meta-chip {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-full);
+  padding: 2px var(--space-2);
+}
+.meta-chip--pass {
+  color: var(--color-success-strong);
+  background: var(--bg-success);
+}
+.meta-chip--fail {
+  color: var(--color-error-strong);
+  background: var(--bg-error);
+}
+.result-item-comment {
+  font-size: var(--text-sm);
+  line-height: var(--leading-loose);
+  color: var(--text-secondary);
+  word-break: break-word;
+}

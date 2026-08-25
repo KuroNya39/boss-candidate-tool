@@ -438,6 +438,141 @@ function handleProgress(data) {
   }
 }
 
+// ===== 完成页结果可视化 =====
+
+// 档位分布条的元信息（顺序从高分到低分）。颜色用 CSS 类控制，避免内联色值。
+const TIER_BAR_META = [
+  { tier: 5, label: '五星', className: 'tier-bar-fill--5' },
+  { tier: 4, label: '四星', className: 'tier-bar-fill--4' },
+  { tier: 3, label: '三星', className: 'tier-bar-fill--3' },
+  { tier: 2, label: '二星', className: 'tier-bar-fill--2' },
+  { tier: 1, label: '一星', className: 'tier-bar-fill--1' },
+];
+
+function renderTierBars(tiers, total) {
+  const container = document.getElementById('tier-bars');
+  if (!container) return;
+  container.innerHTML = '';
+  for (const meta of TIER_BAR_META) {
+    const count = tiers[meta.tier] || 0;
+    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+    const row = document.createElement('div');
+    row.className = 'tier-bar';
+    const label = document.createElement('span');
+    label.className = 'tier-bar-label';
+    label.textContent = meta.label;
+    const track = document.createElement('span');
+    track.className = 'tier-bar-track';
+    const fill = document.createElement('span');
+    fill.className = `tier-bar-fill ${meta.className}`;
+    fill.style.width = pct + '%';
+    track.appendChild(fill);
+    const countEl = document.createElement('span');
+    countEl.className = 'tier-bar-count';
+    countEl.textContent = `${count} 人 · ${pct}%`;
+    row.append(label, track, countEl);
+    container.appendChild(row);
+  }
+}
+
+function renderResultsList(candidates) {
+  const listEl = document.getElementById('results-list');
+  const countEl = document.getElementById('results-count');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  if (countEl) countEl.textContent = `共 ${candidates.length} 人`;
+
+  for (const c of candidates) {
+    const item = document.createElement('div');
+    item.className = 'result-item';
+    item.setAttribute('role', 'listitem');
+
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'result-item-head';
+    head.setAttribute('aria-expanded', 'false');
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'result-item-name';
+    nameEl.textContent = c.name;
+
+    const scoreEl = document.createElement('span');
+    scoreEl.className = 'result-item-score';
+    scoreEl.textContent = c.score + ' 分';
+
+    const tierEl = document.createElement('span');
+    tierEl.className = `result-item-tier tier--${c.tier}`;
+    tierEl.textContent = '★'.repeat(c.tier) + '☆'.repeat(5 - c.tier);
+    tierEl.setAttribute('aria-label', `${c.tier} 星`);
+
+    const arrowEl = document.createElement('span');
+    arrowEl.className = 'result-item-arrow';
+    arrowEl.setAttribute('aria-hidden', 'true');
+    arrowEl.textContent = '▸';
+
+    head.append(nameEl, scoreEl, tierEl, arrowEl);
+
+    const body = document.createElement('div');
+    body.className = 'result-item-body';
+    body.style.display = 'none';
+
+    const metaEl = document.createElement('div');
+    metaEl.className = 'result-item-meta';
+    if (c.position) {
+      const chip = document.createElement('span');
+      chip.className = 'meta-chip';
+      chip.textContent = c.position;
+      metaEl.appendChild(chip);
+    }
+    const levelChip = document.createElement('span');
+    levelChip.className = `meta-chip ${c.passed ? 'meta-chip--pass' : 'meta-chip--fail'}`;
+    levelChip.textContent = c.level;
+    metaEl.appendChild(levelChip);
+    const passChip = document.createElement('span');
+    passChip.className = 'meta-chip';
+    passChip.textContent = c.passed ? '通过' : '未通过';
+    metaEl.appendChild(passChip);
+
+    const commentEl = document.createElement('div');
+    commentEl.className = 'result-item-comment';
+    commentEl.textContent = c.comment || '（无评语）';
+    commentEl.style.whiteSpace = 'pre-line';
+
+    body.append(metaEl, commentEl);
+
+    head.addEventListener('click', () => {
+      const expanded = head.getAttribute('aria-expanded') === 'true';
+      head.setAttribute('aria-expanded', String(!expanded));
+      body.style.display = expanded ? 'none' : '';
+      arrowEl.textContent = expanded ? '▸' : '▾';
+    });
+
+    item.append(head, body);
+    listEl.appendChild(item);
+  }
+}
+
+async function loadScoringResults() {
+  const resultsVisual = document.getElementById('results-visual');
+  if (!resultsVisual) return;
+  try {
+    const data = await window.electronAPI.getScoringResults();
+    if (!data || !data.available || data.total < 1) {
+      resultsVisual.style.display = 'none';
+      return;
+    }
+    document.getElementById('stat-extracted').textContent = data.total;
+    document.getElementById('stat-passed').textContent = data.passed;
+    document.getElementById('stat-avg').textContent = data.avgScore;
+    document.getElementById('stat-rate').textContent = data.passRate + '%';
+    renderTierBars(data.tiers, data.total);
+    renderResultsList(data.candidates);
+    resultsVisual.style.display = '';
+  } catch {
+    resultsVisual.style.display = 'none';
+  }
+}
+
 // ===== IPC 监听注册 =====
 function setupListeners() {
   cleanupAll();
@@ -469,6 +604,9 @@ function setupListeners() {
       summary += `输出目录: ${data.outputDir}`;
       doneSummary.textContent = summary;
 
+      // 完成页结果可视化：统计条 + 档位分布 + 候选人列表
+      loadScoringResults();
+
       // 检查评分数据，显示批量打招呼（沟通页/搜索页不做打招呼：搜索页打招呼需畅聊卡）
       resetGreetUI();
       if (selectedSource === 'search') {
@@ -495,8 +633,16 @@ function setupListeners() {
                 greetProgressBar.style.width = '0%';
                 if (greetProgressBar.setAttribute) greetProgressBar.setAttribute('aria-valuenow', '0');
                 greetProgressText.textContent = '自动打招呼中...';
-                await window.electronAPI.startGreeting(level, selectedSource);
+                const res = await window.electronAPI.startGreeting(level, selectedSource);
                 autoGreetEnabled = false;
+                // 已有任务运行中：主进程拒绝，恢复打招呼面板而不是停在假进度
+                if (res?.error) {
+                  showToast(res.error, 'warning', 4000);
+                  greetProgress.style.display = 'none';
+                  greetResult.style.display = 'none';
+                  btnStartGreet.style.display = '';
+                  btnCancelGreet.style.display = 'none';
+                }
               }, 500);
             }
           }
@@ -646,6 +792,18 @@ apiConfigToggle.addEventListener('click', () => {
 
 // ===== 按钮事件 =====
 
+// 启动提取管道。主进程若已有任务运行中会返回 { error }，此时回到初始态并提示，
+// 避免用户误以为已开始运行而卡在运行态（连点「开始」或取消后未完全收尾时触发）。
+async function startPipeline(opts) {
+  const res = await window.electronAPI.startExtraction(opts);
+  if (res?.error) {
+    showToast(res.error, 'warning', 4000);
+    showState('state-initial');
+    return false;
+  }
+  return true;
+}
+
 // 开始
 btnStart.addEventListener('click', async () => {
   const extractAll = extractAllCheck.checked;
@@ -721,7 +879,7 @@ btnStart.addEventListener('click', async () => {
   showState('state-running');
   autoGreetEnabled = autoGreetCheck.checked;
   const greetLevel2 = parseInt(autoGreetLevel.value, 10);
-  await window.electronAPI.startExtraction({ count, extractAll, source: selectedSource, job: selectedJob, autoGreet: autoGreetEnabled, greetLevel: greetLevel2, enableCopy: enableCopyCheck.checked });
+  await startPipeline({ count, extractAll, source: selectedSource, job: selectedJob, autoGreet: autoGreetEnabled, greetLevel: greetLevel2, enableCopy: enableCopyCheck.checked });
 });
 
 // 取消
@@ -754,7 +912,7 @@ btnRescore.addEventListener('click', async () => {
   showState('state-running');
   autoGreetEnabled = autoGreetCheck.checked;
   const greetLevel2 = parseInt(autoGreetLevel.value, 10);
-  await window.electronAPI.startExtraction({
+  await startPipeline({
     count: 0,
     extractAll: true,
     source: selectedSource,
@@ -789,7 +947,7 @@ btnRetry.addEventListener('click', async () => {
 
   resetSteps();
   showState('state-running');
-  await window.electronAPI.startExtraction({ count, extractAll, source: selectedSource, job: selectedJob, enableCopy: enableCopyCheck.checked });
+  await startPipeline({ count, extractAll, source: selectedSource, job: selectedJob, enableCopy: enableCopyCheck.checked });
 });
 
 // 打开目录
@@ -1163,7 +1321,15 @@ btnStartGreet.addEventListener('click', async () => {
   greetProgressBar.style.width = '0%';
   if (greetProgressBar.setAttribute) greetProgressBar.setAttribute('aria-valuenow', '0');
   greetProgressText.textContent = '正在打招呼中...';
-  await window.electronAPI.startGreeting(level, selectedSource);
+  const res = await window.electronAPI.startGreeting(level, selectedSource);
+  // 已有任务运行中：主进程拒绝，恢复打招呼面板，避免卡在「正在打招呼」的假进度
+  if (res?.error) {
+    showToast(res.error, 'warning', 4000);
+    greetProgress.style.display = 'none';
+    greetResult.style.display = 'none';
+    btnStartGreet.style.display = '';
+    btnCancelGreet.style.display = 'none';
+  }
 });
 
 // 取消打招呼

@@ -43,6 +43,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cancelGreeting: () => ipcRenderer.invoke('cancel-greeting'),
   getGreetCandidateCounts: () => ipcRenderer.invoke('get-greet-candidate-counts'),
 
+  // 完成页结果可视化
+  getScoringResults: () => ipcRenderer.invoke('get-scoring-results'),
+
   onProgress: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('progress-update', handler);

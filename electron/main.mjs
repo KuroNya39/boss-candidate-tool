@@ -6,6 +6,7 @@ import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, rename
 import http from 'node:http';
 import iconv from 'iconv-lite';
 import { computeMatchScoreFromComment, parseMatchScoreFromComment, patchEducationDeductionComment } from './score-comment.mjs';
+import { TIER_THRESHOLDS, thresholdForLevel, scoreToTier, scoreToRecommendation, isPassed } from '../scripts/score-tiers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = resolve(__dirname, '..');
@@ -889,15 +890,11 @@ async function doAiScoring() {
     c.totalScore = c.matchScore ?? (c.jobRelevanceScore || 0);
     // 学历硬性门槛兜底后，同步修正评语文字，避免「评语说不扣分、分数却扣了」的矛盾
     c.jobRelevanceComment = patchEducationDeductionComment(c.jobRelevanceComment);
-    if (c.totalScore >= 91) c.recommendationLevel = '强烈推荐';
-    else if (c.totalScore >= 81) c.recommendationLevel = '推荐';
-    else if (c.totalScore >= 61) c.recommendationLevel = '可考虑';
-    else c.recommendationLevel = '暂不推荐';
-    c.passed = c.totalScore >= 61;
+    c.recommendationLevel = scoreToRecommendation(c.totalScore);
+    c.passed = isPassed(c.totalScore);
   }
 
   aiAbortController = null;
-
   // 写回 scored-candidates.json
   const resultPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
   const output = raw.candidates ? raw : { candidates: raw };
@@ -1200,8 +1197,7 @@ async function runGreeting(level, source = 'recommend') {
   try {
     const raw = JSON.parse(readFileSync(scoredPath, 'utf-8'));
     const candidates = raw.candidates || raw;
-    const thresholds = { 5: 91, 4: 81, 3: 61, 2: 31, 0: 0 };
-    const threshold = thresholds[level] ?? 81;
+    const threshold = thresholdForLevel(level);
     totalTargets = candidates.filter(c => (c.matchScore ?? c.totalScore ?? c.jobRelevanceScore ?? 0) >= threshold).length;
   } catch (err) {
     termLog(`[greet] 读取评分数据失败: ${err.message}`, 'stderr');
@@ -1534,18 +1530,61 @@ function registerIPC() {
       const candidates = raw.candidates || raw;
       if (!Array.isArray(candidates)) return { available: false, total: 0, counts: {} };
       const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 0: 0 };
-      const thresholds = { 5: 91, 4: 81, 3: 61, 2: 31, 0: 0 };
       for (const c of candidates) {
         const score = c.totalScore ?? c.jobRelevanceScore ?? 0;
-        if (score >= 91) counts[5]++;
-        if (score >= 81) counts[4]++;
-        if (score >= 61) counts[3]++;
-        if (score >= 31) counts[2]++;
+        if (score >= TIER_THRESHOLDS[5]) counts[5]++;
+        if (score >= TIER_THRESHOLDS[4]) counts[4]++;
+        if (score >= TIER_THRESHOLDS[3]) counts[3]++;
+        if (score >= TIER_THRESHOLDS[2]) counts[2]++;
         counts[0] = candidates.length;
       }
       return { available: true, total: candidates.length, counts };
     } catch {
       return { available: false, total: 0, counts: {} };
+    }
+  });
+
+  // 完成页结果可视化：读取最近一次评分结果，返回统计与候选人明细
+  ipcMain.handle('get-scoring-results', () => {
+    const scoredPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
+    if (!existsSync(scoredPath)) return { available: false };
+    try {
+      const raw = JSON.parse(readFileSync(scoredPath, 'utf-8'));
+      const candidates = raw.candidates || raw;
+      if (!Array.isArray(candidates) || candidates.length === 0) return { available: false };
+
+      const tiers = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+      let passed = 0;
+      let sum = 0;
+      const list = candidates.map((c) => {
+        const score = c.totalScore ?? c.jobRelevanceScore ?? 0;
+        const tier = scoreToTier(score);
+        tiers[tier]++;
+        if (isPassed(score)) passed++;
+        sum += score;
+        return {
+          name: c.basicInfo?.name || c.geekId || '未知',
+          position: c.positionInfo?.appliedJob || '',
+          score,
+          tier,
+          level: c.recommendationLevel ?? scoreToRecommendation(score),
+          passed: c.passed ?? isPassed(score),
+          comment: c.jobRelevanceComment || '',
+        };
+      });
+      // 分数从高到低排序，方便直接看到最值得打招呼的人
+      list.sort((a, b) => b.score - a.score);
+      return {
+        available: true,
+        total: candidates.length,
+        passed,
+        avgScore: Math.round((sum / candidates.length) * 10) / 10,
+        passRate: Math.round((passed / candidates.length) * 1000) / 10,
+        tiers,
+        candidates: list,
+      };
+    } catch {
+      return { available: false };
     }
   });
 

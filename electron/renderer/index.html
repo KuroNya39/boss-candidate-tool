@@ -263,6 +263,41 @@
           <button id="btn-restart" class="btn btn--ghost"><span aria-hidden="true">🔄</span> 重新开始</button>
         </div>
 
+        <!-- 完成页结果可视化：统计条 + 档位分布 + 可展开的候选人列表 -->
+        <div id="results-visual" class="results-visual" style="display:none;">
+          <div class="card-divider"></div>
+          <div class="results-title">评分结果一览</div>
+
+          <div class="results-stats">
+            <div class="stat-cell">
+              <span class="stat-value" id="stat-extracted">0</span>
+              <span class="stat-label">提取人数</span>
+            </div>
+            <div class="stat-cell">
+              <span class="stat-value" id="stat-passed">0</span>
+              <span class="stat-label">通过（可打招呼）</span>
+            </div>
+            <div class="stat-cell">
+              <span class="stat-value" id="stat-avg">0</span>
+              <span class="stat-label">平均分</span>
+            </div>
+            <div class="stat-cell">
+              <span class="stat-value" id="stat-rate">0%</span>
+              <span class="stat-label">通过率</span>
+            </div>
+          </div>
+
+          <div class="tier-bars" id="tier-bars" aria-label="档位分布"></div>
+
+          <div class="results-candidates">
+            <div class="results-candidates-head">
+              <span>候选人</span>
+              <span id="results-count" class="results-count"></span>
+            </div>
+            <div class="results-list" id="results-list" role="list"></div>
+          </div>
+        </div>
+
         <div id="greet-section" class="greet-section" style="display:none;">
           <div class="card-divider"></div>
           <div class="greet-title">批量打招呼</div>

@@ -12,6 +12,7 @@ import { readFileSync, mkdirSync, existsSync, renameSync, unlinkSync } from 'nod
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ExcelJS from 'exceljs';
+import { scoreToTier } from './score-tiers.mjs';
 
 // ===== CLI 参数解析 =====
 function parseArgs() {
@@ -34,8 +35,7 @@ function parseArgs() {
 // ===== 字段配置 =====
 function toAiRating(candidate) {
   const score = candidate.totalScore ?? candidate.score ?? 0;
-  const count = score >= 91 ? 5 : score >= 81 ? 4 : score >= 61 ? 3 : score >= 31 ? 2 : 1;
-  return '★'.repeat(count);
+  return '★'.repeat(scoreToTier(score));
 }
 
 // 统一评语换行格式（与 main.mjs 中的格式化逻辑保持一致）

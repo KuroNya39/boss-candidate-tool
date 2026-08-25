@@ -8,11 +8,11 @@
  * Usage:
  *   node scripts/greet-candidates.mjs --input output/scored-candidates.json --level 4
  *
- * --level 参数：
- *   5 = 五星（91-100分）
- *   4 = 四星及以上（81-90分）
- *   3 = 三星及以上（61-80分）
- *   2 = 二星及以上（31-60分）
+ * --level 参数（档位阈值见 ./score-tiers.mjs）：
+ *   5 = 五星（91 分以上）
+ *   4 = 四星及以上（81 分以上）
+ *   3 = 三星及以上（61 分以上）
+ *   2 = 二星及以上（31 分以上）
  *   0 = 全部候选人
  */
 
@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import {
   proxyGet, proxyPost, sleep, cdpEval,
 } from './extract-common.mjs';
+import { TIER_THRESHOLDS } from './score-tiers.mjs';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -46,9 +47,6 @@ function parseArgs() {
   }
   return opts;
 }
-
-// ===== 等级阈值 =====
-const LEVEL_THRESHOLDS = { 5: 91, 4: 81, 3: 61, 2: 31, 0: 0 };
 
 // ===== 查找 tab =====
 async function findTab(source) {
@@ -171,7 +169,7 @@ async function main() {
   }
 
   // 2. 按等级阈值过滤
-  const threshold = LEVEL_THRESHOLDS[opts.level];
+  const threshold = TIER_THRESHOLDS[opts.level];
   if (threshold === undefined) {
     fatal(`无效的等级: ${opts.level}，可用值: 5, 4, 3, 2, 0`);
   }

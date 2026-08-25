@@ -12,6 +12,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { computeMatchScoreFromComment, parseMatchScoreFromComment, patchEducationDeductionComment } from '../electron/score-comment.mjs';
+import { scoreToRecommendation, isPassed } from './score-tiers.mjs';
 
 const DEFAULT_DIR = resolve(homedir(), 'Desktop', 'output');
 const inputPath = process.argv[2] || resolve(DEFAULT_DIR, 'scored-candidates.backup-rescore.json');
@@ -30,11 +31,8 @@ for (const c of candidates) {
     parseMatchScoreFromComment(c.jobRelevanceComment);
   c.totalScore = c.matchScore ?? (c.jobRelevanceScore || 0);
   c.jobRelevanceComment = patchEducationDeductionComment(c.jobRelevanceComment);
-  if (c.totalScore >= 91) c.recommendationLevel = '强烈推荐';
-  else if (c.totalScore >= 81) c.recommendationLevel = '推荐';
-  else if (c.totalScore >= 61) c.recommendationLevel = '可考虑';
-  else c.recommendationLevel = '暂不推荐';
-  c.passed = c.totalScore >= 61;
+  c.recommendationLevel = scoreToRecommendation(c.totalScore);
+  c.passed = isPassed(c.totalScore);
 
   const fd = (c.jobRelevanceComment || '').match(/第一学历\s*[:：]\s*([^\n]+)/);
   const fdText = fd ? fd[1] : '';
