@@ -6,6 +6,7 @@ const stateRunning = document.getElementById('state-running');
 const stateDone = document.getElementById('state-done');
 const stateError = document.getElementById('state-error');
 const btnStart = document.getElementById('btn-start');
+const btnRescore = document.getElementById('btn-rescore'); // v1.4.8 直接用上次数据评分
 const btnCancel = document.getElementById('btn-cancel');
 const btnSkipExtract = document.getElementById('btn-skip-extract');
 const btnRestart = document.getElementById('btn-restart');
@@ -216,6 +217,18 @@ function showState(stateId) {
     el.classList.remove('active');
   });
   document.getElementById(stateId).classList.add('active');
+  // v1.4.8: 回到初始界面时刷新「直接用上次数据评分」按钮的可用状态
+  if (stateId === 'state-initial') updateRescoreButton();
+}
+
+// v1.4.8: 检查是否还有上次提取的数据，决定「直接用上次数据评分」按钮是否可点
+async function updateRescoreButton() {
+  try {
+    const has = await window.electronAPI.hasScorableData();
+    btnRescore.disabled = !has;
+  } catch {
+    btnRescore.disabled = true;
+  }
 }
 
 // ===== 重置步骤卡片 =====
@@ -450,6 +463,7 @@ btnSaveConfig.addEventListener('click', async () => {
     });
     configStatus.textContent = '✓ 已保存';
     configStatus.className = 'config-badge config-ok';
+    showToast('配置已保存', 'success', 2000);
     // 延迟更新状态检测，让"✓ 已保存"可见一段时间
     setTimeout(updateConfigStatus, 1500);
   } catch (err) {
@@ -542,6 +556,24 @@ btnSkipExtract.addEventListener('click', async () => {
   await window.electronAPI.skipExtraction();
 });
 
+// v1.4.8: 直接用上次数据评分（跳过提取）——换好模型后重新评分，不用重新提取
+btnRescore.addEventListener('click', async () => {
+  resetSteps();
+  showState('state-running');
+  autoGreetEnabled = autoGreetCheck.checked;
+  const greetLevel2 = parseInt(autoGreetLevel.value, 10);
+  await window.electronAPI.startExtraction({
+    count: 0,
+    extractAll: true,
+    source: selectedSource,
+    job: selectedJob,
+    autoGreet: autoGreetEnabled,
+    greetLevel: greetLevel2,
+    enableCopy: enableCopyCheck.checked,
+    skipExtract: true, // 关键：跳过步骤1提取，直接用已有数据评分
+  });
+});
+
 // 重新开始（完成状态）
 btnRestart.addEventListener('click', () => {
   resetSteps();
@@ -614,7 +646,7 @@ btnClearHistory.addEventListener('click', async () => {
     showToast('清理失败：' + err.message, 'error');
   } finally {
     btnClearHistory.disabled = false;
-    btnClearHistory.textContent = '清空历史数据';
+    btnClearHistory.textContent = '清空历史';
   }
 });
 

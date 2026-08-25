@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, shell, dialog, powerSaveBlocker } from 'el
 import { spawn, execFile } from 'node:child_process';
 import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, renameSync, unlinkSync, rmSync, appendFileSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, renameSync, unlinkSync, rmSync, appendFileSync, copyFileSync } from 'node:fs';
 import http from 'node:http';
 import iconv from 'iconv-lite';
 import { computeMatchScoreFromComment, parseMatchScoreFromComment, patchEducationDeductionComment } from './score-comment.mjs';
@@ -938,6 +938,26 @@ function cleanupTempFiles() {
 }
 
 // ===== 主流程编排 =====
+// v1.4.8: 在历史归档目录（output-YYYYMMDD-HHMM）里找最近一份含候选人数据的目录。
+// 用于「直接用上次数据评分（跳过提取）」：用户上一轮数据被归档后，仍能恢复出来直接重评分。
+function findRecentArchiveWithCandidates() {
+  try {
+    const parentDir = dirname(OUTPUT_DIR);
+    const prefix = basename(OUTPUT_DIR) + '-';
+    const dirs = readdirSync(parentDir)
+      .filter((n) => n.startsWith(prefix))
+      .sort() // 时间戳命名，字典序即时间序
+      .reverse();
+    for (const d of dirs) {
+      const candidatePath = resolve(parentDir, d, 'zhipin-candidates.json');
+      if (existsSync(candidatePath)) {
+        return { archiveDir: resolve(parentDir, d), candidatePath };
+      }
+    }
+  } catch {}
+  return null;
+}
+
 async function runPipeline(count, skipExtract = false, extractAll = false, source = 'chat', job = '', enableCopy = true) {
   cancelled = false;
   skipRecovered = false;
@@ -1050,7 +1070,20 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
         sendProgress(1, 'done', 100, '候选人信息提取完成');
       }
     } else {
-      sendProgress(1, 'done', 100, '已跳过提取步骤');
+      // v1.4.8: 「直接用上次数据评分（跳过提取）」——若当前输出目录没有候选人数据，
+      // 尝试从最近一次历史归档里恢复，避免用户上一轮数据被归档后无法直接重评分
+      const candidatesPath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
+      if (!existsSync(candidatesPath)) {
+        const found = findRecentArchiveWithCandidates();
+        if (found) {
+          termLog(`[main] 当前输出目录无候选人数据，从历史归档恢复: ${found.archiveDir}`);
+          copyFileSync(found.candidatePath, candidatesPath);
+          sendProgress(1, 'running', 30, '正在从上次提取的数据恢复...');
+        } else {
+          throw new Error('未找到已提取的候选人数据。请先点「开始提取分析」完成提取，或用上次跑完的数据。');
+        }
+      }
+      sendProgress(1, 'done', 100, '已跳过提取，直接用已有数据评分');
     }
     // 步骤 2: AI 评分（直接从 zhipin-candidates.json 读取）
     const candidatesPath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
@@ -1407,6 +1440,13 @@ function registerIPC() {
     const enableCopy = opts?.enableCopy !== false; // v1.4.4 模拟复制开关，默认开启
     runPipeline(count, skipExtract, extractAll, source, job, enableCopy);
     return { ok: true };
+  });
+
+  // v1.4.8: 判断是否还有可用的上次提取数据（当前目录或最近归档），
+  // 决定「直接用上次数据评分」按钮是否可点
+  ipcMain.handle('has-scorable-data', () => {
+    if (existsSync(resolve(OUTPUT_DIR, 'zhipin-candidates.json'))) return true;
+    return !!findRecentArchiveWithCandidates();
   });
 
   ipcMain.handle('cancel-extraction', () => {

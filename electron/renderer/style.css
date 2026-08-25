@@ -45,7 +45,7 @@ body {
 #app {
   width: 610px;
   margin: 0 auto;
-  padding: 20px 24px;
+  padding: 16px 24px;
   min-height: auto;
   -webkit-app-region: no-drag;
 }
@@ -76,7 +76,7 @@ header h1 {
   display: none;
   flex-direction: column;
   align-items: stretch;
-  gap: 10px;
+  gap: 8px;
 }
 .state.active {
   display: flex;
@@ -277,7 +277,7 @@ input::-webkit-clear-button {
   box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 .card-title {
   font-size: 13px;
@@ -608,6 +608,36 @@ input::-webkit-clear-button {
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
+}
+
+/* v1.4.8: 直接用上次数据评分（跳过提取）——与主按钮同宽同高的次级按钮样式 */
+.btn-rescore {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: var(--radius-btn);
+  border: 1px solid var(--border-input);
+  background: var(--bg-card);
+  color: var(--color-accent);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  -webkit-app-region: no-drag;
+}
+.btn-rescore:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: rgba(var(--color-accent-rgb), 0.06);
+  box-shadow: 0 2px 8px rgba(var(--color-accent-rgb), 0.15);
+}
+.btn-rescore:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.btn-rescore:disabled {
+  color: var(--text-muted);
+  border-color: var(--border-card);
+  cursor: not-allowed;
 }
 
 /* ===== Collapsible Card ===== */
@@ -1189,9 +1219,9 @@ input::-webkit-clear-button {
 /* ===== Toast 通知 ===== */
 .toast-container {
   position: fixed;
-  top: 16px;
+  top: 42%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   z-index: 9999;
   display: flex;
   flex-direction: column;
