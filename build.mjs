@@ -138,7 +138,9 @@ function removeSameDayEarlierReleases() {
   const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   let releases;
   try {
-    const json = execSync('gh release list --limit 30 --json tagName,createdAt', { cwd: ROOT, encoding: 'utf-8' });
+    // 用 publishedAt 而非 createdAt：release 可能是先建草稿、后正式发布的，
+    // createdAt 会落在建草稿的那天（可能比正式发布早一天），导致当天清理漏删
+    const json = execSync('gh release list --limit 30 --json tagName,publishedAt', { cwd: ROOT, encoding: 'utf-8' });
     releases = JSON.parse(json);
   } catch {
     console.warn('  无法读取 release 列表，跳过当天旧版清理');
@@ -146,9 +148,9 @@ function removeSameDayEarlierReleases() {
   }
   for (const r of releases) {
     if (r.tagName === `v${VERSION}`) continue; // 保留刚发布的这一版
-    const created = new Date(r.createdAt);
-    const createdKey = `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, '0')}-${String(created.getDate()).padStart(2, '0')}`;
-    if (createdKey !== todayKey) continue; // 只看当天发布的
+    const published = new Date(r.publishedAt);
+    const publishedKey = `${published.getFullYear()}-${String(published.getMonth() + 1).padStart(2, '0')}-${String(published.getDate()).padStart(2, '0')}`;
+    if (publishedKey !== todayKey) continue; // 只看当天发布的
     console.log(`  删除当天较早版本: ${r.tagName}（只保留最新 v${VERSION}）`);
     try {
       execSync(`gh release delete "${r.tagName}" --yes`, { cwd: ROOT, stdio: 'pipe' });
