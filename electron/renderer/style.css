@@ -1216,6 +1216,18 @@ button.is-loading::before {
   margin-top: 18px;
 }
 
+/* 通用确认弹窗（替代原生 confirm/alert） */
+.confirm-box {
+  width: 420px;
+}
+.confirm-message {
+  font-size: var(--text-md);
+  line-height: var(--leading-loose);
+  color: var(--text-secondary);
+  white-space: pre-line;
+  word-break: break-word;
+}
+
 /* ===== Toast 通知 ===== */
 .toast-container {
   position: fixed;

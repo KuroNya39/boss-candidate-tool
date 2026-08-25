@@ -214,6 +214,61 @@ function showToast(message, type = 'info', duration = 3000) {
   }, duration);
 }
 
+// ===== 通用确认弹窗（替代原生 confirm/alert）=====
+// 返回 Promise<boolean>。danger 时确定按钮变红色；showCancel:false 时只保留确定按钮。
+function confirmDialog({ title, message, okText = '确定', cancelText = '取消', danger = false, showCancel = true }) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('confirm-overlay');
+    const titleEl = document.getElementById('confirm-title');
+    const messageEl = document.getElementById('confirm-message');
+    const okBtn = document.getElementById('btn-confirm-ok');
+    const cancelBtn = document.getElementById('btn-confirm-cancel');
+    if (!overlay || !titleEl || !messageEl || !okBtn || !cancelBtn) { resolve(false); return; }
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    okBtn.textContent = okText;
+    okBtn.className = 'btn ' + (danger ? 'btn--danger' : 'btn--primary');
+    cancelBtn.textContent = cancelText;
+    cancelBtn.style.display = showCancel ? '' : 'none';
+
+    // 记录弹窗前的焦点，关闭后还原
+    const prevFocus = document.activeElement;
+    overlay.style.display = 'flex';
+    okBtn.focus();
+
+    const done = (val) => {
+      overlay.style.display = 'none';
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      overlay.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKey);
+      if (prevFocus && typeof prevFocus.focus === 'function') prevFocus.focus();
+      resolve(val);
+    };
+    const onOk = () => done(true);
+    const onCancel = () => done(false);
+    const onBackdrop = (e) => { if (e.target === overlay) done(false); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { done(false); return; }
+      if (e.key === 'Enter' && e.target === okBtn) { done(true); return; }
+      // 焦点陷阱：Tab 循环在弹窗内
+      if (e.key === 'Tab') {
+        const focusables = [okBtn, ...(showCancel ? [cancelBtn] : [])].filter((b) => b.style.display !== 'none');
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    overlay.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKey);
+  });
+}
+
 // ===== 按钮加载态（spinner + aria-busy + 禁用）=====
 function setLoading(btn, loading) {
   if (!btn) return;
@@ -551,21 +606,36 @@ btnStart.addEventListener('click', async () => {
   try {
     const bs = await window.electronAPI.checkBossMode();
     if (bs && !bs.chromePath) {
-      alert('没有在常见位置找到 Chrome。请照常打开 Chrome，按 README 第 1 步开启远程调试后使用。');
+      await confirmDialog({
+        title: '未找到 Chrome',
+        message: '没有在常见位置找到 Chrome。请照常打开 Chrome，按 README 第 1 步开启远程调试后使用。',
+        okText: '知道了',
+        showCancel: false,
+      });
       return;
     }
     if (bs && bs.running && !bs.bossMode) {
       // Chrome 在跑但没开边用边跑 → 询问是否重启
-      const ok = confirm('要用「边用边跑」模式运行（推荐），需要重启 Chrome（会关闭当前标签页）。重启后请重新打开 Boss 直聘页面。是否继续？\n\n如果选「取消」，本次将按普通方式运行，运行期间请不要最小化 Chrome 窗口。');
+      const ok = await confirmDialog({
+        title: '重启 Chrome 进入「边用边跑」模式？',
+        message: '要用「边用边跑」模式运行（推荐），需要重启 Chrome（会关闭当前标签页）。重启后请重新打开 Boss 直聘页面。是否继续？\n\n如果选「取消」，本次将按普通方式运行，运行期间请不要最小化 Chrome 窗口。',
+        okText: '重启 Chrome',
+        cancelText: '按普通方式运行',
+      });
       if (ok) {
         const res = await window.electronAPI.launchBossModeChrome({ forceClose: true });
         if (res?.ok) {
           await window.electronAPI.retryCdpConnection();
           await updateCdpStatus();
-          alert('Chrome 已用「边用边跑」模式重启。请确认 Boss 直聘页面已打开，然后再次点击「开始提取分析」。');
+          await confirmDialog({
+            title: 'Chrome 已重启',
+            message: 'Chrome 已用「边用边跑」模式重启。请确认 Boss 直聘页面已打开，然后再次点击「开始提取分析」。',
+            okText: '知道了',
+            showCancel: false,
+          });
           return;
         }
-        alert(res?.message || '重启 Chrome 失败，请重试。');
+        showToast(res?.message || '重启 Chrome 失败，请重试。', 'error', 5000);
         return;
       }
       // 用户选择普通方式，继续（运行期间不要最小化窗口）
@@ -575,10 +645,15 @@ btnStart.addEventListener('click', async () => {
       if (res?.ok) {
         await window.electronAPI.retryCdpConnection();
         await updateCdpStatus();
-        alert('Chrome 已用「边用边跑」模式启动。请打开 Boss 直聘页面，然后再次点击「开始提取分析」。');
+        await confirmDialog({
+          title: 'Chrome 已启动',
+          message: 'Chrome 已用「边用边跑」模式启动。请打开 Boss 直聘页面，然后再次点击「开始提取分析」。',
+          okText: '知道了',
+          showCancel: false,
+        });
         return;
       }
-      alert(res?.message || '启动 Chrome 失败，请重试。');
+      showToast(res?.message || '启动 Chrome 失败，请重试。', 'error', 5000);
       return;
     }
   } catch (e) {
@@ -602,7 +677,12 @@ btnCancel.addEventListener('click', async () => {
 
 // 跳过提取，直接评分
 btnSkipExtract.addEventListener('click', async () => {
-  if (!confirm('确定跳过剩余候选人提取，用已提取的数据直接开始 AI 评分吗？')) return;
+  const ok = await confirmDialog({
+    title: '跳过剩余提取？',
+    message: '确定跳过剩余候选人提取，用已提取的数据直接开始 AI 评分吗？',
+    okText: '跳过并评分',
+  });
+  if (!ok) return;
   setLoading(btnSkipExtract, true);
   btnSkipExtract.disabled = true;
   btnSkipExtract.textContent = '⏭ 正在跳过提取...';
@@ -683,9 +763,13 @@ btnSelectDir.addEventListener('click', async () => {
 
 // 清空历史归档数据
 btnClearHistory.addEventListener('click', async () => {
-  if (!confirm('确定要清空历史数据吗？\n\n将删除本地保存的全部历史数据（不含已导出的 Excel 文件），删除后不可恢复。')) {
-    return;
-  }
+  const ok = await confirmDialog({
+    title: '清空历史数据？',
+    message: '将删除本地保存的全部历史数据（不含已导出的 Excel 文件），删除后不可恢复。',
+    okText: '清空',
+    danger: true,
+  });
+  if (!ok) return;
   setLoading(btnClearHistory, true);
   btnClearHistory.disabled = true;
   btnClearHistory.textContent = '清理中...';
@@ -899,7 +983,13 @@ function hideAddJobDialog() {
 
 // 删除岗位
 async function deleteJob(jobName) {
-  if (!confirm(`确定要删除岗位「${jobName}」吗？`)) return;
+  const ok = await confirmDialog({
+    title: '删除岗位？',
+    message: `确定要删除岗位「${jobName}」吗？`,
+    okText: '删除',
+    danger: true,
+  });
+  if (!ok) return;
   try {
     await window.electronAPI.deleteRecommendJob(jobName);
     if (selectedJob === jobName) selectedJob = '';

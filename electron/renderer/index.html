@@ -353,6 +353,18 @@
     </div>
   </div>
 
+  <!-- 通用确认弹窗（替代原生 confirm/alert） -->
+  <div id="confirm-overlay" class="dialog-overlay" style="display:none;">
+    <div class="dialog-box confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+      <div class="dialog-title" id="confirm-title"></div>
+      <div class="confirm-message" id="confirm-message"></div>
+      <div class="dialog-actions">
+        <button id="btn-confirm-cancel" class="btn btn--ghost">取消</button>
+        <button id="btn-confirm-ok" class="btn btn--primary">确定</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast 容器 -->
   <div id="toast-container" class="toast-container"></div>
 
