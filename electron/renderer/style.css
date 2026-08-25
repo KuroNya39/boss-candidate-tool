@@ -111,9 +111,27 @@ body {
   color: var(--text-primary);
   font-size: var(--text-md);
   line-height: var(--leading-normal);
-  user-select: none;
+  /* 不再设 user-select:none，恢复文字可选中（交互元素各自保留）。 */
   /* 注意：不再给 body 设 -webkit-app-region: drag。
      窗口有原生标题栏可拖拽；body 级 drag 区域会干扰原生 <select> 弹层打开（批量打招呼下拉框点了没反应）。 */
+}
+
+/* 原生 <button> 自带浏览器样式，统一重置为继承视觉体系；
+   交互元素保留 user-select:none 防止点按时误选中文字。 */
+button {
+  font-family: inherit;
+  color: inherit;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-app-region: no-drag;
+}
+
+/* 键盘导航焦点环（鼠标点按时不显示；输入框已有各自 :focus 样式，不重复叠加） */
+button:focus-visible,
+[tabindex]:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 var(--ring-width) var(--ring-color);
 }
 
 #app {
@@ -210,6 +228,7 @@ input::-webkit-clear-button {
   flex: 1;
 }
 .job-display {
+  font-family: inherit;
   font-size: 14px;
   color: var(--text-primary);
   font-weight: 500;
@@ -219,7 +238,8 @@ input::-webkit-clear-button {
   border-radius: 6px;
   flex: 1;
   max-width: 380px;
-  cursor: default;
+  cursor: pointer;
+  text-align: left;
 }
 .job-display.placeholder {
   color: var(--text-muted);
@@ -271,6 +291,13 @@ input::-webkit-clear-button {
   flex: 1;
   cursor: pointer;
   padding: 2px 0;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
 }
 .job-picker-add {
   border-bottom: 1px dashed var(--border-card);
@@ -526,11 +553,14 @@ button.is-loading::before {
   justify-content: center;
   width: 16px;
   height: 16px;
+  border: none;
   border-radius: 50%;
   font-size: 11px;
   line-height: 1;
+  font-family: inherit;
   color: var(--text-muted);
   background: var(--border-card);
+  padding: 0;
   cursor: help;
   user-select: none;
 }
@@ -749,6 +779,11 @@ button.is-loading::before {
   cursor: pointer;
   -webkit-app-region: no-drag;
   user-select: none;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-size: inherit;
   transition: background var(--transition-fast);
 }
 .collapsible-header:hover {

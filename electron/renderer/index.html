@@ -22,50 +22,50 @@
         <button id="btn-retry-chrome" class="btn btn--ghost btn--sm btn--retry" style="display:none;">重新连接 Chrome</button>
       </div>
       <div class="card collapsible-card" id="api-config-card">
-        <div class="collapsible-header" id="api-config-toggle">
-          <div class="collapsible-header-left">
-            <span class="collapsible-icon">⚙</span>
+        <button type="button" class="collapsible-header" id="api-config-toggle" aria-expanded="false" aria-controls="api-config-body">
+          <span class="collapsible-header-left">
+            <span class="collapsible-icon" aria-hidden="true">⚙</span>
             <span class="collapsible-title">API 配置</span>
             <span id="config-status" class="config-badge config-missing">未配置</span>
-          </div>
-          <span class="collapsible-arrow" id="api-config-arrow">▸</span>
-        </div>
+          </span>
+          <span class="collapsible-arrow" id="api-config-arrow" aria-hidden="true">▸</span>
+        </button>
         <div class="collapsible-body" id="api-config-body">
           <div class="field-group">
-            <label class="field-label">API 地址（Anthropic 格式）</label>
+            <label class="field-label" for="api-url">API 地址（Anthropic 格式）</label>
             <div class="input-wrap">
               <input type="text" id="api-url" class="input-text" placeholder="https://api.xxx.com">
             </div>
           </div>
           <div class="field-group">
-            <label class="field-label">API Key</label>
+            <label class="field-label" for="api-key">API Key</label>
             <div class="input-wrap">
               <input type="password" id="api-key" class="input-text" placeholder="sk-...">
-              <span class="input-toggle" data-target="api-key" title="点击显示">
+              <button type="button" class="input-toggle" data-target="api-key" title="点击显示" aria-label="显示 API Key" aria-pressed="false">
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 11 8 11 8a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 1 12s4 8 11 8a9.74 9.74 0 0 0 5.39-1.61"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-              </span>
+              </button>
             </div>
           </div>
           <div class="field-group">
-            <label class="field-label">模型名称</label>
+            <label class="field-label" for="api-model">模型名称</label>
             <div class="input-wrap">
               <input type="text" id="api-model" class="input-text" placeholder="claude-sonnet-...">
             </div>
           </div>
           <div class="card-divider"></div>
           <div class="field-group">
-            <label class="field-label">邮件通知（可选）</label>
+            <label class="field-label" for="email-prefix">邮件通知（可选）</label>
             <div class="input-wrap">
               <input type="text" id="email-prefix" class="input-text" placeholder="填完整邮箱，如 zhangsan@allwinnertech.com（同一邮箱既收信也发信）">
             </div>
           </div>
           <div class="field-group">
-            <label class="field-label">邮箱密码</label>
+            <label class="field-label" for="smtp-pass">邮箱密码</label>
             <div class="input-wrap">
               <input type="password" id="smtp-pass" class="input-text" placeholder="发件邮箱的登录密码；若开启了三方客户端安全密码，则填客户端安全密码">
-              <span class="input-toggle" data-target="smtp-pass" title="点击显示">
+              <button type="button" class="input-toggle" data-target="smtp-pass" title="点击显示" aria-label="显示邮箱密码" aria-pressed="false">
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 11 8 11 8a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 1 12s4 8 11 8a9.74 9.74 0 0 0 5.39-1.61"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-              </span>
+              </button>
             </div>
           </div>
           <div class="card-divider"></div>
@@ -80,7 +80,7 @@
       </div>
 
       <div class="card">
-        <div class="card-title">运行配置</div>
+        <div class="card-title" tabindex="-1">运行配置</div>
 
         <!-- Source Toggle -->
         <div class="field-group">
@@ -109,13 +109,13 @@
         <div id="job-select-section" class="field-group" style="display:none;">
           <label class="field-label">目标岗位</label>
           <div class="job-selector">
-            <span id="job-display" class="job-display placeholder">请选择岗位 ▸</span>
+            <button type="button" id="job-display" class="job-display placeholder">请选择岗位 <span aria-hidden="true">▸</span></button>
           </div>
         </div>
 
         <!-- Count -->
         <div class="field-group">
-          <label class="field-label">提取数量</label>
+          <label class="field-label" for="count-input">提取数量</label>
           <div class="count-controls">
             <input type="number" id="count-input" class="input-number" value="20" min="1" max="999">
             <span class="count-unit">人</span>
@@ -137,7 +137,7 @@
             <input type="checkbox" id="enable-copy">
             <span>开启模拟复制提取</span>
           </label>
-          <span class="tip-icon" data-tip="电脑闲置状态建议开启，提取速度更快">ⓘ</span>
+          <button type="button" class="tip-icon" data-tip="电脑闲置状态建议开启，提取速度更快" aria-label="电脑闲置状态建议开启，提取速度更快">ⓘ</button>
         </div>
 
         <!-- 自动打招呼 -->
@@ -148,16 +148,16 @@
           </label>
           <div class="auto-greet-controls" id="auto-greet-controls" style="display:none;">
             <div class="custom-select" id="auto-greet-level" data-value="4">
-              <button type="button" class="custom-select-trigger">
+              <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
                 <span class="custom-select-label">四星及以上（81 分以上）</span>
-                <span class="custom-select-arrow">▾</span>
+                <span class="custom-select-arrow" aria-hidden="true">▾</span>
               </button>
-              <div class="custom-select-menu" style="display:none;">
-                <button type="button" class="custom-select-option" data-value="5">五星（91 分以上）</button>
-                <button type="button" class="custom-select-option" data-value="4">四星及以上（81 分以上）</button>
-                <button type="button" class="custom-select-option" data-value="3">三星及以上（61 分以上）</button>
-                <button type="button" class="custom-select-option" data-value="2">二星及以上（31 分以上）</button>
-                <button type="button" class="custom-select-option" data-value="0">全部候选人</button>
+              <div class="custom-select-menu" role="listbox" style="display:none;">
+                <button type="button" class="custom-select-option" data-value="5" role="option" aria-selected="false">五星（91 分以上）</button>
+                <button type="button" class="custom-select-option" data-value="4" role="option" aria-selected="true">四星及以上（81 分以上）</button>
+                <button type="button" class="custom-select-option" data-value="3" role="option" aria-selected="false">三星及以上（61 分以上）</button>
+                <button type="button" class="custom-select-option" data-value="2" role="option" aria-selected="false">二星及以上（31 分以上）</button>
+                <button type="button" class="custom-select-option" data-value="0" role="option" aria-selected="false">全部候选人</button>
               </div>
             </div>
           </div>
@@ -165,7 +165,7 @@
 
         <!-- Start button -->
         <button id="btn-start" class="btn btn--primary btn--lg btn--block">
-          ▶ 开始提取分析
+          <span aria-hidden="true">▶</span> 开始提取分析
         </button>
         <p id="btn-start-hint" class="field-hint" aria-live="polite"></p>
 
@@ -177,9 +177,9 @@
     <!-- 执行中状态 -->
     <div id="state-running" class="state">
       <div class="card">
-        <div class="card-title">
+        <div class="card-title" tabindex="-1">
           执行进度
-          <span id="step-indicator" class="step-indicator">等待开始</span>
+          <span id="step-indicator" class="step-indicator" aria-live="polite">等待开始</span>
         </div>
 
         <div class="step-item" id="step-1">
@@ -196,7 +196,7 @@
             </div>
             <span class="progress-pct" id="step-1-pct"></span>
           </div>
-          <div class="step-msg" id="step-1-msg"></div>
+          <div class="step-msg" id="step-1-msg" aria-live="polite"></div>
         </div>
 
         <div class="step-divider"></div>
@@ -215,7 +215,7 @@
             </div>
             <span class="progress-pct" id="step-2-pct"></span>
           </div>
-          <div class="step-msg" id="step-2-msg"></div>
+          <div class="step-msg" id="step-2-msg" aria-live="polite"></div>
         </div>
 
         <div class="step-divider"></div>
@@ -234,11 +234,11 @@
             </div>
             <span class="progress-pct" id="step-3-pct"></span>
           </div>
-          <div class="step-msg" id="step-3-msg"></div>
+          <div class="step-msg" id="step-3-msg" aria-live="polite"></div>
         </div>
 
         <div class="running-actions">
-          <button id="btn-skip-extract" class="btn btn--warning" style="display:none;">⏭ 跳过提取候选人</button>
+          <button id="btn-skip-extract" class="btn btn--warning" style="display:none;"><span aria-hidden="true">⏭</span> 跳过提取候选人</button>
           <button id="btn-cancel" class="btn btn--ghost">取消</button>
         </div>
       </div>
@@ -248,10 +248,10 @@
     <div id="state-done" class="state">
       <div class="card">
         <div class="result-header">
-          <div class="result-icon-circle success">
+          <div class="result-icon-circle success" aria-hidden="true">
             <span class="result-icon-check">✓</span>
           </div>
-          <div class="result-title">全部完成！</div>
+          <div class="result-title" tabindex="-1">全部完成！</div>
         </div>
         <div class="result-summary" id="done-summary"></div>
         <details id="mail-error-details" class="mail-error-details" style="display:none;">
@@ -259,8 +259,8 @@
           <div id="mail-error-detail" class="mail-error-detail"></div>
         </details>
         <div class="result-actions">
-          <button id="btn-open-dir" class="btn btn--primary">📂 打开输出目录</button>
-          <button id="btn-restart" class="btn btn--ghost">🔄 重新开始</button>
+          <button id="btn-open-dir" class="btn btn--primary"><span aria-hidden="true">📂</span> 打开输出目录</button>
+          <button id="btn-restart" class="btn btn--ghost"><span aria-hidden="true">🔄</span> 重新开始</button>
         </div>
 
         <div id="greet-section" class="greet-section" style="display:none;">
@@ -268,16 +268,16 @@
           <div class="greet-title">批量打招呼</div>
           <div class="greet-controls">
             <div class="custom-select" id="greet-level" data-value="4">
-              <button type="button" class="custom-select-trigger">
+              <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
                 <span class="custom-select-label">四星及以上（81 分以上）</span>
-                <span class="custom-select-arrow">▾</span>
+                <span class="custom-select-arrow" aria-hidden="true">▾</span>
               </button>
-              <div class="custom-select-menu" style="display:none;">
-                <button type="button" class="custom-select-option" data-value="5">五星（91 分以上）</button>
-                <button type="button" class="custom-select-option" data-value="4">四星及以上（81 分以上）</button>
-                <button type="button" class="custom-select-option" data-value="3">三星及以上（61 分以上）</button>
-                <button type="button" class="custom-select-option" data-value="2">二星及以上（31 分以上）</button>
-                <button type="button" class="custom-select-option" data-value="0">全部候选人</button>
+              <div class="custom-select-menu" role="listbox" style="display:none;">
+                <button type="button" class="custom-select-option" data-value="5" role="option" aria-selected="false">五星（91 分以上）</button>
+                <button type="button" class="custom-select-option" data-value="4" role="option" aria-selected="true">四星及以上（81 分以上）</button>
+                <button type="button" class="custom-select-option" data-value="3" role="option" aria-selected="false">三星及以上（61 分以上）</button>
+                <button type="button" class="custom-select-option" data-value="2" role="option" aria-selected="false">二星及以上（31 分以上）</button>
+                <button type="button" class="custom-select-option" data-value="0" role="option" aria-selected="false">全部候选人</button>
               </div>
             </div>
             <span id="greet-count" class="greet-count-text"></span>
@@ -292,7 +292,7 @@
             </div>
             <div class="greet-progress-text" id="greet-progress-text"></div>
           </div>
-          <div id="greet-result" class="greet-result" style="display:none;"></div>
+          <div id="greet-result" class="greet-result" style="display:none;" aria-live="polite"></div>
         </div>
 
         <!-- 搜索页打招呼说明：搜索页打招呼需要畅聊卡（付费），不提供自动打招呼 -->
@@ -308,21 +308,21 @@
     <div id="state-error" class="state">
       <div class="card">
         <div class="result-header">
-          <div class="result-icon-circle error">
+          <div class="result-icon-circle error" aria-hidden="true">
             <span class="result-icon-check">✕</span>
           </div>
-          <div class="result-title">执行出错</div>
+          <div class="result-title" tabindex="-1">执行出错</div>
         </div>
-        <div class="error-message" id="error-message"></div>
+        <div class="error-message" id="error-message" role="alert"></div>
         <button id="btn-retry" class="btn btn--primary" style="align-self:center;">重试</button>
       </div>
     </div>
   </div>
 
   <!-- 添加岗位弹窗 -->
-  <div id="job-dialog-overlay" class="dialog-overlay" style="display:none;">
+  <div id="job-dialog-overlay" class="dialog-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="job-dialog-title">
     <div class="dialog-box">
-      <div class="dialog-title">添加新岗位</div>
+      <div class="dialog-title" id="job-dialog-title">添加新岗位</div>
       <div class="dialog-field">
         <label for="dialog-job-name">岗位名称</label>
         <input type="text" id="dialog-job-name" placeholder="例如：AI大模型工程师 _ 深圳 30-50K">
@@ -340,13 +340,13 @@
   </div>
 
   <!-- 目标岗位弹窗 -->
-  <div id="job-picker-overlay" class="dialog-overlay" style="display:none;">
+  <div id="job-picker-overlay" class="dialog-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="job-picker-title">
     <div class="dialog-box">
-      <div class="dialog-title">目标岗位</div>
+      <div class="dialog-title" id="job-picker-title">目标岗位</div>
       <div class="job-picker-search">
         <input type="text" id="job-search-input" class="job-picker-search-input" placeholder="搜索岗位..." autocomplete="off" />
       </div>
-      <div class="job-picker-list" id="job-picker-list"></div>
+      <div class="job-picker-list" id="job-picker-list" role="list" aria-live="polite"></div>
       <div class="dialog-actions">
         <button id="btn-picker-cancel" class="btn btn--ghost">取消</button>
       </div>
@@ -366,7 +366,7 @@
   </div>
 
   <!-- Toast 容器 -->
-  <div id="toast-container" class="toast-container"></div>
+  <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
 
   <script src="renderer.js"></script>
 </body>

@@ -123,14 +123,18 @@ function initCustomSelect(container) {
   const trigger = container.querySelector('.custom-select-trigger');
   const menu = container.querySelector('.custom-select-menu');
   const label = trigger.querySelector('.custom-select-label');
-  const options = container.querySelectorAll('.custom-select-option');
+  const options = Array.from(container.querySelectorAll('.custom-select-option'));
 
   function sync() {
     const v = String(container.dataset.value);
     const opt = container.querySelector(`.custom-select-option[data-value="${v}"]`);
     if (opt) {
       label.textContent = opt.textContent;
-      options.forEach(o => o.classList.toggle('selected', o.dataset.value === v));
+      options.forEach(o => {
+        const sel = o.dataset.value === v;
+        o.classList.toggle('selected', sel);
+        o.setAttribute('aria-selected', String(sel));
+      });
     }
   }
 
@@ -140,35 +144,78 @@ function initCustomSelect(container) {
     set(v) { container.dataset.value = String(v); sync(); },
   });
 
-  trigger.addEventListener('click', (e) => {
-    e.stopPropagation();
+  function setOpen(open) {
     const isOpen = menu.style.display !== 'none';
-    document.querySelectorAll('.custom-select-menu').forEach(m => { m.style.display = 'none'; });
-    if (isOpen) return;
-    // 窗口底部空间不足时向上展开（原生 select 会自动翻转，自定义组件需手动处理）
-    const rect = container.getBoundingClientRect();
-    const menuH = options.length * 36 + 12;
-    if (rect.bottom + menuH + 8 > window.innerHeight) {
-      menu.style.top = 'auto';
-      menu.style.bottom = 'calc(100% + 4px)';
-    } else {
-      menu.style.top = 'calc(100% + 4px)';
-      menu.style.bottom = 'auto';
+    if (open === isOpen) return;
+    if (open) {
+      // 窗口底部空间不足时向上展开（原生 select 会自动翻转，自定义组件需手动处理）
+      const rect = container.getBoundingClientRect();
+      const menuH = options.length * 36 + 12;
+      if (rect.bottom + menuH + 8 > window.innerHeight) {
+        menu.style.top = 'auto';
+        menu.style.bottom = 'calc(100% + 4px)';
+      } else {
+        menu.style.top = 'calc(100% + 4px)';
+        menu.style.bottom = 'auto';
+      }
     }
-    menu.style.display = 'flex';
-  });
+    menu.style.display = open ? 'flex' : 'none';
+    trigger.setAttribute('aria-expanded', String(open));
+  }
 
-  options.forEach(opt => opt.addEventListener('click', (e) => {
-    e.stopPropagation();
-    container.dataset.value = opt.dataset.value;
+  function selectValue(v) {
+    container.dataset.value = String(v);
     sync();
-    menu.style.display = 'none';
+    setOpen(false);
+    trigger.focus();
     // 派发 change 事件，兼容既有监听（updateGreetCount 等）
     container.dispatchEvent(new Event('change', { bubbles: true }));
-  }));
+  }
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.querySelectorAll('.custom-select-menu').forEach(m => { if (m !== menu) m.style.display = 'none'; });
+    setOpen(menu.style.display === 'none');
+  });
+
+  // 触发按钮键盘：↓/↑/Home/End 打开并定位；Escape 收起
+  trigger.addEventListener('keydown', (e) => {
+    const isOpen = menu.style.display !== 'none';
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      if (!isOpen) {
+        setOpen(true);
+        const idx = (e.key === 'ArrowUp' || e.key === 'End') ? options.length - 1 : 0;
+        options[idx].focus();
+      }
+    } else if (e.key === 'Escape' && isOpen) {
+      e.preventDefault();
+      setOpen(false);
+      trigger.focus();
+    }
+  });
+
+  // 选项：点击选择；方向键移动；Enter/Space 选择；Escape 收起并回焦点
+  options.forEach(opt => {
+    opt.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectValue(opt.dataset.value);
+    });
+    opt.addEventListener('keydown', (e) => {
+      const idx = options.indexOf(opt);
+      if (e.key === 'ArrowDown') { e.preventDefault(); options[Math.min(idx + 1, options.length - 1)].focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); options[Math.max(idx - 1, 0)].focus(); }
+      else if (e.key === 'Home') { e.preventDefault(); options[0].focus(); }
+      else if (e.key === 'End') { e.preventDefault(); options[options.length - 1].focus(); }
+      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectValue(opt.dataset.value); }
+      else if (e.key === 'Escape') { e.preventDefault(); setOpen(false); trigger.focus(); }
+    });
+  });
 
   // 点击其它位置收起
-  document.addEventListener('click', () => { menu.style.display = 'none'; });
+  document.addEventListener('click', (e) => {
+    if (!container.contains(e.target)) setOpen(false);
+  });
 
   sync();
 }
@@ -206,6 +253,7 @@ function showToast(message, type = 'info', duration = 3000) {
   if (!container) return;
   const el = document.createElement('div');
   el.className = 'toast toast-' + type;
+  if (type === 'error') el.setAttribute('role', 'alert');
   el.textContent = message;
   container.appendChild(el);
   setTimeout(() => {
@@ -290,13 +338,21 @@ function cleanupAll() {
 }
 
 // ===== 状态切换 =====
+let firstStateShown = false;
 function showState(stateId) {
   [stateInitial, stateRunning, stateDone, stateError].forEach((el) => {
     el.classList.remove('active');
   });
-  document.getElementById(stateId).classList.add('active');
+  const panel = document.getElementById(stateId);
+  panel.classList.add('active');
   // v1.4.8: 回到初始界面时刷新「直接用上次数据评分」按钮的可用状态
   if (stateId === 'state-initial') updateRescoreButton();
+  // 状态切换后把焦点移入新面板标题（初始加载跳过，避免页面打开即有焦点环）
+  if (firstStateShown) {
+    const heading = panel.querySelector('.card-title, .result-title');
+    if (heading) heading.focus();
+  }
+  firstStateShown = true;
 }
 
 // v1.4.8: 检查是否还有上次提取的数据，决定「直接用上次数据评分」按钮是否可点
@@ -583,8 +639,9 @@ btnSaveConfig.addEventListener('click', async () => {
 
 // Collapsible API Config
 apiConfigToggle.addEventListener('click', () => {
-  apiConfigBody.classList.toggle('expanded');
+  const expanded = apiConfigBody.classList.toggle('expanded');
   apiConfigArrow.classList.toggle('expanded');
+  apiConfigToggle.setAttribute('aria-expanded', String(expanded));
 });
 
 // ===== 按钮事件 =====
@@ -799,7 +856,7 @@ function updateJobDisplay() {
     jobDisplay.textContent = selectedJob;
     jobDisplay.className = 'job-display';
   } else {
-    jobDisplay.textContent = '请选择岗位';
+    jobDisplay.innerHTML = '请选择岗位 <span aria-hidden="true">▸</span>';
     jobDisplay.className = 'job-display placeholder';
   }
 }
@@ -826,16 +883,18 @@ function renderJobPicker() {
   // 顶部：添加新岗位
   const addItem = document.createElement('div');
   addItem.className = 'job-picker-item job-picker-add';
-  const addName = document.createElement('span');
-  addName.className = 'job-picker-item-name';
-  addName.textContent = '+ 添加新岗位';
-  addName.style.color = 'var(--color-accent)';
-  addName.style.fontWeight = '600';
-  addItem.appendChild(addName);
-  addItem.addEventListener('click', () => {
+  addItem.setAttribute('role', 'listitem');
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'job-picker-item-name';
+  addBtn.textContent = '+ 添加新岗位';
+  addBtn.style.color = 'var(--color-accent)';
+  addBtn.style.fontWeight = '600';
+  addBtn.addEventListener('click', () => {
     hideJobPicker();
     setTimeout(showAddJobDialog, 150);
   });
+  addItem.appendChild(addBtn);
   jobPickerList.appendChild(addItem);
 
   // 岗位列表（按搜索词实时过滤；jobList 保持不变，只过滤副本）
@@ -858,18 +917,20 @@ function renderJobPicker() {
   filtered.forEach(job => {
     const item = document.createElement('div');
     item.className = 'job-picker-item';
+    item.setAttribute('role', 'listitem');
     if (job === selectedJob) item.classList.add('selected');
 
-    // 岗位名称（可点击切换）
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'job-picker-item-name';
-    nameSpan.textContent = job;
-    nameSpan.addEventListener('click', () => {
+    // 岗位名称（可点击/键盘切换）
+    const nameBtn = document.createElement('button');
+    nameBtn.type = 'button';
+    nameBtn.className = 'job-picker-item-name';
+    nameBtn.textContent = job;
+    nameBtn.addEventListener('click', () => {
       selectedJob = job;
       updateJobDisplay();
       hideJobPicker();
     });
-    item.appendChild(nameSpan);
+    item.appendChild(nameBtn);
 
     // 操作按钮组
     const actions = document.createElement('span');
@@ -898,14 +959,55 @@ function renderJobPicker() {
   });
 }
 
+// ===== 弹窗焦点管理 =====
+// 焦点陷阱：弹窗打开时 Tab 只能在弹窗内循环
+function trapFocus(overlay) {
+  const handler = (e) => {
+    if (e.key !== 'Tab') return;
+    const focusables = Array.from(overlay.querySelectorAll('button, input, textarea, select, [tabindex]:not([tabindex="-1"])'))
+      .filter((el) => !el.disabled && el.offsetParent !== null);
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
+  document.addEventListener('keydown', handler);
+  return () => document.removeEventListener('keydown', handler);
+}
+
+let activeDialogTrap = null;
+let dialogPrevFocus = null;
+
+function openDialog(overlay, firstFocusEl) {
+  dialogPrevFocus = document.activeElement;
+  overlay.style.display = 'flex';
+  if (activeDialogTrap) activeDialogTrap();
+  activeDialogTrap = trapFocus(overlay);
+  (firstFocusEl || overlay.querySelector('button, input, textarea, select')).focus();
+}
+
+function closeDialog(overlay) {
+  overlay.style.display = 'none';
+  if (activeDialogTrap) { activeDialogTrap(); activeDialogTrap = null; }
+  if (dialogPrevFocus && typeof dialogPrevFocus.focus === 'function') dialogPrevFocus.focus();
+}
+
+// 全局 Escape：关闭当前打开的弹窗
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (jobDialogOverlay.style.display === 'flex') hideAddJobDialog();
+  else if (jobPickerOverlay.style.display === 'flex') hideJobPicker();
+});
+
 // 显示/隐藏目标岗位弹窗
 function showJobPicker() {
   renderJobPicker();
-  jobPickerOverlay.style.display = 'flex';
+  openDialog(jobPickerOverlay, jobSearchInput);
 }
 
 function hideJobPicker() {
-  jobPickerOverlay.style.display = 'none';
+  closeDialog(jobPickerOverlay);
 }
 
 // 目标岗位弹窗事件
@@ -954,9 +1056,8 @@ function showAddJobDialog() {
   dialogJobName.style.background = '';
   dialogJobDesc.value = '';
   dialogJobHint.style.display = '';
-  document.querySelector('#job-dialog-overlay .dialog-title').textContent = '添加新岗位';
-  jobDialogOverlay.style.display = 'flex';
-  dialogJobName.focus();
+  document.getElementById('job-dialog-title').textContent = '添加新岗位';
+  openDialog(jobDialogOverlay, dialogJobName);
 }
 
 async function showEditJobDialog(jobName) {
@@ -965,19 +1066,18 @@ async function showEditJobDialog(jobName) {
   dialogJobName.readOnly = true;
   dialogJobName.style.background = 'var(--bg-subtle)';
   dialogJobHint.style.display = 'none';
-  document.querySelector('#job-dialog-overlay .dialog-title').textContent = '编辑岗位描述';
+  document.getElementById('job-dialog-title').textContent = '编辑岗位描述';
   try {
     const desc = await window.electronAPI.getRecommendJobDesc(jobName);
     dialogJobDesc.value = desc || '';
   } catch {
     dialogJobDesc.value = '';
   }
-  jobDialogOverlay.style.display = 'flex';
-  dialogJobDesc.focus();
+  openDialog(jobDialogOverlay, dialogJobDesc);
 }
 
 function hideAddJobDialog() {
-  jobDialogOverlay.style.display = 'none';
+  closeDialog(jobDialogOverlay);
   editJobName = '';
 }
 
@@ -1006,7 +1106,6 @@ jobDialogOverlay.addEventListener('click', (e) => {
 
 dialogJobName.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') dialogJobDesc.focus();
-  if (e.key === 'Escape') hideAddJobDialog();
 });
 
 btnDialogSave.addEventListener('click', async () => {
@@ -1158,10 +1257,12 @@ async function init() {
       input.type = 'text';
       toggle.innerHTML = EYE_SVG; // 明文 → 睁眼
       toggle.title = '点击隐藏';
+      toggle.setAttribute('aria-pressed', 'true');
     } else if (input) {
       input.type = 'password';
       toggle.innerHTML = EYE_OFF_SVG; // 隐藏 → 闭眼
       toggle.title = '点击显示';
+      toggle.setAttribute('aria-pressed', 'false');
     }
   });
 
