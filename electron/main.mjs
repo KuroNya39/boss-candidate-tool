@@ -960,7 +960,45 @@ function findRecentArchiveWithCandidates() {
   return null;
 }
 
-async function runPipeline(count, skipExtract = false, extractAll = false, source = 'chat', job = '', enableCopy = true) {
+// 历史归档目录名校验：必须形如 {输出目录名}-YYYYMMDD-HHMM，防止误删/误操作任意目录
+function archiveDirNameMatches(name) {
+  const baseName = basename(OUTPUT_DIR);
+  return new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-\\d{8}-\\d{4}$`).test(name);
+}
+
+// 读取某目录里记录的运行元数据（来源/岗位/数量），供继续提取还原环境
+function readRunMeta(dir) {
+  try {
+    const metaPath = resolve(dir, '.run-meta.json');
+    if (existsSync(metaPath)) return JSON.parse(readFileSync(metaPath, 'utf-8'));
+  } catch {}
+  return null;
+}
+
+// 把一个历史归档目录还原为当前输出目录：先把当前输出目录挪开（若不为空），再改名还原。
+// 返回 { ok } 或 { error }。
+function restoreHistoryToOutput(dirPath) {
+  try {
+    if (existsSync(OUTPUT_DIR)) {
+      const entries = readdirSync(OUTPUT_DIR);
+      if (entries.length > 0) {
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+        renameSync(OUTPUT_DIR, `${OUTPUT_DIR}-${stamp}`);
+        termLog(`[resume] 已把当前输出目录归档: ${OUTPUT_DIR}-${stamp}`);
+      }
+    }
+    renameSync(dirPath, OUTPUT_DIR);
+    termLog(`[resume] 已还原历史目录为输出目录: ${OUTPUT_DIR}`);
+    return { ok: true };
+  } catch (err) {
+    termLog(`[resume] 还原目录失败: ${err.message}`, 'stderr');
+    return { error: `还原历史目录失败: ${err.message}` };
+  }
+}
+
+async function runPipeline(count, skipExtract = false, extractAll = false, source = 'chat', job = '', enableCopy = true, resume = false) {
   cancelled = false;
   skipRecovered = false;
 
@@ -970,8 +1008,9 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
   // 注意：公司 IT 强制锁屏策略（域策略/屏保锁定）压不住，那种需联系 IT 或运行前手动设置。
   const keepAwakeId = powerSaveBlocker.start('prevent-display-sleep');
   try {
-    // 归档旧输出目录（在主进程做，避免子进程 rename 时 EBUSY）
-    if (!skipExtract && existsSync(OUTPUT_DIR)) {
+    // 归档旧输出目录（在主进程做，避免子进程 rename 时 EBUSY）。
+    // resume 模式：历史目录已还原为 OUTPUT_DIR，续跑要保留进度文件，不再归档。
+    if (!skipExtract && !resume && existsSync(OUTPUT_DIR)) {
       try {
         const entries = readdirSync(OUTPUT_DIR);
         if (entries.length > 0) {
@@ -988,6 +1027,13 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     }
 
     if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
+
+    // 记录本次运行的来源/岗位/数量等元数据，供「历史记录 → 继续提取」还原同样的环境
+    try {
+      writeFileSync(resolve(OUTPUT_DIR, '.run-meta.json'), JSON.stringify({
+        source, job: job || '', count, extractAll, startedAt: new Date().toISOString(),
+      }, null, 2), 'utf-8');
+    } catch {}
 
     const isRecommendMode = source === 'recommend' || source === 'recommend-attach';
     const isSearchMode = source === 'search';
@@ -1030,6 +1076,9 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       }
       if (isAttach) {
         extractArgs.push('--attach');
+      }
+      if (resume) {
+        extractArgs.push('--resume'); // v1.5.0: 继续提取，跳过已完成项
       }
       extractArgs.push('--enable-copy', enableCopy ? '1' : '0'); // v1.4.4 模拟复制开关
       try {
@@ -1689,6 +1738,167 @@ function registerIPC() {
       matchedDirs,
       skippedDirs,
     };
+  });
+
+  // v1.5.0: 历史记录抽屉 —— 列出所有历史归档批次（含当前输出目录里的未完成批次）
+  ipcMain.handle('list-history', () => {
+    const parentDir = dirname(OUTPUT_DIR);
+    const list = [];
+    try {
+      const entries = readdirSync(parentDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const isCurrent = entry.name === basename(OUTPUT_DIR);
+        if (isCurrent) {
+          // 当前输出目录只在有数据时才展示（否则是首次使用前的空目录）
+          const hasData = existsSync(resolve(parentDir, entry.name, '.extract-progress.json'))
+            || existsSync(resolve(parentDir, entry.name, 'zhipin-candidates.json'))
+            || existsSync(resolve(parentDir, entry.name, 'scored-candidates.json'));
+          if (!hasData) continue;
+        } else if (!archiveDirNameMatches(entry.name)) {
+          continue;
+        }
+        const dir = resolve(parentDir, entry.name);
+        const candidatesPath = resolve(dir, 'zhipin-candidates.json');
+        const scoredPath = resolve(dir, 'scored-candidates.json');
+        const progressPath = resolve(dir, '.extract-progress.json');
+        const info = {
+          name: entry.name,
+          path: dir,
+          isCurrent,
+          hasCandidates: existsSync(candidatesPath),
+          hasScored: existsSync(scoredPath),
+          hasProgress: existsSync(progressPath),
+          hasExcel: existsSync(resolve(dir, 'candidates.xlsx')),
+        };
+        // 显示时间：归档名带 YYYYMMDD-HHMM；当前目录用元数据的 startedAt
+        const stampMatch = entry.name.match(/(\d{8})-(\d{4})$/);
+        if (stampMatch) {
+          const [, ymd, hm] = stampMatch;
+          info.time = `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)} ${hm.slice(0, 2)}:${hm.slice(2, 4)}`;
+        }
+        // 人数：优先候选人文件，其次进度文件
+        if (info.hasCandidates) {
+          try {
+            const raw = JSON.parse(readFileSync(candidatesPath, 'utf-8'));
+            const arr = raw.candidates || raw;
+            info.candidateCount = Array.isArray(arr) ? arr.length : 0;
+          } catch { info.candidateCount = 0; }
+        } else if (info.hasProgress) {
+          try {
+            const p = JSON.parse(readFileSync(progressPath, 'utf-8'));
+            info.candidateCount = p.processedCount ?? (Array.isArray(p.candidates) ? p.candidates.length : 0);
+          } catch { info.candidateCount = 0; }
+        } else {
+          info.candidateCount = 0;
+        }
+        const meta = readRunMeta(dir);
+        if (meta) info.meta = meta;
+        list.push(info);
+      }
+      list.sort((a, b) => {
+        if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1; // 当前未完成批次置顶
+        return b.name.localeCompare(a.name);
+      });
+      return { ok: true, list };
+    } catch (err) {
+      return { error: `读取历史记录失败: ${err.message}` };
+    }
+  });
+
+  // v1.5.0: 删除单个历史归档批次
+  ipcMain.handle('delete-history', async (_event, dirPath) => {
+    const parentDir = dirname(OUTPUT_DIR);
+    const name = basename(dirPath);
+    if (!dirPath || !archiveDirNameMatches(name) || resolve(dirPath) !== resolve(parentDir, name)) {
+      return { error: '目标不是历史归档目录，拒绝删除' };
+    }
+    try {
+      // Windows 文件锁问题：重试最多 3 次，每次等待 500ms（与 clear-history 一致）
+      let retries = 3;
+      let lastErr = null;
+      while (retries > 0) {
+        try {
+          rmSync(dirPath, { recursive: true, force: true });
+          lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+          retries--;
+          if (retries > 0) { termLog(`[delete-history] 删除失败，${retries} 次重试...`, 'stderr'); await sleep(500); }
+        }
+      }
+      if (lastErr) throw lastErr;
+      termLog(`[delete-history] 已删除: ${dirPath}`);
+      return { ok: true };
+    } catch (err) {
+      return { error: `删除失败: ${err.message}` };
+    }
+  });
+
+  // v1.5.0: 打开历史归档目录
+  ipcMain.handle('open-history', async (_event, dirPath) => {
+    if (!dirPath || !existsSync(dirPath)) return { error: '目录不存在' };
+    await shell.openPath(dirPath);
+    return { ok: true };
+  });
+
+  // v1.5.0: 继续提取 —— 还原历史批次为输出目录，用 --resume 续跑，跳过已提取项
+  ipcMain.handle('resume-extraction', (_event, opts) => {
+    if (currentProcess) return { error: '已有任务运行中' };
+    const dirPath = opts?.archiveDir;
+    if (!dirPath) return { error: '缺少参数' };
+    const parentDir = dirname(OUTPUT_DIR);
+    const name = basename(dirPath);
+    const isCurrent = name === basename(OUTPUT_DIR);
+
+    if (!isCurrent && (!archiveDirNameMatches(name) || resolve(dirPath) !== resolve(parentDir, name))) {
+      return { error: '目标不是历史归档目录，无法继续提取' };
+    }
+    if (!existsSync(resolve(dirPath, '.extract-progress.json')) && !existsSync(resolve(dirPath, 'zhipin-candidates.json'))) {
+      return { error: '该批次没有可继续的提取进度' };
+    }
+
+    if (!isCurrent) {
+      const restored = restoreHistoryToOutput(dirPath);
+      if (!restored.ok) return { error: restored.error };
+    }
+
+    // 用归档时记录的来源/岗位/数量继续跑；读不到元数据时退化为全量提取
+    const meta = readRunMeta(OUTPUT_DIR);
+    const source = meta?.source || 'chat';
+    const job = meta?.job || '';
+    const extractAll = meta ? meta.extractAll !== false : true;
+    const count = meta?.count || 0;
+    runPipeline(count, false, extractAll, source, job, true, true);
+    return { ok: true };
+  });
+
+  // v1.5.0: 用某个历史批次的提取数据重新评分（跳过提取，换模型后重评）
+  ipcMain.handle('rescore-from-history', (_event, opts) => {
+    if (currentProcess) return { error: '已有任务运行中' };
+    const dirPath = opts?.archiveDir;
+    if (!dirPath) return { error: '缺少参数' };
+    const parentDir = dirname(OUTPUT_DIR);
+    const name = basename(dirPath);
+    if (!archiveDirNameMatches(name) || resolve(dirPath) !== resolve(parentDir, name)) {
+      return { error: '目标不是历史归档目录，无法重新评分' };
+    }
+    const candidatesPath = resolve(dirPath, 'zhipin-candidates.json');
+    if (!existsSync(candidatesPath)) return { error: '该批次没有提取数据，无法重新评分' };
+    try {
+      copyFileSync(candidatesPath, resolve(OUTPUT_DIR, 'zhipin-candidates.json'));
+      termLog(`[rescore] 已从历史批次复制提取数据: ${dirPath}`);
+    } catch (err) {
+      return { error: `复制数据失败: ${err.message}` };
+    }
+    const meta = readRunMeta(dirPath);
+    const source = meta?.source || 'chat';
+    const job = meta?.job || '';
+    const extractAll = meta ? meta.extractAll !== false : true;
+    const count = meta?.count || 0;
+    runPipeline(count, true, extractAll, source, job, true, false); // skipExtract=true
+    return { ok: true };
   });
 
   // API 配置 + SMTP 配置（持久化到磁盘）

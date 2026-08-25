@@ -21,6 +21,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 清空历史归档数据
   clearHistory: () => ipcRenderer.invoke('clear-history'),
 
+  // v1.5.0: 历史记录抽屉
+  listHistory: () => ipcRenderer.invoke('list-history'),
+  deleteHistory: (dirPath) => ipcRenderer.invoke('delete-history', dirPath),
+  openHistory: (dirPath) => ipcRenderer.invoke('open-history', dirPath),
+  resumeExtraction: (archiveDir) => ipcRenderer.invoke('resume-extraction', { archiveDir }),
+  rescoreFromHistory: (archiveDir) => ipcRenderer.invoke('rescore-from-history', { archiveDir }),
+
   // 推荐牛人页岗位列表
   getRecommendJobs: () => ipcRenderer.invoke('get-recommend-jobs'),
   getRecommendJobDesc: (jobName) => ipcRenderer.invoke('get-recommend-job-desc', jobName),

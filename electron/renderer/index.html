@@ -73,7 +73,7 @@
             <span class="output-label">输出目录：</span>
             <span id="output-dir" class="output-path">output/</span>
             <button id="btn-select-dir" class="btn btn--link">选择目录</button>
-            <button id="btn-clear-history" class="btn btn--link btn--link-danger">清空历史</button>
+            <button id="btn-history" class="btn btn--link">历史记录</button>
           </div>
           <button id="btn-save-config" class="btn btn--secondary btn--save">保存配置</button>
         </div>
@@ -384,6 +384,24 @@
       <div class="job-picker-list" id="job-picker-list" role="list" aria-live="polite"></div>
       <div class="dialog-actions">
         <button id="btn-picker-cancel" class="btn btn--ghost">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 历史记录抽屉（左侧滑出） -->
+  <div id="history-overlay" class="history-overlay" style="display:none;">
+    <div class="history-drawer" role="dialog" aria-modal="true" aria-labelledby="history-title">
+      <div class="history-header">
+        <div class="dialog-title" id="history-title">历史记录</div>
+        <button type="button" id="btn-history-close" class="input-toggle" aria-label="关闭历史记录">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="history-list" id="history-list" role="list"></div>
+      <div class="history-empty" id="history-empty" style="display:none;">暂无历史记录。跑完一批数据后，这里会按时间列出各批次。</div>
+      <div class="history-footer">
+        <span class="history-footer-hint">删除批次不会影响已导出的 Excel 文件</span>
+        <button id="btn-history-clear-all" class="btn btn--link btn--link-danger">清空全部历史</button>
       </div>
     </div>
   </div>

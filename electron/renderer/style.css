@@ -1574,3 +1574,111 @@ button.is-loading::before {
   color: var(--text-secondary);
   word-break: break-word;
 }
+
+/* ===== 历史记录抽屉（v1.5.0）===== */
+.history-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: flex-start;
+  align-items: stretch;
+  background: rgba(15, 23, 42, 0.4);
+  z-index: var(--z-overlay);
+  animation: overlay-in var(--dur-fast) var(--ease-out);
+}
+.history-drawer {
+  width: 340px;
+  max-width: 88%;
+  height: 100%;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4);
+  animation: drawer-in var(--dur-normal) var(--ease-out);
+}
+@keyframes drawer-in {
+  from { opacity: 0; transform: translateX(-24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+.history-header .dialog-title {
+  margin: 0;
+}
+.history-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-right: 2px;
+}
+.history-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: var(--text-md);
+  text-align: center;
+  line-height: var(--leading-normal);
+  padding: var(--space-4);
+}
+.history-item {
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+  background: var(--bg-card);
+}
+.history-item-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.history-item-title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.history-item-time {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.history-item-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.history-item-count {
+  flex: 0 0 auto;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.history-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.history-footer {
+  border-top: 1px solid var(--border-card);
+  padding-top: var(--space-3);
+  margin-top: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.history-footer-hint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}

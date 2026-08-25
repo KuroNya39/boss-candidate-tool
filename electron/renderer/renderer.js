@@ -13,7 +13,12 @@ const btnRestart = document.getElementById('btn-restart');
 const btnRetry = document.getElementById('btn-retry');
 const btnOpenDir = document.getElementById('btn-open-dir');
 const btnSelectDir = document.getElementById('btn-select-dir');
-const btnClearHistory = document.getElementById('btn-clear-history');
+const btnHistory = document.getElementById('btn-history');
+const historyOverlay = document.getElementById('history-overlay');
+const historyList = document.getElementById('history-list');
+const historyEmpty = document.getElementById('history-empty');
+const btnHistoryClose = document.getElementById('btn-history-close');
+const btnHistoryClearAll = document.getElementById('btn-history-clear-all');
 const countInput = document.getElementById('count-input');
 const extractAllCheck = document.getElementById('extract-all');
 const extractAllSection = document.getElementById('extract-all-section');
@@ -888,6 +893,7 @@ btnCancel.addEventListener('click', async () => {
   resetSteps();
   syncAutoGreetUI();
   showState('state-initial');
+  showToast('已保存进度，可在「历史记录」里继续提取', 'info', 5000);
 });
 
 // 跳过提取，直接评分
@@ -976,25 +982,194 @@ btnSelectDir.addEventListener('click', async () => {
   }
 });
 
-// 清空历史归档数据
-btnClearHistory.addEventListener('click', async () => {
+// ===== 历史记录抽屉 =====
+
+const HISTORY_SOURCE_LABELS = {
+  'recommend-attach': '推荐牛人页',
+  recommend: '推荐牛人页',
+  search: '搜索页',
+  chat: '沟通页',
+};
+
+function historySourceLabel(meta) {
+  const s = meta && meta.source;
+  return (s && HISTORY_SOURCE_LABELS[s]) || '未知来源';
+}
+
+function openHistoryDrawer() {
+  loadHistory();
+  openDialog(historyOverlay, btnHistoryClose);
+}
+
+function closeHistoryDrawer() {
+  closeDialog(historyOverlay);
+}
+
+async function loadHistory() {
+  historyList.innerHTML = '';
+  historyEmpty.style.display = 'none';
+  let data;
+  try {
+    data = await window.electronAPI.listHistory();
+  } catch (err) {
+    historyEmpty.style.display = '';
+    historyEmpty.textContent = '读取历史记录失败：' + err.message;
+    return;
+  }
+  if (data?.error) {
+    historyEmpty.style.display = '';
+    historyEmpty.textContent = data.error;
+    return;
+  }
+  const items = data?.list || [];
+  if (items.length === 0) {
+    historyEmpty.style.display = '';
+    historyEmpty.textContent = '暂无历史记录。跑完一批数据后，这里会按时间列出各批次。';
+    return;
+  }
+  for (const item of items) {
+    historyList.appendChild(renderHistoryItem(item));
+  }
+}
+
+function renderHistoryItem(item) {
+  const row = document.createElement('div');
+  row.className = 'history-item';
+  row.setAttribute('role', 'listitem');
+
+  const meta = item.meta || {};
+  const sourceLabel = historySourceLabel(meta);
+
+  // 摘要行：时间 + 来源/状态标签 + 人数
+  const summary = document.createElement('div');
+  summary.className = 'history-item-summary';
+
+  const titleEl = document.createElement('div');
+  titleEl.className = 'history-item-title';
+  const timeEl = document.createElement('span');
+  timeEl.className = 'history-item-time';
+  timeEl.textContent = item.time || '时间未知';
+  const chipWrap = document.createElement('span');
+  chipWrap.className = 'history-item-chips';
+
+  const srcChip = document.createElement('span');
+  srcChip.className = 'meta-chip';
+  srcChip.textContent = sourceLabel;
+  chipWrap.appendChild(srcChip);
+
+  if (item.isCurrent) {
+    const curChip = document.createElement('span');
+    curChip.className = 'meta-chip meta-chip--pass';
+    curChip.textContent = '未完成·可继续';
+    chipWrap.appendChild(curChip);
+  } else if (item.hasProgress) {
+    const progChip = document.createElement('span');
+    progChip.className = 'meta-chip meta-chip--pass';
+    progChip.textContent = '提取未完成';
+    chipWrap.appendChild(progChip);
+  } else if (item.hasScored) {
+    const doneChip = document.createElement('span');
+    doneChip.className = 'meta-chip';
+    doneChip.textContent = '已完成';
+    chipWrap.appendChild(doneChip);
+  }
+  if (item.hasExcel) {
+    const xlsChip = document.createElement('span');
+    xlsChip.className = 'meta-chip';
+    xlsChip.textContent = '含 Excel';
+    chipWrap.appendChild(xlsChip);
+  }
+  titleEl.append(timeEl, chipWrap);
+
+  const countEl = document.createElement('div');
+  countEl.className = 'history-item-count';
+  countEl.textContent = `${item.candidateCount} 人`;
+
+  summary.append(titleEl, countEl);
+
+  // 操作行
+  const actions = document.createElement('div');
+  actions.className = 'history-item-actions';
+
+  const makeBtn = (text, variant, onClick) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `btn btn--sm ${variant}`;
+    b.textContent = text;
+    b.addEventListener('click', onClick);
+    return b;
+  };
+
+  // 继续提取：该批次还有未完成的提取进度
+  if (item.hasProgress) {
+    actions.appendChild(makeBtn('继续提取', 'btn--primary', async () => {
+      const res = await window.electronAPI.resumeExtraction(item.path);
+      if (res?.error) { showToast(res.error, 'warning', 4000); return; }
+      closeHistoryDrawer();
+      resetSteps();
+      showState('state-running');
+    }));
+  }
+
+  // 用该份数据重新评分：该批次有提取数据（换模型后重评）
+  if (item.hasCandidates) {
+    actions.appendChild(makeBtn('用该份数据重新评分', 'btn--secondary', async () => {
+      const res = await window.electronAPI.rescoreFromHistory(item.path);
+      if (res?.error) { showToast(res.error, 'warning', 4000); return; }
+      closeHistoryDrawer();
+      resetSteps();
+      showState('state-running');
+    }));
+  }
+
+  actions.appendChild(makeBtn('打开目录', 'btn--ghost', async () => {
+    await window.electronAPI.openHistory(item.path);
+  }));
+  actions.appendChild(makeBtn('删除', 'btn--ghost btn--link-danger', async () => {
+    const ok = await confirmDialog({
+      title: '删除该批次？',
+      message: `将删除「${item.name}」这一批历史数据（不含已导出的 Excel 文件），删除后不可恢复。`,
+      okText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
+    const res = await window.electronAPI.deleteHistory(item.path);
+    if (res?.error) {
+      showToast('删除失败：' + res.error, 'error');
+    } else {
+      showToast('已删除', 'success', 2000);
+      loadHistory();
+    }
+  }));
+
+  row.append(summary, actions);
+  return row;
+}
+
+btnHistory.addEventListener('click', openHistoryDrawer);
+btnHistoryClose.addEventListener('click', closeHistoryDrawer);
+// 点击遮罩空白处关闭
+historyOverlay.addEventListener('click', (e) => {
+  if (e.target === historyOverlay) closeHistoryDrawer();
+});
+
+// 清空全部历史（抽屉底部）
+btnHistoryClearAll.addEventListener('click', async () => {
   const ok = await confirmDialog({
-    title: '清空历史数据？',
-    message: '将删除本地保存的全部历史数据（不含已导出的 Excel 文件），删除后不可恢复。',
+    title: '清空全部历史？',
+    message: '将删除本地保存的全部历史批次（不含已导出的 Excel 文件），删除后不可恢复。',
     okText: '清空',
     danger: true,
   });
   if (!ok) return;
-  setLoading(btnClearHistory, true);
-  btnClearHistory.disabled = true;
-  btnClearHistory.textContent = '清理中...';
+  setLoading(btnHistoryClearAll, true);
   try {
     const result = await window.electronAPI.clearHistory();
     if (result.error) {
       showToast('清理失败：' + result.error, 'error');
     } else {
       let parts = [];
-      if (result.deleted > 0) parts.push('已删除 ' + result.deleted + ' 个历史文件夹');
+      if (result.deleted > 0) parts.push('已删除 ' + result.deleted + ' 个历史批次');
       if (result.errors > 0) parts.push(result.errors + ' 个删除失败');
       if (result.deleted === 0 && result.errors === 0) parts.push('没有找到历史归档数据');
       showToast(parts.join('，'), result.errors > 0 ? 'error' : 'info', 4000);
@@ -1002,9 +1177,8 @@ btnClearHistory.addEventListener('click', async () => {
   } catch (err) {
     showToast('清理失败：' + err.message, 'error');
   } finally {
-    setLoading(btnClearHistory, false);
-    btnClearHistory.disabled = false;
-    btnClearHistory.textContent = '清空历史';
+    setLoading(btnHistoryClearAll, false);
+    loadHistory();
   }
 });
 
@@ -1154,6 +1328,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (jobDialogOverlay.style.display === 'flex') hideAddJobDialog();
   else if (jobPickerOverlay.style.display === 'flex') hideJobPicker();
+  else if (historyOverlay.style.display === 'flex') closeHistoryDrawer();
 });
 
 // 显示/隐藏目标岗位弹窗
