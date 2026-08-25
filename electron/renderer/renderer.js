@@ -888,8 +888,6 @@ function renderJobPicker() {
   addBtn.type = 'button';
   addBtn.className = 'job-picker-item-name';
   addBtn.textContent = '+ 添加新岗位';
-  addBtn.style.color = 'var(--color-accent)';
-  addBtn.style.fontWeight = '600';
   addBtn.addEventListener('click', () => {
     hideJobPicker();
     setTimeout(showAddJobDialog, 150);
@@ -1053,7 +1051,7 @@ function showAddJobDialog() {
   editJobName = '';
   dialogJobName.value = '';
   dialogJobName.readOnly = false;
-  dialogJobName.style.background = '';
+  dialogJobName.classList.remove('input-readonly');
   dialogJobDesc.value = '';
   dialogJobHint.style.display = '';
   document.getElementById('job-dialog-title').textContent = '添加新岗位';
@@ -1064,7 +1062,7 @@ async function showEditJobDialog(jobName) {
   editJobName = jobName;
   dialogJobName.value = jobName;
   dialogJobName.readOnly = true;
-  dialogJobName.style.background = 'var(--bg-subtle)';
+  dialogJobName.classList.add('input-readonly');
   dialogJobHint.style.display = 'none';
   document.getElementById('job-dialog-title').textContent = '编辑岗位描述';
   try {

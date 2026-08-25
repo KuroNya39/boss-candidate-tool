@@ -303,6 +303,10 @@ input::-webkit-clear-button {
   border-bottom: 1px dashed var(--border-card);
   background: rgba(var(--color-accent-rgb),0.02);
 }
+.job-picker-add .job-picker-item-name {
+  color: var(--color-accent);
+  font-weight: 600;
+}
 .job-picker-add:hover {
   background: rgba(var(--color-accent-rgb),0.06);
 }
@@ -869,6 +873,10 @@ button.is-loading::before {
 }
 .input-text::placeholder {
   color: var(--text-muted);
+}
+/* 编辑岗位弹窗：名称只读态底色 */
+.input-readonly {
+  background: var(--bg-subtle);
 }
 /* 密码框显示/隐藏眼睛按钮 */
 .input-wrap {
