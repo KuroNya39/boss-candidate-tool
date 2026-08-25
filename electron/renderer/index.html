@@ -19,7 +19,7 @@
       <div class="status-bar" id="chrome-status-bar">
         <span class="status-dot" id="chrome-status-dot"></span>
         <span class="status-text" id="chrome-status-text">正在检查 CDP 代理...</span>
-        <button id="btn-retry-chrome" class="btn-retry" style="display:none;">重试</button>
+        <button id="btn-retry-chrome" class="btn-retry" style="display:none;">重新连接 Chrome</button>
       </div>
       <div class="card collapsible-card" id="api-config-card">
         <div class="collapsible-header" id="api-config-toggle">
@@ -60,9 +60,9 @@
             </div>
           </div>
           <div class="field-group">
-            <label class="field-label">邮箱密码（发件邮箱的登录密码，或"客户端安全密码"）</label>
+            <label class="field-label">邮箱密码</label>
             <div class="input-wrap">
-              <input type="password" id="smtp-pass" class="input-text" placeholder="公司邮箱：若开启了三方客户端安全密码，填邮箱设置里获取的客户端安全密码；否则填登录密码">
+              <input type="password" id="smtp-pass" class="input-text" placeholder="发件邮箱的登录密码；若开启了三方客户端安全密码，则填客户端安全密码">
               <span class="input-toggle" data-target="smtp-pass" title="点击显示">
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 11 8 11 8a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 1 12s4 8 11 8a9.74 9.74 0 0 0 5.39-1.61"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
               </span>
@@ -149,14 +149,14 @@
           <div class="auto-greet-controls" id="auto-greet-controls" style="display:none;">
             <div class="custom-select" id="auto-greet-level" data-value="4">
               <button type="button" class="custom-select-trigger">
-                <span class="custom-select-label">四星及以上（81-90分）</span>
+                <span class="custom-select-label">四星及以上（81 分以上）</span>
                 <span class="custom-select-arrow">▾</span>
               </button>
               <div class="custom-select-menu" style="display:none;">
-                <button type="button" class="custom-select-option" data-value="5">五星（91-100分）</button>
-                <button type="button" class="custom-select-option" data-value="4">四星及以上（81-90分）</button>
-                <button type="button" class="custom-select-option" data-value="3">三星及以上（61-80分）</button>
-                <button type="button" class="custom-select-option" data-value="2">二星及以上（31-60分）</button>
+                <button type="button" class="custom-select-option" data-value="5">五星（91 分以上）</button>
+                <button type="button" class="custom-select-option" data-value="4">四星及以上（81 分以上）</button>
+                <button type="button" class="custom-select-option" data-value="3">三星及以上（61 分以上）</button>
+                <button type="button" class="custom-select-option" data-value="2">二星及以上（31 分以上）</button>
                 <button type="button" class="custom-select-option" data-value="0">全部候选人</button>
               </div>
             </div>
@@ -167,6 +167,7 @@
         <button id="btn-start" class="btn-primary btn-start">
           ▶ 开始提取分析
         </button>
+        <p id="btn-start-hint" class="field-hint" aria-live="polite"></p>
 
         <!-- v1.4.8: 直接用上次数据评分（跳过提取） -->
         <button id="btn-rescore" class="btn-rescore" disabled>▶ 直接用上次数据评分</button>
@@ -253,6 +254,10 @@
           <div class="result-title">全部完成！</div>
         </div>
         <div class="result-summary" id="done-summary"></div>
+        <details id="mail-error-details" class="mail-error-details" style="display:none;">
+          <summary>查看邮件失败的处理办法</summary>
+          <div id="mail-error-detail" class="mail-error-detail"></div>
+        </details>
         <div class="result-actions">
           <button id="btn-open-dir" class="btn-primary btn-action">📂 打开输出目录</button>
           <button id="btn-restart" class="btn-ghost">🔄 重新开始</button>
@@ -264,14 +269,14 @@
           <div class="greet-controls">
             <div class="custom-select" id="greet-level" data-value="4">
               <button type="button" class="custom-select-trigger">
-                <span class="custom-select-label">四星及以上（81-90分）</span>
+                <span class="custom-select-label">四星及以上（81 分以上）</span>
                 <span class="custom-select-arrow">▾</span>
               </button>
               <div class="custom-select-menu" style="display:none;">
-                <button type="button" class="custom-select-option" data-value="5">五星（91-100分）</button>
-                <button type="button" class="custom-select-option" data-value="4">四星及以上（81-90分）</button>
-                <button type="button" class="custom-select-option" data-value="3">三星及以上（61-80分）</button>
-                <button type="button" class="custom-select-option" data-value="2">二星及以上（31-60分）</button>
+                <button type="button" class="custom-select-option" data-value="5">五星（91 分以上）</button>
+                <button type="button" class="custom-select-option" data-value="4">四星及以上（81 分以上）</button>
+                <button type="button" class="custom-select-option" data-value="3">三星及以上（61 分以上）</button>
+                <button type="button" class="custom-select-option" data-value="2">二星及以上（31 分以上）</button>
                 <button type="button" class="custom-select-option" data-value="0">全部候选人</button>
               </div>
             </div>
@@ -325,7 +330,7 @@
       </div>
       <div class="dialog-field">
         <label for="dialog-job-desc">岗位描述</label>
-        <textarea id="dialog-job-desc" rows="8" placeholder="请粘贴该岗位的 JD 描述..."></textarea>
+        <textarea id="dialog-job-desc" rows="8" placeholder="粘贴已按 README 第5步转换好的岗位描述（勿粘贴原始 JD）"></textarea>
       </div>
       <div class="dialog-actions">
         <button id="btn-dialog-save" class="btn-primary">保存</button>

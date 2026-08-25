@@ -208,7 +208,8 @@ function runScript(scriptName, args, step, parseFn, extraEnv = {}) {
     const procCwd = app.isPackaged ? OUTPUT_DIR : APP_ROOT;
 
     termLog(`[main] start: scripts/${scriptName} ${args.join(' ')}`);
-    sendProgress(step, 'running', 0, `启动 ${scriptName}...`);
+    const stepIntro = { 1: '正在提取候选人信息...', 2: '正在用 AI 为候选人评分...', 3: '正在生成 Excel...' };
+    sendProgress(step, 'running', 0, stepIntro[step] || `启动 ${scriptName}...`);
 
     const proc = spawn(process.execPath, [scriptPath, ...args], {
       cwd: procCwd,
@@ -230,7 +231,11 @@ function runScript(scriptName, args, step, parseFn, extraEnv = {}) {
         } else if (parsed) {
           sendProgress(step, 'running', parsed.progress, parsed.message);
         } else {
-          sendProgress(step, 'running', null, line.trim());
+          // 脚本原始日志默认只进日志；只有「异常/失败」类才显示到界面，避免技术噪音上屏
+          const t = line.trim();
+          if (/❌|失败|错误|异常|无法|未找到|跳过/.test(t)) {
+            sendProgress(step, 'running', null, t);
+          }
         }
       }
     });

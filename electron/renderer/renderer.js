@@ -37,17 +37,32 @@ const chatHint = document.getElementById('chat-hint');
 const doneSummary = document.getElementById('done-summary');
 const errorMessage = document.getElementById('error-message');
 
-// 把邮件服务器返回的英文报错翻译成大白话，方便非技术用户看懂下一步该做什么
+// 把邮件服务器返回的英文报错翻译成大白话，方便非技术用户看懂下一步该做什么。
+// 分两层：short 一句结论（直接显示在完成页），explainMailError 完整处理办法（折叠展开）。
+function explainMailErrorShort(raw) {
+  const text = String(raw || '');
+  if (/526|Authentication failure|Invalid login|Login fail|credentials|auth/i.test(text)) {
+    return '邮箱账号或密码不对（公司邮箱要用「客户端安全密码」，不是登录密码）';
+  }
+  if (/ETIMEDOUT|ECONNREFUSED|ECONNRESET|ENOTFOUND|connect/i.test(text)) {
+    return '连不上邮件服务器（可能是公司网络或端口问题）';
+  }
+  if (/quota|storage|size|附件/.test(text)) {
+    return '邮件或附件过大被服务器拒绝';
+  }
+  return '原因见下方详情';
+}
+
 function explainMailError(raw) {
   const text = String(raw || '');
   if (/526|Authentication failure|Invalid login|Login fail|credentials|auth/i.test(text)) {
-    return '发件邮箱没能通过邮件服务器的验证（服务器说账号或密码不对）。公司邮箱最常见的原因是：这个邮箱账号开启了"三方客户端安全密码"后，原来的登录密码就不能再用来配软件了，必须换专用密码。\n'
-      + '处理办法（按顺序试）：\n'
+    return '服务器说账号或密码不对。公司邮箱最常见的原因：这个邮箱账号开启了"三方客户端安全密码"后，原来的登录密码就不能再用来配软件，必须换成专用密码。\n'
+      + '按顺序处理：\n'
       + '1. 到网页版邮箱：邮箱设置 → 账户与安全 → 账户安全 → 三方客户端登录安全管理，获取一次性展示的"客户端安全密码"，填到「API 配置 → 邮箱密码」\n'
       + '2. 如果那个页面没有这个入口（账号没开启该功能），就填这个邮箱的普通登录密码，先到网页版邮箱登录验证密码没记错\n'
       + '3. 账号被临时锁定时，到网页版邮箱登录一次即可解锁\n'
-      + '换个说法：网页版邮箱能正常登录发信，但软件还是报这个错，多半就是第 1 条——要用"客户端安全密码"，不是登录密码。\n'
-      + '如果登录密码、客户端安全密码都试过还是不行，那多半是这个邮箱账号本身的状态有问题（账号没激活/被锁定/或管理员没开发信权限），请找 IT 查这个账号的状态。';
+      + '网页版邮箱能正常登录发信，但软件还是报这个错，多半就是第 1 条——要用"客户端安全密码"，不是登录密码。\n'
+      + '登录密码、客户端安全密码都试过还是不行，那多半是账号本身的状态有问题（没激活/被锁定/或管理员没开发信权限），请找 IT 查这个账号的状态。';
   }
   if (/ETIMEDOUT|ECONNREFUSED|ECONNRESET|ENOTFOUND|connect/i.test(text)) {
     return '连不上邮件服务器（可能是公司网络或端口问题），请检查网络后重试';
@@ -199,6 +214,14 @@ function showToast(message, type = 'info', duration = 3000) {
   }, duration);
 }
 
+// ===== 按钮加载态（spinner + aria-busy + 禁用）=====
+function setLoading(btn, loading) {
+  if (!btn) return;
+  btn.classList.toggle('is-loading', loading);
+  if (loading) btn.setAttribute('aria-busy', 'true');
+  else btn.removeAttribute('aria-busy');
+}
+
 // ===== 清理函数 =====
 let cleanupFns = [];
 
@@ -242,6 +265,7 @@ function resetSteps() {
     s.status.textContent = '等待中';
   }
   // 重置跳过提取按钮
+  setLoading(btnSkipExtract, false);
   btnSkipExtract.style.display = 'none';
   btnSkipExtract.disabled = false;
   btnSkipExtract.textContent = '⏭ 跳过提取候选人';
@@ -316,7 +340,16 @@ function setupListeners() {
         summary += `邮件已发送至: ${data.emailTo}\n`;
       }
       if (data.emailError) {
-        summary += `⚠ 邮件发送失败：${explainMailError(data.emailError)}\n`;
+        summary += `⚠ 邮件没发出去：${explainMailErrorShort(data.emailError)}\n`;
+        const mailDetails = document.getElementById('mail-error-details');
+        const mailDetail = document.getElementById('mail-error-detail');
+        if (mailDetails && mailDetail) {
+          mailDetails.style.display = '';
+          mailDetail.textContent = explainMailError(data.emailError);
+        }
+      } else {
+        const mailDetails = document.getElementById('mail-error-details');
+        if (mailDetails) mailDetails.style.display = 'none';
       }
       summary += `输出目录: ${data.outputDir}`;
       doneSummary.textContent = summary;
@@ -413,25 +446,37 @@ async function loadApiConfig() {
   updateConfigStatus();
 }
 
+// 配置缺失时指出具体缺哪一项（未配置 → 「未配置：缺 API 地址（或 Key / 模型）」）
+function missingConfigFields() {
+  const missing = [];
+  if (!apiUrlInput.value.trim()) missing.push('API 地址');
+  if (!apiKeyInput.value.trim()) missing.push('API Key');
+  if (!apiModelInput.value.trim()) missing.push('模型名称');
+  return missing;
+}
+
 async function updateConfigStatus() {
+  const hint = document.getElementById('btn-start-hint');
+  const setMissing = (msg) => {
+    configStatus.textContent = msg || '未配置：缺 ' + missingConfigFields().join('、');
+    configStatus.className = 'config-badge config-missing';
+    btnStart.disabled = true;
+    if (hint) {
+      hint.textContent = '请先展开上方「API 配置」填写 ' + missingConfigFields().join('、') + ' 并保存';
+    }
+  };
   try {
     const status = await window.electronAPI.getApiConfigStatus();
     if (status.configured) {
       configStatus.textContent = '✓ 已配置';
       configStatus.className = 'config-badge config-ok';
       btnStart.disabled = false;
-      btnStart.style.opacity = '1';
+      if (hint) hint.textContent = '';
     } else {
-      configStatus.textContent = '未配置';
-      configStatus.className = 'config-badge config-missing';
-      btnStart.disabled = true;
-      btnStart.style.opacity = '0.5';
+      setMissing('未配置');
     }
   } catch {
-    configStatus.textContent = '未配置';
-    configStatus.className = 'config-badge config-missing';
-    btnStart.disabled = true;
-    btnStart.style.opacity = '0.5';
+    setMissing('未配置');
   }
 }
 
@@ -463,7 +508,7 @@ btnSaveConfig.addEventListener('click', async () => {
     });
     configStatus.textContent = '✓ 已保存';
     configStatus.className = 'config-badge config-ok';
-    showToast('配置已保存', 'success', 2000);
+    showToast('配置已保存。Excel 会保存到输出目录下的「岗位名_日期」子文件夹', 'success', 3000);
     // 延迟更新状态检测，让"✓ 已保存"可见一段时间
     setTimeout(updateConfigStatus, 1500);
   } catch (err) {
@@ -549,6 +594,7 @@ btnCancel.addEventListener('click', async () => {
 // 跳过提取，直接评分
 btnSkipExtract.addEventListener('click', async () => {
   if (!confirm('确定跳过剩余候选人提取，用已提取的数据直接开始 AI 评分吗？')) return;
+  setLoading(btnSkipExtract, true);
   btnSkipExtract.disabled = true;
   btnSkipExtract.textContent = '⏭ 正在跳过提取...';
   const msgEl = stepCards[1].msg;
@@ -608,11 +654,13 @@ btnOpenDir.addEventListener('click', async () => {
 // Chrome 重连
 document.getElementById('btn-retry-chrome').addEventListener('click', async () => {
   const btn = document.getElementById('btn-retry-chrome');
-  btn.textContent = '重连中...';
+  setLoading(btn, true);
+  btn.textContent = '重新连接中...';
   btn.disabled = true;
   await window.electronAPI.retryCdpConnection();
   await updateCdpStatus();
-  btn.textContent = '重试';
+  setLoading(btn, false);
+  btn.textContent = '重新连接 Chrome';
   btn.disabled = false;
 });
 
@@ -626,9 +674,10 @@ btnSelectDir.addEventListener('click', async () => {
 
 // 清空历史归档数据
 btnClearHistory.addEventListener('click', async () => {
-  if (!confirm('确定要删除所有历史归档数据吗？\n\n此操作将删除输出目录下所有 output-YYYYMMDD-HHMM 格式的历史文件夹，不可恢复。')) {
+  if (!confirm('确定要清空历史数据吗？\n\n将删除本地保存的全部历史数据（不含已导出的 Excel 文件），删除后不可恢复。')) {
     return;
   }
+  setLoading(btnClearHistory, true);
   btnClearHistory.disabled = true;
   btnClearHistory.textContent = '清理中...';
   try {
@@ -645,6 +694,7 @@ btnClearHistory.addEventListener('click', async () => {
   } catch (err) {
     showToast('清理失败：' + err.message, 'error');
   } finally {
+    setLoading(btnClearHistory, false);
     btnClearHistory.disabled = false;
     btnClearHistory.textContent = '清空历史';
   }
@@ -686,7 +736,7 @@ function renderJobPicker() {
   const addName = document.createElement('span');
   addName.className = 'job-picker-item-name';
   addName.textContent = '+ 添加新岗位';
-  addName.style.color = '#2563eb';
+  addName.style.color = 'var(--color-accent)';
   addName.style.fontWeight = '600';
   addItem.appendChild(addName);
   addItem.addEventListener('click', () => {
@@ -700,7 +750,7 @@ function renderJobPicker() {
     const empty = document.createElement('div');
     empty.className = 'job-picker-item';
     empty.textContent = '暂无岗位';
-    empty.style.color = '#94a3b8';
+    empty.style.color = 'var(--text-muted)';
     empty.style.cursor = 'default';
     empty.style.justifyContent = 'center';
     jobPickerList.appendChild(empty);
@@ -712,7 +762,7 @@ function renderJobPicker() {
     const empty = document.createElement('div');
     empty.className = 'job-picker-item';
     empty.textContent = '未找到匹配的岗位';
-    empty.style.color = '#94a3b8';
+    empty.style.color = 'var(--text-muted)';
     empty.style.cursor = 'default';
     empty.style.justifyContent = 'center';
     jobPickerList.appendChild(empty);
@@ -826,7 +876,7 @@ async function showEditJobDialog(jobName) {
   editJobName = jobName;
   dialogJobName.value = jobName;
   dialogJobName.readOnly = true;
-  dialogJobName.style.background = '#f1f5f9';
+  dialogJobName.style.background = 'var(--bg-subtle)';
   dialogJobHint.style.display = 'none';
   document.querySelector('#job-dialog-overlay .dialog-title').textContent = '编辑岗位描述';
   try {
@@ -965,7 +1015,6 @@ function updateGreetCount(counts) {
   const n = counts.counts[level] || 0;
   greetCount.textContent = `（可打招呼 ${n} 人）`;
   btnStartGreet.disabled = n === 0;
-  btnStartGreet.style.opacity = n === 0 ? '0.5' : '1';
 }
 
 function resetGreetUI() {
@@ -977,7 +1026,6 @@ function resetGreetUI() {
   greetCount.textContent = '';
   btnStartGreet.style.display = '';
   btnStartGreet.disabled = false;
-  btnStartGreet.style.opacity = '1';
   btnCancelGreet.style.display = 'none';
   if (searchGreetHint) searchGreetHint.style.display = 'none';
 }
