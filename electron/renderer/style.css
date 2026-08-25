@@ -330,8 +330,9 @@ input::-webkit-clear-button {
 }
 
 /* ===== 添加/编辑岗位弹窗（置顶于目标岗位弹窗之上） ===== */
+/* 基底 .dialog-overlay 是 var(--z-overlay)=1000，这里必须更高，否则会被目标岗位弹窗盖住 */
 #job-dialog-overlay {
-  z-index: 200;
+  z-index: calc(var(--z-overlay) + 1);
 }
 
 
@@ -340,7 +341,7 @@ input::-webkit-clear-button {
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-card);
-  padding: 20px;
+  padding: 16px;
   box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
@@ -383,6 +384,11 @@ input::-webkit-clear-button {
   text-align: center;
   min-height: 18px;
 }
+/* 提示行为空时不占位，避免「开始提取分析」和「直接用上次数据评分」之间留出大空隙；
+   有文字时才出现（如配置未填时提示缺哪一项） */
+.field-hint:empty {
+  display: none;
+}
 
 /* ===== 按钮加载态 ===== */
 button.is-loading {
@@ -417,7 +423,7 @@ button.is-loading::before {
 }
 .toggle-btn {
   flex: 1;
-  padding: 8px 12px;
+  padding: 7px 12px;
   font-size: 13px;
   font-weight: 500;
   border: none;
@@ -707,7 +713,7 @@ button.is-loading::before {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px 24px;
+  padding: 9px 20px;
   font-size: var(--text-lg);
   font-weight: 500;
   line-height: 1.4;
@@ -753,12 +759,12 @@ button.is-loading::before {
 
 /* 尺寸 */
 .btn--sm { padding: 7px 18px; font-size: var(--text-md); }
-.btn--lg { padding: 14px 24px; font-size: var(--text-xl); font-weight: 600; letter-spacing: 0.5px; }
+.btn--lg { padding: 11px 24px; font-size: var(--text-lg); font-weight: 600; letter-spacing: 0.5px; }
 .btn--block { display: flex; width: 100%; }
 
 /* 布局修正 */
 .btn--save { align-self: flex-start; }
-.btn--rescore { margin-top: 10px; }
+.btn--rescore { margin-top: 2px; }
 
 /* 链接式小按钮（输出目录区） */
 .btn--link {
@@ -782,7 +788,7 @@ button.is-loading::before {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
+  padding: 12px 20px;
   cursor: pointer;
   -webkit-app-region: no-drag;
   user-select: none;

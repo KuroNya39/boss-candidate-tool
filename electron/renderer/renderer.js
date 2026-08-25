@@ -779,7 +779,7 @@ btnSaveConfig.addEventListener('click', async () => {
     });
     configStatus.textContent = '✓ 已保存';
     configStatus.className = 'config-badge config-ok';
-    showToast('配置已保存。Excel 会保存到输出目录下的「岗位名_日期」子文件夹', 'success', 3000);
+    showToast('配置已保存', 'success', 3000);
     // 延迟更新状态检测，让"✓ 已保存"可见一段时间
     setTimeout(updateConfigStatus, 1500);
   } catch (err) {
@@ -1188,7 +1188,7 @@ function updateJobDisplay() {
     jobDisplay.textContent = selectedJob;
     jobDisplay.className = 'job-display';
   } else {
-    jobDisplay.innerHTML = '请选择岗位 <span aria-hidden="true">▸</span>';
+    jobDisplay.textContent = '请选择岗位';
     jobDisplay.className = 'job-display placeholder';
   }
 }
@@ -1271,7 +1271,9 @@ function renderJobPicker() {
     btnEdit.textContent = '编辑';
     btnEdit.addEventListener('click', (e) => {
       e.stopPropagation();
-      showEditJobDialog(job);
+      // 先关掉「目标岗位」弹窗再打开编辑弹窗，否则会被盖住
+      hideJobPicker();
+      setTimeout(() => showEditJobDialog(job), 150);
     });
     actions.appendChild(btnEdit);
 
