@@ -1220,6 +1220,7 @@ async function runGreeting(level, source = 'recommend') {
   // 预算必须小于脚本侧 PER_CANDIDATE_TIMEOUT(30s) + 单人体检开销，否则主进程会中途杀掉单个候选人。
   const BUDGET_PER_TARGET = 10_000;
   const MAX_WAIT = Math.min(30 * 60 * 1000, Math.max(5 * 60 * 1000, totalTargets * BUDGET_PER_TARGET));
+  let greetDoneCount = 0; // 已处理的候选人计数（用于进度条真实推进）
   let greetFatalSent = false; // GREET_ERROR 已上报真实原因，close 时不再重复报泛化退出码
   let lastStderr = ''; // 脚本最近一行 stderr，供 close 无 GREET_ERROR 时兜底诊断
   let greetTimer = null; // 超时定时器，close/error 时清理，避免进程退出后仍被持有
@@ -1249,7 +1250,8 @@ async function runGreeting(level, source = 'recommend') {
         // GREET_STATUS: 单条结果
         const statusMatch = line.match(/^GREET_STATUS:(.+?)\|(.+?)\|(.+?)\|(.+)/);
         if (statusMatch) {
-          sendGreetProgress(statusMatch[4], 0, 0);
+          greetDoneCount++;
+          sendGreetProgress(statusMatch[4], greetDoneCount, totalTargets);
           continue;
         }
 

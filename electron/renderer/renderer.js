@@ -258,8 +258,10 @@ async function updateRescoreButton() {
 function resetSteps() {
   for (let i = 1; i <= 3; i++) {
     const s = stepCards[i];
-    s.card.className = 'step-item waiting';
+    s.card.className = 'step-item';
+    s.card.dataset.state = 'waiting';
     s.bar.style.width = '0%';
+    if (s.bar.setAttribute) s.bar.setAttribute('aria-valuenow', '0');
     if (s.pct) s.pct.textContent = '';
     s.msg.textContent = '';
     s.status.textContent = '等待中';
@@ -282,19 +284,21 @@ function handleProgress(data) {
 
   s.card.className = 'step-item';
   if (status === 'running') {
-    s.card.classList.add('active');
+    s.card.dataset.state = 'running';
     s.status.textContent = '进行中...';
   } else if (status === 'done') {
-    s.card.classList.add('done');
+    s.card.dataset.state = 'done';
     s.status.textContent = '✓ 已完成';
   } else if (status === 'idle') {
-    s.card.classList.add('waiting');
+    s.card.dataset.state = 'waiting';
     s.status.textContent = '';
   }
 
   if (progress !== null && progress !== undefined) {
-    s.bar.style.width = Math.min(progress, 100) + '%';
-    if (s.pct) s.pct.textContent = Math.round(progress) + '%';
+    const p = Math.round(Math.min(progress, 100));
+    s.bar.style.width = p + '%';
+    if (s.bar.setAttribute) s.bar.setAttribute('aria-valuenow', String(p));
+    if (s.pct) s.pct.textContent = p + '%';
   }
 
   if (message) {
@@ -378,6 +382,7 @@ function setupListeners() {
                 greetResult.style.display = 'none';
                 greetProgress.style.display = '';
                 greetProgressBar.style.width = '0%';
+                if (greetProgressBar.setAttribute) greetProgressBar.setAttribute('aria-valuenow', '0');
                 greetProgressText.textContent = '自动打招呼中...';
                 await window.electronAPI.startGreeting(level, selectedSource);
                 autoGreetEnabled = false;
@@ -399,8 +404,12 @@ function setupListeners() {
   // 打招呼事件
   registerCleanup(
     window.electronAPI.onGreetProgress((data) => {
-      // Fix: show "正在打招呼" instead of per-candidate status messages
-      greetProgressText.textContent = '正在打招呼中...';
+      const cur = data.current || 0;
+      const total = data.total || 0;
+      const pct = total > 0 ? Math.min(Math.round((cur / total) * 100), 100) : 0;
+      greetProgressBar.style.width = pct + '%';
+      if (greetProgressBar.setAttribute) greetProgressBar.setAttribute('aria-valuenow', String(pct));
+      greetProgressText.textContent = total > 0 ? `正在打招呼 ${cur}/${total}` : '正在打招呼中...';
     })
   );
 
@@ -748,11 +757,8 @@ function renderJobPicker() {
   // 岗位列表（按搜索词实时过滤；jobList 保持不变，只过滤副本）
   if (jobList.length === 0) {
     const empty = document.createElement('div');
-    empty.className = 'job-picker-item';
+    empty.className = 'job-picker-item empty-state';
     empty.textContent = '暂无岗位';
-    empty.style.color = 'var(--text-muted)';
-    empty.style.cursor = 'default';
-    empty.style.justifyContent = 'center';
     jobPickerList.appendChild(empty);
     return;
   }
@@ -760,11 +766,8 @@ function renderJobPicker() {
   const filtered = query ? jobList.filter(job => job.toLowerCase().includes(query)) : jobList;
   if (filtered.length === 0) {
     const empty = document.createElement('div');
-    empty.className = 'job-picker-item';
+    empty.className = 'job-picker-item empty-state';
     empty.textContent = '未找到匹配的岗位';
-    empty.style.color = 'var(--text-muted)';
-    empty.style.cursor = 'default';
-    empty.style.justifyContent = 'center';
     jobPickerList.appendChild(empty);
     return;
   }
@@ -789,7 +792,7 @@ function renderJobPicker() {
     actions.className = 'job-picker-item-actions';
 
     const btnEdit = document.createElement('button');
-    btnEdit.className = 'btn-picker-edit';
+    btnEdit.className = 'btn btn--sm btn--secondary';
     btnEdit.textContent = '编辑';
     btnEdit.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -798,7 +801,7 @@ function renderJobPicker() {
     actions.appendChild(btnEdit);
 
     const btnDelete = document.createElement('button');
-    btnDelete.className = 'btn-picker-delete';
+    btnDelete.className = 'btn btn--sm btn--danger';
     btnDelete.textContent = '删除';
     btnDelete.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -971,6 +974,7 @@ btnStartGreet.addEventListener('click', async () => {
   greetResult.style.display = 'none';
   greetProgress.style.display = '';
   greetProgressBar.style.width = '0%';
+  if (greetProgressBar.setAttribute) greetProgressBar.setAttribute('aria-valuenow', '0');
   greetProgressText.textContent = '正在打招呼中...';
   await window.electronAPI.startGreeting(level, selectedSource);
 });

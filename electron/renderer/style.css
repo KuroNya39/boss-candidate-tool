@@ -191,22 +191,6 @@ header h1 {
 .status-text {
   flex: 1;
 }
-.btn-retry {
-  font-size: 11px;
-  padding: 3px 12px;
-  border: 1px solid var(--border-input);
-  border-radius: var(--radius-btn);
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  -webkit-app-region: no-drag;
-}
-.btn-retry:hover {
-  border-color: var(--color-error);
-  color: var(--color-error);
-}
-
 
 /* 隐藏输入框自带的一键清空 ×（Chromium 原生，悬浮/有内容时出现） */
 input::-webkit-clear-button {
@@ -311,29 +295,6 @@ input::-webkit-clear-button {
   display: flex;
   gap: 6px;
   flex-shrink: 0;
-}
-.btn-picker-edit,
-.btn-picker-delete {
-  font-size: 12px;
-  padding: 4px 12px;
-  border: 1px solid var(--border-input);
-  border-radius: 4px;
-  background: var(--bg-card);
-  cursor: pointer;
-  transition: all 0.15s;
-  -webkit-app-region: no-drag;
-  line-height: 1.4;
-  color: var(--text-secondary);
-}
-.btn-picker-edit:hover {
-  background: rgba(var(--color-accent-rgb),0.06);
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-.btn-picker-delete:hover {
-  background: rgba(var(--color-error-rgb),0.06);
-  border-color: var(--color-error);
-  color: var(--color-error);
 }
 
 /* ===== 添加/编辑岗位弹窗（置顶于目标岗位弹窗之上） ===== */
@@ -446,18 +407,37 @@ button.is-loading::before {
   background: rgba(var(--color-accent-rgb),0.04);
 }
 
-/* ===== Hint Box ===== */
-.hint-box {
+/* ===== Alert 体系（提示条） ===== */
+.alert {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 12px;
-  color: var(--color-warning-strong);
-  background: rgba(var(--color-warning-rgb),0.08);
-  border-left: 3px solid var(--color-warning);
-  border-radius: 6px;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  border-radius: var(--radius-md);
   padding: 10px 14px;
-  line-height: 1.5;
+  border-left: 3px solid transparent;
+}
+.alert--success { background: var(--bg-success); color: var(--color-success-strong); border-left-color: var(--color-success); }
+.alert--warning { background: var(--bg-warning); color: var(--color-warning-strong); border-left-color: var(--color-warning); }
+.alert--error   { background: var(--bg-error);   color: var(--color-error-strong);   border-left-color: var(--color-error); }
+.alert--info    { background: var(--bg-info);    color: var(--color-info-strong);    border-left-color: var(--color-info); }
+
+/* ===== 空状态 ===== */
+.empty-state {
+  padding: 20px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+.job-picker-item.empty-state {
+  cursor: default;
+  justify-content: center;
+}
+
+/* ===== Hint Box（来源切换提示：继承 alert 外观 + 折叠动画） ===== */
+.hint-box {
   max-height: 200px;
   overflow: hidden;
   transition: max-height var(--transition-normal), opacity var(--transition-normal), padding var(--transition-normal), margin var(--transition-normal);
@@ -684,66 +664,76 @@ button.is-loading::before {
   font-weight: 500;
 }
 
-/* ===== Start Button ===== */
-.btn-start {
-  width: 100%;
-  padding: 14px;
-  font-size: 16px;
-  font-weight: 600;
-  border: none;
+/* ===== 按钮体系（统一 .btn 基底 + 语义变体 + 尺寸） ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 24px;
+  font-size: var(--text-lg);
+  font-weight: 500;
+  line-height: 1.4;
+  border: 1px solid transparent;
   border-radius: var(--radius-btn);
-  background: var(--gradient-primary);
-  color: var(--text-on-accent);
   cursor: pointer;
-  transition: all var(--transition-normal);
-  letter-spacing: 0.5px;
+  user-select: none;
   -webkit-app-region: no-drag;
+  transition: background var(--transition-fast), border-color var(--transition-fast),
+    color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
 }
-.btn-start:hover {
-  background: var(--gradient-hover);
-  box-shadow: 0 4px 15px rgba(var(--color-accent-rgb),0.3);
-  transform: scale(1.02);
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
-.btn-start:active {
-  transform: scale(0.98);
+.btn:active:not(:disabled) {
+  transform: scale(0.98) translateY(0);
 }
-.btn-start:disabled {
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 var(--ring-width) var(--ring-color);
+}
+.btn:disabled {
   background: var(--color-disabled-bg);
   color: var(--color-disabled-text);
+  border-color: transparent;
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
 }
 
-/* v1.4.8: 直接用上次数据评分（跳过提取）——与主按钮同宽同高的次级按钮样式 */
-.btn-rescore {
-  display: block;
-  width: 100%;
-  margin-top: 10px;
-  padding: 10px 24px;
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: var(--radius-btn);
-  border: 1px solid var(--border-input);
+/* 变体 */
+.btn--primary { background: var(--gradient-primary); color: var(--text-on-accent); }
+.btn--primary:hover:not(:disabled) { background: var(--gradient-hover); box-shadow: 0 4px 15px rgba(var(--color-accent-rgb),0.3); }
+.btn--secondary { background: var(--bg-card); color: var(--color-accent); border-color: var(--color-accent); }
+.btn--secondary:hover:not(:disabled) { background: rgba(var(--color-accent-rgb),0.06); box-shadow: 0 2px 8px rgba(var(--color-accent-rgb),0.15); }
+.btn--ghost { background: transparent; color: var(--text-secondary); border-color: var(--border-input); }
+.btn--ghost:hover:not(:disabled) { background: var(--bg-page); color: var(--text-primary); }
+.btn--danger { background: var(--bg-card); color: var(--color-error); border-color: var(--color-error); }
+.btn--danger:hover:not(:disabled) { background: rgba(var(--color-error-rgb),0.06); border-color: var(--color-error-strong); color: var(--color-error-strong); }
+.btn--warning { background: rgba(var(--color-warning-rgb),0.1); color: var(--color-warning-strong); border-color: var(--color-warning); }
+.btn--warning:hover:not(:disabled) { background: rgba(var(--color-warning-rgb),0.2); border-color: var(--color-warning-strong); }
+.btn--retry:hover:not(:disabled) { border-color: var(--color-error); color: var(--color-error); }
+
+/* 尺寸 */
+.btn--sm { padding: 7px 18px; font-size: var(--text-md); }
+.btn--lg { padding: 14px 24px; font-size: var(--text-xl); font-weight: 600; letter-spacing: 0.5px; }
+.btn--block { display: flex; width: 100%; }
+
+/* 布局修正 */
+.btn--save { align-self: flex-start; }
+.btn--rescore { margin-top: 10px; }
+
+/* 链接式小按钮（输出目录区） */
+.btn--link {
   background: var(--bg-card);
   color: var(--color-accent);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  -webkit-app-region: no-drag;
+  border-color: var(--border-input);
+  padding: 3px 10px;
+  font-size: var(--text-sm);
 }
-.btn-rescore:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  background: rgba(var(--color-accent-rgb), 0.06);
-  box-shadow: 0 2px 8px rgba(var(--color-accent-rgb), 0.15);
-}
-.btn-rescore:active:not(:disabled) {
-  transform: scale(0.98);
-}
-.btn-rescore:disabled {
-  color: var(--text-muted);
-  border-color: var(--border-card);
-  cursor: not-allowed;
-}
+.btn--link:hover:not(:disabled) { border-color: var(--color-accent); background: rgba(var(--color-accent-rgb),0.04); }
+.btn--link-danger { color: var(--color-error); }
+.btn--link-danger:hover:not(:disabled) { border-color: var(--color-error); background: rgba(var(--color-error-rgb),0.04); color: var(--color-error-strong); }
 
 /* ===== Collapsible Card ===== */
 .collapsible-card {
@@ -894,46 +884,6 @@ button.is-loading::before {
   padding: 3px 8px;
   border-radius: 4px;
 }
-.btn-link {
-  font-size: 12px;
-  padding: 3px 10px;
-  border: 1px solid var(--border-input);
-  border-radius: var(--radius-input);
-  background: var(--bg-card);
-  color: var(--color-accent);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  -webkit-app-region: no-drag;
-}
-.btn-link:hover {
-  border-color: var(--color-accent);
-  background: rgba(var(--color-accent-rgb),0.04);
-}
-.btn-link-danger {
-  color: var(--color-error);
-}
-.btn-link-danger:hover {
-  border-color: var(--color-error);
-  background: rgba(239,68,68,0.04);
-}
-
-/* ===== Save Button ===== */
-.btn-save {
-  align-self: flex-start;
-  padding: 7px 20px;
-  font-size: 13px;
-  font-weight: 500;
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius-btn);
-  background: var(--bg-card);
-  color: var(--color-accent);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  -webkit-app-region: no-drag;
-}
-.btn-save:hover {
-  background: rgba(var(--color-accent-rgb),0.06);
-}
 
 /* ===== Step Items ===== */
 .step-item {
@@ -965,11 +915,11 @@ button.is-loading::before {
   flex-shrink: 0;
   transition: all var(--transition-normal);
 }
-.step-item.active .step-number {
+.step-item[data-state="running"] .step-number {
   background: var(--gradient-primary);
   color: var(--text-on-accent);
 }
-.step-item.done .step-number {
+.step-item[data-state="done"] .step-number {
   background: var(--color-success);
   color: var(--text-on-accent);
 }
@@ -979,7 +929,7 @@ button.is-loading::before {
   color: var(--text-primary);
   transition: color var(--transition-normal);
 }
-.step-item.waiting .step-item-title {
+.step-item[data-state="waiting"] .step-item-title {
   color: var(--text-muted);
 }
 .step-item-status {
@@ -987,11 +937,11 @@ button.is-loading::before {
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
-.step-item.active .step-item-status {
+.step-item[data-state="running"] .step-item-status {
   color: var(--color-accent);
   font-weight: 500;
 }
-.step-item.done .step-item-status {
+.step-item[data-state="done"] .step-item-status {
   color: var(--color-success);
 }
 .step-progress {
@@ -1003,19 +953,17 @@ button.is-loading::before {
   flex: 1;
   height: 6px;
   background: var(--border-card);
-  border-radius: 3px;
+  border-radius: var(--radius-full);
   overflow: hidden;
 }
 .progress-fill {
   height: 100%;
   width: 0%;
-  border-radius: 3px;
-  transition: width 0.4s ease;
-}
-.step-item.active .progress-fill {
+  border-radius: var(--radius-full);
   background: var(--gradient-primary);
+  transition: width var(--transition-slow);
 }
-.step-item.done .progress-fill {
+.step-item[data-state="done"] .progress-fill {
   background: var(--color-success);
 }
 .progress-pct {
@@ -1043,46 +991,6 @@ button.is-loading::before {
   justify-content: center;
   gap: 12px;
   padding-top: 4px;
-}
-
-/* ===== Skip Button ===== */
-.btn-skip {
-  padding: 8px 18px;
-  font-size: 13px;
-  font-weight: 500;
-  border: 1px solid var(--color-warning);
-  border-radius: var(--radius-btn);
-  background: rgba(var(--color-warning-rgb),0.1);
-  color: var(--color-warning-strong);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  -webkit-app-region: no-drag;
-}
-.btn-skip:hover {
-  background: rgba(var(--color-warning-rgb),0.2);
-  border-color: var(--color-warning-strong);
-}
-.btn-skip:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* ===== Ghost Button ===== */
-.btn-ghost {
-  padding: 8px 18px;
-  font-size: 13px;
-  font-weight: 500;
-  border: 1px solid var(--border-input);
-  border-radius: var(--radius-btn);
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  -webkit-app-region: no-drag;
-}
-.btn-ghost:hover {
-  background: var(--bg-page);
-  color: var(--text-primary);
 }
 
 /* ===== Result Header ===== */
@@ -1156,19 +1064,6 @@ button.is-loading::before {
   display: flex;
   gap: 10px;
   justify-content: center;
-}
-.btn-action {
-  padding: 10px 24px;
-  font-size: 14px;
-  font-weight: 500;
-  border: none;
-  border-radius: var(--radius-btn);
-  cursor: pointer;
-  transition: all var(--transition-normal);
-  -webkit-app-region: no-drag;
-}
-.btn-action:hover {
-  box-shadow: 0 4px 15px rgba(var(--color-accent-rgb),0.3);
 }
 
 /* ===== Error Message ===== */
@@ -1319,34 +1214,6 @@ button.is-loading::before {
   gap: 10px;
   justify-content: flex-end;
   margin-top: 18px;
-}
-
-/* ===== Primary & Secondary Button (reusable) ===== */
-.btn-primary {
-  background: var(--gradient-primary);
-  color: var(--text-on-accent);
-  padding: 10px 24px;
-  font-size: 14px;
-  font-weight: 500;
-  border: none;
-  border-radius: var(--radius-btn);
-  cursor: pointer;
-  transition: all var(--transition-normal);
-  -webkit-app-region: no-drag;
-}
-.btn-primary:hover {
-  background: var(--gradient-hover);
-  box-shadow: 0 4px 15px rgba(var(--color-accent-rgb),0.3);
-}
-.btn-primary:disabled {
-  background: var(--color-disabled-bg);
-  color: var(--color-disabled-text);
-  cursor: not-allowed;
-  box-shadow: none;
-}
-.btn-small {
-  padding: 7px 18px;
-  font-size: 13px;
 }
 
 /* ===== Toast 通知 ===== */

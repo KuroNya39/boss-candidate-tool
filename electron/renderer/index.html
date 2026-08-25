@@ -19,7 +19,7 @@
       <div class="status-bar" id="chrome-status-bar">
         <span class="status-dot" id="chrome-status-dot"></span>
         <span class="status-text" id="chrome-status-text">正在检查 CDP 代理...</span>
-        <button id="btn-retry-chrome" class="btn-retry" style="display:none;">重新连接 Chrome</button>
+        <button id="btn-retry-chrome" class="btn btn--ghost btn--sm btn--retry" style="display:none;">重新连接 Chrome</button>
       </div>
       <div class="card collapsible-card" id="api-config-card">
         <div class="collapsible-header" id="api-config-toggle">
@@ -72,10 +72,10 @@
           <div class="output-row">
             <span class="output-label">输出目录：</span>
             <span id="output-dir" class="output-path">output/</span>
-            <button id="btn-select-dir" class="btn-link">选择目录</button>
-            <button id="btn-clear-history" class="btn-link btn-link-danger">清空历史</button>
+            <button id="btn-select-dir" class="btn btn--link">选择目录</button>
+            <button id="btn-clear-history" class="btn btn--link btn--link-danger">清空历史</button>
           </div>
-          <button id="btn-save-config" class="btn-save">保存配置</button>
+          <button id="btn-save-config" class="btn btn--secondary btn--save">保存配置</button>
         </div>
       </div>
 
@@ -92,16 +92,16 @@
           </div>
         </div>
 
-        <div id="recommend-hint" class="hint-box" style="display:none;">
-          <span class="hint-icon">i</span>
+        <div id="recommend-hint" class="alert alert--warning hint-box" style="display:none;">
+          <span class="hint-icon" aria-hidden="true">i</span>
           <span>请先在 Chrome 中打开 Boss 直聘推荐牛人页，并设置筛选条件</span>
         </div>
-        <div id="search-hint" class="hint-box" style="display:none;">
-          <span class="hint-icon">i</span>
+        <div id="search-hint" class="alert alert--warning hint-box" style="display:none;">
+          <span class="hint-icon" aria-hidden="true">i</span>
           <span>请先在 Chrome 中打开 Boss 直聘搜索页，并设置筛选条件</span>
         </div>
-        <div id="chat-hint" class="hint-box" style="display:none;">
-          <span class="hint-icon">i</span>
+        <div id="chat-hint" class="alert alert--warning hint-box" style="display:none;">
+          <span class="hint-icon" aria-hidden="true">i</span>
           <span>请先在 Chrome 中打开 Boss 直聘沟通页，并选择未读</span>
         </div>
 
@@ -164,13 +164,13 @@
         </div>
 
         <!-- Start button -->
-        <button id="btn-start" class="btn-primary btn-start">
+        <button id="btn-start" class="btn btn--primary btn--lg btn--block">
           ▶ 开始提取分析
         </button>
         <p id="btn-start-hint" class="field-hint" aria-live="polite"></p>
 
         <!-- v1.4.8: 直接用上次数据评分（跳过提取） -->
-        <button id="btn-rescore" class="btn-rescore" disabled>▶ 直接用上次数据评分</button>
+        <button id="btn-rescore" class="btn btn--secondary btn--block btn--rescore" disabled>▶ 直接用上次数据评分</button>
       </div>
     </div>
 
@@ -192,7 +192,7 @@
           </div>
           <div class="step-progress">
             <div class="progress-track">
-              <div class="progress-fill" id="step-1-bar"></div>
+              <div class="progress-fill" id="step-1-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
             </div>
             <span class="progress-pct" id="step-1-pct"></span>
           </div>
@@ -211,7 +211,7 @@
           </div>
           <div class="step-progress">
             <div class="progress-track">
-              <div class="progress-fill" id="step-2-bar"></div>
+              <div class="progress-fill" id="step-2-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
             </div>
             <span class="progress-pct" id="step-2-pct"></span>
           </div>
@@ -230,7 +230,7 @@
           </div>
           <div class="step-progress">
             <div class="progress-track">
-              <div class="progress-fill" id="step-3-bar"></div>
+              <div class="progress-fill" id="step-3-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
             </div>
             <span class="progress-pct" id="step-3-pct"></span>
           </div>
@@ -238,8 +238,8 @@
         </div>
 
         <div class="running-actions">
-          <button id="btn-skip-extract" class="btn-skip" style="display:none;">⏭ 跳过提取候选人</button>
-          <button id="btn-cancel" class="btn-ghost">取消</button>
+          <button id="btn-skip-extract" class="btn btn--warning" style="display:none;">⏭ 跳过提取候选人</button>
+          <button id="btn-cancel" class="btn btn--ghost">取消</button>
         </div>
       </div>
     </div>
@@ -259,8 +259,8 @@
           <div id="mail-error-detail" class="mail-error-detail"></div>
         </details>
         <div class="result-actions">
-          <button id="btn-open-dir" class="btn-primary btn-action">📂 打开输出目录</button>
-          <button id="btn-restart" class="btn-ghost">🔄 重新开始</button>
+          <button id="btn-open-dir" class="btn btn--primary">📂 打开输出目录</button>
+          <button id="btn-restart" class="btn btn--ghost">🔄 重新开始</button>
         </div>
 
         <div id="greet-section" class="greet-section" style="display:none;">
@@ -283,12 +283,12 @@
             <span id="greet-count" class="greet-count-text"></span>
           </div>
           <div class="greet-actions">
-            <button id="btn-start-greet" class="btn-primary btn-small">开始打招呼</button>
-            <button id="btn-cancel-greet" class="btn-ghost btn-small" style="display:none;">取消</button>
+            <button id="btn-start-greet" class="btn btn--primary btn--sm">开始打招呼</button>
+            <button id="btn-cancel-greet" class="btn btn--ghost btn--sm" style="display:none;">取消</button>
           </div>
           <div id="greet-progress" class="greet-progress" style="display:none;">
             <div class="progress-track">
-              <div class="progress-fill" id="greet-progress-bar"></div>
+              <div class="progress-fill" id="greet-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
             </div>
             <div class="greet-progress-text" id="greet-progress-text"></div>
           </div>
@@ -314,7 +314,7 @@
           <div class="result-title">执行出错</div>
         </div>
         <div class="error-message" id="error-message"></div>
-        <button id="btn-retry" class="btn-primary btn-action" style="align-self:center;">重试</button>
+        <button id="btn-retry" class="btn btn--primary" style="align-self:center;">重试</button>
       </div>
     </div>
   </div>
@@ -333,8 +333,8 @@
         <textarea id="dialog-job-desc" rows="8" placeholder="粘贴已按 README 第5步转换好的岗位描述（勿粘贴原始 JD）"></textarea>
       </div>
       <div class="dialog-actions">
-        <button id="btn-dialog-save" class="btn-primary">保存</button>
-        <button id="btn-dialog-cancel" class="btn-ghost">取消</button>
+        <button id="btn-dialog-save" class="btn btn--primary">保存</button>
+        <button id="btn-dialog-cancel" class="btn btn--ghost">取消</button>
       </div>
     </div>
   </div>
@@ -348,7 +348,7 @@
       </div>
       <div class="job-picker-list" id="job-picker-list"></div>
       <div class="dialog-actions">
-        <button id="btn-picker-cancel" class="btn-ghost">取消</button>
+        <button id="btn-picker-cancel" class="btn btn--ghost">取消</button>
       </div>
     </div>
   </div>
