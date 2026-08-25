@@ -172,6 +172,7 @@ header h1 {
 }
 .state.active {
   display: flex;
+  animation: state-in var(--dur-normal) var(--ease-out);
 }
 
 /* ===== Chrome Status Bar ===== */
@@ -677,6 +678,8 @@ button.is-loading::before {
   flex-direction: column;
   padding: 4px;
   -webkit-app-region: no-drag;
+  transform-origin: top;
+  animation: menu-in var(--dur-fast) var(--ease-out);
 }
 .custom-select-option {
   padding: 8px 12px;
@@ -961,10 +964,12 @@ button.is-loading::before {
 .step-item[data-state="running"] .step-number {
   background: var(--gradient-primary);
   color: var(--text-on-accent);
+  animation: step-pulse 1.6s ease-in-out infinite;
 }
 .step-item[data-state="done"] .step-number {
   background: var(--color-success);
   color: var(--text-on-accent);
+  animation: step-pop var(--dur-normal) var(--ease-out);
 }
 .step-item-title {
   font-size: 14px;
@@ -1199,6 +1204,7 @@ button.is-loading::before {
   align-items: center;
   justify-content: center;
   z-index: var(--z-overlay);
+  animation: overlay-in var(--dur-fast) var(--ease-out);
 }
 .dialog-box {
   background: var(--bg-card);
@@ -1207,6 +1213,7 @@ button.is-loading::before {
   width: 500px;
   max-width: 90vw;
   box-shadow: var(--shadow-elevated);
+  animation: box-in var(--dur-normal) var(--ease-out);
 }
 .dialog-title {
   font-size: 16px;
@@ -1292,7 +1299,7 @@ button.is-loading::before {
   line-height: 1.4;
   box-shadow: var(--shadow-elevated);
   pointer-events: auto;
-  animation: toast-in 0.3s ease;
+  animation: toast-in var(--dur-normal) var(--ease-out);
   max-width: 380px;
   text-align: center;
 }
@@ -1312,7 +1319,7 @@ button.is-loading::before {
   border: 1px solid var(--border-info);
 }
 .toast.toast-leaving {
-  animation: toast-out 0.25s ease forwards;
+  animation: toast-out var(--dur-normal) var(--ease-out) forwards;
 }
 
 @keyframes toast-in {
@@ -1333,5 +1340,42 @@ button.is-loading::before {
   to {
     opacity: 0;
     transform: translateY(-12px) scale(0.96);
+  }
+}
+
+/* ===== 动画关键帧（Phase 4） ===== */
+@keyframes state-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes box-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes menu-in {
+  from { opacity: 0; transform: scaleY(0.96) translateY(-2px); }
+  to { opacity: 1; transform: scaleY(1) translateY(0); }
+}
+@keyframes step-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+@keyframes step-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+/* 尊重系统「减少动态效果」设置：关闭全部动画与过渡 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
