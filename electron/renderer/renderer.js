@@ -825,7 +825,7 @@ btnStart.addEventListener('click', async () => {
         title: '重启 Chrome 进入「边用边跑」模式？',
         message: '要用「边用边跑」模式运行（推荐），需要重启 Chrome（会关闭当前标签页）。重启后请重新打开 Boss 直聘页面。是否继续？\n\n如果选「取消」，本次将按普通方式运行，运行期间请不要最小化 Chrome 窗口。',
         okText: '重启 Chrome',
-        cancelText: '按普通方式运行',
+        cancelText: '取消',
       });
       if (ok) {
         const res = await window.electronAPI.launchBossModeChrome({ forceClose: true });
