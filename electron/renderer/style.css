@@ -238,9 +238,13 @@ input::-webkit-clear-button {
   border: 1px solid var(--color-accent);
   border-radius: 6px;
   flex: 1;
+  min-width: 0;
   max-width: 380px;
   cursor: pointer;
   text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .job-display.placeholder {
   color: var(--text-muted);
@@ -260,8 +264,7 @@ input::-webkit-clear-button {
 .job-picker-search {
   margin-bottom: 8px;
 }
-/* 搜索框复用弹窗输入框的基础样式（见 .dialog-field input），
-   唯一差异是字体跟随应用（inherit），不继承 .input-text 的等宽字体 */
+/* 搜索框复用弹窗输入框的基础样式（见 .dialog-field input） */
 .job-picker-search-input {
   font-family: inherit;
 }
@@ -290,8 +293,13 @@ input::-webkit-clear-button {
 }
 .job-picker-item-name {
   flex: 1;
+  min-width: 0;
   cursor: pointer;
   padding: 2px 0;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.4;
   font-family: inherit;
   font-size: inherit;
   font-weight: inherit;
@@ -872,7 +880,7 @@ button.is-loading::before {
   outline: none;
   background: var(--bg-input);
   color: var(--text-primary);
-  font-family: var(--font-mono);
+  font-family: inherit;
   transition: border-color var(--transition-fast);
   -webkit-app-region: no-drag;
 }
