@@ -1235,7 +1235,7 @@ function renderJobPicker() {
   addBtn.textContent = '+ 添加新岗位';
   addBtn.addEventListener('click', () => {
     hideJobPicker();
-    setTimeout(showAddJobDialog, 150);
+    showAddJobDialog();
   });
   addItem.appendChild(addBtn);
   jobPickerList.appendChild(addItem);
@@ -1325,6 +1325,8 @@ let activeDialogTrap = null;
 let dialogPrevFocus = null;
 
 function openDialog(overlay, firstFocusEl) {
+  overlay.removeAttribute('inert');
+  overlay.classList.remove('dialog-overlay--closing'); // 正在淡出时又被重新打开，则取消关闭
   dialogPrevFocus = document.activeElement;
   overlay.style.display = 'flex';
   if (activeDialogTrap) activeDialogTrap();
@@ -1332,10 +1334,29 @@ function openDialog(overlay, firstFocusEl) {
   (firstFocusEl || overlay.querySelector('button, input, textarea, select')).focus();
 }
 
-function closeDialog(overlay) {
-  overlay.style.display = 'none';
+function closeDialog(overlay, { animate = false } = {}) {
   if (activeDialogTrap) { activeDialogTrap(); activeDialogTrap = null; }
-  if (dialogPrevFocus && typeof dialogPrevFocus.focus === 'function') dialogPrevFocus.focus();
+  // 系统开了「减少动态效果」时不做过渡，直接关闭，避免干等 250ms
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (animate && !reduceMotion) {
+    // 先淡出再隐藏：与紧接着打开的弹窗淡入衔接成连续过渡，不会「啪」一下消失
+    overlay.setAttribute('inert', '');
+    overlay.classList.add('dialog-overlay--closing');
+    setTimeout(() => {
+      // 淡出期间这个弹窗若被重新打开（class 被移除），就不再隐藏它
+      if (!overlay.classList.contains('dialog-overlay--closing')) return;
+      overlay.removeAttribute('inert');
+      overlay.style.display = 'none';
+      overlay.classList.remove('dialog-overlay--closing');
+      // 已有其他弹窗开着（比如编辑弹窗）时不抢焦点
+      const anotherOpen = [...document.querySelectorAll('.dialog-overlay')]
+        .some((o) => o !== overlay && o.style.display === 'flex');
+      if (!anotherOpen && dialogPrevFocus && typeof dialogPrevFocus.focus === 'function') dialogPrevFocus.focus();
+    }, 260);
+  } else {
+    overlay.style.display = 'none';
+    if (dialogPrevFocus && typeof dialogPrevFocus.focus === 'function') dialogPrevFocus.focus();
+  }
 }
 
 // 全局 Escape：关闭当前打开的弹窗
@@ -1353,7 +1374,7 @@ function showJobPicker() {
 }
 
 function hideJobPicker() {
-  closeDialog(jobPickerOverlay);
+  closeDialog(jobPickerOverlay, { animate: true });
 }
 
 // 目标岗位弹窗事件
@@ -1408,23 +1429,27 @@ function showAddJobDialog() {
 
 async function showEditJobDialog(jobName) {
   editJobName = jobName;
+  // 岗位描述是本地文件读取（很快，几毫秒），先读好再弹窗，弹出来就是填好的，
+  // 不会出现「先弹个空框、内容再突然塞进去」的突兀感
+  let desc = '';
+  try {
+    desc = (await window.electronAPI.getRecommendJobDesc(jobName)) || '';
+  } catch {
+    desc = '';
+  }
+  // 读取的这几毫秒里如果用户切走了（点了别的岗位编辑 / 关了弹窗），就不再打开旧岗位的弹窗
+  if (editJobName !== jobName) return;
   dialogJobName.value = jobName;
   dialogJobName.readOnly = true;
   dialogJobName.classList.add('input-readonly');
   dialogJobHint.style.display = 'none';
+  dialogJobDesc.value = desc;
   document.getElementById('job-dialog-title').textContent = '编辑岗位描述';
-  // 先弹出窗口，岗位描述在后台读取完再填入，避免点「编辑」后卡一下
   openDialog(jobDialogOverlay, dialogJobDesc);
-  try {
-    const desc = await window.electronAPI.getRecommendJobDesc(jobName);
-    if (editJobName === jobName) dialogJobDesc.value = desc || '';
-  } catch {
-    if (editJobName === jobName) dialogJobDesc.value = '';
-  }
 }
 
 function hideAddJobDialog() {
-  closeDialog(jobDialogOverlay);
+  closeDialog(jobDialogOverlay, { animate: true });
   editJobName = '';
 }
 
