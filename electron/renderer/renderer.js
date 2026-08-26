@@ -1073,7 +1073,13 @@ function renderHistoryItem(item) {
   if (item.isCurrent) {
     const curChip = document.createElement('span');
     curChip.className = 'meta-chip meta-chip--pass';
-    curChip.textContent = '未完成·可继续';
+    if (item.hasProgress) {
+      curChip.textContent = '未完成·可继续';
+    } else if (item.hasScored || item.hasExcel) {
+      curChip.textContent = '已完成';
+    } else {
+      curChip.textContent = '提取中';
+    }
     chipWrap.appendChild(curChip);
   } else if (item.hasProgress) {
     const progChip = document.createElement('span');
@@ -1138,22 +1144,25 @@ function renderHistoryItem(item) {
   actions.appendChild(makeBtn('打开目录', 'btn--ghost', async () => {
     await window.electronAPI.openHistory(item.path);
   }));
-  actions.appendChild(makeBtn('删除', 'btn--ghost btn--link-danger', async () => {
-    const ok = await confirmDialog({
-      title: '删除该批次？',
-      message: `将删除「${item.name}」这一批历史数据（不含已导出的 Excel 文件），删除后不可恢复。`,
-      okText: '删除',
-      danger: true,
-    });
-    if (!ok) return;
-    const res = await window.electronAPI.deleteHistory(item.path);
-    if (res?.error) {
-      showToast('删除失败：' + res.error, 'error');
-    } else {
-      showToast('已删除', 'success', 2000);
-      loadHistory();
-    }
-  }));
+  // 当前输出目录不能删除（软件正在用的目录），不显示删除按钮
+  if (!item.isCurrent) {
+    actions.appendChild(makeBtn('删除', 'btn--ghost btn--link-danger', async () => {
+      const ok = await confirmDialog({
+        title: '删除该批次？',
+        message: `将删除「${item.name}」这一批历史数据（不含已导出的 Excel 文件），删除后不可恢复。`,
+        okText: '删除',
+        danger: true,
+      });
+      if (!ok) return;
+      const res = await window.electronAPI.deleteHistory(item.path);
+      if (res?.error) {
+        showToast('删除失败：' + res.error, 'error');
+      } else {
+        showToast('已删除', 'success', 2000);
+        loadHistory();
+      }
+    }));
+  }
 
   row.append(summary, actions);
   return row;

@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, shell, dialog, powerSaveBlocker } from 'el
 import { spawn, execFile } from 'node:child_process';
 import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, renameSync, unlinkSync, rmSync, appendFileSync, copyFileSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, renameSync, unlinkSync, rmSync, appendFileSync, copyFileSync, statSync } from 'node:fs';
 import http from 'node:http';
 import iconv from 'iconv-lite';
 import { computeMatchScoreFromComment, parseMatchScoreFromComment, patchEducationDeductionComment } from './score-comment.mjs';
@@ -1010,10 +1010,12 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
   try {
     // 归档旧输出目录（在主进程做，避免子进程 rename 时 EBUSY）。
     // resume 模式：历史目录已还原为 OUTPUT_DIR，续跑要保留进度文件，不再归档。
+    // 只有旧目录里有真实数据才归档；只有 .run-meta.json 等残留时不归档，避免产生空批次文件夹。
     if (!skipExtract && !resume && existsSync(OUTPUT_DIR)) {
       try {
         const entries = readdirSync(OUTPUT_DIR);
-        if (entries.length > 0) {
+        const hasRealData = entries.some((n) => n !== '.run-meta.json');
+        if (hasRealData) {
           const now = new Date();
           const pad = (n) => String(n).padStart(2, '0');
           const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
@@ -1742,6 +1744,16 @@ function registerIPC() {
     };
   });
 
+  // ISO 时间 → 「YYYY-MM-DD HH:mm」本地时间显示（历史记录用）
+  function isoToDisplayTime(iso) {
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return null;
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } catch { return null; }
+  }
+
   // v1.5.0: 历史记录抽屉 —— 列出所有历史归档批次（含当前输出目录里的未完成批次）
   ipcMain.handle('list-history', () => {
     const parentDir = dirname(OUTPUT_DIR);
@@ -1751,13 +1763,18 @@ function registerIPC() {
       for (const entry of entries) {
         if (!entry.isDirectory()) continue;
         const isCurrent = entry.name === basename(OUTPUT_DIR);
+        // 目录里是否有真实数据（有才展示；只有 .run-meta.json 的空批次不展示）
+        const dirHasData = existsSync(resolve(parentDir, entry.name, '.extract-progress.json'))
+          || existsSync(resolve(parentDir, entry.name, 'zhipin-candidates.json'))
+          || existsSync(resolve(parentDir, entry.name, 'scored-candidates.json'))
+          || existsSync(resolve(parentDir, entry.name, 'candidates.xlsx'));
         if (isCurrent) {
           // 当前输出目录只在有数据时才展示（否则是首次使用前的空目录）
-          const hasData = existsSync(resolve(parentDir, entry.name, '.extract-progress.json'))
-            || existsSync(resolve(parentDir, entry.name, 'zhipin-candidates.json'))
-            || existsSync(resolve(parentDir, entry.name, 'scored-candidates.json'));
-          if (!hasData) continue;
+          if (!dirHasData) continue;
         } else if (!archiveDirNameMatches(entry.name)) {
+          continue;
+        } else if (!dirHasData) {
+          // 空归档批次（运行没产出任何数据）不展示，避免历史记录里混入空壳批次
           continue;
         }
         const dir = resolve(parentDir, entry.name);
@@ -1773,13 +1790,28 @@ function registerIPC() {
           hasProgress: existsSync(progressPath),
           hasExcel: existsSync(resolve(dir, 'candidates.xlsx')),
         };
+        const meta = readRunMeta(dir);
+        if (meta) info.meta = meta;
         // 显示时间：归档名带 YYYYMMDD-HHMM；当前目录用元数据的 startedAt
+        // （没有元数据时退回批次里最新数据文件的修改时间，避免显示「时间未知」）
         const stampMatch = entry.name.match(/(\d{8})-(\d{4})$/);
         if (stampMatch) {
           const [, ymd, hm] = stampMatch;
           info.time = `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)} ${hm.slice(0, 2)}:${hm.slice(2, 4)}`;
+        } else if (meta?.startedAt) {
+          info.time = isoToDisplayTime(meta.startedAt);
         }
-        // 人数：优先候选人文件，其次进度文件
+        if (!info.time) {
+          try {
+            let t = 0;
+            for (const f of ['candidates.xlsx', 'scored-candidates.json', 'zhipin-candidates.json', '.extract-progress.json']) {
+              const p = resolve(dir, f);
+              if (existsSync(p)) t = Math.max(t, statSync(p).mtimeMs);
+            }
+            if (t > 0) info.time = isoToDisplayTime(new Date(t).toISOString());
+          } catch {}
+        }
+        // 人数：优先候选人文件，其次进度文件，再次评分结果（完成后 zhipin 会被清理，从 scored 读）
         if (info.hasCandidates) {
           try {
             const raw = JSON.parse(readFileSync(candidatesPath, 'utf-8'));
@@ -1791,11 +1823,15 @@ function registerIPC() {
             const p = JSON.parse(readFileSync(progressPath, 'utf-8'));
             info.candidateCount = p.processedCount ?? (Array.isArray(p.candidates) ? p.candidates.length : 0);
           } catch { info.candidateCount = 0; }
+        } else if (info.hasScored) {
+          try {
+            const raw = JSON.parse(readFileSync(scoredPath, 'utf-8'));
+            const arr = raw.candidates || raw;
+            info.candidateCount = Array.isArray(arr) ? arr.length : 0;
+          } catch { info.candidateCount = 0; }
         } else {
           info.candidateCount = 0;
         }
-        const meta = readRunMeta(dir);
-        if (meta) info.meta = meta;
         list.push(info);
       }
       list.sort((a, b) => {
