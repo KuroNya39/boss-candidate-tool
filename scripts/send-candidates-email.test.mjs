@@ -12,12 +12,15 @@ import {
   sendCandidateEmail,
 } from './send-candidates-email.mjs';
 
-test('buildRecipient appends default allwinnertech.com domain', () => {
-  assert.equal(buildRecipient('zhangsan'), 'zhangsan@allwinnertech.com');
+test('buildRecipient requires full email (no auto domain)', () => {
+  assert.throws(
+    () => buildRecipient('zhangsan'),
+    /请填写完整邮箱/
+  );
 });
 
 test('buildRecipient accepts full email address as-is', () => {
-  assert.equal(buildRecipient('zhangsan@allwinnertech.com'), 'zhangsan@allwinnertech.com');
+  assert.equal(buildRecipient('hr@example.com'), 'hr@example.com');
   assert.equal(buildRecipient('zhangsan@example.com'), 'zhangsan@example.com');
 });
 
@@ -27,12 +30,12 @@ test('buildRecipient rejects invalid full email address', () => {
     /Invalid --to-prefix/
   );
   assert.throws(
-    () => buildRecipient('zhang san@allwinnertech.com'),
+    () => buildRecipient('zhang san@example.com'),
     /Invalid --to-prefix/
   );
 });
 
-test('buildRecipient rejects invalid email prefix', () => {
+test('buildRecipient rejects bare prefix without @', () => {
   assert.throws(
     () => buildRecipient('zhang san'),
     /Invalid --to-prefix/
@@ -78,13 +81,13 @@ test('validateAttachment rejects missing file', () => {
 test('buildMailOptions includes sender, recipient, subject, text, and attachment', () => {
   const mail = buildMailOptions({
     from: 'sender@example.com',
-    to: 'zhangsan@allwinnertech.com',
+    to: 'hr@example.com',
     subject: '候选人评分结果',
     attachmentPath: '/tmp/candidates.xlsx',
   });
 
   assert.equal(mail.from, 'sender@example.com');
-  assert.equal(mail.to, 'zhangsan@allwinnertech.com');
+  assert.equal(mail.to, 'hr@example.com');
   assert.equal(mail.subject, '候选人评分结果');
   assert.equal(mail.text, '候选人评分结果已生成，Excel 文件见附件。');
   assert.deepEqual(mail.attachments, [
@@ -102,7 +105,7 @@ test('sendCandidateEmail uses injected transport and does not require real SMTP'
 
   const sent = [];
   const result = await sendCandidateEmail({
-    toPrefix: 'zhangsan',
+    toPrefix: 'zhangsan@example.com',
     attachmentPath,
     env: {
       SMTP_HOST: 'smtp.example.com',
@@ -120,7 +123,7 @@ test('sendCandidateEmail uses injected transport and does not require real SMTP'
     }),
   });
 
-  assert.equal(result.to, 'zhangsan@allwinnertech.com');
+  assert.equal(result.to, 'zhangsan@example.com');
   assert.equal(result.messageId, 'fake-message-id');
   assert.equal(sent.length, 1);
   assert.equal(sent[0].transportConfig.host, 'smtp.example.com');
@@ -129,7 +132,7 @@ test('sendCandidateEmail uses injected transport and does not require real SMTP'
   assert.equal(sent[0].transportConfig.auth.user, 'sender@example.com');
   assert.equal(sent[0].transportConfig.auth.pass, 'secret');
   assert.equal(sent[0].mailOptions.from, 'hr-bot@example.com');
-  assert.equal(sent[0].mailOptions.to, 'zhangsan@allwinnertech.com');
+  assert.equal(sent[0].mailOptions.to, 'zhangsan@example.com');
 
   rmSync(dir, { recursive: true, force: true });
 });

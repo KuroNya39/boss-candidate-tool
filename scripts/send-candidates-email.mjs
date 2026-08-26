@@ -5,10 +5,8 @@ import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import nodemailer from 'nodemailer';
 
-const DEFAULT_DOMAIN = 'allwinnertech.com';
 const DEFAULT_SUBJECT = '候选人评分结果';
 const DEFAULT_TEXT = '候选人评分结果已生成，Excel 文件见附件。';
-const PREFIX_PATTERN = /^[A-Za-z0-9._%+-]+$/;
 
 function fail(message) {
   throw new Error(message);
@@ -38,30 +36,23 @@ export function parseArgs(argv = process.argv.slice(2)) {
   return {
     toPrefix: opts['to-prefix'],
     attachmentPath: opts.attachment,
-    domain: opts.domain || DEFAULT_DOMAIN,
     subject: opts.subject || DEFAULT_SUBJECT,
   };
 }
 
 const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
-export function buildRecipient(prefix, domain = DEFAULT_DOMAIN) {
+// 必须填完整邮箱（含 @）。不再自动补任何默认域名——工具可能给不同公司的人使用，
+// 无法猜对方邮箱后缀，只能由使用者填写完整地址
+export function buildRecipient(prefix) {
   const input = String(prefix || '');
-  // 填的是完整邮箱（含 @）：直接作为收件人，不再拼域名
-  if (input.includes('@')) {
-    if (!EMAIL_PATTERN.test(input)) {
-      fail('Invalid --to-prefix: email address format is wrong');
-    }
-    return input;
+  if (!input.includes('@')) {
+    fail('Invalid --to-prefix: 请填写完整邮箱（含 @），例如 hr@example.com');
   }
-  // 只填了前缀：拼上默认域名（兼容旧配置）
-  if (!input || !PREFIX_PATTERN.test(input)) {
-    fail('Invalid --to-prefix: only letters, numbers, dot, underscore, percent, plus, and hyphen are allowed');
+  if (!EMAIL_PATTERN.test(input)) {
+    fail('Invalid --to-prefix: email address format is wrong');
   }
-  if (!domain || !PREFIX_PATTERN.test(domain.replace(/@/g, ''))) {
-    fail('Invalid --domain');
-  }
-  return `${input}@${domain}`;
+  return input;
 }
 
 export function readSmtpConfig(env = process.env) {
@@ -127,13 +118,12 @@ export function buildMailOptions({ from, to, subject = DEFAULT_SUBJECT, attachme
 export async function sendCandidateEmail({
   toPrefix,
   attachmentPath,
-  domain = DEFAULT_DOMAIN,
   subject = DEFAULT_SUBJECT,
   env = process.env,
   createTransport = nodemailer.createTransport,
 }) {
   const smtp = readSmtpConfig(env);
-  const to = buildRecipient(toPrefix, domain);
+  const to = buildRecipient(toPrefix);
   const absoluteAttachmentPath = validateAttachment(attachmentPath);
 
   const transport = createTransport({

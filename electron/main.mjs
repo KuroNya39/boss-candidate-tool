@@ -33,7 +33,7 @@ const JD_DIR = resolve(CONFIG_DIR, 'jd-descriptions');
 let apiConfig = {
   url: '', key: '', model: '',
   smtpHost: 'smtp.mxhichina.com', smtpPort: '25', smtpSecure: 'false',
-  smtpUser: 'jenkins@allwinnertech.com', smtpPass: '', smtpFrom: '',
+  smtpUser: '', smtpPass: '', smtpFrom: '',
   emailPrefix: '', outputDir: '',
   dimensions: '',    // 3个核心评估维度及权重（JSON字符串）
   screeningCriteria: '', // 任职资格关键筛选项（换行分隔）
@@ -1164,9 +1164,11 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       let emailSubject = '候选人评分结果';
       if (isRecommendMode) emailSubject = '推荐牛人评分结果';
       else if (isSearchMode) emailSubject = '搜索页评分结果';
-      // 发件邮箱 = 收件邮箱 = 填的邮箱（填完整邮箱直接使用；只填前缀则补域名，兼容旧配置）
-      const rawEmail = apiConfig.emailPrefix.trim();
-      const emailUser = rawEmail.includes('@') ? rawEmail : `${rawEmail}@allwinnertech.com`;
+      // 发件邮箱 = 收件邮箱 = 填的邮箱（必须填完整邮箱，含 @；工具会分享给不同公司使用，不再自动补域名）
+      const emailUser = apiConfig.emailPrefix.trim();
+      if (!emailUser.includes('@')) {
+        throw new Error('「邮件通知」的邮箱请填写完整地址（含 @），例如 hr@example.com，否则无法发送邮件');
+      }
       exportArgs.push('--to-prefix', emailUser);
       exportArgs.push('--email-subject', emailSubject);
       // 传递 SMTP 配置给子进程

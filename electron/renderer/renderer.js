@@ -771,10 +771,18 @@ btnSaveConfig.addEventListener('click', async () => {
     return;
   }
 
+  // 邮箱可选，但填了就必须是完整地址（含 @），不自动补域名
+  const emailVal = emailPrefixInput.value.trim();
+  if (emailVal && !emailVal.includes('@')) {
+    configStatus.textContent = '邮箱请填完整地址（含 @），如 hr@example.com';
+    configStatus.className = 'config-badge config-error';
+    return;
+  }
+
   try {
     await window.electronAPI.setApiConfig({
       url, key, model,
-      emailPrefix: emailPrefixInput.value.trim(),
+      emailPrefix: emailVal,
       smtpPass: smtpPassInput.value.trim(),
     });
     configStatus.textContent = '✓ 已保存';

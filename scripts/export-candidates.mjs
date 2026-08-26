@@ -26,7 +26,7 @@ function parseArgs() {
     }
   }
   if (!opts.input) {
-    console.error('Usage: node scripts/export-candidates.mjs --input <scored-candidates.json> [--to-prefix <email-prefix>] [--email-domain <domain>] [--email-subject <subject>]');
+    console.error('Usage: node scripts/export-candidates.mjs --input <scored-candidates.json> [--to-prefix <email>] [--email-subject <subject>]');
     process.exit(1);
   }
   return opts;
@@ -892,7 +892,6 @@ async function sendEmailAfterExport(opts, excelPath) {
     const result = await sendCandidateEmail({
       toPrefix: opts['to-prefix'],
       attachmentPath: excelPath,
-      domain: opts['email-domain'] || undefined,
       subject: opts['email-subject'] || undefined,
     });
     // MAIL_OK / MAIL_FAIL 是给主进程解析的机器标记，主进程据此判断邮件是否真的发出去了，
