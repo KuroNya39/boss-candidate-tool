@@ -93,6 +93,22 @@ body {
      窗口有原生标题栏可拖拽；body 级 drag 区域会干扰原生 <select> 弹层打开（批量打招呼下拉框点了没反应）。 */
 }
 
+/* ===== 滚动条：细、淡、悬停才明显 ===== */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.2);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.45);
+}
+
 /* 原生 <button> 自带浏览器样式，统一重置为继承视觉体系；
    交互元素保留 user-select:none 防止点按时误选中文字。 */
 button {

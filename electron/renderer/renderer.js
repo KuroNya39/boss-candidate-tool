@@ -42,42 +42,6 @@ const chatHint = document.getElementById('chat-hint');
 const doneSummary = document.getElementById('done-summary');
 const errorMessage = document.getElementById('error-message');
 
-// 把邮件服务器返回的英文报错翻译成大白话，方便非技术用户看懂下一步该做什么。
-// 分两层：short 一句结论（直接显示在完成页），explainMailError 完整处理办法（折叠展开）。
-function explainMailErrorShort(raw) {
-  const text = String(raw || '');
-  if (/526|Authentication failure|Invalid login|Login fail|credentials|auth/i.test(text)) {
-    return '邮箱账号或密码不对（公司邮箱要用「客户端安全密码」，不是登录密码）';
-  }
-  if (/ETIMEDOUT|ECONNREFUSED|ECONNRESET|ENOTFOUND|connect/i.test(text)) {
-    return '连不上邮件服务器（可能是公司网络或端口问题）';
-  }
-  if (/quota|storage|size|附件/.test(text)) {
-    return '邮件或附件过大被服务器拒绝';
-  }
-  return '原因见下方详情';
-}
-
-function explainMailError(raw) {
-  const text = String(raw || '');
-  if (/526|Authentication failure|Invalid login|Login fail|credentials|auth/i.test(text)) {
-    return '服务器说账号或密码不对。公司邮箱最常见的原因：这个邮箱账号开启了"三方客户端安全密码"后，原来的登录密码就不能再用来配软件，必须换成专用密码。\n'
-      + '按顺序处理：\n'
-      + '1. 到网页版邮箱：邮箱设置 → 账户与安全 → 账户安全 → 三方客户端登录安全管理，获取一次性展示的"客户端安全密码"，填到「API 配置 → 邮箱密码」\n'
-      + '2. 如果那个页面没有这个入口（账号没开启该功能），就填这个邮箱的普通登录密码，先到网页版邮箱登录验证密码没记错\n'
-      + '3. 账号被临时锁定时，到网页版邮箱登录一次即可解锁\n'
-      + '网页版邮箱能正常登录发信，但软件还是报这个错，多半就是第 1 条——要用"客户端安全密码"，不是登录密码。\n'
-      + '登录密码、客户端安全密码都试过还是不行，那多半是账号本身的状态有问题（没激活/被锁定/或管理员没开发信权限），请找 IT 查这个账号的状态。';
-  }
-  if (/ETIMEDOUT|ECONNREFUSED|ECONNRESET|ENOTFOUND|connect/i.test(text)) {
-    return '连不上邮件服务器（可能是公司网络或端口问题），请检查网络后重试';
-  }
-  if (/quota|storage|size|附件/.test(text)) {
-    return '邮件或附件过大被服务器拒绝，请压缩后重试';
-  }
-  return text;
-}
-
 // 岗位选择状态
 let selectedJob = '';
 let jobList = [];
@@ -443,6 +407,20 @@ function handleProgress(data) {
   }
 }
 
+// 继续提取时，按已有进度复用 handleProgress 初始化步骤1的显示，避免一进来就看到「等待开始」
+function initResumeStep(info) {
+  if (!info) return;
+  if (info.hasCandidates) {
+    // 提取已完成，接着从步骤2（AI 评分）继续；handleProgress 的 done 指示器是「等待下一步」，这里覆写成「步骤 2/3」
+    handleProgress({ step: 1, status: 'done', progress: 100, message: '候选人信息提取完成' });
+    const stepInd = document.getElementById('step-indicator');
+    if (stepInd) stepInd.textContent = '步骤 2/3';
+  } else {
+    // 提取到一半，继续提取剩余（handleProgress 会同步处理跳过按钮与「步骤 1/3」指示器）
+    handleProgress({ step: 1, status: 'running', message: info.done > 0 ? `已有 ${info.done} 名候选人，正在继续提取剩余...` : '正在继续提取...' });
+  }
+}
+
 // ===== 完成页结果可视化 =====
 
 // 档位分布条的元信息（顺序从高分到低分）。颜色用 CSS 类控制，避免内联色值。
@@ -594,17 +572,16 @@ function setupListeners() {
       if (data.emailTo) {
         summary += `邮件已发送至: ${data.emailTo}\n`;
       }
+      const mailDetails = document.getElementById('mail-error-details');
+      const mailDetail = document.getElementById('mail-error-detail');
       if (data.emailError) {
-        summary += `⚠ 邮件没发出去：${explainMailErrorShort(data.emailError)}\n`;
-        const mailDetails = document.getElementById('mail-error-details');
-        const mailDetail = document.getElementById('mail-error-detail');
         if (mailDetails && mailDetail) {
           mailDetails.style.display = '';
-          mailDetail.textContent = explainMailError(data.emailError);
+          // 展开显示服务器返回的报错原文；折叠条标题「邮件发送失败的原因」已在 HTML 里写死
+          mailDetail.textContent = data.emailError;
         }
-      } else {
-        const mailDetails = document.getElementById('mail-error-details');
-        if (mailDetails) mailDetails.style.display = 'none';
+      } else if (mailDetails) {
+        mailDetails.style.display = 'none';
       }
       summary += `输出目录: ${data.outputDir}`;
       doneSummary.textContent = summary;
@@ -1127,6 +1104,8 @@ function renderHistoryItem(item) {
       closeHistoryDrawer();
       resetSteps();
       showState('state-running');
+      // 立即按已有进度显示「提取到哪了」，而不是停在「等待开始」；数据直接来自历史列表项，无需再读文件
+      initResumeStep({ done: item.candidateCount, hasCandidates: item.hasCandidates });
     }));
   }
 
