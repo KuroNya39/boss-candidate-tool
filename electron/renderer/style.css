@@ -1318,6 +1318,11 @@ button.is-loading::before {
   color: var(--color-info-strong);
   border: 1px solid var(--border-info);
 }
+.toast.toast-warning {
+  background: var(--bg-warning);
+  color: var(--color-warning-strong);
+  border: 1px solid var(--border-warning);
+}
 .toast.toast-leaving {
   animation: toast-out var(--dur-normal) var(--ease-out) forwards;
 }

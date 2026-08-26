@@ -1912,21 +1912,27 @@ function registerIPC() {
     return { ok: true };
   });
 
-  // v1.5.0: 用某个历史批次的提取数据重新评分（跳过提取，换模型后重评）
+  // v1.5.0: 用某个历史批次（或当前批次）的提取数据重新评分（跳过提取，换模型后重评）
   ipcMain.handle('rescore-from-history', (_event, opts) => {
     if (currentProcess) return { error: '已有任务运行中' };
     const dirPath = opts?.archiveDir;
     if (!dirPath) return { error: '缺少参数' };
     const parentDir = dirname(OUTPUT_DIR);
     const name = basename(dirPath);
-    if (!archiveDirNameMatches(name) || resolve(dirPath) !== resolve(parentDir, name)) {
+    const isCurrent = name === basename(OUTPUT_DIR);
+    if (isCurrent) {
+      if (resolve(dirPath) !== resolve(OUTPUT_DIR)) return { error: '目标不是历史归档目录，无法重新评分' };
+    } else if (!archiveDirNameMatches(name) || resolve(dirPath) !== resolve(parentDir, name)) {
       return { error: '目标不是历史归档目录，无法重新评分' };
     }
     const candidatesPath = resolve(dirPath, 'zhipin-candidates.json');
     if (!existsSync(candidatesPath)) return { error: '该批次没有提取数据，无法重新评分' };
     try {
-      copyFileSync(candidatesPath, resolve(OUTPUT_DIR, 'zhipin-candidates.json'));
-      termLog(`[rescore] 已从历史批次复制提取数据: ${dirPath}`);
+      const targetPath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
+      if (resolve(candidatesPath) !== targetPath) {
+        copyFileSync(candidatesPath, targetPath);
+        termLog(`[rescore] 已从历史批次复制提取数据: ${dirPath}`);
+      }
     } catch (err) {
       return { error: `复制数据失败: ${err.message}` };
     }
