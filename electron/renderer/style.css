@@ -1,29 +1,6 @@
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('assets/fonts/inter-latin-400-normal.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('assets/fonts/inter-latin-500-normal.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('assets/fonts/inter-latin-600-normal.woff2') format('woff2');
-}
-
 :root {
   /* 字体 */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
-  --font-mono: 'Consolas', 'Courier New', monospace;
+  --font-sans: 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Segoe UI', sans-serif;
 
   /* 字号档位 */
   --text-xs: 11px; --text-sm: 12px; --text-md: 13px;
@@ -278,6 +255,7 @@ input::-webkit-clear-button {
 .job-picker-item {
   display: flex;
   align-items: center;
+  gap: 10px;
   padding: 8px 14px;
   font-size: 14px;
   color: var(--text-primary);
@@ -937,7 +915,7 @@ button.is-loading::before {
   flex-shrink: 0;
 }
 .output-path {
-  font-family: var(--font-mono);
+  font-family: inherit;
   color: var(--text-primary);
   font-size: 12px;
   background: var(--bg-input);

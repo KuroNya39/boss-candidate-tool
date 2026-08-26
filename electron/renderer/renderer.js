@@ -1284,9 +1284,9 @@ function renderJobPicker() {
     btnEdit.textContent = '编辑';
     btnEdit.addEventListener('click', (e) => {
       e.stopPropagation();
-      // 先关掉「目标岗位」弹窗再打开编辑弹窗，否则会被盖住
+      // 编辑弹窗层级高于「目标岗位」弹窗，关闭后立即打开即可，无需等待
       hideJobPicker();
-      setTimeout(() => showEditJobDialog(job), 150);
+      showEditJobDialog(job);
     });
     actions.appendChild(btnEdit);
 
@@ -1413,13 +1413,14 @@ async function showEditJobDialog(jobName) {
   dialogJobName.classList.add('input-readonly');
   dialogJobHint.style.display = 'none';
   document.getElementById('job-dialog-title').textContent = '编辑岗位描述';
+  // 先弹出窗口，岗位描述在后台读取完再填入，避免点「编辑」后卡一下
+  openDialog(jobDialogOverlay, dialogJobDesc);
   try {
     const desc = await window.electronAPI.getRecommendJobDesc(jobName);
-    dialogJobDesc.value = desc || '';
+    if (editJobName === jobName) dialogJobDesc.value = desc || '';
   } catch {
-    dialogJobDesc.value = '';
+    if (editJobName === jobName) dialogJobDesc.value = '';
   }
-  openDialog(jobDialogOverlay, dialogJobDesc);
 }
 
 function hideAddJobDialog() {
