@@ -143,7 +143,7 @@ Boss 直聘非 VIP 账号每天能查看的候选人数量有限制（尤其是�
    https://api.example.com
    ```
 2. **API Key** —— 在刚才那个页面复制你自己的 API Key，粘贴进来
-3. **模型名称** —— 填 `GLM-5_SLB`（模型可以自由选择，这里只是建议用这个，系统里能用的其他模型也可以填）
+3. **模型名称** —— 填 `deepseek-v4-flash_DeepSeek`（模型可以自由选择，这里只是建议用这个，系统里能用的其他模型也可以填）
 
 ![在 AI API 系统中复制 API 地址和 Key](docs/images/图3.png)
 
