@@ -255,11 +255,37 @@ input::-webkit-clear-button {
 
 /* ===== 目标岗位弹窗列表 ===== */
 .job-picker-search {
+  position: relative;
   margin-bottom: 8px;
 }
 /* 搜索框复用弹窗输入框的基础样式（见 .dialog-field input） */
 .job-picker-search-input {
   font-family: inherit;
+  padding-right: 34px; /* 给右侧清空按钮留位 */
+}
+.job-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.job-search-clear:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 .job-picker-list {
   max-height: 400px;

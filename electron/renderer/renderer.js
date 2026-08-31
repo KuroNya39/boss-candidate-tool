@@ -29,6 +29,7 @@ const jobDisplay = document.getElementById('job-display');
 const jobPickerOverlay = document.getElementById('job-picker-overlay');
 const jobPickerList = document.getElementById('job-picker-list');
 const jobSearchInput = document.getElementById('job-search-input');
+const jobSearchClear = document.getElementById('job-search-clear');
 const btnPickerCancel = document.getElementById('btn-picker-cancel');
 const jobDialogOverlay = document.getElementById('job-dialog-overlay');
 const dialogJobName = document.getElementById('dialog-job-name');
@@ -527,7 +528,7 @@ function renderResultsList(candidates) {
       const expanded = head.getAttribute('aria-expanded') === 'true';
       head.setAttribute('aria-expanded', String(!expanded));
       body.style.display = expanded ? 'none' : '';
-      arrowEl.textContent = expanded ? '▸' : '▾';
+      // 箭头字符保持 ▸ 不变，展开态由 CSS 的 rotate(90deg) 转成 ▼（带平滑过渡）
     });
 
     item.append(head, body);
@@ -1357,6 +1358,7 @@ document.addEventListener('keydown', (e) => {
 
 // 显示/隐藏目标岗位弹窗
 function showJobPicker() {
+  jobSearchClear.hidden = !jobSearchInput.value;
   renderJobPicker();
   openDialog(jobPickerOverlay, jobSearchInput);
 }
@@ -1374,7 +1376,16 @@ jobPickerOverlay.addEventListener('click', (e) => {
 // 岗位搜索：输入实时过滤列表
 jobSearchInput.addEventListener('input', () => {
   jobSearchQuery = jobSearchInput.value;
+  jobSearchClear.hidden = !jobSearchInput.value;
   renderJobPicker();
+});
+// 一键清空搜索框
+jobSearchClear.addEventListener('click', () => {
+  jobSearchInput.value = '';
+  jobSearchQuery = '';
+  jobSearchClear.hidden = true;
+  renderJobPicker();
+  jobSearchInput.focus();
 });
 // Source toggle (card-style buttons)
 document.querySelectorAll('.toggle-btn').forEach(btn => {
