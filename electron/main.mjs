@@ -172,6 +172,16 @@ function sendGreetError(data) {
 // ===== stdout 进度解析 =====
 function parseExtractProgress(line) {
   if (line.includes('提取结果摘要')) return { progress: 100, message: '提取完成' };
+  // 扫描阶段（滚动列表收集候选人）：实时显示扫描进度，提示语换成「正在扫描候选人列表」
+  const scanCount = line.match(/扫描进度:\s*(\d+)\/(\d+) 人/);
+  if (scanCount) {
+    return { progress: 0, message: `正在扫描候选人列表… ${scanCount[1]}/${scanCount[2]} 人` };
+  }
+  const scanAll = line.match(/扫描进度:\s*(\d+) 人/);
+  if (scanAll) {
+    return { progress: 0, message: `正在扫描候选人列表… 已发现 ${scanAll[1]} 人` };
+  }
+  // 提取阶段（逐人读取简历）：直接显示脚本输出的进度行（如 [12/40] 张三 (geekId=xxx)）
   const personMatch = line.match(/\[(\d+)\/(\d+)\]/);
   if (personMatch) {
     return { progress: Math.round((parseInt(personMatch[1]) / parseInt(personMatch[2])) * 100), message: line.trim() };
@@ -209,8 +219,8 @@ function runScript(scriptName, args, step, parseFn, extraEnv = {}) {
     const procCwd = app.isPackaged ? OUTPUT_DIR : APP_ROOT;
 
     termLog(`[main] start: scripts/${scriptName} ${args.join(' ')}`);
-    const stepIntro = { 1: '正在提取候选人信息...', 2: '正在用 AI 为候选人评分...', 3: '正在生成 Excel...' };
-    sendProgress(step, 'running', 0, stepIntro[step] || `启动 ${scriptName}...`);
+    const stepIntro = { 1: '正在扫描候选人列表…', 2: '正在用 AI 为候选人评分…', 3: '正在生成 Excel…' };
+    sendProgress(step, 'running', 0, stepIntro[step] || `启动 ${scriptName}…`);
 
     const proc = spawn(process.execPath, [scriptPath, ...args], {
       cwd: procCwd,
@@ -602,37 +612,241 @@ function isChromeBossMode() {
   });
 }
 
-async function doAiScoring() {
-  const sourcePath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
-  if (!existsSync(sourcePath)) throw new Error('未找到 zhipin-candidates.json');
+// ===== AI 评分：提取与评分并行 =====
+// v1.5.12：步骤1（提取）与步骤2（AI评分）并行。提取子进程每 5 人把已提取候选人写入
+// .extract-progress.json，评分器轮询它，攒够 POOL_START_THRESHOLD 人后开始边提取边评分；
+// 提取结束后读最终 zhipin-candidates.json 收尾补评。
+// 用户确认的参数：并发批数从 6 降到 5（更保守防限流）；默认开启并行，不加开关。
+const BATCH_SIZE = 3;              // 每批候选人数（保持 3 人一批，用户决定）
+const SCORE_CONCURRENCY = 5;       // 同时并发批数（5批×3人≈15人，用户决定，原 6）
+const POLL_MS = 1500;              // 提取过程中轮询进度文件的间隔
+const POOL_START_THRESHOLD = 15;   // 提取到 15 人即开始边提取边评分（用户决定）
+const FLUSH_TIMEOUT = 30000;       // 不满一批的尾巴等待 30s 就放行，避免一直卡到提取结束
+const MAX_RESUME_LEN = 4000;       // 每份简历截断，避免 prompt 过长
 
-  const raw = JSON.parse(readFileSync(sourcePath, 'utf-8'));
-  const candidates = raw.candidates || raw;
-  const extractSource = raw.source || 'chat'; // 'chat'(沟通页) 或 'recommend'(推荐牛人页)
+// 候选人的稳定标识：geekId 优先（Boss 候选人唯一 id），缺失时退回 index 字段/数组下标
+function candidateKeyOf(c, idx = 0) {
+  return c.geekId || ('idx:' + (c.index ?? idx));
+}
 
-  // 可取消的 AI 评分：创建 AbortController，所有 API 请求共享
-  aiAbortController = new AbortController();
-  const signal = aiAbortController.signal;
+// 构建某岗位的批量评分 prompt 生成器（含模板/JD 文件加载）。
+// getPoolCandidates: 返回该岗位当前所有已提取候选人（供沟通页无 JD 文件时从简历岗位描述兜底）。
+function createPositionPromptBuilder(positionName, extractSource, getPoolCandidates) {
+  const useWithJd = extractSource !== 'chat';
+  const templateName = useWithJd ? 'scoring-prompt-with-jd.txt' : 'scoring-prompt-chat.txt';
+  const templatePath = resolve(UNPACKED_ROOT, 'config', templateName);
+  let template;
+  try {
+    template = readFileSync(templatePath, 'utf-8');
+  } catch {
+    throw new Error(`未找到评分模板: ${templatePath}`);
+  }
+  const dimensionsText = apiConfig.dimensions || '';
+  const screeningCriteriaText = apiConfig.screeningCriteria || '';
+  let jdContent = null;
+  let jdDimensions = '';
+  let jdScreeningCriteria = '';
+  const safeName = positionName.replace(/[\\/:*?"<>|]/g, (c) => ({
+    '\\': '＼', '/': '／', ':': '：', '*': '＊',
+    '?': '？', '"': '＂', '<': '＜', '>': '＞', '|': '｜'
+  })[c]);
+  const jdFilePath = resolve(JD_DIR, safeName + '.txt');
+  try {
+    const raw = readFileSync(jdFilePath, 'utf-8').trim();
+    if (raw) jdContent = raw;
+    // 按 section 解析：优先取「核心评估维度及权重」和「任职资格关键筛选项」两个部分
+    const dimMatch = raw.match(/核心评估维度及?权重[\s\S]*?(?=(任职资格关键筛选项|$))/);
+    if (dimMatch) jdDimensions = dimMatch[0].trim();
+    const criteriaMatch = raw.match(/任职资格关键筛选项[\s\S]*$/);
+    if (criteriaMatch) jdScreeningCriteria = criteriaMatch[0].trim();
+  } catch {}
+  if (useWithJd && !jdContent && !dimensionsText) {
+    termLog(`[AI评分] ⚠ 未配置核心评估维度，请先在设置中配置`, 'stderr');
+  }
 
-  // 按岗位分组
+  return function buildBatchPrompt(cands) {
+    let p;
+    if (useWithJd) {
+      // 结构化岗位文件：维度/筛选项分别填槽（权重、硬性条件真正生效）
+      // 原始 JD 文件（无 section）：整段兜底填两个槽位（与旧行为一致）
+      const dims = jdDimensions || jdContent || dimensionsText;
+      const criteria = jdScreeningCriteria || jdContent || screeningCriteriaText;
+      p = template
+        .replace('{dimensions}', dims)
+        .replace('{screeningCriteria}', criteria);
+    } else {
+      let jd = jdContent;
+      if (!jd && typeof getPoolCandidates === 'function') {
+        // 沟通页无 JD 文件时：从已提取候选人里取岗位描述作为 JD 文本
+        for (const c of getPoolCandidates()) {
+          if (c.jobDescription?.description) {
+            jd = `${c.jobDescription.jobName || ''} ${c.jobDescription.salary || ''}\n\n${c.jobDescription.description}`.trim();
+            break;
+          }
+        }
+      }
+      p = template
+        .replace('{jdText}', jd || dimensionsText || '(无岗位JD描述)');
+    }
+
+    // 拼接本批所有候选人的简历（基础信息/教育经历来自页面 DOM，可靠性高；简历正文为 OCR 仅供参考）
+    const resumeSections = cands.map((c, i) => {
+      const resumeForAI = (c.resumeText || '').length > MAX_RESUME_LEN
+        ? (c.resumeText || '').slice(0, MAX_RESUME_LEN) + '\n\n...(后续内容略)'
+        : (c.resumeText || '(无)');
+      // 结构化教育经历逐条列出（AI 评学历时不再依赖 OCR 正文）
+      const eduList = Array.isArray(c.educationExperience) && c.educationExperience.length > 0
+        ? c.educationExperience.map(e =>
+            `- ${e.time || ''} | ${e.school || ''} | ${e.major || ''} | ${e.degree || ''}`.replace(/ \| $/, '')).join('\n')
+        : '- 无';
+      return `=== 候选人 ${i + 1}/${cands.length} ===\n` +
+        `姓名：${c.basicInfo?.name || '未知'}\n` +
+        `学历（来自页面）：${c.basicInfo?.education || '未知'}\n` +
+        `教育经历（来自页面，可靠性高）：\n${eduList}\n` +
+        `工作年限（来自页面）：${c.basicInfo?.workYears || '未知'}\n` +
+        `简历文本（OCR 识别，仅供参考，可能有错误）：\n${resumeForAI}`;
+    }).join('\n\n');
+
+    p = p.replace('{resumeText}', resumeSections);
+
+    // 附加批量输出格式要求
+    p += `\n\n重要：本次请求要求 JSON 输出。请为以上每位候选人分别给出评分，严格只输出一个 JSON 数组（不要包含任何其他内容，不要用 markdown 代码块包裹）：\n` +
+      `[\n` +
+      cands.map((_, i) => `  {"candidateIndex": ${i}, "score": <0-100的整数，必须严格等于该候选人评语中的"匹配度评分：XX分">, "comment": "<按上方评语内容规范组织、完整包含匹配度评分/首句定性/维度匹配/任职资格/学历核查/综合结论各模块的评语，用\\n换行>"}`).join(',\n') +
+      `\n]`;
+    return p;
+  };
+}
+
+// 执行一批评分（含失败重试/整批失败拆单重试/设 0 分兜底），原地写入 batch 内候选人的分数。
+// run: { signal, buildBatchPrompt, onBatchDone(batch) }
+async function scoreOneBatch(batch, run) {
+  if (cancelled) return;
+
+  const prompt = run.buildBatchPrompt(batch);
+  const batchNames = batch.map(c => c.basicInfo?.name || c.geekId || '未知').join('、');
+  termLog(`[AI评分] 评分批: ${batchNames}`);
+
+  // 最多重试 2 次
+  let lastError = null;
+  for (let retry = 0; retry <= 2; retry++) {
+    if (cancelled) return;
+    try {
+      const text = await callClaudeAPI(prompt, { signal: run.signal });
+      const results = parseBatchScoreResponse(text);
+      if (results && results.length > 0) {
+        for (const r of results) {
+          const idx = r.candidateIndex;
+          if (idx >= 0 && idx < batch.length) {
+            batch[idx].jobRelevanceScore = r.score;
+            batch[idx].jobRelevanceComment = r.comment;
+            const nm = batch[idx].basicInfo?.name || batch[idx].geekId || '未知';
+            termLog(`  ✓ ${nm}: ${r.score}分`);
+          }
+        }
+        lastError = null;
+        break;
+      }
+      lastError = new Error('解析失败(无有效JSON)');
+      if (retry < 2) {
+        const ts = Date.now();
+        const debugPath = resolve(OUTPUT_DIR, `api-raw-response-${ts}.txt`);
+        try { writeFileSync(debugPath, text, 'utf-8'); } catch {}
+        termLog(`  ⚠ 解析失败: ${debugPath}，${retry + 1}/2 重试`, 'stderr');
+        await sleep(2000);
+      }
+    } catch (err) {
+      if (run.signal.aborted) throw err;
+      lastError = err;
+      if (retry < 2) {
+        termLog(`  ⚠ 请求失败: ${err.message}，${retry + 1}/2 重试`, 'stderr');
+        await sleep(2000);
+      }
+    }
+  }
+
+  // 失败批的候选人设 0 分
+  if (lastError) {
+    // v1.4.5 兜底：多人的批整体失败时，拆成单候选人逐个重试——
+    // 单候选人 prompt 触发模型过度思考的概率远低于多人批（deepseek 3人批实测思考无上限，
+    // 单候选人稳定出分），模型偶尔抽风时不至于整批丢失。
+    if (batch.length > 1) {
+      let recovered = 0;
+      termLog(`  ↻ 批次评分失败(${lastError.message})，改为逐人重试 ${batch.length} 人`, 'stderr');
+      for (const c of batch) {
+        if (cancelled) return;
+        const singlePrompt = run.buildBatchPrompt([c]);
+        const nm = c.basicInfo?.name || c.geekId || '未知';
+        let singleError = null;
+        for (let retry = 0; retry <= 2; retry++) {
+          if (cancelled) return;
+          try {
+            const text = await callClaudeAPI(singlePrompt, { signal: run.signal });
+            const results = parseBatchScoreResponse(text);
+            if (results && results.length > 0 && typeof results[0].score === 'number') {
+              c.jobRelevanceScore = results[0].score;
+              c.jobRelevanceComment = results[0].comment;
+              termLog(`  ✓ ${nm}: ${results[0].score}分 (逐人重试)`);
+              recovered++;
+              singleError = null;
+              break;
+            }
+            singleError = new Error('解析失败(无有效JSON)');
+          } catch (err) {
+            if (run.signal.aborted) throw err;
+            singleError = err;
+          }
+          if (retry < 2) await sleep(2000);
+        }
+        if (singleError) {
+          c.jobRelevanceScore = 0;
+          c.jobRelevanceComment = `评分失败: ${singleError.message}`;
+        }
+      }
+      termLog(`  ↻ 逐人重试完成：成功 ${recovered}/${batch.length} 人`, 'stderr');
+    } else {
+      for (const c of batch) {
+        c.jobRelevanceScore = 0;
+        c.jobRelevanceComment = `评分失败: ${lastError.message}`;
+      }
+      termLog(`  ✗ 批次评分失败: ${lastError.message}`, 'stderr');
+    }
+  }
+
+  run.onBatchDone(batch);
+}
+
+// 滑动窗口并发执行一批批的评分（并发上限 SCORE_CONCURRENCY）
+async function runBatchWindow(batches, run) {
+  const totalBatches = batches.length;
+  const executing = new Set();
+  for (let i = 0; i < Math.min(SCORE_CONCURRENCY, totalBatches); i++) {
+    if (cancelled) break;
+    const promise = scoreOneBatch(batches[i], run).finally(() => executing.delete(promise));
+    executing.add(promise);
+  }
+  for (let i = SCORE_CONCURRENCY; i < totalBatches; i++) {
+    if (cancelled) break;
+    await Promise.race(executing);
+    if (cancelled) break;
+    const promise = scoreOneBatch(batches[i], run).finally(() => executing.delete(promise));
+    executing.add(promise);
+  }
+  await Promise.allSettled(executing);
+}
+
+// 全量评分一组候选人（按岗位分组、3 人一批、并发窗口），原地写入分数。
+// 用于「跳过提取直接评分」与收尾补评。
+async function scoreCandidateList(candidates, extractSource, { signal, onBatchDone } = {}) {
   const groups = {};
   for (const c of candidates) {
     const job = c.positionInfo?.appliedJob || '未知岗位';
     if (!groups[job]) groups[job] = [];
     groups[job].push(c);
   }
-
   const positionNames = Object.keys(groups);
-  const totalCandidates = candidates.length;
-  const totalNoResume = candidates.filter(c => !c.resumeText).length;
-
-  termLog(`[AI评分] 共 ${totalCandidates} 人，${positionNames.length} 个岗位，无简历 ${totalNoResume} 人`);
-  sendProgress(2, 'running', 50, `AI评分: ${totalCandidates} 人，${positionNames.length} 个岗位`);
-
-  // 逐岗位评分
-  let completedInPosition = 0; // 全局累计计数（跨岗位不重置）
   for (const positionName of positionNames) {
-    if (cancelled) { termLog('[AI评分] 用户取消'); break; }
+    if (cancelled) break;
 
     const group = groups[positionName];
     const withResume = group.filter(c => c.resumeText);
@@ -642,265 +856,322 @@ async function doAiScoring() {
       if (!c.resumeText) {
         c.jobRelevanceScore = 0;
         c.jobRelevanceComment = '无在线简历';
-        completedInPosition++;
+        onBatchDone?.([c]);
       }
     }
 
     if (withResume.length === 0) continue;
 
-    // 根据来源选择 prompt 模板：
-    // 只有沟通页用 chat 模板（AI 自行从 JD 提取维度权重）；
-    // 推荐牛人页和搜索页都用 with-jd 模板（直接采用配置好的维度/筛选项）
-    const useWithJd = extractSource !== 'chat';
-    const templateName = useWithJd ? 'scoring-prompt-with-jd.txt' : 'scoring-prompt-chat.txt';
-    const templatePath = resolve(UNPACKED_ROOT, 'config', templateName);
-    let template;
-    try {
-      template = readFileSync(templatePath, 'utf-8');
-    } catch {
-      throw new Error(`未找到评分模板: ${templatePath}`);
-    }
-
-    // 读取用户配置的评分维度和任职资格筛选项
-    const dimensionsText = apiConfig.dimensions || '';
-    const screeningCriteriaText = apiConfig.screeningCriteria || '';
-
-    // 尝试读取该岗位的 JD 描述文件。
-    // 岗位描述文件有两种可能格式：
-    //   1) 结构化：含「核心评估维度及权重」「任职资格关键筛选项」两个 section → 分别填入对应槽位
-    //   2) 原始 JD：无 section 标记 → 整段作为 JD 文本兜底（老数据兼容）
-    let jdContent = null;
-    let jdDimensions = '';
-    let jdScreeningCriteria = '';
-    const safeName = positionName.replace(/[\\/:*?"<>|]/g, (c) => ({
-      '\\': '＼', '/': '／', ':': '：', '*': '＊',
-      '?': '？', '"': '＂', '<': '＜', '>': '＞', '|': '｜'
-    })[c]);
-    const jdFilePath = resolve(JD_DIR, safeName + '.txt');
-    try {
-      const raw = readFileSync(jdFilePath, 'utf-8').trim();
-      if (raw) jdContent = raw;
-      // 按 section 解析：优先取「核心评估维度及权重」和「任职资格关键筛选项」两个部分
-      const dimMatch = raw.match(/核心评估维度及?权重[\s\S]*?(?=(任职资格关键筛选项|$))/);
-      if (dimMatch) jdDimensions = dimMatch[0].trim();
-      const criteriaMatch = raw.match(/任职资格关键筛选项[\s\S]*$/);
-      if (criteriaMatch) jdScreeningCriteria = criteriaMatch[0].trim();
-    } catch {}
-
-    if (useWithJd && !jdContent && !dimensionsText) {
-      termLog(`[AI评分] ⚠ 未配置核心评估维度，请先在设置中配置`, 'stderr');
-    }
-
-    // 沟通页：从候选人提取的 jobDescription 中获取 JD 文本（无 JD 文件时的后备）
-    if (!useWithJd && !jdContent) {
-      for (const c of withResume) {
-        if (c.jobDescription?.description) {
-          const jdText = `${c.jobDescription.jobName || ''} ${c.jobDescription.salary || ''}\n\n${c.jobDescription.description}`;
-          jdContent = jdText.trim();
-          termLog(`[AI评分] 使用候选人提取的岗位描述作为 JD 文本`);
-          break;
-        }
-      }
-    }
-
-    // 批量评分：每批 BATCH_SIZE 人，1 次 API 调用；按批并发
-    // 保持 3 人一批（用户决定）。注意：deepseek-v4-flash_DeepSeek 当前思考无上限，3 人一批会
-    // 把输出预算全烧在 <antml-thinking> 上导致解析失败（2026-08-21 实测）；换 GLM-5_SLB/kimi-k2.5-SLB
-    // 这类非无界思考模型后 3 人一批正常。若日后换回深思考模型，可考虑 BATCH_SIZE=1（单候选人实测稳定）。
-    const BATCH_SIZE = 3;
-    const CONCURRENCY = 6; // 并发批数（6批×3人≈18人同时，避免 API 限流）
-    const totalInPosition = withResume.length;
-
-    // 分批
+    const buildBatchPrompt = createPositionPromptBuilder(positionName, extractSource, () => withResume);
     const batches = [];
-    for (let i = 0; i < totalInPosition; i += BATCH_SIZE) {
+    for (let i = 0; i < withResume.length; i += BATCH_SIZE) {
       batches.push(withResume.slice(i, i + BATCH_SIZE));
     }
-    const totalBatches = batches.length;
-    termLog(`[AI评分] 岗位 "${positionName}": ${totalInPosition} 人，${totalBatches} 批，并发 ${CONCURRENCY} 批`);
-
-    const MAX_RESUME_LEN = 4000; // 每份简历截断，避免 prompt 过长
-
-    // 构建批量评分 prompt（批内候选人数任意；失败逐人重试时复用）
-    function buildBatchPrompt(cands) {
-      let p;
-      if (useWithJd) {
-        // 结构化岗位文件：维度/筛选项分别填槽（权重、硬性条件真正生效）
-        // 原始 JD 文件（无 section）：整段兜底填两个槽位（与旧行为一致）
-        const dims = jdDimensions || jdContent || dimensionsText;
-        const criteria = jdScreeningCriteria || jdContent || screeningCriteriaText;
-        p = template
-          .replace('{dimensions}', dims)
-          .replace('{screeningCriteria}', criteria);
-      } else {
-        p = template
-          .replace('{jdText}', jdContent || dimensionsText || '(无岗位JD描述)');
-      }
-
-      // 拼接本批所有候选人的简历（基础信息/教育经历来自页面 DOM，可靠性高；简历正文为 OCR 仅供参考）
-      const resumeSections = cands.map((c, i) => {
-        const resumeForAI = (c.resumeText || '').length > MAX_RESUME_LEN
-          ? (c.resumeText || '').slice(0, MAX_RESUME_LEN) + '\n\n...(后续内容略)'
-          : (c.resumeText || '(无)');
-        // 结构化教育经历逐条列出（AI 评学历时不再依赖 OCR 正文）
-        const eduList = Array.isArray(c.educationExperience) && c.educationExperience.length > 0
-          ? c.educationExperience.map(e =>
-              `- ${e.time || ''} | ${e.school || ''} | ${e.major || ''} | ${e.degree || ''}`.replace(/ \| $/, '')).join('\n')
-          : '- 无';
-        return `=== 候选人 ${i + 1}/${cands.length} ===\n` +
-          `姓名：${c.basicInfo?.name || '未知'}\n` +
-          `学历（来自页面）：${c.basicInfo?.education || '未知'}\n` +
-          `教育经历（来自页面，可靠性高）：\n${eduList}\n` +
-          `工作年限（来自页面）：${c.basicInfo?.workYears || '未知'}\n` +
-          `简历文本（OCR 识别，仅供参考，可能有错误）：\n${resumeForAI}`;
-      }).join('\n\n');
-
-      p = p.replace('{resumeText}', resumeSections);
-
-      // 附加批量输出格式要求
-      p += `\n\n重要：本次请求要求 JSON 输出。请为以上每位候选人分别给出评分，严格只输出一个 JSON 数组（不要包含任何其他内容，不要用 markdown 代码块包裹）：\n` +
-        `[\n` +
-        cands.map((_, i) => `  {"candidateIndex": ${i}, "score": <0-100的整数，必须严格等于该候选人评语中的"匹配度评分：XX分">, "comment": "<按上方评语内容规范组织、完整包含匹配度评分/首句定性/维度匹配/任职资格/学历核查/综合结论各模块的评语，用\\n换行>"}`).join(',\n') +
-        `\n]`;
-      return p;
-    }
-
-    async function scoreOneBatch(batch) {
-      if (cancelled) return;
-
-      const prompt = buildBatchPrompt(batch);
-      const batchNames = batch.map(c => c.basicInfo?.name || c.geekId || '未知').join('、');
-      termLog(`[AI评分] 评分批: ${batchNames}`);
-
-      // 最多重试 2 次
-      let lastError = null;
-      for (let retry = 0; retry <= 2; retry++) {
-        if (cancelled) return;
-        try {
-          const text = await callClaudeAPI(prompt, { signal });
-          const results = parseBatchScoreResponse(text);
-          if (results && results.length > 0) {
-            for (const r of results) {
-              const idx = r.candidateIndex;
-              if (idx >= 0 && idx < batch.length) {
-                batch[idx].jobRelevanceScore = r.score;
-                batch[idx].jobRelevanceComment = r.comment;
-                const nm = batch[idx].basicInfo?.name || batch[idx].geekId || '未知';
-                termLog(`  ✓ ${nm}: ${r.score}分`);
-              }
-            }
-            lastError = null;
-            break;
-          }
-          lastError = new Error('解析失败(无有效JSON)');
-          if (retry < 2) {
-            const ts = Date.now();
-            const debugPath = resolve(OUTPUT_DIR, `api-raw-response-${ts}.txt`);
-            try { writeFileSync(debugPath, text, 'utf-8'); } catch {}
-            termLog(`  ⚠ 解析失败: ${debugPath}，${retry + 1}/2 重试`, 'stderr');
-            await sleep(2000);
-          }
-        } catch (err) {
-          if (signal.aborted) throw err;
-          lastError = err;
-          if (retry < 2) {
-            termLog(`  ⚠ 请求失败: ${err.message}，${retry + 1}/2 重试`, 'stderr');
-            await sleep(2000);
-          }
-        }
-      }
-
-      // 失败批的候选人设 0 分
-      if (lastError) {
-        // v1.4.5 兜底：多人的批整体失败时，拆成单候选人逐个重试——
-        // 单候选人 prompt 触发模型过度思考的概率远低于多人批（deepseek 3人批实测思考无上限，
-        // 单候选人稳定出分），模型偶尔抽风时不至于整批丢失。
-        if (batch.length > 1) {
-          let recovered = 0;
-          termLog(`  ↻ 批次评分失败(${lastError.message})，改为逐人重试 ${batch.length} 人`, 'stderr');
-          for (const c of batch) {
-            if (cancelled) return;
-            const singlePrompt = buildBatchPrompt([c]);
-            const nm = c.basicInfo?.name || c.geekId || '未知';
-            let singleError = null;
-            for (let retry = 0; retry <= 2; retry++) {
-              if (cancelled) return;
-              try {
-                const text = await callClaudeAPI(singlePrompt, { signal });
-                const results = parseBatchScoreResponse(text);
-                if (results && results.length > 0 && typeof results[0].score === 'number') {
-                  c.jobRelevanceScore = results[0].score;
-                  c.jobRelevanceComment = results[0].comment;
-                  termLog(`  ✓ ${nm}: ${results[0].score}分 (逐人重试)`);
-                  recovered++;
-                  singleError = null;
-                  break;
-                }
-                singleError = new Error('解析失败(无有效JSON)');
-              } catch (err) {
-                if (signal.aborted) throw err;
-                singleError = err;
-              }
-              if (retry < 2) await sleep(2000);
-            }
-            if (singleError) {
-              c.jobRelevanceScore = 0;
-              c.jobRelevanceComment = `评分失败: ${singleError.message}`;
-            }
-          }
-          termLog(`  ↻ 逐人重试完成：成功 ${recovered}/${batch.length} 人`, 'stderr');
-        } else {
-          for (const c of batch) {
-            c.jobRelevanceScore = 0;
-            c.jobRelevanceComment = `评分失败: ${lastError.message}`;
-          }
-          termLog(`  ✗ 批次评分失败: ${lastError.message}`, 'stderr');
-        }
-      }
-
-      completedInPosition += batch.length;
-      const overall = Math.round(50 + (completedInPosition / totalCandidates) * 50);
-      sendProgress(2, 'running', overall, `AI评分: ${completedInPosition}/${totalCandidates} 人`);
-    }
-
-    // 按批滑动窗口执行
-    const executing = new Set();
-    for (let i = 0; i < Math.min(CONCURRENCY, totalBatches); i++) {
-      if (cancelled) break;
-      const promise = scoreOneBatch(batches[i]).finally(() => executing.delete(promise));
-      executing.add(promise);
-    }
-    for (let i = CONCURRENCY; i < totalBatches; i++) {
-      if (cancelled) break;
-      await Promise.race(executing);
-      if (cancelled) break;
-      const promise = scoreOneBatch(batches[i]).finally(() => executing.delete(promise));
-      executing.add(promise);
-    }
-    await Promise.allSettled(executing);
-    termLog(`[AI评分] 岗位 "${positionName}" 评分完成 (${totalInPosition} 人)`);
+    termLog(`[AI评分] 岗位 "${positionName}": ${withResume.length} 人，${batches.length} 批，并发 ${SCORE_CONCURRENCY} 批`);
+    await runBatchWindow(batches, { signal, buildBatchPrompt, onBatchDone });
   }
-  // 总分 = AI 评分（0-100）。
-  // 权威分数 = 从评语中解析各维度「独立得分×权重」程序化计算的加权基础分 - 其他扣分合计。
-  // AI 手写的「匹配度评分」算术不可靠（实测多例手写分对不上公式），
-  // 必须以评语内自带公式重算，保证与评语内容严格一致（打招呼等级过滤据此判断）。
-  for (const c of candidates) {
-    c.matchScore = computeMatchScoreFromComment(c.jobRelevanceComment) ??
-      parseMatchScoreFromComment(c.jobRelevanceComment);
-    c.totalScore = c.matchScore ?? (c.jobRelevanceScore || 0);
-    // 学历硬性门槛兜底后，同步修正评语文字，避免「评语说不扣分、分数却扣了」的矛盾
-    c.jobRelevanceComment = patchEducationDeductionComment(c.jobRelevanceComment);
-    c.recommendationLevel = scoreToRecommendation(c.totalScore);
-    c.passed = isPassed(c.totalScore);
-  }
-
-  aiAbortController = null;
-  // 写回 scored-candidates.json
-  const resultPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
-  const output = raw.candidates ? raw : { candidates: raw };
-  writeFileSync(resultPath, JSON.stringify(output, null, 2), 'utf-8');
-  termLog(`[AI评分] 完成，已写入 ${resultPath}`);
 }
+
+// ===== 提取与评分并行：增量评分器 =====
+// ctx: { outputDir, source, extractResult, skipIncremental, seedScores, scoringError }
+//   - extractResult: 由 runPipeline 在提取子进程关闭/跳过恢复完成时设置 {ok:true}；失败设 {ok:false}
+//   - skipIncremental: 跳过提取直接评分时为 true（不轮询进度文件，等 extractResult 后直接收尾）
+//   - seedScores: 继续提取时为 true，用上次 scored-candidates.json 播种，只补评新增候选人
+async function runIncrementalScoring(ctx) {
+  const { outputDir, source } = ctx;
+  const progressPath = resolve(outputDir, '.extract-progress.json');
+  const finalPath = resolve(outputDir, 'zhipin-candidates.json');
+
+  // 可取消的 AI 评分：创建 AbortController，所有 API 请求共享
+  aiAbortController = new AbortController();
+  const signal = aiAbortController.signal;
+
+  // 步骤1 一开始提取，步骤2 就同步显示等待提示（跳过提取直接评分时不显示，直接从收尾总览开始）
+  if (!ctx.skipIncremental) {
+    sendProgress(2, 'running', 0, `等待更多候选人（满 ${POOL_START_THRESHOLD} 人开始）`);
+  }
+
+  const scoredRefs = new Map();      // 候选人key -> 已评分对象（快照，分数/评语在对象上）
+  const seenRefs = new Map();        // 候选人key -> 已提取对象（快照）
+  const dispatchingRefs = new Set(); // 已进入批队列（排队或在飞）的 key，防止重复收集
+  const promptBuilders = new Map();  // 岗位 -> buildBatchPrompt（懒加载缓存）
+  const dispatchQueue = [];          // 待调度批次 [{cands, buildBatchPrompt}]
+  const executing = new Set();       // 在飞批 promise（并发上限 SCORE_CONCURRENCY）
+  const tailWait = new Map();        // 岗位 -> 尾巴首现时间（FLUSH 放行用）
+  let lastSentKey = '';              // 进度去重
+  let lastPollAt = 0;
+
+  // 继续提取：把上次已评的分数播种进 scored 表，只补评新增候选人
+  if (ctx.seedScores) {
+    try {
+      const prevPath = resolve(outputDir, 'scored-candidates.json');
+      if (existsSync(prevPath)) {
+        const prev = JSON.parse(readFileSync(prevPath, 'utf-8'));
+        const list = prev.candidates || prev;
+        for (let i = 0; i < list.length; i++) {
+          const c = list[i];
+          if (typeof c.jobRelevanceScore === 'number') scoredRefs.set(candidateKeyOf(c, i), c);
+        }
+        termLog(`[AI评分] 已播种上次评分 ${scoredRefs.size} 人，只补评新增候选人`);
+      }
+    } catch (err) {
+      termLog(`[AI评分] 播种上次评分失败: ${err.message}`, 'stderr');
+    }
+  }
+
+  // —— 读进度文件（写一半/不存在本轮跳过） ——
+  function readProgress() {
+    try {
+      if (!existsSync(progressPath)) return null;
+      const raw = JSON.parse(readFileSync(progressPath, 'utf-8'));
+      return Array.isArray(raw.candidates) ? raw.candidates : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // —— 并入新提取的候选人（去重；无简历的立即记 0 分，不占用 AI 调用） ——
+  function absorb(candidates) {
+    let added = 0;
+    for (let i = 0; i < candidates.length; i++) {
+      const c = candidates[i];
+      const key = candidateKeyOf(c, i);
+      if (seenRefs.has(key)) continue;
+      seenRefs.set(key, c);
+      if (!c.resumeText) {
+        c.jobRelevanceScore = 0;
+        c.jobRelevanceComment = '无在线简历';
+        scoredRefs.set(key, c);
+      }
+      added++;
+    }
+    return added;
+  }
+
+  // —— 进度上报（无变化不发，避免刷屏） ——
+  function reportProgress() {
+    const y = seenRefs.size;
+    const x = scoredRefs.size;
+    if (y === 0) return;
+    const msg = x === 0
+      ? `等待更多候选人（满 ${POOL_START_THRESHOLD} 人开始）`
+      : `${x}/${y} 人`;
+    const pct = Math.round((x / y) * 100);
+    const key = pct + '|' + msg;
+    if (key === lastSentKey) return;
+    lastSentKey = key;
+    sendProgress(2, 'running', pct, msg);
+  }
+
+  // —— 某岗位当前所有已提取候选人（沟通页 JD 兜底用） ——
+  function seenForJob(job) {
+    const list = [];
+    for (const [, c] of seenRefs) {
+      if ((c.positionInfo?.appliedJob || '未知岗位') === job) list.push(c);
+    }
+    return list;
+  }
+
+  // —— 某岗位的 prompt 生成器（懒加载 + 缓存） ——
+  function builderFor(job) {
+    let b = promptBuilders.get(job);
+    if (!b) {
+      b = createPositionPromptBuilder(job, source, () => seenForJob(job));
+      promptBuilders.set(job, b);
+    }
+    return b;
+  }
+
+  // —— 收集待评分批次（每岗位 3 人一批；满阈值后；不满一批的尾巴超 FLUSH_TIMEOUT 放行） ——
+  function collectBatches() {
+    if (seenRefs.size < POOL_START_THRESHOLD) return [];
+    const pendingByJob = {};
+    for (const [key, c] of seenRefs) {
+      if (scoredRefs.has(key) || dispatchingRefs.has(key)) continue;
+      if (!c.resumeText) continue;
+      const job = c.positionInfo?.appliedJob || '未知岗位';
+      if (!pendingByJob[job]) pendingByJob[job] = [];
+      pendingByJob[job].push(c);
+    }
+    const entries = [];
+    const now = Date.now();
+    for (const job of Object.keys(pendingByJob)) {
+      const list = pendingByJob[job];
+      const fullCount = Math.floor(list.length / BATCH_SIZE) * BATCH_SIZE;
+      for (let i = 0; i < fullCount; i += BATCH_SIZE) {
+        const batch = list.slice(i, i + BATCH_SIZE);
+        for (const c of batch) dispatchingRefs.add(candidateKeyOf(c));
+        entries.push({ cands: batch, buildBatchPrompt: builderFor(job) });
+      }
+      // 尾巴（不满一批）：等待 FLUSH_TIMEOUT 后放行，避免小尾巴一直卡到提取结束
+      const tail = list.slice(fullCount);
+      if (tail.length === 0) {
+        tailWait.delete(job);
+        continue;
+      }
+      const firstSeen = tailWait.get(job) ?? now;
+      tailWait.set(job, firstSeen);
+      if (now - firstSeen >= FLUSH_TIMEOUT) {
+        for (const c of tail) dispatchingRefs.add(candidateKeyOf(c));
+        entries.push({ cands: tail, buildBatchPrompt: builderFor(job) });
+        tailWait.delete(job);
+      }
+    }
+    return entries;
+  }
+
+  // —— 把排队批次调度到在飞集合（并发 ≤ SCORE_CONCURRENCY） ——
+  function pump() {
+    while (dispatchQueue.length > 0 && executing.size < SCORE_CONCURRENCY) {
+      if (cancelled) return;
+      const entry = dispatchQueue.shift();
+      const run = {
+        signal,
+        buildBatchPrompt: entry.buildBatchPrompt,
+        onBatchDone(batch) {
+          for (const c of batch) scoredRefs.set(candidateKeyOf(c), c);
+          reportProgress();
+        },
+      };
+      const p = scoreOneBatch(entry.cands, run).finally(() => {
+        executing.delete(p);
+      });
+      executing.add(p);
+    }
+  }
+
+  // —— 收尾：以最终文件为唯一权威，合并已评分，补评差集，算派生字段并写结果 ——
+  async function finalizeScoring() {
+    if (cancelled) return;
+    // 读最终文件（带小重试，防 Windows 刷盘延迟：脚本写文件后主进程立刻读可能读不到/读一半）
+    let raw = null;
+    for (let i = 0; i < 10; i++) {
+      try {
+        raw = JSON.parse(readFileSync(finalPath, 'utf-8'));
+        if (raw && Array.isArray(raw.candidates || raw)) break;
+      } catch {}
+      if (cancelled) return;
+      await sleep(500);
+    }
+    if (!raw) throw new Error('未找到 zhipin-candidates.json');
+    const candidates = Array.isArray(raw.candidates) ? raw.candidates : raw;
+    const extractSource = raw.source || source || 'chat';
+
+    // 步骤2 收尾总览：共 X 人，分布在 Y 个岗位（只改提示文字、不动进度条）
+    const jobCount = new Set(candidates.map(c => c.positionInfo?.appliedJob || '未知岗位')).size;
+    sendProgress(2, 'running', undefined, `共 ${candidates.length} 人，${jobCount} 个岗位`);
+
+    // 1) 合并增量阶段已评的分数（快照对象 → 最终对象）
+    let merged = 0;
+    for (let i = 0; i < candidates.length; i++) {
+      const c = candidates[i];
+      const snap = scoredRefs.get(candidateKeyOf(c, i));
+      if (snap && typeof snap.jobRelevanceScore === 'number') {
+        c.jobRelevanceScore = snap.jobRelevanceScore;
+        c.jobRelevanceComment = snap.jobRelevanceComment;
+        merged++;
+      }
+    }
+    termLog(`[AI评分] 收尾合并已评 ${merged}/${candidates.length} 人`);
+
+    // 2) 补评差集（增量阶段没评到的，含提取结束时最后几个候选人）
+    const unscored = candidates.filter(c => typeof c.jobRelevanceScore !== 'number');
+    if (unscored.length > 0) {
+      termLog(`[AI评分] 收尾补评 ${unscored.length} 人`);
+      const countScoredNow = () => candidates.reduce((n, c) => n + (typeof c.jobRelevanceScore === 'number' ? 1 : 0), 0);
+      await scoreCandidateList(unscored, extractSource, {
+        signal,
+        onBatchDone() {
+          const scoredCount = countScoredNow();
+          sendProgress(2, 'running', Math.round((scoredCount / candidates.length) * 100), `${scoredCount}/${candidates.length} 人`);
+        },
+      });
+    } else if (!cancelled) {
+      // 增量阶段已全部评完（无差集）：补一条人数提示，避免「总览 → 直接完成」没有人数
+      sendProgress(2, 'running', 100, `${candidates.length}/${candidates.length} 人`);
+    }
+    if (cancelled) return;
+
+    // 3) 派生字段 + 一次性写回 scored-candidates.json
+    // 权威分数 = 从评语中解析各维度「独立得分×权重」程序化计算的加权基础分 - 其他扣分合计。
+    // AI 手写的「匹配度评分」算术不可靠（实测多例手写分对不上公式），
+    // 必须以评语内自带公式重算，保证与评语内容严格一致（打招呼等级过滤据此判断）。
+    for (const c of candidates) {
+      c.matchScore = computeMatchScoreFromComment(c.jobRelevanceComment) ??
+        parseMatchScoreFromComment(c.jobRelevanceComment);
+      c.totalScore = c.matchScore ?? (c.jobRelevanceScore || 0);
+      // 学历硬性门槛兜底后，同步修正评语文字，避免「评语说不扣分、分数却扣了」的矛盾
+      c.jobRelevanceComment = patchEducationDeductionComment(c.jobRelevanceComment);
+      c.recommendationLevel = scoreToRecommendation(c.totalScore);
+      c.passed = isPassed(c.totalScore);
+    }
+    const output = raw.candidates ? raw : { candidates: raw };
+    writeFileSync(resolve(outputDir, 'scored-candidates.json'), JSON.stringify(output, null, 2), 'utf-8');
+    termLog(`[AI评分] 完成，已写入 scored-candidates.json`);
+    sendProgress(2, 'done', 100, 'AI 评分完成');
+  }
+
+  try {
+    // —— 主循环：提取过程中轮询增量评分；提取结束收尾 ——
+    while (true) {
+      if (cancelled) {
+        // 已在飞批由 cancel-extraction 的 abort 终止；等它们 settle，避免遗留未处理 rejection
+        await Promise.allSettled([...executing]);
+        return;
+      }
+
+      // 提取已结束（成功）：先把手头排队/在飞的批跑完，再收尾
+      if (ctx.extractResult?.ok) {
+        if (dispatchQueue.length > 0) pump();
+        if (executing.size > 0) {
+          await Promise.allSettled([...executing]);
+          continue;
+        }
+        break;
+      }
+      // 提取失败：中止在飞请求并等它们 settle（不写结果文件，进度文件保留供继续提取）
+      if (ctx.extractResult && !ctx.extractResult.ok) {
+        try { aiAbortController.abort(); } catch {}
+        await Promise.allSettled([...executing]);
+        return;
+      }
+      // 无提取进行（跳过提取直接评分）：等 runPipeline 预置 extractResult（通常已就绪）
+      if (ctx.skipIncremental) {
+        await sleep(POLL_MS);
+        continue;
+      }
+
+      // 正常增量轮询
+      const now = Date.now();
+      if (now - lastPollAt >= POLL_MS) {
+        lastPollAt = now;
+        const fresh = readProgress();
+        if (fresh) {
+          const added = absorb(fresh);
+          if (added > 0) {
+            const entries = collectBatches();
+            if (entries.length > 0) dispatchQueue.push(...entries);
+            reportProgress();
+          }
+        }
+      }
+      pump();
+
+      // 等待：任一在飞批完成（好腾出并发位）或轮询时间到
+      if (executing.size > 0) {
+        await Promise.race([...executing].map(p => p.catch(() => {})).concat([sleep(POLL_MS)]));
+      } else {
+        await sleep(POLL_MS);
+      }
+    }
+
+    // 提取结束 → 收尾
+    await finalizeScoring();
+  } finally {
+    aiAbortController = null;
+  }
+}
+
 
 function cleanupTempFiles() {
   const dir = OUTPUT_DIR;
@@ -1040,36 +1311,56 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     const isRecommendMode = source === 'recommend' || source === 'recommend-attach';
     const isSearchMode = source === 'search';
 
-    // 步骤 1: 提取（可跳过）
+    // ===== 步骤 1 + 2 并行 =====
+    // v1.5.12：提取子进程跑步骤1的同时，评分器轮询 .extract-progress.json 边提取边评分；
+    // 提取结束（成功/失败/跳过）后由评分器统一收尾（成功写 scored-candidates.json，失败不写）。
+    let extractError = null; // 提取失败原因（先让评分器退出，再抛出）
+
+    let scriptName;
+    let pageLabel;
+    const isAttach = source === 'recommend-attach' || source === 'search';
+    if (isSearchMode) {
+      scriptName = 'extract-search-candidates.mjs';
+      pageLabel = '搜索';
+    } else if (isRecommendMode) {
+      scriptName = 'extract-recommend-candidates.mjs';
+      pageLabel = isAttach ? '推荐牛人页（手动筛选）' : '推荐牛人';
+    } else {
+      scriptName = 'extract-candidates-full.mjs';
+      pageLabel = '沟通';
+    }
+
+    // v1.4.6: Chrome 未运行时，自动用「边用边跑」模式启动并打开对应页面，
+    // 提示用户设置好筛选条件后再次点击「开始提取分析」（不再直接报连接失败）。
+    // 检查需在启动评分器之前完成，避免提前 return 时评分器空转。
+    if (!skipExtract && !(await isChromeRunning())) {
+      const openUrl = getSourcePageUrl(source);
+      const launchRes = await launchBossModeChrome({ openUrl });
+      if (launchRes.ok) {
+        termLog(`[main] Chrome 未运行，已自动启动并打开 ${pageLabel}页: ${openUrl}`);
+        sendProgress(1, 'idle', 0,
+          `检测到 Chrome 未运行，已自动用「边用边跑」模式启动并打开${pageLabel}页。`
+          + '请等待页面加载、登录 Boss 直聘并设置好筛选条件后，再次点击「开始提取分析」。');
+        return;
+      }
+      termLog(`[main] Chrome 未运行，自动启动失败: ${launchRes.message}`, 'stderr');
+    }
+
+    // —— 启动并行评分器（提取过程中边提取边评分） ——
+    const scoreCtx = {
+      outputDir: OUTPUT_DIR,
+      source,
+      extractResult: null,          // 提取分支由下方设置；跳过提取分支预置 {ok:true}
+      skipIncremental: skipExtract, // 跳过提取 → 不轮询进度文件，直接全量评分
+      seedScores: resume,           // 继续提取 → 用上次评分播种，只补评新增候选人
+      scoringError: null,
+    };
+    const scoringPromise = runIncrementalScoring(scoreCtx).catch((err) => {
+      scoreCtx.scoringError = err;
+    });
+
     if (!skipExtract) {
-      const isAttach = source === 'recommend-attach' || source === 'search';
-      let scriptName;
-      let pageLabel;
-      if (isSearchMode) {
-        scriptName = 'extract-search-candidates.mjs';
-        pageLabel = '搜索';
-      } else if (isRecommendMode) {
-        scriptName = 'extract-recommend-candidates.mjs';
-        pageLabel = isAttach ? '推荐牛人页（手动筛选）' : '推荐牛人';
-      } else {
-        scriptName = 'extract-candidates-full.mjs';
-        pageLabel = '沟通';
-      }
-      // v1.4.6: Chrome 未运行时，自动用「边用边跑」模式启动并打开对应页面，
-      // 提示用户设置好筛选条件后再次点击「开始提取分析」（不再直接报连接失败）
-      if (!(await isChromeRunning())) {
-        const openUrl = getSourcePageUrl(source);
-        const launchRes = await launchBossModeChrome({ openUrl });
-        if (launchRes.ok) {
-          termLog(`[main] Chrome 未运行，已自动启动并打开 ${pageLabel}页: ${openUrl}`);
-          sendProgress(1, 'idle', 0,
-            `检测到 Chrome 未运行，已自动用「边用边跑」模式启动并打开${pageLabel}页。`
-            + '请等待页面加载、登录 Boss 直聘并设置好筛选条件后，再次点击「开始提取分析」。');
-          return;
-        }
-        termLog(`[main] Chrome 未运行，自动启动失败: ${launchRes.message}`, 'stderr');
-      }
-      sendProgress(1, 'running', 0, extractAll ? `正在提取候选人信息 (${pageLabel}页)...` : '正在提取候选人信息...');
+      sendProgress(1, 'running', 0, extractAll ? `正在扫描候选人列表 (${pageLabel}页)…` : '正在扫描候选人列表…');
       const extractArgs = extractAll
         ? ['--all', '--output', resolve(OUTPUT_DIR, 'zhipin-candidates.json')]
         : ['--count', String(count), '--output', resolve(OUTPUT_DIR, 'zhipin-candidates.json')];
@@ -1083,45 +1374,75 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
         extractArgs.push('--resume'); // v1.5.0: 继续提取，跳过已完成项
       }
       extractArgs.push('--enable-copy', enableCopy ? '1' : '0'); // v1.4.4 模拟复制开关
+
+      let extractPromise;
       try {
-        await runScript(scriptName, extractArgs, 1, parseExtractProgress);
+        extractPromise = runScript(scriptName, extractArgs, 1, parseExtractProgress);
       } catch (err) {
-        if (skipToScoring) {
-          skipToScoring = false;
-          skipRecovered = true;
-          // 检查是否已有完整输出文件（脚本可能在 kill 前已完成）
-          const candidatesPath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
-          if (existsSync(candidatesPath)) {
-            termLog('[main] 跳过提取，但 zhipin-candidates.json 已存在，直接使用');
-            sendProgress(1, 'done', 100, '已跳过提取步骤');
+        scoreCtx.extractResult = { ok: false, error: err };
+        extractError = err;
+      }
+      if (extractPromise) {
+        try {
+          await extractPromise;
+          scoreCtx.extractResult = { ok: true };
+          if (!skipRecovered) sendProgress(1, 'done', 100, '候选人信息提取完成');
+        } catch (err) {
+          if (skipToScoring) {
+            skipToScoring = false;
+            skipRecovered = true;
+            // 检查是否已有完整输出文件（脚本可能在 kill 前已完成）
+            const candidatesPath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
+            if (existsSync(candidatesPath)) {
+              termLog('[main] 跳过提取，但 zhipin-candidates.json 已存在，直接使用');
+              sendProgress(1, 'done', 100, '已跳过提取步骤');
+              sendProgress(2, 'running', undefined, '已跳过提取，正在完成剩余评分…');
+              scoreCtx.extractResult = { ok: true };
+            } else {
+              termLog('[main] 用户跳过提取，尝试从进度文件恢复数据');
+              const progressPath = resolve(OUTPUT_DIR, '.extract-progress.json');
+              if (!existsSync(progressPath)) {
+                termLog('[main] 跳过提取失败：尚无已提取的候选人数据');
+                sendError({ message: '暂无已提取的候选人数据，无法跳过。请等待提取到足够数据后再试。' });
+                scoreCtx.extractResult = { ok: false, error: err };
+                await scoringPromise;
+                return;
+              }
+              const progressData = JSON.parse(readFileSync(progressPath, 'utf-8'));
+              const candidates = progressData.candidates || [];
+              if (candidates.length === 0) {
+                termLog('[main] 跳过提取失败：进度文件中无候选人数据');
+                sendError({ message: '进度文件中无候选人数据，无法跳过。请等待提取到足够数据后再试。' });
+                scoreCtx.extractResult = { ok: false, error: err };
+                await scoringPromise;
+                return;
+              }
+              termLog(`[main] 从进度文件恢复 ${candidates.length} 名候选人`);
+              const output = { source: isSearchMode ? 'search' : (isRecommendMode ? 'recommend' : 'chat'), candidates };
+              writeFileSync(candidatesPath, JSON.stringify(output, null, 2), 'utf-8');
+              sendProgress(1, 'done', 100, `已跳过提取，从进度恢复 ${candidates.length} 人数据`);
+              sendProgress(2, 'running', undefined, '已跳过提取，正在完成剩余评分…');
+              scoreCtx.extractResult = { ok: true };
+            }
           } else {
-            termLog('[main] 用户跳过提取，尝试从进度文件恢复数据');
-            const progressPath = resolve(OUTPUT_DIR, '.extract-progress.json');
-            if (!existsSync(progressPath)) {
-              termLog('[main] 跳过提取失败：尚无已提取的候选人数据');
-              sendError({ message: '暂无已提取的候选人数据，无法跳过。请等待提取到足够数据后再试。' });
-              return;
-            }
-            const progressData = JSON.parse(readFileSync(progressPath, 'utf-8'));
-            const candidates = progressData.candidates || [];
-            if (candidates.length === 0) {
-              termLog('[main] 跳过提取失败：进度文件中无候选人数据');
-              sendError({ message: '进度文件中无候选人数据，无法跳过。请等待提取到足够数据后再试。' });
-              return;
-            }
-            termLog(`[main] 从进度文件恢复 ${candidates.length} 名候选人`);
-            const output = { source: isSearchMode ? 'search' : (isRecommendMode ? 'recommend' : 'chat'), candidates };
-            writeFileSync(candidatesPath, JSON.stringify(output, null, 2), 'utf-8');
-            sendProgress(1, 'done', 100, `已跳过提取，从进度恢复 ${candidates.length} 人数据`);
+            // 提取失败：让评分器静默退出（不写结果文件），随后抛出原因
+            scoreCtx.extractResult = { ok: false, error: err };
+            extractError = err;
           }
-        } else {
-          throw err;
         }
       }
-      if (cancelled) return;
-      if (!skipRecovered) {
-        sendProgress(1, 'done', 100, '候选人信息提取完成');
+
+      if (cancelled) {
+        scoreCtx.extractResult = { ok: false, error: '已取消' };
+        await scoringPromise;
+        throw new Error('已取消');
       }
+
+      // 等评分器收尾（提取成功 → 合并增量评分+补评写结果；提取失败 → 静默退出）
+      await scoringPromise;
+      if (cancelled) throw new Error('已取消');
+      if (extractError) throw extractError;
+      if (scoreCtx.scoringError) throw scoreCtx.scoringError;
     } else {
       // v1.4.8: 「直接用上次数据评分（跳过提取）」——若当前输出目录没有候选人数据，
       // 尝试从最近一次历史归档里恢复，避免用户上一轮数据被归档后无法直接重评分
@@ -1131,25 +1452,24 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
         if (found) {
           termLog(`[main] 当前输出目录无候选人数据，从历史归档恢复: ${found.archiveDir}`);
           copyFileSync(found.candidatePath, candidatesPath);
-          sendProgress(1, 'running', 30, '正在从上次提取的数据恢复...');
+          sendProgress(1, 'running', 30, '正在从上次提取的数据恢复…');
         } else {
+          // 无数据：评分器无意义，先让它退出再报错
+          scoreCtx.extractResult = { ok: false, error: 'no data' };
+          await scoringPromise;
           throw new Error('未找到已提取的候选人数据。请先点「开始提取分析」完成提取，或用上次跑完的数据。');
         }
       }
       sendProgress(1, 'done', 100, '已跳过提取，直接用已有数据评分');
+      scoreCtx.extractResult = { ok: true };
+      await scoringPromise;
+      if (cancelled) throw new Error('已取消');
+      if (scoreCtx.scoringError) throw scoreCtx.scoringError;
     }
-    // 步骤 2: AI 评分（直接从 zhipin-candidates.json 读取）
-    const candidatesPath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
-    if (!existsSync(candidatesPath)) {
-      throw new Error('未找到 zhipin-candidates.json');
-    }
-    sendProgress(2, 'running', 0, '正在 AI 评分...');
-    await doAiScoring();
-    if (cancelled) return;
 
     // 步骤 3: 导出
     sendProgress(2, 'done', 100, 'AI 评分完成');
-    sendProgress(3, 'running', 0, '正在导出 Excel...');
+    sendProgress(3, 'running', 0, '正在导出 Excel…');
     const scoredPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
     if (!existsSync(scoredPath)) throw new Error(`未找到评分结果文件: ${scoredPath}`);
 

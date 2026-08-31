@@ -216,6 +216,8 @@ const stepCards = {
     status: document.getElementById('step-3-status'),
   },
 };
+// 各步骤当前状态（'idle' | 'running' | 'done'），用于判断「并行：步骤1 + 步骤2」指示文案
+const stepStates = { 1: 'idle', 2: 'idle', 3: 'idle' };
 
 // ===== Toast 通知 =====
 function showToast(message, type = 'info', duration = 3000) {
@@ -366,7 +368,7 @@ function handleProgress(data) {
   s.card.className = 'step-item';
   if (status === 'running') {
     s.card.dataset.state = 'running';
-    s.status.textContent = '进行中...';
+    s.status.textContent = '进行中…';
   } else if (status === 'done') {
     s.card.dataset.state = 'done';
     s.status.textContent = '✓ 已完成';
@@ -391,6 +393,14 @@ function handleProgress(data) {
     btnSkipExtract.style.display = status === 'running' ? '' : 'none';
   }
 
+  // 记录各步骤状态，供「并行：步骤1 + 步骤2」指示文案判断。
+  // 步骤2 还在等待候选人、没真正开始评分时记为 waiting（不算 running，不触发「并行」）
+  if (status === 'running') {
+    stepStates[step] = (step === 2 && message && message.includes('等待')) ? 'waiting' : 'running';
+  } else if (status === 'done' || status === 'idle') {
+    stepStates[step] = status;
+  }
+
   // 更新全局进度指示器
   const stepInd = document.getElementById('step-indicator');
   if (stepInd) {
@@ -401,7 +411,17 @@ function handleProgress(data) {
         stepInd.textContent = '全部完成';
       }
     } else if (status === 'running') {
-      stepInd.textContent = '步骤 ' + step + '/3';
+      // v1.5.12 并行：只有步骤2 真正开始评分（running）时才显示「并行」；
+      // 步骤2 还停在等待（waiting）时仍按进行中的步骤1 显示「步骤 1/3」
+      if (stepStates[1] === 'running' && stepStates[2] === 'running') {
+        stepInd.textContent = '并行：步骤1 + 步骤2';
+      } else if (stepStates[1] === 'running') {
+        stepInd.textContent = '步骤 1/3';
+      } else if (stepStates[2] === 'running') {
+        stepInd.textContent = '步骤 2/3';
+      } else {
+        stepInd.textContent = '步骤 ' + step + '/3';
+      }
     } else if (status === 'idle') {
       stepInd.textContent = '步骤 ' + step + '/3';
     }
@@ -418,7 +438,7 @@ function initResumeStep(info) {
     if (stepInd) stepInd.textContent = '步骤 2/3';
   } else {
     // 提取到一半，继续提取剩余（handleProgress 会同步处理跳过按钮与「步骤 1/3」指示器）
-    handleProgress({ step: 1, status: 'running', message: info.done > 0 ? `已有 ${info.done} 名候选人，正在继续提取剩余...` : '正在继续提取...' });
+    handleProgress({ step: 1, status: 'running', message: info.done > 0 ? `已有 ${info.done} 名候选人，正在继续提取剩余…` : '正在继续提取…' });
   }
 }
 
@@ -568,10 +588,10 @@ function setupListeners() {
       let summary = '';
       if (data.excelPath) {
         const filename = data.excelPath.split(/[/\\]/).pop();
-        summary += `导出文件: ${filename}\n`;
+        summary += `导出文件：${filename}\n`;
       }
       if (data.emailTo) {
-        summary += `邮件已发送至: ${data.emailTo}\n`;
+        summary += `邮件已发送至：${data.emailTo}\n`;
       }
       const mailDetails = document.getElementById('mail-error-details');
       const mailDetail = document.getElementById('mail-error-detail');
@@ -584,7 +604,7 @@ function setupListeners() {
       } else if (mailDetails) {
         mailDetails.style.display = 'none';
       }
-      summary += `输出目录: ${data.outputDir}`;
+      summary += `输出目录：${data.outputDir}`;
       doneSummary.textContent = summary;
 
       // 完成页结果可视化：统计条 + 档位分布 + 候选人列表
@@ -615,7 +635,7 @@ function setupListeners() {
                 greetProgress.style.display = '';
                 greetProgressBar.style.width = '0%';
                 if (greetProgressBar.setAttribute) greetProgressBar.setAttribute('aria-valuenow', '0');
-                greetProgressText.textContent = '自动打招呼中...';
+                greetProgressText.textContent = '自动打招呼中…';
                 const res = await window.electronAPI.startGreeting(level, selectedSource);
                 autoGreetEnabled = false;
                 // 已有任务运行中：主进程拒绝，恢复打招呼面板而不是停在假进度
@@ -649,7 +669,7 @@ function setupListeners() {
       const pct = total > 0 ? Math.min(Math.round((cur / total) * 100), 100) : 0;
       greetProgressBar.style.width = pct + '%';
       if (greetProgressBar.setAttribute) greetProgressBar.setAttribute('aria-valuenow', String(pct));
-      greetProgressText.textContent = total > 0 ? `正在打招呼 ${cur}/${total}` : '正在打招呼中...';
+      greetProgressText.textContent = total > 0 ? `正在打招呼 ${cur}/${total}` : '正在打招呼中…';
     })
   );
 
@@ -676,7 +696,7 @@ function setupListeners() {
       btnStartGreet.style.display = '';
       greetResult.style.display = '';
       greetResult.className = 'greet-result greet-result-error';
-      greetResult.textContent = '❌ 打招呼失败: ' + data.message;
+      greetResult.textContent = '❌ 打招呼失败：' + data.message;
       autoGreetEnabled = false;
     })
   );
@@ -769,7 +789,7 @@ btnSaveConfig.addEventListener('click', async () => {
     // 延迟更新状态检测，让"✓ 已保存"可见一段时间
     setTimeout(updateConfigStatus, 1500);
   } catch (err) {
-    configStatus.textContent = '保存失败: ' + err.message;
+    configStatus.textContent = '保存失败：' + err.message;
     configStatus.className = 'config-badge config-error';
   }
 });
@@ -892,9 +912,9 @@ btnSkipExtract.addEventListener('click', async () => {
   if (!ok) return;
   setLoading(btnSkipExtract, true);
   btnSkipExtract.disabled = true;
-  btnSkipExtract.textContent = '⏭ 正在跳过提取...';
+  btnSkipExtract.textContent = '⏭ 正在跳过提取…';
   const msgEl = stepCards[1].msg;
-  if (msgEl) msgEl.textContent = '正在停止提取，恢复已提取数据...';
+  if (msgEl) msgEl.textContent = '正在停止提取，恢复已提取数据…';
   await window.electronAPI.skipExtraction();
 });
 
@@ -951,7 +971,7 @@ btnOpenDir.addEventListener('click', async () => {
 document.getElementById('btn-retry-chrome').addEventListener('click', async () => {
   const btn = document.getElementById('btn-retry-chrome');
   setLoading(btn, true);
-  btn.textContent = '重新连接中...';
+  btn.textContent = '重新连接中…';
   btn.disabled = true;
   await window.electronAPI.retryCdpConnection();
   await updateCdpStatus();
@@ -1466,7 +1486,7 @@ async function deleteJob(jobName) {
     if (selectedJob === jobName) selectedJob = '';
     await loadJobList();
   } catch (err) {
-    showToast('删除失败: ' + err.message, 'error');
+    showToast('删除失败：' + err.message, 'error');
   }
 }
 
@@ -1498,7 +1518,7 @@ btnDialogSave.addEventListener('click', async () => {
     await loadJobList();
     hideAddJobDialog();
   } catch (err) {
-    showToast((editJobName ? '编辑' : '添加') + '失败: ' + err.message, 'error');
+    showToast((editJobName ? '编辑' : '添加') + '失败：' + err.message, 'error');
   }
 });
 
@@ -1535,7 +1555,7 @@ btnStartGreet.addEventListener('click', async () => {
   greetProgress.style.display = '';
   greetProgressBar.style.width = '0%';
   if (greetProgressBar.setAttribute) greetProgressBar.setAttribute('aria-valuenow', '0');
-  greetProgressText.textContent = '正在打招呼中...';
+  greetProgressText.textContent = '正在打招呼中…';
   const res = await window.electronAPI.startGreeting(level, selectedSource);
   // 已有任务运行中：主进程拒绝，恢复打招呼面板，避免卡在「正在打招呼」的假进度
   if (res?.error) {
@@ -1572,7 +1592,7 @@ async function updateCdpStatus() {
       text.textContent = 'CDP 代理已就绪';
     } else if (status.state === 'initializing' || status.state === 'connecting') {
       dot.classList.add('dot-yellow');
-      text.textContent = status.message || '正在准备...';
+      text.textContent = status.message || '正在准备…';
     } else if (status.state === 'error') {
       dot.classList.add('dot-red');
       text.textContent = status.message || 'Chrome 连接失败';
