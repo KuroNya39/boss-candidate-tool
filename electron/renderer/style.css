@@ -1310,18 +1310,23 @@ button.is-loading::before {
   font-family: inherit;
   resize: none; /* 隐藏原生 resize 手柄，改用右下角自定义拖拽手柄（更大、更好看） */
   line-height: 1.5;
+  display: block; /* 消除行内元素基线空隙：否则容器底部比文本域高约 4px，右下角拖拽手柄会掉到文本域下边、贴底不均 */
+}
+/* 岗位描述文本域的滚动条底部缩进，让滚动条拖到底时与手柄留 1px 空隙（手柄占底 3px+15px 高） */
+.dialog-field textarea::-webkit-scrollbar-track {
+  margin-bottom: 19px;
 }
 .textarea-resize-handle {
   position: absolute;
-  right: 4px;
-  bottom: 4px;
-  width: 18px;
-  height: 18px;
+  right: 3px;
+  bottom: 3px;
+  width: 15px;
+  height: 15px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  opacity: .7;
+  opacity: .75;
   cursor: ns-resize; /* 只调高度，用上下箭头 */
   z-index: 1;
   transition: color var(--transition-fast), opacity var(--transition-fast);
