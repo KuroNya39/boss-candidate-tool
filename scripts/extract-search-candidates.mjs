@@ -23,7 +23,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   proxyGet, proxyPost, sleep, randomDelay,
-  cdpEval, prepareTab,
+  cdpEval, prepareTab, waitWhilePaused, installStdinControls,
   ocrScreenshots,
   safeName, findFrameInTree, diagnoseResumeIframeDom, probeFramesForResumeText, COPY_JUNK_RE,
   tryExtractResumeTextByTrustedCopy,
@@ -917,18 +917,7 @@ async function doCleanup() {
   }
 }
 
-process.stdin.on('data', (data) => {
-  if (data.toString().trim() === 'CANCEL') {
-    doCleanup().finally(() => process.exit(1));
-  }
-});
-if (process.stdin && typeof process.stdin.unref === 'function') {
-  process.stdin.unref();
-}
-
-process.on('SIGTERM', () => {
-  doCleanup().finally(() => process.exit(1));
-});
+installStdinControls(doCleanup);
 
 // ===== 主流程 =====
 
@@ -1120,6 +1109,7 @@ async function main() {
     let prevOcr = Promise.resolve();
 
     for (let i = 0; i < toProcess.length; i++) {
+      await waitWhilePaused(); // 暂停：处理完当前候选人、处理下一个前停住
       const card = toProcess[i];
       const expectId = card.expectId;
       const globalIndex = alreadyDone + i + 1;

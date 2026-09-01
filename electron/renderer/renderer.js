@@ -9,6 +9,11 @@ const btnStart = document.getElementById('btn-start');
 const btnRescore = document.getElementById('btn-rescore'); // v1.4.8 直接用上次数据评分
 const btnCancel = document.getElementById('btn-cancel');
 const btnSkipExtract = document.getElementById('btn-skip-extract');
+const btnPauseExtract = document.getElementById('btn-pause-extract');
+// 暂停/继续/跳过 统一引用 sprite 里的 Material 图标（path 数据只在 index.html 维护一份）
+const SVG_PAUSE = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-pause"/></svg>';
+const SVG_PLAY = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-play"/></svg>';
+const SVG_SKIP = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-skip"/></svg>';
 const btnRestart = document.getElementById('btn-restart');
 const btnRetry = document.getElementById('btn-retry');
 const btnOpenDir = document.getElementById('btn-open-dir');
@@ -218,6 +223,8 @@ const stepCards = {
 };
 // 各步骤当前状态（'idle' | 'running' | 'done'），用于判断「并行：步骤1 + 步骤2」指示文案
 const stepStates = { 1: 'idle', 2: 'idle', 3: 'idle' };
+// 步骤1 提取是否处于「暂停」状态（暂停/继续按钮的文案与步骤1 消息都看它）
+let extractPaused = false;
 
 // ===== Toast 通知 =====
 function showToast(message, type = 'info', duration = 3000) {
@@ -337,6 +344,19 @@ async function updateRescoreButton() {
   }
 }
 
+// 按 extractPaused 渲染「暂停/继续」按钮：文案、图标、琥珀色状态一并对齐
+function renderPauseButton() {
+  btnPauseExtract.innerHTML = extractPaused ? SVG_PLAY + '继续' : SVG_PAUSE + '暂停';
+  btnPauseExtract.classList.toggle('btn--paused', extractPaused);
+}
+
+// 复位「暂停/继续」按钮（停止时或步骤1 结束/空闲时调用）
+function resetPauseButton() {
+  extractPaused = false;
+  renderPauseButton();
+  btnPauseExtract.style.display = 'none';
+}
+
 // ===== 重置步骤卡片 =====
 function resetSteps() {
   for (let i = 1; i <= 3; i++) {
@@ -353,7 +373,9 @@ function resetSteps() {
   setLoading(btnSkipExtract, false);
   btnSkipExtract.style.display = 'none';
   btnSkipExtract.disabled = false;
-  btnSkipExtract.textContent = '⏭ 跳过提取候选人';
+  btnSkipExtract.innerHTML = SVG_SKIP + '跳过提取候选人';
+  // 重置暂停/继续按钮
+  resetPauseButton();
   // 重置步骤指示器
   const stepInd = document.getElementById('step-indicator');
   if (stepInd) stepInd.textContent = '等待开始';
@@ -388,9 +410,15 @@ function handleProgress(data) {
     s.msg.textContent = message;
   }
 
-  // 步骤1 运行时显示"跳过提取"按钮
+  // 步骤1 运行时显示"跳过提取"与"暂停"按钮
   if (step === 1) {
-    btnSkipExtract.style.display = status === 'running' ? '' : 'none';
+    const isRunning = status === 'running';
+    btnSkipExtract.style.display = isRunning ? '' : 'none';
+    if (isRunning) {
+      btnPauseExtract.style.display = '';
+    } else {
+      resetPauseButton(); // 步骤1 结束/空闲时隐藏并复位暂停按钮
+    }
   }
 
   // 记录各步骤状态，供「并行：步骤1 + 步骤2」指示文案判断。
@@ -588,6 +616,7 @@ function setupListeners() {
 
   registerCleanup(
     window.electronAPI.onDone(async (data) => {
+      resetPauseButton();
       showState('state-done');
       let summary = '';
       if (data.excelPath) {
@@ -660,6 +689,7 @@ function setupListeners() {
 
   registerCleanup(
     window.electronAPI.onError((data) => {
+      resetPauseButton();
       showState('state-error');
       errorMessage.textContent = data.message || '未知错误';
     })
@@ -916,10 +946,37 @@ btnSkipExtract.addEventListener('click', async () => {
   if (!ok) return;
   setLoading(btnSkipExtract, true);
   btnSkipExtract.disabled = true;
-  btnSkipExtract.textContent = '⏭ 正在跳过提取…';
+  btnSkipExtract.innerHTML = SVG_SKIP + '正在跳过提取…';
   const msgEl = stepCards[1].msg;
   if (msgEl) msgEl.textContent = '正在停止提取，恢复已提取数据…';
   await window.electronAPI.skipExtraction();
+});
+
+// 暂停/继续 步骤1 提取
+btnPauseExtract.addEventListener('click', async () => {
+  if (extractPaused) {
+    // 当前已暂停 → 点「继续」恢复提取
+    const res = await window.electronAPI.resumeCurrentExtraction();
+    if (!res?.ok) {
+      showToast('提取进程已结束或不在提取中，无法继续', 'warning', 3000);
+      return;
+    }
+    extractPaused = false;
+    renderPauseButton();
+    const msgEl = stepCards[1].msg;
+    if (msgEl) msgEl.textContent = '提取中…';
+    return;
+  }
+  // 当前在提取 → 点「暂停」
+  const res = await window.electronAPI.pauseExtraction();
+  if (!res?.ok) {
+    showToast('当前没有可暂停的提取任务', 'warning', 3000);
+    return;
+  }
+  extractPaused = true;
+  renderPauseButton();
+  const msgEl = stepCards[1].msg;
+  if (msgEl) msgEl.textContent = '已暂停，点击「继续」恢复提取…';
 });
 
 // v1.4.8: 直接用上次数据评分（跳过提取）——换好模型后重新评分，不用重新提取

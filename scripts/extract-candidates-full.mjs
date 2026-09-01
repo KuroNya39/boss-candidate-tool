@@ -21,7 +21,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   proxyGet, proxyPost, sleep, randomDelay,
-  cdpEval, prepareTab,
+  cdpEval, prepareTab, waitWhilePaused, installStdinControls,
   clickOnlineResume,
   closeResumeDialog,
   captureResumeScreenshots,
@@ -1005,18 +1005,7 @@ async function doCleanup() {
   }
 }
 
-process.stdin.on('data', (data) => {
-  if (data.toString().trim() === 'CANCEL') {
-    doCleanup().finally(() => process.exit(1));
-  }
-});
-if (process.stdin && typeof process.stdin.unref === 'function') {
-  process.stdin.unref();
-}
-
-process.on('SIGTERM', () => {
-  doCleanup().finally(() => process.exit(1));
-});
+installStdinControls(doCleanup);
 
 // ===== 教育经历解析（从 OCR 后的简历文本中提取） =====
 /**
@@ -1399,6 +1388,7 @@ async function main() {
     console.log('所有候选人已提取完成');
   } else {
     for (let i = 0; i < toProcess.length; i++) {
+      await waitWhilePaused(); // 暂停：处理完当前候选人、处理下一个前停住
       const { geekId, listName } = toProcess[i];
       const globalIndex = alreadyDone + i + 1;
       const cd = await extractSingleCandidate(targetId, geekId, listName, globalIndex, totalCount, ctx);

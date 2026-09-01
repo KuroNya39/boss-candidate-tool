@@ -59,6 +59,35 @@ export function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// ===== 暂停/继续 步骤1 提取 =====
+// 主进程通过 stdin 发 'PAUSE' / 'RESUME'，脚本在「处理下一个候选人前」检查暂停标志。
+// 暂停时进程不退出、不关 CDP、内存里已提取数据不丢；waitWhilePaused 是 await 轮询，
+// 不阻塞事件循环——暂停期间 CANCEL/SIGTERM 监听依然即时响应（暂停中能取消/跳过）。
+let _paused = false;
+export function setPaused(p) { _paused = !!p; }
+export async function waitWhilePaused() {
+  while (_paused) await sleep(200);
+}
+
+/**
+ * 安装主进程控制通道：stdin 上统一解析 CANCEL/PAUSE/RESUME，SIGTERM 同样走取消。
+ * 三个提取脚本共用一份（避免各自维护相同的命令分发）；CANCEL 各脚本行为相同——
+ * 先 doCleanup 落盘进度再退出，因此把 onCancel 作为参数传进来即可。
+ */
+export function installStdinControls(onCancel) {
+  const cancelAndExit = () => (onCancel ? onCancel() : Promise.resolve()).finally(() => process.exit(1));
+  process.stdin.on('data', (data) => {
+    const msg = data.toString().trim();
+    if (msg === 'CANCEL') cancelAndExit();
+    else if (msg === 'PAUSE') setPaused(true);
+    else if (msg === 'RESUME') setPaused(false);
+  });
+  if (process.stdin && typeof process.stdin.unref === 'function') {
+    process.stdin.unref();
+  }
+  process.on('SIGTERM', cancelAndExit);
+}
+
 // 提取开始时把标签页带到最前（前台才持续出帧，截图才稳定）+ 唤醒页面
 // 解除后台冻结/节能暂停（否则切到别的标签页后简历 canvas 停画、截图空白）。
 // 页面尺寸、DPR 全程不被触碰——之前的 setDeviceMetricsOverride 锁视口会让网页重排变形，

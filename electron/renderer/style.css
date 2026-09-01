@@ -784,6 +784,12 @@ button.is-loading::before {
 .btn--danger:hover:not(:disabled) { background: rgba(var(--color-error-rgb),0.06); border-color: var(--color-error-strong); color: var(--color-error-strong); }
 .btn--warning { background: rgba(var(--color-warning-rgb),0.1); color: var(--color-warning-strong); border-color: var(--color-warning); }
 .btn--warning:hover:not(:disabled) { background: rgba(var(--color-warning-rgb),0.2); border-color: var(--color-warning-strong); }
+/* 「暂停」变「继续」后的视觉区分：琥珀色浅底，一眼看出提取被停住 */
+.btn--paused { background: rgba(var(--color-warning-rgb),0.12); color: var(--color-warning-strong); border-color: var(--color-warning); }
+.btn--paused:hover:not(:disabled) { background: rgba(var(--color-warning-rgb),0.2); border-color: var(--color-warning-strong); color: var(--color-warning-strong); }
+/* 运行区按钮（暂停/继续/跳过）统一用 14px Material SVG 图标：SVG 作为 flex item 由
+   align-items:center 几何居中，无需 emoji 的字形微调；缩小图标与文字的间距让三个按钮更紧凑 */
+.running-actions .btn { gap: 4px; }
 .btn--retry:hover:not(:disabled) { border-color: var(--color-error); color: var(--color-error); }
 
 /* 尺寸 */
@@ -1112,9 +1118,10 @@ button.is-loading::before {
   background: var(--gradient-error);
 }
 .result-icon-check {
-  font-size: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-on-accent);
-  font-weight: 700;
 }
 .result-title {
   font-size: 18px;

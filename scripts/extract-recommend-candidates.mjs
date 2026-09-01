@@ -21,7 +21,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   proxyGet, proxyPost, sleep, randomDelay,
-  cdpEval, prepareTab,
+  cdpEval, prepareTab, waitWhilePaused, installStdinControls,
   closeBossPopup,
   captureResumeScreenshots,
   ocrScreenshots,
@@ -1095,18 +1095,7 @@ async function doCleanup() {
   }
 }
 
-process.stdin.on('data', (data) => {
-  if (data.toString().trim() === 'CANCEL') {
-    doCleanup().finally(() => process.exit(1));
-  }
-});
-if (process.stdin && typeof process.stdin.unref === 'function') {
-  process.stdin.unref();
-}
-
-process.on('SIGTERM', () => {
-  doCleanup().finally(() => process.exit(1));
-});
+installStdinControls(doCleanup);
 
 /**
  * 从简历文本解析教育经历（推荐页卡片只显示最高学历，完整多段教育在简历文本里）
@@ -1386,6 +1375,7 @@ async function main() {
     let prevOcr = Promise.resolve();
 
     for (let i = 0; i < toProcess.length; i++) {
+      await waitWhilePaused(); // 暂停：处理完当前候选人、处理下一个前停住
       const card = toProcess[i];
       const geekId = card.geekId;
       const globalIndex = alreadyDone + i + 1;

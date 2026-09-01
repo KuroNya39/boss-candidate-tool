@@ -109,6 +109,35 @@ let aiAbortController = null; // 用于中断 AI 评分的正在请求
 let actualExportPath = ''; // 导出脚本实际输出的文件路径（可能被另存）
 let exportMailResult = { status: 'none', to: '', error: '' }; // 导出步骤的邮件发送结果（由 MAIL_OK/MAIL_FAIL 标记更新）
 
+// 当前是否有真正在运行的任务：进程引用还在，且未退出、未被 kill 才算。
+// 之前只看 currentProcess 是否非空，进程已退出但 close 事件还没触发（或取消竞态）时会
+// 误报「已有任务运行中」，导致一轮跑完/取消后回首页点开始偶尔被拦。
+function hasRunningTask() {
+  return !!(currentProcess && currentProcess.exitCode === null && !currentProcess.killed);
+}
+
+// 向当前子进程 stdin 写一行控制信号（CANCEL/PAUSE/RESUME）。Windows 下 SIGTERM 不可靠，
+// 靠 stdin 通知子进程自行清理。写失败时挂个空 error 监听吞掉 EPIPE，不弹未捕获错误。
+function sendStdinSignal(signal) {
+  const p = currentProcess;
+  if (p?.stdin?.writable) {
+    const onError = () => {};
+    p.stdin.on('error', onError);
+    p.stdin.write(signal + '\n');
+    p.stdin.off('error', onError);
+  }
+}
+
+// 延迟强杀当前子进程：等 6s 让子进程 doCleanup 先落盘进度再退出（v1.3.28 放宽到 6s）。
+// 只杀同一个进程：取消/跳过/停止后若用户已快速开始新任务，currentProcess 已换，
+// 不能再按旧引用强杀，否则会误杀新任务并残留一个空引用。
+function scheduleForceKill() {
+  const proc = currentProcess;
+  setTimeout(() => {
+    if (currentProcess === proc) { currentProcess.kill(); currentProcess = null; }
+  }, 6000);
+}
+
 // CDP proxy & Chrome 状态
 let cdpProxyProcess = null;
 let cdpStatus = { state: 'initializing', message: '', chromePort: null };
@@ -222,7 +251,7 @@ function parseExportProgress(line) {
 }
 
 // ===== 脚本执行 =====
-function runScript(scriptName, args, step, parseFn, extraEnv = {}) {
+function runScript(scriptName, args, step, parseFn, extraEnv = {}, taskType = '') {
   return new Promise((resolvePromise, rejectPromise) => {
     const scriptPath = resolve(UNPACKED_ROOT, 'scripts', scriptName);
     const procCwd = app.isPackaged ? OUTPUT_DIR : APP_ROOT;
@@ -238,6 +267,7 @@ function runScript(scriptName, args, step, parseFn, extraEnv = {}) {
     });
 
     currentProcess = proc;
+    proc._taskType = taskType; // 显式任务类型（'extract'/'export'/'greet'），供「暂停/继续提取」校验当前进程确为提取脚本（导出/打招呼也复用 currentProcess）
 
     const stderrLines = [];
 
@@ -1386,7 +1416,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
 
       let extractPromise;
       try {
-        extractPromise = runScript(scriptName, extractArgs, 1, parseExtractProgress);
+        extractPromise = runScript(scriptName, extractArgs, 1, parseExtractProgress, {}, 'extract');
       } catch (err) {
         scoreCtx.extractResult = { ok: false, error: err };
         extractError = err;
@@ -1511,7 +1541,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       smtpEnv.SMTP_FROM = emailUser;
       termLog(`[main] 将发送邮件到 ${emailUser}`);
     }
-    await runScript('export-candidates.mjs', exportArgs, 3, parseExportProgress, smtpEnv);
+    await runScript('export-candidates.mjs', exportArgs, 3, parseExportProgress, smtpEnv, 'export');
     if (cancelled) return;
 
     sendProgress(3, 'done', 100, 'Excel 导出完成');
@@ -1615,6 +1645,7 @@ async function runGreeting(level, source = 'recommend') {
     });
 
     currentProcess = proc;
+    proc._taskType = 'greet';
 
     // 解析 stdout 中的打招呼进度
     proc.stdout.on('data', (data) => {
@@ -1813,7 +1844,7 @@ async function startCdpProxy() {
 // ===== IPC 注册 =====
 function registerIPC() {
   ipcMain.handle('start-extraction', (_event, opts) => {
-    if (currentProcess) return { error: '已有任务运行中' };
+    if (hasRunningTask()) return { error: '已有任务运行中' };
     const count = opts?.count ?? 20;
     const skipExtract = opts?.skipExtract || false;
     const extractAll = opts?.extractAll || false;
@@ -1835,19 +1866,9 @@ function registerIPC() {
     cancelled = true;
     if (currentProcess) {
       // 写入 stdin 通知子进程自行清理（Windows 下 SIGTERM 不可靠）
-      try {
-        if (currentProcess?.stdin?.writable) {
-          const onError = () => {};
-          currentProcess.stdin.on('error', onError);
-          currentProcess.stdin.write('CANCEL\n');
-          currentProcess.stdin.off('error', onError);
-        }
-      } catch {}
-      // 等 2s 让子进程清理，超时强制杀
-      // v1.3.28：强杀等待放宽到 6s，让子进程 doCleanup 先落盘进度再退出
-      setTimeout(() => {
-        if (currentProcess) { currentProcess.kill(); currentProcess = null; }
-      }, 6000);
+      sendStdinSignal('CANCEL');
+      // 等 6s 让子进程 doCleanup 先落盘进度再退出，超时强制杀
+      scheduleForceKill();
     }
     if (aiAbortController) { aiAbortController.abort(); aiAbortController = null; }
     return { ok: true };
@@ -1856,25 +1877,28 @@ function registerIPC() {
   ipcMain.handle('skip-extraction', () => {
     skipToScoring = true;
     if (currentProcess) {
-      try {
-        if (currentProcess?.stdin?.writable) {
-          const onError = () => {};
-          currentProcess.stdin.on('error', onError);
-          currentProcess.stdin.write('CANCEL\n');
-          currentProcess.stdin.off('error', onError);
-        }
-      } catch {}
-      // v1.3.28：强杀等待放宽到 6s，让子进程 doCleanup 先落盘进度再退出
-      setTimeout(() => {
-        if (currentProcess) { currentProcess.kill(); currentProcess = null; }
-      }, 6000);
+      sendStdinSignal('CANCEL');
+      scheduleForceKill();
     }
+    return { ok: true };
+  });
+
+  // 暂停/继续 步骤1 提取（仅对提取脚本生效；导出/打招呼进程的 currentProcess 被 _taskType 守卫排除）
+  ipcMain.handle('pause-extraction', () => {
+    if (currentProcess?._taskType !== 'extract') return { ok: false, reason: 'no-extract-process' };
+    sendStdinSignal('PAUSE');
+    return { ok: true };
+  });
+
+  ipcMain.handle('resume-current-extraction', () => {
+    if (currentProcess?._taskType !== 'extract') return { ok: false, reason: 'no-extract-process' };
+    sendStdinSignal('RESUME');
     return { ok: true };
   });
 
   // 批量打招呼
   ipcMain.handle('start-greeting', (_event, opts) => {
-    if (currentProcess) return { error: '已有任务运行中' };
+    if (hasRunningTask()) return { error: '已有任务运行中' };
     const level = opts?.level ?? 4;
     const source = opts?.source || 'recommend';
     runGreeting(level, source);
@@ -1884,18 +1908,8 @@ function registerIPC() {
   ipcMain.handle('cancel-greeting', () => {
     cancelled = true;
     if (currentProcess) {
-      try {
-        if (currentProcess?.stdin?.writable) {
-          const onError = () => {};
-          currentProcess.stdin.on('error', onError);
-          currentProcess.stdin.write('CANCEL\n');
-          currentProcess.stdin.off('error', onError);
-        }
-      } catch {}
-      // v1.3.28：强杀等待放宽到 6s，让子进程 doCleanup 先落盘进度再退出
-      setTimeout(() => {
-        if (currentProcess) { currentProcess.kill(); currentProcess = null; }
-      }, 6000);
+      sendStdinSignal('CANCEL');
+      scheduleForceKill();
     }
     return { ok: true };
   });
@@ -2209,7 +2223,7 @@ function registerIPC() {
 
   // v1.5.0: 继续提取 —— 还原历史批次为输出目录，用 --resume 续跑，跳过已提取项
   ipcMain.handle('resume-extraction', (_event, opts) => {
-    if (currentProcess) return { error: '已有任务运行中' };
+    if (hasRunningTask()) return { error: '已有任务运行中' };
     const dirPath = opts?.archiveDir;
     if (!dirPath) return { error: '缺少参数' };
     const parentDir = dirname(OUTPUT_DIR);
@@ -2240,7 +2254,7 @@ function registerIPC() {
 
   // v1.5.0: 用某个历史批次（或当前批次）的提取数据重新评分（跳过提取，换模型后重评）
   ipcMain.handle('rescore-from-history', (_event, opts) => {
-    if (currentProcess) return { error: '已有任务运行中' };
+    if (hasRunningTask()) return { error: '已有任务运行中' };
     const dirPath = opts?.archiveDir;
     if (!dirPath) return { error: '缺少参数' };
     const parentDir = dirname(OUTPUT_DIR);
