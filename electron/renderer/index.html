@@ -366,6 +366,11 @@
       <div class="dialog-field">
         <label for="dialog-job-desc">岗位描述</label>
         <textarea id="dialog-job-desc" rows="8" placeholder="粘贴已按 README 第5步转换好的岗位描述（勿粘贴原始 JD）"></textarea>
+        <div class="textarea-resize-handle" id="dialog-resize-handle" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="8" y1="16" x2="16" y2="8"/><line x1="12" y1="16" x2="16" y2="12"/>
+          </svg>
+        </div>
       </div>
       <div class="dialog-actions">
         <button id="btn-dialog-save" class="btn btn--primary">保存</button>
@@ -380,7 +385,13 @@
       <div class="dialog-title" id="job-picker-title">目标岗位</div>
       <div class="job-picker-search">
         <input type="text" id="job-search-input" class="job-picker-search-input" placeholder="搜索岗位…" autocomplete="off" />
-        <button type="button" id="job-search-clear" class="job-search-clear" aria-label="清空搜索" hidden>✕</button>
+        <button type="button" id="job-search-clear" class="job-search-clear" aria-label="清空搜索" hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+            <circle class="job-search-clear-bg" cx="12" cy="12" r="10"/>
+            <line class="job-search-clear-x" x1="8.5" y1="8.5" x2="15.5" y2="15.5"/>
+            <line class="job-search-clear-x" x1="15.5" y1="8.5" x2="8.5" y2="15.5"/>
+          </svg>
+        </button>
       </div>
       <div class="job-picker-list" id="job-picker-list" role="list" aria-live="polite"></div>
       <div class="dialog-actions">

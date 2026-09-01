@@ -265,27 +265,36 @@ input::-webkit-clear-button {
 }
 .job-search-clear {
   position: absolute;
-  right: 6px;
+  right: 10px;
   top: 50%;
   transform: translateY(-50%);
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   padding: 0;
   border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1;
+  background: none;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: transform var(--transition-fast);
 }
-.job-search-clear:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+.job-search-clear svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+/* 实心圆底（浅灰），鼠标悬停时加深 */
+.job-search-clear-bg {
+  fill: #aab6c6;
+  transition: fill var(--transition-fast);
+}
+.job-search-clear:hover .job-search-clear-bg {
+  fill: var(--text-muted);
+}
+/* 中间的 × 用弹窗底色镂空，即「实心圆 + 空心×」，圆与 × 同圆心、严格对称 */
+/* × 占圆直径约一半、线更细，端点留出空，是主流输入框清除按钮的观感 */
+.job-search-clear-x {
+  stroke: var(--bg-card);
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 .job-picker-list {
   max-height: 400px;
@@ -911,17 +920,28 @@ button.is-loading::before {
 .input-text::placeholder {
   color: var(--text-muted);
 }
-/* 编辑岗位弹窗：名称只读态底色 */
-.input-readonly {
+/* 编辑岗位弹窗：名称只读态（岗位名称编辑不了，用浅灰底 + 灰字区分） */
+/* 用高特异性写法，确保盖过 .dialog-field input 的默认白底/深色字 */
+.dialog-field input.input-readonly {
   background: var(--bg-subtle);
+  color: var(--text-muted);
+  cursor: default;
+}
+.dialog-field input.input-readonly:focus {
+  border-color: var(--border-input);
+  box-shadow: none;
 }
 /* 密码框显示/隐藏眼睛按钮 */
 .input-wrap {
   position: relative;
 }
+/* 输入框转块级，避免内联元素底部基线空隙导致眼睛按钮垂直居中偏下 */
+.input-wrap input {
+  display: block;
+}
 .input-toggle {
   position: absolute;
-  right: 8px;
+  right: 10px;
   top: 50%;
   transform: translateY(-50%);
   width: 20px;
@@ -1263,6 +1283,7 @@ button.is-loading::before {
   margin-bottom: 18px;
 }
 .dialog-field {
+  position: relative; /* 为自定义文本域拖拽手柄定位 */
   margin-bottom: 14px;
 }
 .dialog-field label {
@@ -1293,8 +1314,28 @@ button.is-loading::before {
 }
 .dialog-field textarea {
   font-family: inherit;
-  resize: vertical;
+  resize: none; /* 隐藏原生 resize 手柄，改用右下角自定义拖拽手柄（更大、更好看） */
   line-height: 1.5;
+}
+.textarea-resize-handle {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  opacity: .7;
+  cursor: ns-resize; /* 只调高度，用上下箭头 */
+  z-index: 1;
+  transition: color var(--transition-fast), opacity var(--transition-fast);
+}
+.textarea-resize-handle:hover,
+.textarea-resize-handle:active {
+  color: var(--text-secondary);
+  opacity: 1;
 }
 .dialog-hint {
   font-size: 11px;

@@ -1469,6 +1469,8 @@ async function showEditJobDialog(jobName) {
 
 function hideAddJobDialog() {
   closeDialog(jobDialogOverlay, { animate: true });
+  // 取消/关闭「添加/编辑岗位」弹窗后，回到打开它的「目标岗位」列表弹窗
+  showJobPicker();
   editJobName = '';
 }
 
@@ -1491,9 +1493,44 @@ async function deleteJob(jobName) {
 }
 
 btnDialogCancel.addEventListener('click', hideAddJobDialog);
+// 岗位描述文本域：右下角自定义拖拽手柄，替代原生 resize 手柄
+const dialogResizeHandle = document.getElementById('dialog-resize-handle');
+let isDialogResizing = false;
 jobDialogOverlay.addEventListener('click', (e) => {
-  if (e.target === jobDialogOverlay) hideAddJobDialog();
+  // 拖拽调整文本域大小时不触发「点击遮罩关闭」
+  if (e.target === jobDialogOverlay && !isDialogResizing) hideAddJobDialog();
 });
+if (dialogResizeHandle) {
+  dialogResizeHandle.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return; // 只响应鼠标左键
+    isDialogResizing = true;
+    e.preventDefault();
+    e.stopPropagation(); // 不让事件冒泡到遮罩，避免误关弹窗
+    const startY = e.clientY;
+    const startH = dialogJobDesc.offsetHeight;
+    const maxH = Math.round(window.innerHeight * 0.6);
+    // 捕获指针：拖拽全程事件都锁在手柄上，鼠标移出文本域也不会断、不会误触遮罩关闭
+    try { dialogResizeHandle.setPointerCapture(e.pointerId); } catch {}
+    const onMove = (ev) => {
+      const next = startH + (ev.clientY - startY);
+      dialogJobDesc.style.height = Math.max(64, Math.min(next, maxH)) + 'px';
+    };
+    const onUp = () => {
+      isDialogResizing = false;
+      dialogResizeHandle.removeEventListener('pointermove', onMove);
+      dialogResizeHandle.removeEventListener('pointerup', onUp);
+      dialogResizeHandle.removeEventListener('pointercancel', onUp);
+      try { dialogResizeHandle.releasePointerCapture(e.pointerId); } catch {}
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+    dialogResizeHandle.addEventListener('pointermove', onMove);
+    dialogResizeHandle.addEventListener('pointerup', onUp);
+    dialogResizeHandle.addEventListener('pointercancel', onUp);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'ns-resize';
+  });
+}
 
 dialogJobName.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') dialogJobDesc.focus();
