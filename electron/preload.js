@@ -69,6 +69,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('extraction-error', handler);
   },
 
+  // 主进程请求 renderer 弹工具确认框（如「未找到推荐页，是否重启 Chrome」），选择结果回传
+  onConfirmRequest: (callback) => {
+    const handler = (_event, req) => callback(req);
+    ipcRenderer.on('confirm-dialog-request', handler);
+    return () => ipcRenderer.removeListener('confirm-dialog-request', handler);
+  },
+  confirmDialogResult: (result) => ipcRenderer.send('confirm-dialog-result', result),
+
   // 批量打招呼事件
   onGreetProgress: (callback) => {
     const handler = (_event, data) => callback(data);

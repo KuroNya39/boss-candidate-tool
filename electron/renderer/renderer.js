@@ -581,6 +581,10 @@ async function loadScoringResults() {
 function setupListeners() {
   cleanupAll();
   registerCleanup(window.electronAPI.onProgress(handleProgress));
+  // 主进程请求的工具确认框（如「未找到推荐页，是否重启 Chrome」），选择结果回传主进程
+  registerCleanup(window.electronAPI.onConfirmRequest(async (req) => {
+    window.electronAPI.confirmDialogResult(await confirmDialog(req));
+  }));
 
   registerCleanup(
     window.electronAPI.onDone(async (data) => {
@@ -1681,9 +1685,10 @@ async function init() {
     if (verEl && version) verEl.textContent = `v${version}`;
   } catch {}
 
-  // 密码框显示/隐藏切换（👁 点击切换，睁眼/闭眼 SVG 图标）
-  const EYE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
-  const EYE_OFF_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 11 8 11 8a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 1 12s4 8 11 8a9.74 9.74 0 0 0 5.39-1.61"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+  // 密码框显示/隐藏切换（👁 点击切换，睁眼/闭眼图标）
+  // 引用 index.html 顶部图标库里的 #icon-eye-on / #icon-eye-off，切换时大小位置不跳
+  const EYE_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-on"/></svg>';
+  const EYE_OFF_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-off"/></svg>';
   document.addEventListener('click', (e) => {
     const toggle = e.target.closest('.input-toggle');
     if (!toggle) return;
@@ -1692,12 +1697,10 @@ async function init() {
     if (input && input.type === 'password') {
       input.type = 'text';
       toggle.innerHTML = EYE_SVG; // 明文 → 睁眼
-      toggle.title = '点击隐藏';
       toggle.setAttribute('aria-pressed', 'true');
     } else if (input) {
       input.type = 'password';
       toggle.innerHTML = EYE_OFF_SVG; // 隐藏 → 闭眼
-      toggle.title = '点击显示';
       toggle.setAttribute('aria-pressed', 'false');
     }
   });

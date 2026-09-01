@@ -150,6 +150,15 @@ function sendError(data) {
   }
 }
 
+// 让 renderer 弹工具自定义确认框（替代原生 dialog.showMessageBox），返回用户选择
+function confirmInRenderer({ title, message, okText = '确定', cancelText = '取消', danger = false }) {
+  return new Promise((resolve) => {
+    if (!mainWindow || mainWindow.isDestroyed()) { resolve(false); return; }
+    ipcMain.once('confirm-dialog-result', (_event, result) => resolve(result));
+    mainWindow.webContents.send('confirm-dialog-request', { title, message, okText, cancelText, danger });
+  });
+}
+
 // ===== 打招呼进度推送 =====
 function sendGreetProgress(message, current, total) {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1526,18 +1535,15 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       sendProgress(3, 'idle', 0, '');
     } else if ((source === 'recommend' || source === 'recommend-attach')
                && err.message.includes('未找到已打开的推荐牛人页')) {
-      // v1.3.12: 推荐页未打开 → 弹窗询问是否重启 Chrome 并打开推荐页（替代纯红色错误文本）
-      const { response } = await dialog.showMessageBox({
-        type: 'warning',
-        buttons: ['重新启动 Chrome 并打开推荐页', '取消'],
-        defaultId: 0,
-        cancelId: 1,
-        message: '未找到已打开的推荐牛人页',
-        detail: '检测到 Chrome 已打开，但推荐牛人页 (zhipin.com/web/chat/recommend) 未打开。\n'
+      // v1.3.12: 推荐页未打开 → 弹窗询问是否重启 Chrome 并打开推荐页（工具自定义弹窗）
+      const ok = await confirmInRenderer({
+        title: '未找到已打开的推荐牛人页',
+        message: '检测到 Chrome 已打开，但推荐牛人页 (zhipin.com/web/chat/recommend) 未打开。\n\n'
               + '是否用「边用边跑」模式重启 Chrome 并打开该页面？\n'
               + '（会先关闭当前打开的标签页，重启后自动打开推荐页）',
+        okText: '重新启动 Chrome 并打开推荐页',
       });
-      if (response === 0) {
+      if (ok) {
         const res = await launchBossModeChrome({ forceClose: true, openUrl: RECOMMEND_PAGE_URL });
         sendProgress(1, 'idle', 0, res.ok
           ? '已重启 Chrome 并打开推荐页，请设置好筛选条件后再次点击「开始提取分析」'

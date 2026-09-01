@@ -490,13 +490,13 @@ button.is-loading::before {
   font-size: var(--text-sm);
   line-height: 1.6;
   border-radius: var(--radius-md);
-  padding: 10px 14px;
-  border-left: 3px solid transparent;
+  padding: 10px 12px;
+  border: 1px solid transparent;
 }
-.alert--success { background: var(--bg-success); color: var(--color-success-strong); border-left-color: var(--color-success); }
-.alert--warning { background: var(--bg-warning); color: var(--color-warning-strong); border-left-color: var(--color-warning); }
-.alert--error   { background: var(--bg-error);   color: var(--color-error-strong);   border-left-color: var(--color-error); }
-.alert--info    { background: var(--bg-info);    color: var(--color-info-strong);    border-left-color: var(--color-info); }
+.alert--success { background: var(--bg-success); color: var(--color-success-strong); border-color: var(--border-success); }
+.alert--warning { background: var(--bg-warning); color: var(--color-warning-strong); border-color: var(--border-warning); }
+.alert--error   { background: var(--bg-error);   color: var(--color-error-strong);   border-color: var(--border-error); }
+.alert--info    { background: var(--bg-info);    color: var(--color-info-strong);    border-color: var(--border-info); }
 
 /* ===== 空状态 ===== */
 .empty-state {
@@ -523,19 +523,15 @@ button.is-loading::before {
   padding-bottom: 0;
   margin: 0;
   opacity: 0;
-  border-left-width: 0;
+  border-width: 0;
 }
 .hint-icon {
   width: 18px;
   height: 18px;
-  border-radius: 50%;
-  background: rgba(var(--color-warning-rgb),0.2);
   color: var(--color-warning);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
   flex-shrink: 0;
 }
 
@@ -602,12 +598,8 @@ button.is-loading::before {
   width: 16px;
   height: 16px;
   border: none;
-  border-radius: 50%;
-  font-size: 11px;
-  line-height: 1;
-  font-family: inherit;
-  color: var(--text-muted);
-  background: var(--border-card);
+  color: var(--color-disabled-text);
+  background: transparent;
   padding: 0;
   cursor: help;
   user-select: none;
@@ -845,7 +837,9 @@ button.is-loading::before {
   gap: 8px;
 }
 .collapsible-icon {
-  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   opacity: 0.75;
 }
 .collapsible-title {
