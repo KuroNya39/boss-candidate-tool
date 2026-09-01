@@ -1191,14 +1191,14 @@ function renderHistoryItem(item) {
     }));
   }
 
-  // 用该份数据重新评分：该批次有提取数据（换模型后重评）
-  if (item.hasCandidates) {
-    actions.appendChild(makeBtn('用该份数据重新评分', 'btn--secondary', async () => {
-      const res = await window.electronAPI.rescoreFromHistory(item.path);
-      if (res?.error) { showToast(res.error, 'warning', 4000); return; }
+  // 评分：该批次有简历数据就能评（完整提取 / 提了一半 / 已评分均可，换模型后重评）
+  if (item.hasScorable) {
+    actions.appendChild(makeBtn('评分', 'btn--secondary', async () => {
       closeHistoryDrawer();
       resetSteps();
-      showState('state-running');
+      showState('state-running'); // 先切界面再发请求，步骤1 进度条才和主页「直接用上次数据评分」一致
+      const res = await window.electronAPI.rescoreFromHistory(item.path);
+      if (res?.error) { showToast(res.error, 'warning', 4000); showState('state-initial'); }
     }));
   }
 

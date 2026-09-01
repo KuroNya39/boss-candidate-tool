@@ -668,6 +668,75 @@ function candidateKeyOf(c, idx = 0) {
   return c.geekId || ('idx:' + (c.index ?? idx));
 }
 
+// 从解析后的数据里取「非空候选人数组」：兼容 {candidates:[...]} 和裸数组两种形状
+function nonEmptyCandidates(raw) {
+  const arr = Array.isArray(raw) ? raw : raw?.candidates;
+  return Array.isArray(arr) && arr.length > 0 ? arr : null;
+}
+
+// 轻量判断：目录里是否有「可能含简历数据」的候选人文件（只看文件是否存在，不解析内容）。
+// 给 has-scorable-data / 历史归档扫描 / 历史列表评分按钮这些「只要判断有没有」的场景用；
+// 真正要拿数据时再走 restoreScorableCandidates，避免为布尔值做全量 JSON 解析 + 克隆候选人。
+function hasScorableCandidates(dirPath) {
+  return existsSync(resolve(dirPath, 'zhipin-candidates.json'))
+    || existsSync(resolve(dirPath, '.extract-progress.json'))
+    || existsSync(resolve(dirPath, 'scored-candidates.json'));
+}
+
+// 清掉候选人的旧评分数值字段，确保重新评分时不会被当作「已评过」而跳过
+// （finalizeScoring 用 unscored = candidates.filter(c => typeof c.jobRelevanceScore !== 'number') 过滤）。
+// 返回克隆后的新数组，不改动源对象。
+function stripScoreFields(candidates) {
+  return candidates.map((c) => {
+    const clone = { ...c };
+    delete clone.jobRelevanceScore;
+    delete clone.jobRelevanceComment;
+    delete clone.matchScore;
+    delete clone.totalScore;
+    delete clone.recommendationLevel;
+    delete clone.passed;
+    return clone;
+  });
+}
+
+// 从某个运行目录解析「可用于评分」的候选人数据（任何含简历数据的来源）。
+// 优先级：zhipin-candidates.json（完整提取）→ .extract-progress.json（提了一半的进度）→
+// scored-candidates.json（已评分结果，仍带简历文本）。JSON 读到写一半/损坏按「无数据」处理。
+// 只负责解析、不做加工（克隆/清分），需要干净候选人时由 restoreScorableCandidates 负责。
+function readScorableCandidates(dirPath) {
+  const pick = (name, kind) => {
+    const p = resolve(dirPath, name);
+    if (!existsSync(p)) return null;
+    try {
+      const raw = JSON.parse(readFileSync(p, 'utf-8'));
+      const candidates = nonEmptyCandidates(raw);
+      if (!candidates) return null;
+      // 来源统一取「文件自带 source 优先，其次运行元数据，最后兜底 chat」；
+      // || 短路避免每次都读 .run-meta.json（推荐/搜索脚本已把 source 写进数据文件）
+      const source = raw?.source || readRunMeta(dirPath)?.source || 'chat';
+      return { source, candidates, kind };
+    } catch { return null; }
+  };
+  return pick('zhipin-candidates.json', 'zhipin')
+    || pick('.extract-progress.json', 'progress')
+    || pick('scored-candidates.json', 'scored');
+}
+
+// 把某目录里可评分的候选人数据还原到目标路径：zhipin 原样复制（加自拷贝守卫），
+// 进度/评分数据则合成 { source, candidates } 标准格式写入（评分数据重评时清掉旧分数字段）。
+// 返回 { source, count } 或 null（无数据/解析失败，由调用方自行提示具体原因）。
+function restoreScorableCandidates(srcDir, destPath) {
+  const data = readScorableCandidates(srcDir);
+  if (!data) return null;
+  if (data.kind === 'zhipin') {
+    const src = resolve(srcDir, 'zhipin-candidates.json');
+    if (resolve(src) !== resolve(destPath)) copyFileSync(src, destPath);
+  } else {
+    writeFileSync(destPath, JSON.stringify({ source: data.source, candidates: stripScoreFields(data.candidates) }, null, 2), 'utf-8');
+  }
+  return { source: data.source, count: data.candidates.length };
+}
+
 // 构建某岗位的批量评分 prompt 生成器（含模板/JD 文件加载）。
 // getPoolCandidates: 返回该岗位当前所有已提取候选人（供沟通页无 JD 文件时从简历岗位描述兜底）。
 function createPositionPromptBuilder(positionName, extractSource, getPoolCandidates) {
@@ -1250,9 +1319,10 @@ function cleanupTempFiles() {
 }
 
 // ===== 主流程编排 =====
-// v1.4.8: 在历史归档目录（output-YYYYMMDD-HHMM）里找最近一份含候选人数据的目录。
+// 在历史归档目录（output-YYYYMMDD-HHMM）里找最近一份含「可评分数据」的目录
+// （完整提取数据 / 提取到一半的进度 / 已评分结果都算）。
 // 用于「直接用上次数据评分（跳过提取）」：用户上一轮数据被归档后，仍能恢复出来直接重评分。
-function findRecentArchiveWithCandidates() {
+function findRecentArchiveWithScorable() {
   try {
     const parentDir = dirname(OUTPUT_DIR);
     const prefix = basename(OUTPUT_DIR) + '-';
@@ -1261,9 +1331,8 @@ function findRecentArchiveWithCandidates() {
       .sort() // 时间戳命名，字典序即时间序
       .reverse();
     for (const d of dirs) {
-      const candidatePath = resolve(parentDir, d, 'zhipin-candidates.json');
-      if (existsSync(candidatePath)) {
-        return { archiveDir: resolve(parentDir, d), candidatePath };
+      if (hasScorableCandidates(resolve(parentDir, d))) {
+        return { archiveDir: resolve(parentDir, d) };
       }
     }
   } catch {}
@@ -1438,28 +1507,18 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
               sendProgress(2, 'running', undefined, '已跳过提取，正在完成剩余评分…');
               scoreCtx.extractResult = { ok: true };
             } else {
-              termLog('[main] 用户跳过提取，尝试从进度文件恢复数据');
-              const progressPath = resolve(OUTPUT_DIR, '.extract-progress.json');
-              if (!existsSync(progressPath)) {
-                termLog('[main] 跳过提取失败：尚无已提取的候选人数据');
+              // 复用同一套「可评分数据恢复」逻辑：把 OUTPUT_DIR 里的进度/评分数据还原成标准候选人文件
+              termLog('[main] 用户跳过提取，尝试从已有数据恢复');
+              const restored = restoreScorableCandidates(OUTPUT_DIR, candidatesPath);
+              if (!restored) {
+                termLog('[main] 跳过提取失败：没有可恢复的候选人数据');
                 sendError({ message: '暂无已提取的候选人数据，无法跳过。请等待提取到足够数据后再试。' });
                 scoreCtx.extractResult = { ok: false, error: err };
                 await scoringPromise;
                 return;
               }
-              const progressData = JSON.parse(readFileSync(progressPath, 'utf-8'));
-              const candidates = progressData.candidates || [];
-              if (candidates.length === 0) {
-                termLog('[main] 跳过提取失败：进度文件中无候选人数据');
-                sendError({ message: '进度文件中无候选人数据，无法跳过。请等待提取到足够数据后再试。' });
-                scoreCtx.extractResult = { ok: false, error: err };
-                await scoringPromise;
-                return;
-              }
-              termLog(`[main] 从进度文件恢复 ${candidates.length} 名候选人`);
-              const output = { source: isSearchMode ? 'search' : (isRecommendMode ? 'recommend' : 'chat'), candidates };
-              writeFileSync(candidatesPath, JSON.stringify(output, null, 2), 'utf-8');
-              sendProgress(1, 'done', 100, `已跳过提取，从进度恢复 ${candidates.length} 人数据`);
+              termLog(`[main] 从已有数据恢复 ${restored.count} 名候选人`);
+              sendProgress(1, 'done', 100, `已跳过提取，从进度恢复 ${restored.count} 人数据`);
               sendProgress(2, 'running', undefined, '已跳过提取，正在完成剩余评分…');
               scoreCtx.extractResult = { ok: true };
             }
@@ -1483,16 +1542,24 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       if (extractError) throw extractError;
       if (scoreCtx.scoringError) throw scoreCtx.scoringError;
     } else {
-      // v1.4.8: 「直接用上次数据评分（跳过提取）」——若当前输出目录没有候选人数据，
-      // 尝试从最近一次历史归档里恢复，避免用户上一轮数据被归档后无法直接重评分
+      // v1.4.8: 「直接用上次数据评分（跳过提取）」——若当前输出目录没有完整的候选人文件，
+      // 依次从当前目录的进度/评分数据、最近一次历史归档里恢复（含只提取了一半就取消的数据）
       const candidatesPath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
       if (!existsSync(candidatesPath)) {
-        const found = findRecentArchiveWithCandidates();
-        if (found) {
-          termLog(`[main] 当前输出目录无候选人数据，从历史归档恢复: ${found.archiveDir}`);
-          copyFileSync(found.candidatePath, candidatesPath);
-          sendProgress(1, 'running', 30, '正在从上次提取的数据恢复…');
-        } else {
+        // 数据源按优先级排：当前目录 → 最近一份含数据的归档；命中第一个能恢复的就用
+        const sources = [OUTPUT_DIR];
+        const found = findRecentArchiveWithScorable();
+        if (found) sources.push(found.archiveDir);
+        let restored = null;
+        for (const srcDir of sources) {
+          restored = restoreScorableCandidates(srcDir, candidatesPath);
+          if (restored) {
+            termLog(`[main] 从数据目录恢复可评分数据: ${srcDir}`);
+            sendProgress(1, 'running', 30, srcDir === OUTPUT_DIR ? '正在恢复上次的数据…' : '正在从上次提取的数据恢复…');
+            break;
+          }
+        }
+        if (!restored) {
           // 无数据：评分器无意义，先让它退出再报错
           scoreCtx.extractResult = { ok: false, error: 'no data' };
           await scoringPromise;
@@ -1855,11 +1922,11 @@ function registerIPC() {
     return { ok: true };
   });
 
-  // v1.4.8: 判断是否还有可用的上次提取数据（当前目录或最近归档），
+  // 判断是否还有可用的上次候选人数据（当前目录或最近归档，含提取一半的进度/已评分结果），
   // 决定「直接用上次数据评分」按钮是否可点
   ipcMain.handle('has-scorable-data', () => {
-    if (existsSync(resolve(OUTPUT_DIR, 'zhipin-candidates.json'))) return true;
-    return !!findRecentArchiveWithCandidates();
+    if (hasScorableCandidates(OUTPUT_DIR)) return true;
+    return !!findRecentArchiveWithScorable();
   });
 
   ipcMain.handle('cancel-extraction', () => {
@@ -2121,14 +2188,18 @@ function registerIPC() {
         const candidatesPath = resolve(dir, 'zhipin-candidates.json');
         const scoredPath = resolve(dir, 'scored-candidates.json');
         const progressPath = resolve(dir, '.extract-progress.json');
+        const hasCandidates = existsSync(candidatesPath);
+        const hasScored = existsSync(scoredPath);
+        const hasProgress = existsSync(progressPath);
         const info = {
           name: entry.name,
           path: dir,
           isCurrent,
-          hasCandidates: existsSync(candidatesPath),
-          hasScored: existsSync(scoredPath),
-          hasProgress: existsSync(progressPath),
+          hasCandidates,
+          hasScored,
+          hasProgress,
           hasExcel: existsSync(resolve(dir, 'candidates.xlsx')),
+          hasScorable: hasCandidates || hasScored || hasProgress, // 有简历数据就能评分（完整/进度/已评分均可），用已算好的存在性判断，避免再解析候选人大文件
         };
         const meta = readRunMeta(dir);
         if (meta) info.meta = meta;
@@ -2155,8 +2226,8 @@ function registerIPC() {
         if (info.hasCandidates) {
           try {
             const raw = JSON.parse(readFileSync(candidatesPath, 'utf-8'));
-            const arr = raw.candidates || raw;
-            info.candidateCount = Array.isArray(arr) ? arr.length : 0;
+            const arr = nonEmptyCandidates(raw);
+            info.candidateCount = arr ? arr.length : 0;
           } catch { info.candidateCount = 0; }
         } else if (info.hasProgress) {
           try {
@@ -2166,8 +2237,8 @@ function registerIPC() {
         } else if (info.hasScored) {
           try {
             const raw = JSON.parse(readFileSync(scoredPath, 'utf-8'));
-            const arr = raw.candidates || raw;
-            info.candidateCount = Array.isArray(arr) ? arr.length : 0;
+            const arr = nonEmptyCandidates(raw);
+            info.candidateCount = arr ? arr.length : 0;
           } catch { info.candidateCount = 0; }
         } else {
           info.candidateCount = 0;
@@ -2265,16 +2336,14 @@ function registerIPC() {
     } else if (!archiveDirNameMatches(name) || resolve(dirPath) !== resolve(parentDir, name)) {
       return { error: '目标不是历史归档目录，无法重新评分' };
     }
-    const candidatesPath = resolve(dirPath, 'zhipin-candidates.json');
-    if (!existsSync(candidatesPath)) return { error: '该批次没有提取数据，无法重新评分' };
+    // 该批次只要有简历数据（完整提取 / 提了一半的进度 / 已评分结果）就能重新评分
     try {
       const targetPath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
-      if (resolve(candidatesPath) !== targetPath) {
-        copyFileSync(candidatesPath, targetPath);
-        termLog(`[rescore] 已从历史批次复制提取数据: ${dirPath}`);
-      }
+      const restored = restoreScorableCandidates(dirPath, targetPath);
+      if (!restored) return { error: '该批次没有可评分的数据（既无提取数据，也无评分结果）' };
+      termLog(`[rescore] 已从历史批次恢复可评分数据: ${dirPath}`);
     } catch (err) {
-      return { error: `复制数据失败: ${err.message}` };
+      return { error: `恢复数据失败: ${err.message}` };
     }
     const meta = readRunMeta(dirPath);
     const source = meta?.source || 'chat';
