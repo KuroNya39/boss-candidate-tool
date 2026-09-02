@@ -326,19 +326,27 @@ async function main() {
     `gh release create "${tag}" --title "${APP_NAME} ${tag}" --notes-file "${notesPath}" --draft`,
     { cwd: ROOT, stdio: 'inherit' }
   );
-  // 注意：草稿 release 用 releases/tags/{tag} 查不到（该接口对草稿返回 404），
-  // gh release create 的输出里也只有 URL、没有 id。刚建的草稿就是最新的草稿，从草稿列表取第一个。
-  // 用 spawnSync 传参数数组：jq 表达式里的 | 和空格若走 cmd 会被当成管道符拆掉，参数数组则无此问题。
-  const draftList = spawnSync('gh', [
-    'api', `repos/${REPO}/releases?per_page=20`,
-    '--jq', '[.[] | select(.draft == true)] | .[0].id'
-  ], { cwd: ROOT, encoding: 'utf-8' });
-  if (draftList.status !== 0) {
-    throw new Error(`查询草稿 release 失败: ${(draftList.stderr || draftList.stdout || '').trim()}`);
+  // 从草稿列表里找刚建的这个草稿的 id。注意：草稿 release 用 releases/tags/{tag} 查不到
+  // （该接口对草稿返回 404），gh release create 的输出里也只有 URL、没有 id。
+  // 坑（v1.8.5 实测）：刚建完的草稿在列表接口里偶发要延迟几秒才可见，立刻查会返回空、
+  // 把明明成功的构建误报成失败。所以轮询重试几次，并用 tag_name 精确匹配刚建的草稿，避免误取别的草稿。
+  // 用 spawnSync 传参数数组：jq 表达式里的 | 和引号若走 cmd 会被 shell 拆掉，参数数组则无此问题。
+  let releaseId = null;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    const draftList = spawnSync('gh', [
+      'api', `repos/${REPO}/releases?per_page=20`,
+      '--jq', `[.[] | select(.draft == true and .tag_name == "${tag}")] | .[0].id`
+    ], { cwd: ROOT, encoding: 'utf-8' });
+    if (draftList.status !== 0) {
+      throw new Error(`查询草稿 release 失败: ${(draftList.stderr || draftList.stdout || '').trim()}`);
+    }
+    const id = draftList.stdout.trim();
+    if (id && id !== 'null') { releaseId = id; break; }
+    console.log(`  草稿 id 尚未可见（第 ${attempt}/5 次），3 秒后重试…`);
+    await sleep(3000);
   }
-  const releaseId = draftList.stdout.trim();
-  if (!releaseId || releaseId === 'null') {
-    throw new Error('创建草稿后未找到对应的 release id（草稿列表为空？）');
+  if (!releaseId) {
+    throw new Error('创建草稿后未找到对应的 release id（重试 5 次草稿列表仍为空）');
   }
 
   // 资产名和 README 下载表保持一致：Boss.AI.Setup.X.Y.Z.exe / win-unpacked.zip。
