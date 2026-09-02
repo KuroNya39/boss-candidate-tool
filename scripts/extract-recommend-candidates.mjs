@@ -643,7 +643,9 @@ async function clickCardToOpenResume(targetId, geekId, cardIndex) {
           // v1.3.42: 有嵌套 iframe 时等「文档就绪 且 出现 canvas(图片简历) 或 正文文本(HTML简历)」再返回。
           // WASM 简历的 <canvas> 是脚本运行时才创建的，body 先就绪但 canvas 未出现，等 canvas 出现才算真就绪。
           if (stableCount >= 1 && (!dialogState.hasIframe || (dialogState.iframeReady && (dialogState.hasCanvas || dialogState.hasText)))) {
-            const waitForIframe = dialogState.hasCanvas ? 400 : 250;
+            // v1.8.4: 稳定确认后的小停顿收紧（canvas 300/文本 150，此前 400/250）。
+            // 稳定性判定已要求连续两次同尺寸且内容就绪，余量足够；真没渲染完时复制端点会自行轮询/重载兜底。
+            const waitForIframe = dialogState.hasCanvas ? 300 : 150;
             const sizeWarn = sizeOk ? '' : ' ⚠尺寸偏小';
             console.log(`    弹窗尺寸稳定: ${dialogState.width}x${dialogState.height}, iframe=${dialogState.hasIframe}, canvas=${dialogState.hasCanvas}${dialogState.wasmResume ? ' (WASM图片简历)' : ''}${sizeWarn}`);
             await sleep(waitForIframe);
@@ -1021,7 +1023,7 @@ async function closeRecommendDialog(targetId) {
       }));
     });
   })()`);
-  await randomDelay(250, 500);
+  await randomDelay(150, 300); // v1.8.4: 原来 250-500；后面有二次探测，等短点不会漏判
 
   const afterEscape = await iframeEval(targetId, `(function(){
     var d = document.querySelector('.dialog-wrap.active');
@@ -1381,6 +1383,7 @@ async function main() {
       const globalIndex = alreadyDone + i + 1;
       const displayName = (card.basicInfo && card.basicInfo.name) || geekId || `候选人${globalIndex}`;
       console.log(`[${globalIndex}/${totalCount}] ${displayName} (geekId=${geekId})`);
+      const candStart = Date.now(); // v1.8.4: 记本轮起点，收尾打「本候选人用时」，可直接看出两候选人之间间隔的构成
 
       // 初始数据：卡片基础信息
       let candidateData = {
@@ -1485,7 +1488,7 @@ async function main() {
               }
               return bestTop;
             })()`);
-            console.log(`    第${page + 1}页: 目标=${scrollTop}, 实际=${actualScrollTop}`);
+            console.log(`    第${page + 1}页: 目标=${Math.round(scrollTop)}, 实际=${Math.round(actualScrollTop)}`);
 
             if (page > 0 && actualScrollTop <= prevActualTop) {
               console.log(`    ⚡ 已到达底部 (滚动停滞在 ${actualScrollTop})`);
@@ -1607,6 +1610,9 @@ async function main() {
         console.log(`  💾 进度已保存 (${processedGeekIds.size}/${totalCount})`);
       }
 
+
+      // 本候选人「点开→读到→关闭」耗时小结（后台 OCR 不算在内，它和下一个候选人并行）
+      console.log(`  ⏱ 本候选人用时 ${((Date.now() - candStart) / 1000).toFixed(1)}s`);
 
       // 候选人之间随机延迟
       if (i < toProcess.length - 1) {

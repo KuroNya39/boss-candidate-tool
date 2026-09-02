@@ -4,12 +4,25 @@ import { existsSync, statSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import nodemailer from 'nodemailer';
+import { sleep } from './extract-common.mjs';
 
 const DEFAULT_SUBJECT = '候选人评分结果';
 const DEFAULT_TEXT = '候选人评分结果已生成，Excel 文件见附件。';
 
 function fail(message) {
   throw new Error(message);
+}
+
+// v1.8.4: 邮件瞬时断连自动重试。公司邮箱服务器偶发在对话中途掐断连接
+// （nodemailer 报 Unexpected socket close / socket hang up），属瞬时故障，重发即可成功。
+// 账号/认证类错误（密码或授权码错、服务器返回 526/535）重试无意义，直接报错让人改设置。
+const RETRYABLE_MAIL_RE = /socket|ECONNRESET|ETIMEDOUT|EAI_AGAIN|greeting|hang\s?up|network|TLS/i;
+const AUTH_MAIL_RE = /login|authentication|526|535|username|password/i;
+const MAX_MAIL_ATTEMPTS = 3;
+
+function shouldRetryMail(err) {
+  const msg = String((err && err.message) || err);
+  return RETRYABLE_MAIL_RE.test(msg) && !AUTH_MAIL_RE.test(msg);
 }
 
 export function parseArgs(argv = process.argv.slice(2)) {
@@ -126,16 +139,6 @@ export async function sendCandidateEmail({
   const to = buildRecipient(toPrefix);
   const absoluteAttachmentPath = validateAttachment(attachmentPath);
 
-  const transport = createTransport({
-    host: smtp.host,
-    port: smtp.port,
-    secure: smtp.secure,
-    auth: {
-      user: smtp.user,
-      pass: smtp.pass,
-    },
-  });
-
   const mailOptions = buildMailOptions({
     from: smtp.from,
     to,
@@ -143,12 +146,33 @@ export async function sendCandidateEmail({
     attachmentPath: absoluteAttachmentPath,
   });
 
-  const info = await transport.sendMail(mailOptions);
-  return {
-    to,
-    attachmentPath: absoluteAttachmentPath,
-    messageId: info.messageId,
-  };
+  // v1.8.4: 每次尝试都新建连接（断过的 transport 复用可能还是坏的），只对瞬时断连重试
+  let lastErr = null;
+  for (let attempt = 1; attempt <= MAX_MAIL_ATTEMPTS; attempt++) {
+    const transport = createTransport({
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
+      auth: {
+        user: smtp.user,
+        pass: smtp.pass,
+      },
+    });
+    try {
+      const info = await transport.sendMail(mailOptions);
+      return {
+        to,
+        attachmentPath: absoluteAttachmentPath,
+        messageId: info.messageId,
+      };
+    } catch (err) {
+      lastErr = err;
+      if (!shouldRetryMail(err) || attempt >= MAX_MAIL_ATTEMPTS) break;
+      console.log(`邮件连接被服务器断开(第 ${attempt} 次)，自动重试…`);
+      await sleep(attempt * 1500);
+    }
+  }
+  throw lastErr;
 }
 
 async function main() {

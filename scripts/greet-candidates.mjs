@@ -247,9 +247,9 @@ async function main() {
         skipCount++;
     }
 
-    // 间隔 3-5 秒防风控
+    // 间隔 2-5 秒防风控（v1.8.3：原 3-5 秒收紧到 2-5 秒，用户要稍快一些）
     if (i < targets.length - 1) {
-      const delay = 3000 + Math.random() * 2000;
+      const delay = 2000 + Math.random() * 3000;
       await sleep(delay);
     }
   }

@@ -33,7 +33,7 @@ export function proxyGet(path) {
   });
 }
 
-export function proxyPost(path, data) {
+export function proxyPost(path, data, timeoutMs = 60000) {
   return new Promise((resolve, reject) => {
     const options = {
       hostname: 'localhost', port: PROXY_PORT,
@@ -49,7 +49,7 @@ export function proxyPost(path, data) {
       });
     });
     req.on('error', reject);
-    req.setTimeout(60000, () => { req.destroy(); reject(new Error('timeout')); });
+    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('timeout')); });
     req.write(data);
     req.end();
   });
@@ -126,17 +126,27 @@ async function isTabVisible(targetId) {
   }
 }
 
+// 复制/截图前确保 Boss 标签页在前台（与 cdpScreenshot 同款条件式守卫，v1.8.3）：
+// 真实鼠标拖选 + Ctrl+C 复制需要页面在前台才能把全文写进系统剪贴板。用户切走标签页后，
+// 后台页被 Chrome 冻结/降速——复制要么干等 60s 客户端超时，要么只复制出几十个字判失败重试。
+// 只有真被切走（隐藏）才 /activate 拉回最前；Boss 页本就在最前（如「开两个 Chrome」边用边跑）
+// 时零开销、不抢焦点。拿不到可见状态时保守回退为照常 activate（同 cdpScreenshot 口径）。
+export async function ensureTabActive(targetId) {
+  try {
+    if (!(await isTabVisible(targetId))) {
+      try { await proxyGet(`/activate?target=${targetId}`); return true; } catch { return false; }
+    }
+    return false;
+  } catch { return false; }
+}
+
 export async function cdpScreenshot(targetId, filePath, clip) {
-  // 截图前按需把标签页真实带到最前（Target.activateTarget）。
+  // 截图前按需把标签页真实带到最前（Target.activateTarget，ensureTabActive）。
   // 用户切到别的标签页后，隐藏页面的合成器可能停止出帧，Page.captureScreenshot
   // 会卡到 CDP 超时（之前实测 30s 超时、截图失败）。activate 让页面前台出帧 → 截图稳定。
   // v1.3.28：Boss 页本来就在最前（如「开两个 Chrome」边跑边用）时不再强制拉回，不抢用户焦点；
   // 只有真的被切走（隐藏）时才激活。拿不到可见状态时保守处理：照旧 activate 保证截图稳定。
-  try {
-    if (!(await isTabVisible(targetId))) {
-      try { await proxyGet(`/activate?target=${targetId}`); } catch {}
-    }
-  } catch {}
+  await ensureTabActive(targetId);
   // v1.3.11: 改回 PNG 无损。JPEG q80 的块效应 + 色度抽样破坏中文细字边缘，
   // tesseract 二值化放大噪声；代价是文件更大、编码略慢，OCR 准确率优先。
   let url = `/screenshot?target=${targetId}&file=${encodeURIComponent(filePath)}&format=png`;
@@ -1014,6 +1024,8 @@ export async function probeFramesForResumeText(targetId, preferredSrc, label = '
  */
 // 页面 script/style 噪音特征：检测到即视为非简历文本（v1.3.36 防把 JS 代码误当简历文字）
 export const COPY_JUNK_RE = 'APM\\.init|import\\.meta\\.url|System\\.import|__vite_is_modern_browser|vite-legacy|createElement\\(\\s*["\']script';
+// 预编译一次，别在每次校验简历文本时重建正则（复制/重试路径每个候选人要校验多次）
+const COPY_JUNK_RX = new RegExp(COPY_JUNK_RE, 'i');
 
 // 模拟复制总开关（v1.4.4 新增）：界面「开启模拟复制」选项。
 // 开启=DOM提取→模拟复制→截图OCR；关闭=DOM提取→截图OCR（不碰系统剪贴板）。
@@ -1094,6 +1106,7 @@ async function readCopyHooks(targetId, ctx) {
 export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = 'DOM') {
   if (!ctx || !ctx.id) return null;
   if (!enableCopyFlag) { console.log(`  ${label}🔍 模拟复制已关闭（界面设置），跳过复制直接截图`); return null; } // v1.4.4
+  await ensureTabActive(targetId); // v1.8.3：真实 Ctrl+C 前把被切走的标签页拉回前台（后台复制 60s 超时/只复制几十字）
 
   // v1.3.42: Boss 新版简历用 wasm-resume-container 渲染成 canvas（<div id=resume><canvas id=resume></canvas></div>），
   // DOM 零文字，且复制处理器不会为自动化复制生成文本（实测 iframe事件[BODY:0]、剪贴板不变）。
@@ -1379,50 +1392,84 @@ function readSystemClipboard() {
 
 export async function tryExtractCanvasResumeByDragCopy(targetId, label = 'DOM') {
   if (!enableCopyFlag) { console.log(`  ${label}🔍 模拟复制已关闭（界面设置），跳过复制直接截图`); return null; }
-  // 注意：不依赖 ctx —— /canvas-copy 端点自己在浏览器里穿透 find 主页面/recommendFrame/c-resume，
-  // 只需要 targetId（页面会话）。端点每次会先重载 c-resume iframe（确定性全新状态），
-  // 拖拽失败时重试一次即可拿到全新状态。
-  try {
-    // 0) 清空系统剪贴板（避免读到上一次/用户复制的旧内容）
+
+  // v1.8.3：真实鼠标拖选+Ctrl+C 需要页面在前台（后台页会被冻结/降速，复制要么干等不返回、要么只复制出几十个字）。
+  // 复制开始时若已被切走就先拉回前台；若真拉回过，稍等渲染器解除冻结再发指令。
+  if (await ensureTabActive(targetId)) await sleep(500);
+
+  // 单次 /canvas-copy 限时：正常复制端点最坏 ~15s（重载 iframe + 滚动 + Ctrl+C）。
+  // 复制进行中若标签页被切走，页面冻结会让端点的 CDP 操作卡住。处理方式不是「干等满额超时、
+  // 放弃后再重开一个」——那样两个拖拽复制会在同一页上打架；而是设一个「唤醒点」：
+  // 请求跑了 KICK_AFTER_MS 还没回来，就查一次可见性，真被切走就用浏览器级的 Target.activateTarget
+  // 把 Boss 页切回前台（浏览器级指令，页面冻结也能生效），让同一个请求把复制跑完。
+  // 实测被切走的场景 6~8 秒内自愈，不再干等 30s/60s。
+  const COPY_ATTEMPT_TIMEOUT = 20000; // 单次请求安全上限
+  const KICK_AFTER_MS = 6000;         // 超过此时长没返回 → 查一次是否被切走，是就切回
+
+  const goodText = (text) => text.length >= DOM_MIN_TEXT_LEN && !COPY_JUNK_RX.test(text);
+
+  // 单次复制尝试：清剪贴板 → 端点拖拽滚动 Ctrl+C → 读系统剪贴板。
+  // 返回 { text } 成功；{ timeout } 客户端等满超时；{ errCode, elapsed } 服务器明确报错；
+  // { empty } 服务器说成功但剪贴板为空/文本不可用。外层据此决定要不要重试。
+  const attempt = async () => {
     clearSystemClipboard();
     await sleep(250);
 
-    // 1) 代理端点：重载+拖拽滚动选中+Ctrl+C（端点内自动计算 canvas 主视口坐标与滚动距离）
-    const r = await proxyPost(`/canvas-copy?target=${targetId}`, '{}');
-    if (!r) { console.log(`  ${label}🔍 canvas复制: 无响应`); return null; }
-    if (r.error || !r.ok) { console.log(`  ${label}🔍 canvas复制: 拖拽复制失败 ${r.error || 'unknown'}`); return null; }
+    // —— 自愈唤醒点：请求没按时回来，多半是标签页被切走了，把 Boss 页切回前台让它自己跑完 ——
+    // 直接用 ensureTabActive（本文件抽的「可见则不动、被切走才激活」守卫），不再手写一遍
+    const kickTimer = setTimeout(async () => {
+      if (await ensureTabActive(targetId)) console.log(`  ${label}🔍 canvas复制: 复制进行中标签页被切走了，已自动切回 Boss 页继续…`);
+    }, KICK_AFTER_MS);
 
-    // 2) 从系统剪贴板读取全文（端点内 Ctrl+C 后已等 500ms，这里再等 100ms 兜底即可）
+    let r = null;
+    let timedOut = false;
+    try {
+      r = await proxyPost(`/canvas-copy?target=${targetId}`, '{}', COPY_ATTEMPT_TIMEOUT);
+    } catch {
+      timedOut = true;
+    }
+    clearTimeout(kickTimer); // 请求已返回，唤醒点作废
+
+    if (timedOut) return { timeout: true };
+    if (!r || r.error || !r.ok) {
+      const errMsg = (r && (r.error || 'unknown')) || '无响应';
+      const elapsedTxt = r && r.elapsed ? ` (${(r.elapsed / 1000).toFixed(1)}s)` : '';
+      console.log(`  ${label}🔍 canvas复制: 拖拽复制失败 ${errMsg}${elapsedTxt}`);
+      return { errCode: r && r.error, elapsed: r && r.elapsed };
+    }
     await sleep(100);
     const raw = readSystemClipboard();
     const text = (raw || '').replace(/^﻿/, '').replace(/\r\n/g, '\n').trim();
-    if (text.length >= DOM_MIN_TEXT_LEN && !new RegExp(COPY_JUNK_RE, 'i').test(text)) {
-      const d1 = r.diag ? `, 容器SH/CH=${r.diag.outerSH}/${r.diag.outerCH}, iframe内=${r.diag.innerSH}/${r.diag.innerVH}` : '';
-      console.log(`  ✓ 复制提取(canvas拖拽滚动): ${text.length} 字 (滚动 ${r.scrollMax}px, 容器 ${r.scrollSel || '?'}${d1})`);
-      return text;
+    if (goodText(text)) {
+      const diag = r.diag ? `, 容器SH/CH=${r.diag.outerSH}/${r.diag.outerCH}, iframe内=${r.diag.innerSH}/${r.diag.innerVH}` : '';
+      const el = r.elapsed ? `, 用时 ${(r.elapsed / 1000).toFixed(1)}s` : '';
+      console.log(`  ✓ 复制提取(canvas拖拽滚动): ${text.length} 字 (滚动 ${r.scrollMax}px, 容器 ${r.scrollSel || '?'}${diag}${el})`);
+      return { text };
     }
-    if (text.length > 0) console.log(`  ${label}🔍 canvas复制: 首次剪贴板 ${text.length} 字不可用，重试一次`);
+    if (text.length > 0) console.log(`  ${label}🔍 canvas复制: 剪贴板 ${text.length} 字不可用`);
+    return { empty: true };
+  };
 
-    // 3) 重试一次（端点内部会再重载 iframe，刷新 Boss 渲染状态）
-    clearSystemClipboard();
-    await sleep(250);
-    const r2 = await proxyPost(`/canvas-copy?target=${targetId}`, '{}');
-    if (r2 && r2.ok && !r2.error) {
-      await sleep(100);
-      const raw2 = readSystemClipboard();
-      const text2 = (raw2 || '').replace(/^﻿/, '').replace(/\r\n/g, '\n').trim();
-      if (text2.length >= DOM_MIN_TEXT_LEN && !new RegExp(COPY_JUNK_RE, 'i').test(text2)) {
-        const d2 = r2.diag ? `, 容器SH/CH=${r2.diag.outerSH}/${r2.diag.outerCH}, iframe内=${r2.diag.innerSH}/${r2.diag.innerVH}` : '';
-        console.log(`  ✓ 复制提取(canvas拖拽滚动, 重试): ${text2.length} 字 (滚动 ${r2.scrollMax}px, 容器 ${r2.scrollSel || '?'}${d2})`);
-        return text2;
-      }
-    }
-    console.log(`  ${label}🔍 canvas复制: 重试仍无有效文本，放弃走截图`);
-    return null;
-  } catch (e) {
-    console.warn(`  ${label}🔍 canvas复制异常: ${e.message}`);
+  // 第 1 次尝试：途中被切走会自动切回，通常这一步就够了
+  const a1 = await attempt();
+  if (a1 && a1.text) return a1.text;
+
+  // 客户端等满超时（页面卡住）或服务器撞上复制硬上限：重试大概率复现，且客户端超时后再开一次
+  // 会和服务器可能还在跑的拖拽在同一页面打架——直接放弃复制走截图，别叠第二份复制的时钟。
+  if (a1 && (a1.timeout || a1.errCode === 'copy-timeout')) {
+    console.log(`  ${label}🔍 canvas复制: ${a1.timeout ? '等满超时(页面卡住)' : `复制超时(${(a1.elapsed / 1000).toFixed(1)}s)`}，不再重试，放弃复制直接走截图`);
     return null;
   }
+
+  // 其余失败（剪贴板为空/文本不可用/个别服务器瞬时错误）：多半是渲染没缓过来，切回前台再试一次
+  console.log(`  ${label}🔍 canvas复制: 第 1 次没成功，切回 Boss 标签页重试…`);
+  await ensureTabActive(targetId);
+  await sleep(800);
+  const a2 = await attempt();
+  if (a2 && a2.text) return a2.text;
+
+  console.log(`  ${label}🔍 canvas复制: 重试后仍拿不到有效文本，放弃走截图`);
+  return null;
 }
 
 async function cleanupTrustedCopy(targetId, ctx) {

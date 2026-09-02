@@ -387,17 +387,22 @@ function handleProgress(data) {
   const s = stepCards[step];
   if (!s) return;
 
+  // 步骤2 还没满 N 人、评分没真正开始时（消息带「等待」，进度 0/0），视觉按 waiting 灰显：
+  // ② 不点亮不转，和步骤3 一样；等评分真正开始（消息变「x/y 人」）才切 running 蓝色动效。
+  // 同一份 effStatus 同时驱动卡片视觉与下方 stepStates 记账，避免两者不一致。
+  const waitingForCandidates = status === 'running' && step === 2 && !!message && message.includes('等待');
+  const effStatus = waitingForCandidates ? 'waiting' : status;
+
   s.card.className = 'step-item';
-  if (status === 'running') {
-    s.card.dataset.state = 'running';
-    s.status.textContent = '进行中…';
-  } else if (status === 'done') {
-    s.card.dataset.state = 'done';
-    s.status.textContent = '✓ 已完成';
-  } else if (status === 'idle') {
-    s.card.dataset.state = 'waiting';
-    s.status.textContent = '';
-  }
+  // effStatus → [卡片 data-state, 状态文字]。表外值（idle/取消/空闲）与 waiting 同款灰显、不留文字
+  const STEP_VISUAL = {
+    running: ['running', '进行中…'],
+    done: ['done', '✓ 已完成'],
+    waiting: ['waiting', '等待中'],
+  };
+  const [cardState, statusText] = STEP_VISUAL[effStatus] || ['waiting', ''];
+  s.card.dataset.state = cardState;
+  s.status.textContent = statusText;
 
   if (progress !== null && progress !== undefined) {
     const p = Math.round(Math.min(progress, 100));
@@ -422,12 +427,8 @@ function handleProgress(data) {
   }
 
   // 记录各步骤状态，供「并行：步骤1 + 步骤2」指示文案判断。
-  // 步骤2 还在等待候选人、没真正开始评分时记为 waiting（不算 running，不触发「并行」）
-  if (status === 'running') {
-    stepStates[step] = (step === 2 && message && message.includes('等待')) ? 'waiting' : 'running';
-  } else if (status === 'done' || status === 'idle') {
-    stepStates[step] = status;
-  }
+  // effStatus 已把「步骤2 等待候选人」折算成 waiting（不算 running，不触发「并行」）
+  stepStates[step] = effStatus;
 
   // 更新全局进度指示器
   const stepInd = document.getElementById('step-indicator');
@@ -1099,12 +1100,17 @@ async function loadHistory() {
     historyEmpty.textContent = '暂无历史记录。跑完一批数据后，这里会按时间列出各批次。';
     return;
   }
-  for (const item of items) {
-    historyList.appendChild(renderHistoryItem(item));
-  }
+  // 列表按时间倒序（当前批次置顶）。只给最近 CONTINUE_EXTRACT_LIMIT 条展示「继续提取」——
+  // 太旧的批次聊天/页面早已变化，续跑意义不大，且按钮会挤满整个列表
+  items.forEach((item, index) => {
+    historyList.appendChild(renderHistoryItem(item, index));
+  });
 }
 
-function renderHistoryItem(item) {
+// 只给最近多少条历史记录保留「继续提取」入口（旧的只能评分/打开/删除）
+const CONTINUE_EXTRACT_LIMIT = 3;
+
+function renderHistoryItem(item, index) {
   const row = document.createElement('div');
   row.className = 'history-item';
   row.setAttribute('role', 'listitem');
@@ -1178,8 +1184,8 @@ function renderHistoryItem(item) {
     return b;
   };
 
-  // 继续提取：该批次还有未完成的提取进度
-  if (item.hasProgress) {
+  // 继续提取：该批次还有未完成的提取进度，且位于最近 CONTINUE_EXTRACT_LIMIT 条之内
+  if (item.hasProgress && index < CONTINUE_EXTRACT_LIMIT) {
     actions.appendChild(makeBtn('继续提取', 'btn--primary', async () => {
       const res = await window.electronAPI.resumeExtraction(item.path);
       if (res?.error) { showToast(res.error, 'warning', 4000); return; }

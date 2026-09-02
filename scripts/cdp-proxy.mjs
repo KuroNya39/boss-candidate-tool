@@ -625,6 +625,21 @@ const server = http.createServer(async (req, res) => {
     else if (pathname === '/canvas-copy') {
       const sid = await ensureSession(q.target);
       const sleepMs = ms => new Promise(r => setTimeout(r, ms));
+      // v1.8.4: 单次拖拽复制硬上限。超过说明这份简历渲染太重或页面卡住——若继续硬跑，客户端会在
+      // 自己的 20s 超时处放弃请求，而服务器的拖拽还停在这个页面上，下一位/OCR 的鼠标指令就会和它
+      // 在同一页面打架（重叠拖拽，两份复制互相污染）。到点干净收尾返回错误，由客户端直接走截图。
+      const copyStart = Date.now();
+      const COPY_DEADLINE_MS = 15000;
+      const copyOverdue = () => Date.now() - copyStart > COPY_DEADLINE_MS;
+      let dragX = null, dragY = null; // 拖拽进行中的鼠标坐标，超时收尾时先松开按钮
+      const bailCopy = async (why) => {
+        if (dragX !== null && dragY !== null) {
+          try {
+            await sendCDP('Input.dispatchMouseEvent', { type: 'mouseReleased', x: dragX, y: dragY, button: 'left', clickCount: 1, buttons: 0 }, sid);
+          } catch {}
+        }
+        res.end(JSON.stringify({ error: why, elapsed: Date.now() - copyStart }));
+      };
       // 0) 轻量归零：canvas translateY 由 Boss 内部状态驱动，直接改滚动容器 scrollTop 同步不稳定
       //    （连续调用时 DOM scrollTop 归零但 canvas 停在底部 → 卡死态，滚轮也救不回）。普通情况（新弹窗）这样够用。
       //    滚动容器各页面不同：推荐/搜索页=.resume-detail-wrap，沟通页=.resume-detail；
@@ -764,6 +779,7 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ error: `canvas 未归顶或找不到 (y=${canvasY})` }));
         return;
       }
+      if (copyOverdue()) { await bailCopy('copy-timeout'); return; }
       const { canvasMain, scrollMax, scope } = info;
       if (!canvasMain || canvasMain.h < 100) { res.end(JSON.stringify({ error: 'canvas 不在简历弹窗内' })); return; }
 
@@ -773,6 +789,7 @@ const server = http.createServer(async (req, res) => {
       let Y1 = canvasMain.y + canvasMain.h - 30;          // 当前屏底部
       if (info.winH) Y1 = Math.min(Y1, info.winH - 40);   // 视口钳制
       if (Y1 <= Y0 + 40) Y1 = Y0 + 40;
+      dragX = X0 + 30; dragY = Y1; // 记录按住位置，供超时收尾时松开
       await sendCDP('Input.dispatchMouseEvent', { type: 'mouseMoved', x: X0, y: Y0 }, sid);
       await sleepMs(100);
       await sendCDP('Input.dispatchMouseEvent', { type: 'mousePressed', x: X0, y: Y0, button: 'left', clickCount: 1, buttons: 1 }, sid);
@@ -789,6 +806,7 @@ const server = http.createServer(async (req, res) => {
       const stepH = Math.max(300, Math.round(canvasMain.h * 0.9));
       let scrolled = 0;
       while (scrolled < scrollMax) {
+        if (copyOverdue()) { await bailCopy('copy-timeout'); return; }
         scrolled = Math.min(scrolled + stepH, scrollMax);
         const scrollJs = `(function(){
           var sc = window.__resumeScrollEl;
@@ -834,6 +852,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       // 4) 松开 + 真实 Ctrl+C → 全文进入系统剪贴板
+      if (copyOverdue()) { await bailCopy('copy-timeout'); return; }
       await sendCDP('Input.dispatchMouseEvent', { type: 'mouseReleased', x: X0 + 30, y: YB, button: 'left', clickCount: 1, buttons: 0 }, sid);
       await sleepMs(300);
       const CTRL = 2;
@@ -842,7 +861,7 @@ const server = http.createServer(async (req, res) => {
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyUp', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL }, sid);
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17, modifiers: 0 }, sid);
       await sleepMs(350);
-      res.end(JSON.stringify({ ok: true, canvasMain, scrollMax, scrolled, scope, winH: info.winH, yBottom: (info.winH || 900) - 2, scrollSel: info.scrollSel, diag: info.diag }));
+      res.end(JSON.stringify({ ok: true, canvasMain, scrollMax, scrolled, scope, winH: info.winH, yBottom: (info.winH || 900) - 2, scrollSel: info.scrollSel, diag: info.diag, elapsed: Date.now() - copyStart }));
     }
 
     // POST /setFiles?target=xxx — 给 file input 设置本地文件（绕过文件对话框）

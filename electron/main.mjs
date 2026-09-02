@@ -7,6 +7,7 @@ import http from 'node:http';
 import iconv from 'iconv-lite';
 import { computeMatchScoreFromComment, parseMatchScoreFromComment, patchEducationDeductionComment } from './score-comment.mjs';
 import { TIER_THRESHOLDS, thresholdForLevel, scoreToTier, scoreToRecommendation, isPassed } from '../scripts/score-tiers.mjs';
+import { archiveOldOutput, cleanupCacheFiles } from '../scripts/extract-common.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = resolve(__dirname, '..');
@@ -74,9 +75,17 @@ function saveApiConfig(config) {
 const LOG_DIR = resolve(app.getPath('userData'), 'web-access');
 const LOG_PATH = resolve(LOG_DIR, 'app.log');
 try { mkdirSync(LOG_DIR, { recursive: true }); } catch {}
+// v1.8.4: 日志统一带时间戳（文件 + 终端）。用来定位「两候选人之间等多久」这类耗时问题，
+// 不带时间戳的日志看不出每一步实际花了多少秒。毫秒级便于测出 sub-second 的等待。
+function tsPrefix() {
+  const d = new Date();
+  const p = (n, w = 2) => String(n).padStart(w, '0');
+  return `[${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}]`;
+}
 function termLog(msg, stream = 'stdout') {
+  const prefixed = `${tsPrefix()} ${msg}`;
   try {
-    const buf = iconv.encode(msg, 'gbk');
+    const buf = iconv.encode(prefixed, 'gbk');
     if (stream === 'stderr') {
       process.stderr.write(buf);
       process.stderr.write('\n');
@@ -85,11 +94,11 @@ function termLog(msg, stream = 'stdout') {
       process.stdout.write('\n');
     }
   } catch {
-    if (stream === 'stderr') process.stderr.write(msg + '\n');
-    else process.stdout.write(msg + '\n');
+    if (stream === 'stderr') process.stderr.write(prefixed + '\n');
+    else process.stdout.write(prefixed + '\n');
   }
   // 追加到日志文件（同步 append，量不大，不阻塞主流程）
-  try { appendFileSync(LOG_PATH, msg + '\n'); } catch {}
+  try { appendFileSync(LOG_PATH, prefixed + '\n'); } catch {}
 }
 
 function decodeBuffer(buf) {
@@ -105,6 +114,7 @@ let currentProcess = null;
 let cancelled = false;
 let skipToScoring = false; // 跳过提取步骤，直接使用已提取的数据进行评分
 let skipRecovered = false; // skip 恢复成功标记，用于跳过后续 sendProgress 覆盖
+let tailFlushRequested = false; // v1.8.3：用户点「暂停」时置位，增量评分器下一轮把手头不满一批的零头立刻派发，让进度跟上提取
 let aiAbortController = null; // 用于中断 AI 评分的正在请求
 let actualExportPath = ''; // 导出脚本实际输出的文件路径（可能被另存）
 let exportMailResult = { status: 'none', to: '', error: '' }; // 导出步骤的邮件发送结果（由 MAIL_OK/MAIL_FAIL 标记更新）
@@ -989,6 +999,7 @@ async function runIncrementalScoring(ctx) {
   const { outputDir, source } = ctx;
   const progressPath = resolve(outputDir, '.extract-progress.json');
   const finalPath = resolve(outputDir, 'zhipin-candidates.json');
+  tailFlushRequested = false; // 本轮评分开始先清零：上次暂停残留的置位不该影响本轮（在下方循环里消费）
 
   // 可取消的 AI 评分：创建 AbortController，所有 API 请求共享
   aiAbortController = new AbortController();
@@ -1061,9 +1072,13 @@ async function runIncrementalScoring(ctx) {
     const y = seenRefs.size;
     const x = scoredRefs.size;
     if (y === 0) return;
-    const msg = x === 0
+    // 没满 15 人：提示等待；满了但首批评分结果还没返回（x===0）：评分实际已开始，
+    // 不能再显示「满 15 人开始」，否则会让人以为评分还没跑（renderer 据此把 ② 标灰）
+    const msg = y < POOL_START_THRESHOLD
       ? `等待更多候选人（满 ${POOL_START_THRESHOLD} 人开始）`
-      : `${x}/${y} 人`;
+      : x === 0
+        ? `已满 ${POOL_START_THRESHOLD} 人，正在评分…`
+        : `${x}/${y} 人`;
     const pct = Math.round((x / y) * 100);
     const key = pct + '|' + msg;
     if (key === lastSentKey) return;
@@ -1119,7 +1134,8 @@ async function runIncrementalScoring(ctx) {
       }
       const firstSeen = tailWait.get(job) ?? now;
       tailWait.set(job, firstSeen);
-      if (now - firstSeen >= FLUSH_TIMEOUT) {
+      // v1.8.3：用户点「暂停」时 tailFlushRequested 置位，零头立刻放行，让评分进度在暂停期间跟上提取的人数
+      if (tailFlushRequested || now - firstSeen >= FLUSH_TIMEOUT) {
         for (const c of tail) dispatchingRefs.add(candidateKeyOf(c));
         entries.push({ cands: tail, buildBatchPrompt: builderFor(job) });
         tailWait.delete(job);
@@ -1263,6 +1279,16 @@ async function runIncrementalScoring(ctx) {
           }
         }
       }
+      // v1.8.3：用户点「暂停」→ tailFlushRequested 置位，把手头不满一批的零头立刻派出去评分，
+      // 暂停期间评分进度跟上提取人数（否则零头要等 FLUSH_TIMEOUT 30s 或再来人凑满一批）
+      if (tailFlushRequested) {
+        const flushEntries = collectBatches(); // collectBatches 内读取 flag 放行零头
+        if (flushEntries.length > 0) {
+          dispatchQueue.push(...flushEntries);
+          reportProgress();
+        }
+        tailFlushRequested = false;
+      }
       pump();
 
       // 等待：任一在飞批完成（好腾出并发位）或轮询时间到
@@ -1390,21 +1416,23 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     // 归档旧输出目录（在主进程做，避免子进程 rename 时 EBUSY）。
     // resume 模式：历史目录已还原为 OUTPUT_DIR，续跑要保留进度文件，不再归档。
     // 只有旧目录里有真实数据才归档；只有 .run-meta.json 等残留时不归档，避免产生空批次文件夹。
+    // v1.8.3：改「逐个文件归档」而非「整目录改名」。Windows 下只要目录里任一文件被占用
+    // （最常见：Excel 还开着上次导出的 candidates.xlsx），整目录 rename 就会 EPERM，
+    // 导致旧一批的 .extract-progress.json 留在原地——评分器一开跑就把上一轮的历史简历抢先开评。
     if (!skipExtract && !resume && existsSync(OUTPUT_DIR)) {
       try {
         const entries = readdirSync(OUTPUT_DIR);
         const hasRealData = entries.some((n) => n !== '.run-meta.json');
         if (hasRealData) {
-          const now = new Date();
-          const pad = (n) => String(n).padStart(2, '0');
-          const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
-          const archived = `${OUTPUT_DIR}-${stamp}`;
-          renameSync(OUTPUT_DIR, archived);
-          termLog(`[main] 已归档旧输出目录: ${archived}`);
+          archiveOldOutput(OUTPUT_DIR, false); // 跳过被锁文件，其余照常归档，日志随主进程走 console
         }
       } catch (e) {
         termLog(`[main] 归档旧输出目录跳过: ${e.message}`, 'stderr');
       }
+      // 兜底：万一归档没挪干净（个别文件仍被占用留在原地），清掉评分器会误读的残留进度/扫描缓存。
+      // 新开一轮的进度必须从零开始，绝不能沿用上一批候选人为新岗位抢先开评。
+      // 复用 extract-common 的 cleanupCacheFiles（参数传目录内任一文件路径，它据此定位目录）
+      cleanupCacheFiles(resolve(OUTPUT_DIR, 'zhipin-candidates.json'));
     }
 
     if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -1954,6 +1982,7 @@ function registerIPC() {
   ipcMain.handle('pause-extraction', () => {
     if (currentProcess?._taskType !== 'extract') return { ok: false, reason: 'no-extract-process' };
     sendStdinSignal('PAUSE');
+    tailFlushRequested = true; // v1.8.3：让增量评分器把手头不满一批的零头立刻评完（进度跟上暂停点）
     return { ok: true };
   });
 

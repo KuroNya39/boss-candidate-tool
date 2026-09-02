@@ -1228,7 +1228,7 @@ async function main() {
                 }
                 return bestTop;
               })()`);
-              console.log(`    第${page + 1}页: 目标=${scrollTop}, 实际=${actualScrollTop}`);
+              console.log(`    第${page + 1}页: 目标=${Math.round(scrollTop)}, 实际=${Math.round(actualScrollTop)}`);
 
               if (page > 0 && actualScrollTop <= prevActualTop) {
                 console.log(`    ⚡ 已到达底部 (滚动停滞在 ${actualScrollTop})`);
