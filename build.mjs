@@ -327,11 +327,16 @@ async function main() {
     { cwd: ROOT, stdio: 'inherit' }
   );
   // 注意：草稿 release 用 releases/tags/{tag} 查不到（该接口对草稿返回 404），
-  // gh release create 的输出里也只有 URL、没有 id。刚建的草稿就是最新的草稿，直接从草稿列表取第一个。
-  const releaseId = execSync(
-    `gh api "repos/${REPO}/releases?per_page=20" --jq '[.[] | select(.draft == true)] | .[0].id'`,
-    { cwd: ROOT, encoding: 'utf-8' }
-  ).trim();
+  // gh release create 的输出里也只有 URL、没有 id。刚建的草稿就是最新的草稿，从草稿列表取第一个。
+  // 用 spawnSync 传参数数组：jq 表达式里的 | 和空格若走 cmd 会被当成管道符拆掉，参数数组则无此问题。
+  const draftList = spawnSync('gh', [
+    'api', `repos/${REPO}/releases?per_page=20`,
+    '--jq', '[.[] | select(.draft == true)] | .[0].id'
+  ], { cwd: ROOT, encoding: 'utf-8' });
+  if (draftList.status !== 0) {
+    throw new Error(`查询草稿 release 失败: ${(draftList.stderr || draftList.stdout || '').trim()}`);
+  }
+  const releaseId = draftList.stdout.trim();
   if (!releaseId || releaseId === 'null') {
     throw new Error('创建草稿后未找到对应的 release id（草稿列表为空？）');
   }
