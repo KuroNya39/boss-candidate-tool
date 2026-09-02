@@ -627,10 +627,13 @@ function schoolLooksReal(name) {
 }
 
 // 从 AI 评语解析教育条目，返回 [{school, major, degree}]，按「学校+学历」去重。
+// AI 分隔「学校/专业/学历」可能用逗号、空格、顿号、竖线或「+」任一种
+// （如'华中科技大学文华学院+电子科学与技术+本科+2011-2015，全日制'），统一按这些分隔符切段解析。
 function parseEducationFromComment(comment) {
   if (!comment) return [];
   const DEGREE_RE = /(?:本科|硕士|博士|研究生|大专|专科|高职|专升本|高中|中专|初中)/;
-  const SCHOOL_START_RE = /^([一-龥]{2,}?(?:大学|学院|学校|研究所))/;
+  const SCHOOL_END_RE = /(?:大学|学院|学校|研究所)$/;
+  const SEP_RE = /[+，,、|\s]+/;
   const results = [];
   const seen = new Set();
   const lineRe = /(?:第一学历|最高学历)\s*[:：]\s*([^\n。；;]+)/g;
@@ -638,29 +641,48 @@ function parseEducationFromComment(comment) {
   while ((m = lineRe.exec(comment)) !== null) {
     const raw = m[1].trim();
     if (!raw || /^(无|未明确|未提供|不详|未找到|没有)/.test(raw)) continue;
-    // 统一格式：AI 有时用逗号分隔（'XX大学，专业，本科，全日制'）、有时用空格
-    // （'XX大学 专业 本科（全日制），2023-2027在读'）。先去尾时间尾巴和「全日制/在读」注释，
-    // 让学校名始终出现在行首；时间区间先捕获（AI 按提示词会带就读时间），供教育条目补空时间用。
+    // 去掉「毕业院校/学校」前缀、时间区间及「全日制/在读」等注释，
+    // 让行内只剩「学校+专业+学历」；时间区间先捕获，供教育条目补空时间用。
     let line = raw.replace(/^(?:毕业院校|学校)\s*[:：]?\s*/, '').trim();
     const timeMatch = line.match(/(\d{4})\s*[-–—~～至]\s*(\d{4})/);
     const aiTime = timeMatch ? `${timeMatch[1]} - ${timeMatch[2]}` : '';
-    line = line.replace(/\d{4}\s*[-–—~～至]\s*\d{4}[^，,。；;]*/g, '')
+    line = line.replace(/\d{4}\s*[-–—~～至]\s*\d{4}[^+，,。；;]*/g, '')
                .replace(/[（(][^）)]*[)）]/g, '')
-               .replace(/[,，、]?\s*(?:全日制|非全日制)\s*[^，,。；;]*/g, '')
-               .replace(/[,，、|\s]+$/, '').trim();
+               .replace(/[,，、+]?\s*(?:全日制|非全日制)\s*[^+，,。；;]*/g, '')
+               .replace(/[+，,、|\s]+$/, '').trim();
     if (!line) continue;
-    // 行首第一个「X大学/学院」即学校名（非贪婪，避免吞掉后面的专业）
-    const sm = line.match(SCHOOL_START_RE);
-    if (!sm) continue;
-    const school = sm[1];
-    if (!schoolLooksReal(school)) continue; // 疑似识别错误的垃圾校名，跳过该行
-    const dm = line.match(DEGREE_RE);
-    const degree = dm ? dm[0] : '';
+    // 按分隔符切段。独立学院校名是整体（如'华中科技大学文华学院'），
+    // 必须以整个首段作为学校，不能用非贪婪正则提前切断在第一个「大学」处。
+    const segs = line.split(SEP_RE).map(s => s.trim()).filter(Boolean);
+    if (segs.length === 0) continue;
+    let school = SCHOOL_END_RE.test(segs[0]) ? segs[0] : '';
+    if (!school) {
+      // 首段不像学校（整行无分隔符、校名被专业粘连）：回退贪心匹配最长校名
+      const sm = line.match(/([一-龥]{2,}(?:大学|学院|学校|研究所))/);
+      school = sm ? sm[1] : '';
+    }
+    if (!school || !schoolLooksReal(school)) continue; // 疑似识别错误的垃圾校名，跳过该行
+    const si = segs.indexOf(school);
     let major = '';
-    if (dm) {
-      // 学校名与学历词之间的文本即专业
-      const between = line.slice(sm[0].length, dm.index).replace(/[,，、|\s]+/g, ' ').trim();
-      major = between.replace(/专业$/, '').trim();
+    let degree = '';
+    if (si >= 0) {
+      // 学历 = 学校段之后第一个含学历词的段；专业 = 学校段与学历段之间的段
+      let di = -1;
+      for (let i = si + 1; i < segs.length; i++) {
+        if (DEGREE_RE.test(segs[i])) { di = i; break; }
+      }
+      if (di >= 0) {
+        degree = segs[di];
+        major = segs.slice(si + 1, di).join(' ').replace(/专业$/, '').trim();
+      }
+    } else {
+      // 校名非完整段（粘连场景）：学历词取行内第一个，专业取校名与学历词之间
+      const dm = line.match(DEGREE_RE);
+      if (dm) {
+        degree = dm[0];
+        const start = line.indexOf(school) + school.length;
+        major = line.slice(start, dm.index).replace(/[+，,、|\s]+/g, ' ').replace(/专业$/, '').trim();
+      }
     }
     const key = school + '|' + degree;
     if (seen.has(key)) continue;
