@@ -7,7 +7,6 @@
 .claude-plugin/
 .qoder/
 .understand-anything/
-docs/
 references/
 SKILL.md
 _probe-dialog.mjs
