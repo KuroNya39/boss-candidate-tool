@@ -6,8 +6,8 @@
  * 3. 手动嵌入图标到 exe（绕开 electron-builder 的 rcedit 兼容问题）
  * 4. 重建 NSIS 安装包（含修复图标的 exe）
  */
-import { execSync } from 'node:child_process';
-import { existsSync, rmSync, readdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
+import { execSync, spawnSync } from 'node:child_process';
+import { existsSync, statSync, rmSync, readdirSync, readFileSync, writeFileSync, renameSync, copyFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -52,6 +52,29 @@ async function retryRenameSync(from, to, label, retries = 5, delayMs = 3000) {
 function run(cmd) {
   console.log(`> ${cmd}`);
   execSync(cmd, { cwd: ROOT, stdio: 'inherit' });
+}
+
+/**
+ * curl 直传单个资产到 GitHub uploads API。
+ * 背景：gh release create 带上大文件（>100MB 的 exe/zip）上传时会卡死（v1.8.0/v1.8.1 连续踩坑），
+ * curl 直传一直稳定（HTTP 201）。spawnSync 用参数数组传值，避开 shell 转义中文路径/空格的问题。
+ */
+function uploadAsset(releaseId, filePath, assetName) {
+  const token = execSync('gh auth token', { cwd: ROOT, encoding: 'utf-8' }).trim();
+  const url = `https://uploads.github.com/repos/${REPO}/releases/${releaseId}/assets?name=${encodeURIComponent(assetName)}`;
+  const mb = (statSync(filePath).size / 1024 / 1024).toFixed(0);
+  console.log(`  ⬆️  上传 ${assetName}（约 ${mb} MB）...`);
+  const r = spawnSync('curl', [
+    '-sS', '-f',
+    '-H', `Authorization: Bearer ${token}`,
+    '-H', 'Content-Type: application/octet-stream',
+    '--data-binary', `@${filePath}`,
+    url
+  ], { cwd: ROOT, encoding: 'utf-8', timeout: 600000 });
+  if (r.status !== 0) {
+    throw new Error(`上传 ${assetName} 失败: ${(r.stderr || r.stdout || '').trim() || `curl 退出码 ${r.status}`}`);
+  }
+  console.log(`  ✅ ${assetName} 上传完成`);
 }
 
 // 校验某版本 tag 是否已存在（即已发布过）
@@ -298,13 +321,31 @@ async function main() {
   // 自动生成 Release 更新说明（从 git log 收集本次改动）
   const notesPath = buildReleaseNotes();
 
+  // gh 只用来建 release 草稿（不带资产）——gh 上传大文件会卡死，资产统一用 curl 直传（见 uploadAsset）
   execSync(
-    `gh release create "${tag}" ` +
-    `--title "${APP_NAME} ${tag}" ` +
-    `--notes-file "${notesPath}" ` +
-    `"${resolve(finalDist, SETUP_NAME)}" ` +
-    `"${zipPath}"`,
+    `gh release create "${tag}" --title "${APP_NAME} ${tag}" --notes-file "${notesPath}" --draft`,
     { cwd: ROOT, stdio: 'inherit' }
+  );
+  const releaseId = execSync(
+    `gh api "repos/${REPO}/releases/tags/${tag}" --jq '.id'`,
+    { cwd: ROOT, encoding: 'utf-8' }
+  ).trim();
+
+  // 资产名和 README 下载表保持一致：Boss.AI.Setup.X.Y.Z.exe / win-unpacked.zip。
+  // 安装包先复制成 ASCII 文件名再上传（curl 读中文文件名偶发失败，规避掉）
+  const asciiSetup = resolve(finalDist, `Boss.AI.Setup.${VERSION}.exe`);
+  copyFileSync(resolve(finalDist, SETUP_NAME), asciiSetup);
+  try {
+    uploadAsset(releaseId, asciiSetup, `Boss.AI.Setup.${VERSION}.exe`);
+    uploadAsset(releaseId, zipPath, 'win-unpacked.zip');
+  } finally {
+    try { rmSync(asciiSetup, { force: true }); } catch {}
+  }
+
+  // 资产齐了再解除草稿正式发布
+  execSync(
+    `gh api --method PATCH "repos/${REPO}/releases/${releaseId}" -f draft=false`,
+    { cwd: ROOT, stdio: 'pipe' }
   );
   console.log(`  已上传到: https://github.com/${REPO}/releases/tag/${tag}`);
 

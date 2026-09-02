@@ -628,7 +628,7 @@ function schoolLooksReal(name) {
 
 // 从 AI 评语解析教育条目，返回 [{school, major, degree}]，按「学校+学历」去重。
 // AI 分隔「学校/专业/学历」可能用逗号、空格、顿号、竖线或「+」任一种
-// （如'华中科技大学文华学院+电子科学与技术+本科+2011-2015，全日制'），统一按这些分隔符切段解析。
+// （如'××大学××学院+电子科学与技术+本科+2011-2015，全日制'），统一按这些分隔符切段解析。
 function parseEducationFromComment(comment) {
   if (!comment) return [];
   const DEGREE_RE = /(?:本科|硕士|博士|研究生|大专|专科|高职|专升本|高中|中专|初中)/;
@@ -651,7 +651,7 @@ function parseEducationFromComment(comment) {
                .replace(/[,，、+]?\s*(?:全日制|非全日制)\s*[^+，,。；;]*/g, '')
                .replace(/[+，,、|\s]+$/, '').trim();
     if (!line) continue;
-    // 按分隔符切段。独立学院校名是整体（如'华中科技大学文华学院'），
+    // 按分隔符切段。独立学院校名是整体（如'××大学××学院'），
     // 必须以整个首段作为学校，不能用非贪婪正则提前切断在第一个「大学」处。
     const segs = line.split(SEP_RE).map(s => s.trim()).filter(Boolean);
     if (segs.length === 0) continue;
