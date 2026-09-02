@@ -921,7 +921,7 @@ const server = http.createServer(async (req, res) => {
     // POST /wheel?target=xxx — 真实鼠标滚轮事件（触发虚拟滚动懒加载）
     // body: JSON { "deltaY": 300, "steps": 3 }
     // deltaY > 0 = 向下滚动, deltaY < 0 = 向上滚动
-    // 自动查找滚动容器中心坐标，发送真实 wheel 事件（Boss直聘虚拟滚动只响应真实鼠标事件）
+    // 自动查找滚动容器中心坐标，发送真实 wheel 事件（BOSS直聘虚拟滚动只响应真实鼠标事件）
     else if (pathname === '/wheel') {
       const sid = await ensureSession(q.target);
       const body = JSON.parse(await readBody(req));

@@ -879,7 +879,7 @@ btnStart.addEventListener('click', async () => {
       // Chrome 在跑但没开边用边跑 → 询问是否重启
       const ok = await confirmDialog({
         title: '重启 Chrome 进入「边用边跑」模式？',
-        message: '要用「边用边跑」模式运行（推荐），需要重启 Chrome（会关闭当前标签页）。重启后请重新打开 Boss 直聘页面。是否继续？\n\n如果选「取消」，本次将按普通方式运行，运行期间请不要最小化 Chrome 窗口。',
+        message: '要用「边用边跑」模式运行（推荐），需要重启 Chrome（会关闭当前标签页）。重启后请重新打开 BOSS直聘页面。是否继续？\n\n如果选「取消」，本次将按普通方式运行，运行期间请不要最小化 Chrome 窗口。',
         okText: '重启 Chrome',
         cancelText: '取消',
       });
@@ -890,7 +890,7 @@ btnStart.addEventListener('click', async () => {
           await updateCdpStatus();
           await confirmDialog({
             title: 'Chrome 已重启',
-            message: 'Chrome 已用「边用边跑」模式重启。请确认 Boss 直聘页面已打开，然后再次点击「开始提取分析」。',
+            message: 'Chrome 已用「边用边跑」模式重启。请确认 BOSS直聘页面已打开，然后再次点击「开始提取分析」。',
             okText: '知道了',
             showCancel: false,
           });
@@ -908,7 +908,7 @@ btnStart.addEventListener('click', async () => {
         await updateCdpStatus();
         await confirmDialog({
           title: 'Chrome 已启动',
-          message: 'Chrome 已用「边用边跑」模式启动。请打开 Boss 直聘页面，然后再次点击「开始提取分析」。',
+          message: 'Chrome 已用「边用边跑」模式启动。请打开 BOSS直聘页面，然后再次点击「开始提取分析」。',
           okText: '知道了',
           showCancel: false,
         });

@@ -1,5 +1,5 @@
 appId: com.web-access.candidate-tool
-productName: Boss直聘候选人AI评分助手
+productName: BOSS直聘候选人AI评分助手
 # 只打包中英文语言包（省 ~44M），避免带 40+ 种 Chromium 语言
 electronLanguages:
   - zh-CN
@@ -44,7 +44,7 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
-  shortcutName: Boss直聘候选人AI评分助手
+  shortcutName: BOSS直聘候选人AI评分助手
   deleteAppDataOnUninstall: false
 extraMetadata:
   main: electron/main.mjs

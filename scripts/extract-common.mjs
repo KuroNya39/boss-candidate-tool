@@ -1611,7 +1611,7 @@ export async function tryExtractResumeTextFromDOM(targetId) {
 
 /**
  * 从简历文本中解析教育经历条目（时间、学校、专业、学历）
- * Boss直聘 OCR 简历文本典型格式：教育经历X大学X专业X学历 YYYY-YYYY
+ * BOSS直聘 OCR 简历文本典型格式：教育经历X大学X专业X学历 YYYY-YYYY
  */
 export function parseEducationFromResume(resumeText) {
   if (!resumeText || resumeText.length < 50) return [];

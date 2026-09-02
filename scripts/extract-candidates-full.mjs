@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * extract-candidates-full.mjs - Boss直聘沟通页候选人全量提取（基础信息 + 在线简历）
+ * extract-candidates-full.mjs - BOSS直聘沟通页候选人全量提取（基础信息 + 在线简历）
  *
  * 从沟通页（/web/chat）提取候选人：
  *   1. 扫描候选人列表获取 geekId（稳定标识）
@@ -13,7 +13,7 @@
  *
  * 前置条件：
  *   - CDP Proxy 已运行（端口 3456）
- *   - Chrome 已登录 Boss 直聘招聘端
+ *   - Chrome 已登录 BOSS直聘招聘端
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
@@ -48,7 +48,7 @@ async function findChatTab() {
   if (!tab || !tab.targetId) {
     throw new Error(
       '未找到已打开的沟通页。\n' +
-      '请先在 Chrome 中打开 Boss 直聘沟通页 https://www.zhipin.com/web/chat\n' +
+      '请先在 Chrome 中打开 BOSS直聘沟通页 https://www.zhipin.com/web/chat\n' +
       '然后重试。'
     );
   }
@@ -524,7 +524,7 @@ const EXTRACT_BASIC_INFO_SCRIPT = `(function() {
   } catch (e) {}
   try {
     // 使用 querySelectorAll 遍历所有 .time-content / .work-content 对
-    // 避免 Boss直聘工作经历和教育经历分属不同容器时漏掉教育经历
+    // 避免 BOSS直聘工作经历和教育经历分属不同容器时漏掉教育经历
     var timeLists = document.querySelectorAll('.time-content');
     var detailLists = document.querySelectorAll('.work-content');
     var pairCount = Math.min(timeLists.length, detailLists.length);
@@ -685,7 +685,7 @@ async function extractJobDescription(targetId) {
 // ===== 未读筛选 =====
 
 async function ensureOnChatList(targetId) {
-  // 恢复页面状态到列表视图，不刷新页面（刷新会导致 Boss直聘只加载最近约40条记录）
+  // 恢复页面状态到列表视图，不刷新页面（刷新会导致 BOSS直聘只加载最近约40条记录）
   // 尝试关闭弹窗、回到列表视图，保留已加载的全部候选人数据
   try {
     // 1. 关闭可能还开着的弹窗（简历弹窗、JD弹窗）
@@ -1258,7 +1258,7 @@ async function main() {
   archiveOldOutput(outputDir, opts.resume);
 
   const modeLabel = opts.extractAll ? '全部' : `前 ${opts.count} 个`;
-  console.log(`\n========== Boss直聘候选人全量提取 (沟通页) ==========`);
+  console.log(`\n========== BOSS直聘候选人全量提取 (沟通页) ==========`);
   console.log(`提取模式: ${modeLabel}`);
   if (opts.resume) console.log('恢复模式: 从上次进度继续');
   console.log(`输出文件: ${outputPath}\n`);
@@ -1268,7 +1268,7 @@ async function main() {
   mkdirSync(tempDir, { recursive: true });
 
   // ===== 查找用户已打开的沟通页 tab =====
-  console.log('查找已打开的 Boss 直聘沟通页...');
+  console.log('查找已打开的 BOSS直聘沟通页...');
   const targetId = await findChatTab();
   console.log(`已附着到用户打开的沟通页 tab: ${targetId}\n`);
 

@@ -158,7 +158,7 @@ function createWindow() {
     width: 660,
     height: 730,
     resizable: false,
-    title: 'Boss直聘候选人AI评分助手',
+    title: 'BOSS直聘候选人AI评分助手',
     icon: resolve(UNPACKED_ROOT, 'app_icon_rounded.png'),
     webPreferences: {
       preload: resolve(__dirname, 'preload.js'),
@@ -1476,7 +1476,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
         termLog(`[main] Chrome 未运行，已自动启动并打开 ${pageLabel}页: ${openUrl}`);
         sendProgress(1, 'idle', 0,
           `检测到 Chrome 未运行，已自动用「边用边跑」模式启动并打开${pageLabel}页。`
-          + '请等待页面加载、登录 Boss 直聘并设置好筛选条件后，再次点击「开始提取分析」。');
+          + '请等待页面加载、登录 BOSS直聘并设置好筛选条件后，再次点击「开始提取分析」。');
         return;
       }
       termLog(`[main] Chrome 未运行，自动启动失败: ${launchRes.message}`, 'stderr');

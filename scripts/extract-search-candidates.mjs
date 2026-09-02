@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * extract-search-candidates.mjs - Boss直聘搜索页候选人提取（基础信息 + 在线简历）
+ * extract-search-candidates.mjs - BOSS直聘搜索页候选人提取（基础信息 + 在线简历）
  *
  * 从搜索页（/web/chat/search）提取候选人：
  *   1. 扫描候选人卡片列表获取 jid 和基本信息
@@ -13,7 +13,7 @@
  *
  * 前置条件：
  *   - CDP Proxy 已运行（端口 3456）
- *   - Chrome 已登录 Boss 直聘招聘端
+ *   - Chrome 已登录 BOSS直聘招聘端
  *   - 用户在 Chrome 中已打开搜索页 https://www.zhipin.com/web/chat/search
  *     并已设置好搜索关键词、岗位、筛选条件
  */
@@ -929,7 +929,7 @@ async function main() {
   archiveOldOutput(outputDir, opts.resume);
 
   const modeLabel = opts.extractAll ? '全部' : `前 ${opts.count} 个`;
-  console.log(`\n========== Boss直聘候选人全量提取 (搜索页) ==========`);
+  console.log(`\n========== BOSS直聘候选人全量提取 (搜索页) ==========`);
   console.log(`模式: attach（附着到用户打开的搜索页）`);
   console.log(`提取模式: ${modeLabel}`);
   if (opts.resume) console.log('恢复模式: 从上次进度继续');

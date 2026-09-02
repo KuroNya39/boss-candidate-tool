@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * extract-recommend-candidates.mjs - Boss直聘推荐牛人页候选人提取（基础信息 + 在线简历）
+ * extract-recommend-candidates.mjs - BOSS直聘推荐牛人页候选人提取（基础信息 + 在线简历）
  *
  * 从推荐牛人页（/web/chat/recommend）提取候选人：
  *   1. 扫描候选人卡片列表获取 geekId 和基本信息（卡片内已经包含完整基础信息）
@@ -13,7 +13,7 @@
  *
  * 前置条件：
  *   - CDP Proxy 已运行（端口 3456）
- *   - Chrome 已登录 Boss 直聘招聘端
+ *   - Chrome 已登录 BOSS直聘招聘端
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
@@ -1161,7 +1161,7 @@ async function main() {
   archiveOldOutput(outputDir, opts.resume);
 
   const modeLabel = opts.extractAll ? '全部' : `前 ${opts.count} 个`;
-  console.log(`\n========== Boss直聘候选人全量提取 (推荐牛人页) ==========`);
+  console.log(`\n========== BOSS直聘候选人全量提取 (推荐牛人页) ==========`);
   console.log(`提取模式: ${modeLabel}`);
   if (opts.resume) console.log('恢复模式: 从上次进度继续');
   console.log(`输出文件: ${outputPath}\n`);
@@ -1192,7 +1192,7 @@ async function main() {
       console.log(`已附着到 Tab: ${targetId}\n`);
     } else {
       // 自动模式：创建新 tab
-      console.log('打开 Boss 直聘推荐牛人页...');
+      console.log('打开 BOSS直聘推荐牛人页...');
       const newTab = await proxyGet(`/new?url=${RECOMMEND_PAGE_URL}`);
       targetId = newTab.targetId;
       console.log(`Tab 已创建: ${targetId}`);
@@ -1333,7 +1333,7 @@ async function main() {
 
   // 使用扫描阶段的 tab（resume 模式需新开）
   if (!targetId) {
-    console.log('打开 Boss 直聘推荐牛人页...');
+    console.log('打开 BOSS直聘推荐牛人页...');
     const newTab = await proxyGet(`/new?url=${RECOMMEND_PAGE_URL}`);
     targetId = newTab.targetId;
     _cleanupTargetId = targetId;

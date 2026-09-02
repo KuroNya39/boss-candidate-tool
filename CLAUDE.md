@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Electron desktop app for extracting candidate profiles from Boss直聘 (Boss Zhipin), performing AI scoring, and exporting results to Excel. Uses Chrome DevTools Protocol (CDP) via a proxy to control a Chrome browser instance for web scraping.
+Electron desktop app for extracting candidate profiles from BOSS直聘 (Boss Zhipin), performing AI scoring, and exporting results to Excel. Uses Chrome DevTools Protocol (CDP) via a proxy to control a Chrome browser instance for web scraping.
 
 ## Architecture
 
@@ -43,7 +43,7 @@ Child process cancellation works by writing `CANCEL\n` to stdin, waiting 2s, the
 
 ### Data Flow
 
-1. **Extraction**: Script → HTTP POST/GET → `cdp-proxy` (port 3456) → WebSocket → Chrome DevTools → Boss直聘 page
+1. **Extraction**: Script → HTTP POST/GET → `cdp-proxy` (port 3456) → WebSocket → Chrome DevTools → BOSS直聘 page
 2. **OCR**: Screenshots captured via CDP → tesseract.js (`chi_sim`) → `cleanOcrText()` → `dedupePages()` → cleaned text
 3. **Scoring**: Candidate data → Anthropic-compatible API (multiple response formats supported) → score + comment → `scored-candidates.json`
 4. **Export**: `scored-candidates.json` → ExcelJS → `.xlsx` (optionally emailed via nodemailer)

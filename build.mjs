@@ -24,7 +24,7 @@ if (_vParts.length !== 3 || _vParts.some(n => Number.isNaN(n))) {
   throw new Error(`package.json 版本号格式不正确: "${VERSION}"（应为 x.y.z 三段数字）`);
 }
 
-const APP_NAME = 'Boss直聘候选人AI评分助手';
+const APP_NAME = 'BOSS直聘候选人AI评分助手';
 const REPO = 'KuroNya39/boss-candidate-tool';
 const OUT = 'build-tmp';
 const EXE_NAME = `${APP_NAME}.exe`;
