@@ -326,10 +326,15 @@ async function main() {
     `gh release create "${tag}" --title "${APP_NAME} ${tag}" --notes-file "${notesPath}" --draft`,
     { cwd: ROOT, stdio: 'inherit' }
   );
+  // 注意：草稿 release 用 releases/tags/{tag} 查不到（该接口对草稿返回 404），
+  // gh release create 的输出里也只有 URL、没有 id。刚建的草稿就是最新的草稿，直接从草稿列表取第一个。
   const releaseId = execSync(
-    `gh api "repos/${REPO}/releases/tags/${tag}" --jq '.id'`,
+    `gh api "repos/${REPO}/releases?per_page=20" --jq '[.[] | select(.draft == true)] | .[0].id'`,
     { cwd: ROOT, encoding: 'utf-8' }
   ).trim();
+  if (!releaseId || releaseId === 'null') {
+    throw new Error('创建草稿后未找到对应的 release id（草稿列表为空？）');
+  }
 
   // 资产名和 README 下载表保持一致：Boss.AI.Setup.X.Y.Z.exe / win-unpacked.zip。
   // 安装包先复制成 ASCII 文件名再上传（curl 读中文文件名偶发失败，规避掉）
