@@ -1761,10 +1761,6 @@ button.is-loading::before {
   margin-top: var(--space-3);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--space-2);
-}
-.history-footer-hint {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
 }

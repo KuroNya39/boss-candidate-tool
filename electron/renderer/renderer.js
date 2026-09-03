@@ -1086,7 +1086,7 @@ async function loadHistory() {
     // 空态时隐藏列表容器，空态文字才能在整个中间区域垂直居中（否则被空的列表占一半高度）
     historyList.style.display = 'none';
     historyEmpty.style.display = '';
-    historyEmpty.textContent = '暂无历史记录。跑完一批数据后，这里会按时间列出各批次。';
+    historyEmpty.textContent = '暂无历史记录。';
     return;
   }
   // 列表按时间倒序（当前批次置顶）。只给最近 CONTINUE_EXTRACT_LIMIT 条展示「继续提取」——
@@ -1205,7 +1205,7 @@ function renderHistoryItem(item, index) {
     actions.appendChild(makeBtn('删除', 'btn--ghost btn--link-danger', async () => {
       const ok = await confirmDialog({
         title: '删除该记录？',
-        message: `将删除「${item.name}」这一条记录（不含已导出的 Excel 文件），删除后不可恢复。`,
+        message: `将删除「${item.name}」这一条记录，删除后不可恢复。`,
         okText: '删除',
         danger: true,
       });
@@ -1231,11 +1231,11 @@ historyOverlay.addEventListener('click', (e) => {
   if (e.target === historyOverlay) closeHistoryDrawer();
 });
 
-// 清空全部历史（抽屉底部）
+// 清空历史记录（抽屉底部）
 btnHistoryClearAll.addEventListener('click', async () => {
   const ok = await confirmDialog({
-    title: '清空全部历史？',
-    message: '将删除本地保存的全部历史记录（不含已导出的 Excel 文件），删除后不可恢复。',
+    title: '清空历史记录？',
+    message: '将删除本地保存的全部历史记录，删除后不可恢复。',
     okText: '清空',
     danger: true,
   });
