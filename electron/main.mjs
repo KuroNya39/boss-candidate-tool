@@ -1371,12 +1371,25 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
 
     if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
 
-    // 记录本次运行的来源/岗位/数量等元数据，供「历史记录 → 继续提取」还原同样的环境
-    try {
-      writeFileSync(resolve(OUTPUT_DIR, '.run-meta.json'), JSON.stringify({
-        source, job: job || '', count, extractAll, startedAt: new Date().toISOString(),
-      }, null, 2), 'utf-8');
-    } catch {}
+    // 评分型运行（skipExtract）不改写批次元数据：它只读 OUTPUT_DIR 里已有的数据，
+    // 界面当前选的来源/岗位未必等于这批数据的真实来源。以前这里无条件重写 .run-meta.json，
+    // 实测「直接用上次数据评分」会把推荐牛人页批次盖成 chat / count=0 / job 空——
+    // 历史记录的来源标签、以及后续「继续提取」读到的还原配置都会跟着错。
+    // 有旧 meta 时沿用其 source/job（评分提示词、打招呼开关也按真实来源走）并保留原 meta 不覆盖；
+    // 没有旧 meta（首次评分兜底）才按传入参数补写。
+    let prevMeta = null;
+    if (skipExtract) {
+      prevMeta = readRunMeta(OUTPUT_DIR);
+      if (prevMeta?.source) source = prevMeta.source;
+      if (prevMeta?.job && !job) job = prevMeta.job;
+    }
+    if (!(skipExtract && prevMeta)) {
+      try {
+        writeFileSync(resolve(OUTPUT_DIR, '.run-meta.json'), JSON.stringify({
+          source, job: job || '', count, extractAll, startedAt: new Date().toISOString(),
+        }, null, 2), 'utf-8');
+      } catch {}
+    }
 
     const isRecommendMode = source === 'recommend' || source === 'recommend-attach';
     const isSearchMode = source === 'search';
