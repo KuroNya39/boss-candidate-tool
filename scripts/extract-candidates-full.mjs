@@ -226,12 +226,12 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
         hasProbedBottom = false;
         continue;
       }
-      // 跳到底部，轮询检查 scrollHeight 是否增长（最长等 6s）
+      // 跳到底部，轮询检查 scrollHeight 是否增长（最长等 5s）
       const initial = await scrollListDown(targetId, true);
       const baseSh = initial.scrollHeight;
       let pollStart = Date.now();
       let foundMore = false;
-      while (Date.now() - pollStart < 6000) {
+      while (Date.now() - pollStart < 5000) {
         const check = await scrollListDown(targetId, true);
         if (check.movedKey !== null || check.scrollHeight > baseSh) {
           noNewCount = Math.max(0, noNewThreshold - 3);
@@ -239,7 +239,7 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
           foundMore = true;
           break;
         }
-        await sleep(600);
+        await sleep(500);
         // 检查是否有新 geekId 出现（即使 scrollHeight 没变）
         const itemsNow = await readVisibleGeekItems(targetId);
         for (const item of itemsNow) {
@@ -365,12 +365,12 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
         hasProbedBottom = false;
         continue;
       }
-      // 跳到底部，轮询检查 scrollHeight 是否增长（最长等 6s）
+      // 跳到底部，轮询检查 scrollHeight 是否增长（最长等 5s）
       const initial = await scrollListDown(targetId, true);
       const baseSh = initial.scrollHeight;
       let pollStart = Date.now();
       let foundMore = false;
-      while (Date.now() - pollStart < 6000) {
+      while (Date.now() - pollStart < 5000) {
         const check = await scrollListDown(targetId, true);
         if (check.movedKey !== null || check.scrollHeight > baseSh) {
           noNewCount = Math.max(0, noNewThreshold - 3);
@@ -378,7 +378,7 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
           foundMore = true;
           break;
         }
-        await sleep(600);
+        await sleep(500);
         // 检查是否有新 geekId 出现（即使 scrollHeight 没变）
         const itemsNow = await readVisibleGeekItems(targetId);
         for (const item of itemsNow) {
