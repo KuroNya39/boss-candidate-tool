@@ -816,7 +816,7 @@ btnSaveConfig.addEventListener('click', async () => {
     });
     configStatus.textContent = '✓ 已保存';
     configStatus.className = 'config-badge config-ok';
-    showToast('配置已保存', 'success', 3000);
+    showToast('设置已保存', 'success', 3000);
     // 延迟更新状态检测，让"✓ 已保存"可见一段时间
     setTimeout(updateConfigStatus, 1500);
   } catch (err) {
