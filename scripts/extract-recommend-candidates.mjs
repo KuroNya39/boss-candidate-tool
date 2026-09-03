@@ -1639,7 +1639,7 @@ async function main() {
 
   // 保存最终结果
   const output = {
-    source: 'recommend',
+    source: opts.source || 'recommend', // 记录真实来源（主进程下传 --source，如 recommend-attach）
     requested: opts.extractAll ? 'all' : opts.count,
     actual: candidates.length,
     totalScanned: totalCount,

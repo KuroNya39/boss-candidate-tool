@@ -562,7 +562,7 @@ const CHAT_PAGE_URL = 'https://www.zhipin.com/web/chat/index';
 const PAGE_NOT_OPEN_HINTS = [
   ['推荐牛人页', 'BOSS直聘「推荐牛人」页并设置好筛选条件'],
   ['搜索页', 'BOSS直聘「搜索」页并设置好筛选条件'],
-  ['沟通页', 'BOSS直聘「沟通」页并选择「未读」'],
+  ['沟通页', 'BOSS直聘「沟通」页'],
 ];
 
 // 按提取来源返回要打开的 Boss 页面（v1.4.6：Chrome 未运行时自动打开对应页面）
@@ -1314,6 +1314,40 @@ function readRunMeta(dir) {
   return null;
 }
 
+// 读取某目录批次的「数据自带页面证据」：提取子进程已把 --source 写进扫描缓存/进度/结果文件，
+// 这些文件只会由「真正跑过该页面的那次提取」生成。而 .run-meta.json 可能因评分流程/旧版 bug
+// 丢失或被覆盖成 chat，评分兜底还可能把错误的 chat 一路写进结果文件——
+// 故 'chat' 只是默认值、不算证据（真·沟通页批次靠 meta 里的 chat 记录），
+// 只有数据明确写了推荐/搜索等具体页面时才以它为准，优先级同 readScorableCandidates：
+// 完整输出 → 进度 → 扫描缓存 → 评分结果。
+function readBatchSource(dir) {
+  const pick = (name) => {
+    const p = resolve(dir, name);
+    if (!existsSync(p)) return null;
+    try {
+      const raw = JSON.parse(readFileSync(p, 'utf-8'));
+      const s = raw?.source;
+      return (typeof s === 'string' && s && s !== 'chat') ? s : null;
+    } catch { return null; }
+  };
+  return pick('zhipin-candidates.json')
+    || pick('.extract-progress.json')
+    || pick('.scan-cache.json')
+    || pick('scored-candidates.json')
+    || null;
+}
+
+// 综合判断某目录批次在界面上应显示/续跑/评分所用的「页面来源」：
+// 1) meta 里明确写了具体页面（推荐/搜索，非默认占位 chat）= 用户那批实际选的页面，最可信，直接用；
+// 2) meta 只是 chat 或缺失（可能是旧版把别的页面盖成 chat，或 meta 丢失）→ 若数据里写了具体页面则以数据为准；
+// 3) 都没线索才退回 chat（沟通页是默认来源；真·沟通批次的 meta 本就记 chat）。
+// 这样既不会让推荐批次被误标成沟通，也不会让沟通批次因 meta 丢失而显示「未知来源」。
+function resolveBatchSource(dir, meta) {
+  const metaSrc = meta?.source;
+  if (metaSrc && metaSrc !== 'chat') return metaSrc;
+  return readBatchSource(dir) || metaSrc || 'chat';
+}
+
 // 把一个历史归档目录还原为当前输出目录：先把当前输出目录挪开（若不为空），再改名还原。
 // 返回 { ok } 或 { error }。
 function restoreHistoryToOutput(dirPath) {
@@ -1375,12 +1409,15 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     // 界面当前选的来源/岗位未必等于这批数据的真实来源。以前这里无条件重写 .run-meta.json，
     // 实测「直接用上次数据评分」会把推荐牛人页批次盖成 chat / count=0 / job 空——
     // 历史记录的来源标签、以及后续「继续提取」读到的还原配置都会跟着错。
-    // 有旧 meta 时沿用其 source/job（评分提示词、打招呼开关也按真实来源走）并保留原 meta 不覆盖；
-    // 没有旧 meta（首次评分兜底）才按传入参数补写。
+    // 有旧 meta 时保留原 meta 不覆盖，source/job 沿用批次真实记录（评分提示词、打招呼开关按真实来源走）；
+    // 没有旧 meta（首次评分兜底）才按 resolveBatchSource 解析出的来源补写。
     let prevMeta = null;
     if (skipExtract) {
       prevMeta = readRunMeta(OUTPUT_DIR);
-      if (prevMeta?.source) source = prevMeta.source;
+      // 评分/恢复类运行：来源以本批次真实记录为准（meta 明确写的页面优先；
+      // meta 只是 chat/缺失时改用数据里写明的具体页面，两者皆无才默认 chat）。
+      // job 数据里没有记录，仍取 meta。
+      source = resolveBatchSource(OUTPUT_DIR, prevMeta);
       if (prevMeta?.job && !job) job = prevMeta.job;
     }
     if (!(skipExtract && prevMeta)) {
@@ -1388,7 +1425,9 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
         writeFileSync(resolve(OUTPUT_DIR, '.run-meta.json'), JSON.stringify({
           source, job: job || '', count, extractAll, startedAt: new Date().toISOString(),
         }, null, 2), 'utf-8');
-      } catch {}
+      } catch (e) {
+        termLog(`[main] 警告：写入 .run-meta.json 失败：${e.message}`, 'stderr');
+      }
     }
 
     const isRecommendMode = source === 'recommend' || source === 'recommend-attach';
@@ -1450,6 +1489,9 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       if (job) {
         extractArgs.push('--job', job);
       }
+      // v1.9.3: 把真实来源下传给提取子进程，让它写进扫描缓存/进度/结果文件，
+      // 这样即使 .run-meta.json 丢失或被评分流程覆盖，批次数据本身仍记得自己来自哪个页面。
+      extractArgs.push('--source', source);
       if (isAttach) {
         extractArgs.push('--attach');
       }
@@ -1553,6 +1595,36 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     sendProgress(3, 'running', 0, '正在导出 Excel…');
     const scoredPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
     if (!existsSync(scoredPath)) throw new Error(`未找到评分结果文件: ${scoredPath}`);
+
+    // v1.9.3 自愈：这轮跑到评分完成，确保当前目录一定留有 .run-meta.json。
+    // 个别异常流程（早期写 meta 被占用/被跳过）可能留下「有数据没 meta」的批次，
+    // 历史记录会显示未知来源、继续提取也无从还原页面——这里兜底补写一份。
+    try {
+      const metaPath = resolve(OUTPUT_DIR, '.run-meta.json');
+      if (!existsSync(metaPath)) {
+        let total = count;
+        let firstJob = job || '';
+        try {
+          const raw = JSON.parse(readFileSync(scoredPath, 'utf-8'));
+          const arr = Array.isArray(raw?.candidates) ? raw.candidates : (Array.isArray(raw) ? raw : null);
+          if (arr && arr.length > 0) {
+            total = arr.length;
+            if (!firstJob) firstJob = arr[0]?.positionInfo?.appliedJob || arr[0]?.appliedJob || '';
+          }
+        } catch {}
+        const resolved = resolveBatchSource(OUTPUT_DIR, readRunMeta(OUTPUT_DIR));
+        writeFileSync(metaPath, JSON.stringify({
+          source: resolved,
+          job: firstJob,
+          count: typeof total === 'number' && total > 0 ? total : 0,
+          extractAll,
+          startedAt: new Date().toISOString(),
+        }, null, 2), 'utf-8');
+        termLog(`[main] 自愈：补写缺失的 .run-meta.json (source=${resolved})`);
+      }
+    } catch (e) {
+      termLog(`[main] 补写 .run-meta.json 失败：${e.message}`, 'stderr');
+    }
 
     // 每次导出前重置邮件结果，避免残留上一次的状态
     exportMailResult = { status: 'none', to: '', error: '' };
@@ -2166,7 +2238,9 @@ function registerIPC() {
           hasScorable: hasCandidates || hasScored || hasProgress, // 有简历数据就能评分（完整/进度/已评分均可），用已算好的存在性判断，避免再解析候选人大文件
         };
         const meta = readRunMeta(dir);
-        if (meta) info.meta = meta;
+        // 来源标签：meta 明确写的页面优先，其次数据文件写明的页面（meta 丢失/被盖成 chat 也能还原），
+        // 都只是 chat/缺失才默认沟通页——避免推荐批次误标沟通，也避免沟通批次显示「未知来源」。
+        info.meta = { ...(meta || {}), source: resolveBatchSource(dir, meta) };
         // 显示时间：归档名带 YYYYMMDD-HHMM；当前目录用元数据的 startedAt
         // （没有元数据时退回批次里最新数据文件的修改时间，避免显示「时间未知」）
         const stampMatch = entry.name.match(/(\d{8})-(\d{4})$/);
@@ -2277,9 +2351,10 @@ function registerIPC() {
       if (!restored.ok) return { error: restored.error };
     }
 
-    // 用归档时记录的来源/岗位/数量继续跑；读不到元数据时退化为全量提取
+    // 用归档时记录的来源/岗位/数量继续跑；读不到元数据时退化为全量提取。
+    // 来源取「meta 明确写的页面，否则数据文件写明的页面」，都不会因 meta 丢失/被盖成 chat 跑错页。
     const meta = readRunMeta(OUTPUT_DIR);
-    const source = meta?.source || 'chat';
+    const source = resolveBatchSource(OUTPUT_DIR, meta);
     const job = meta?.job || '';
     const extractAll = meta ? meta.extractAll !== false : true;
     const count = meta?.count || 0;
@@ -2310,7 +2385,8 @@ function registerIPC() {
       return { error: `恢复数据失败: ${err.message}` };
     }
     const meta = readRunMeta(dirPath);
-    const source = meta?.source || 'chat';
+    // 来源取「该批次 meta 明确写的页面，否则数据文件写明的页面」
+    const source = resolveBatchSource(dirPath, meta);
     const job = meta?.job || '';
     const extractAll = meta ? meta.extractAll !== false : true;
     const count = meta?.count || 0;

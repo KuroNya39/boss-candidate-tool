@@ -1231,22 +1231,6 @@ button.is-loading::before {
   background: rgba(var(--color-error-rgb),0.06);
   border-color: rgba(var(--color-error-rgb),0.15);
 }
-.search-greet-hint {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 2px;
-}
-.greet-note {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--text-secondary);
-  background: rgba(var(--color-info-rgb),0.06);
-  border: 1px solid rgba(var(--color-info-rgb),0.15);
-  border-radius: 6px;
-  padding: 12px 14px;
-}
 
 /* ===== Modal Overlay ===== */
 .dialog-overlay {

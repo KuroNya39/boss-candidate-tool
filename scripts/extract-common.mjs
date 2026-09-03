@@ -692,11 +692,12 @@ export function getProgressPath(outputPath) {
   return resolve(dirname(outputPath), '.extract-progress.json');
 }
 
-export function saveScanCache(candidateList, outputPath) {
+export function saveScanCache(candidateList, outputPath, source) {
   const cachePath = getScanCachePath(outputPath);
   writeFileSync(cachePath, JSON.stringify({
     scannedAt: new Date().toISOString(),
     totalCandidates: candidateList.length,
+    source: source || currentRunSource || undefined, // 记录这批页面真实来源，meta 丢失/被覆盖后仍能从数据本身还原（推荐/搜索/沟通）
     candidates: candidateList,
   }, null, 2), 'utf8');
   console.log(`扫描缓存已保存: ${cachePath} (${candidateList.length} 人)`);
@@ -714,10 +715,11 @@ export function loadScanCache(outputPath) {
   }
 }
 
-export function saveProgress(processedGeekIds, candidates, outputPath) {
+export function saveProgress(processedGeekIds, candidates, outputPath, source) {
   const progressPath = getProgressPath(outputPath);
   writeFileSync(progressPath, JSON.stringify({
     updatedAt: new Date().toISOString(),
+    source: source || currentRunSource || undefined, // 记录这批页面真实来源，meta 丢失/被覆盖后仍能从数据本身还原（推荐/搜索/沟通）
     processedCount: processedGeekIds.size,
     processedGeekIds: [...processedGeekIds],
     candidates,
@@ -1032,6 +1034,13 @@ const COPY_JUNK_RX = new RegExp(COPY_JUNK_RE, 'i');
 // 默认开启（向后兼容）；三个提取脚本 main() 都调用 parseArgs()，由 --enable-copy 参数统一设置。
 let enableCopyFlag = true;
 export function setEnableCopyFlag(v) { enableCopyFlag = !!v; }
+
+// 本子进程当前跑的来源（推荐/搜索/沟通）。由 parseArgs 从 --source 读入；
+// 供 saveScanCache / saveProgress 写进数据文件，作为批次的「真实来源」存档——
+// 即使 .run-meta.json 丢失/被覆盖，历史记录与「继续提取」仍能据此还原正确页面。
+let currentRunSource = null;
+export function setRunSource(v) { currentRunSource = v; }
+export function getRunSource() { return currentRunSource; }
 export function getEnableCopyFlag() { return enableCopyFlag; }
 
 // 读系统剪贴板文本（PowerShell 兜底通道：页面复制处理器把全文写进 OS 剪贴板，直接读它最贴近手动复制）
@@ -1963,5 +1972,8 @@ export function parseArgs() {
   // v1.4.4：模拟复制开关（界面「开启模拟复制」传入 --enable-copy 1/0，默认开启）
   opts.enableCopy = opts['enable-copy'] !== '0';
   enableCopyFlag = opts.enableCopy;
+
+  // 记录本子进程的真实来源（主进程传入 --source，如 recommend-attach / search / chat）
+  if (opts.source) currentRunSource = opts.source;
   return opts;
 }

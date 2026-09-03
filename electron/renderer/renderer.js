@@ -82,7 +82,6 @@ const greetProgress = document.getElementById('greet-progress');
 const greetProgressBar = document.getElementById('greet-progress-bar');
 const greetProgressText = document.getElementById('greet-progress-text');
 const greetResult = document.getElementById('greet-result');
-const searchGreetHint = document.getElementById('search-greet-hint');
 
 // 自动打招呼 DOM
 const autoGreetSection = document.getElementById('auto-greet-section');
@@ -641,12 +640,9 @@ function setupListeners() {
       // 完成页结果可视化：统计条 + 档位分布 + 候选人列表
       loadScoringResults();
 
-      // 检查评分数据，显示批量打招呼（沟通页/搜索页不做打招呼：搜索页打招呼需畅聊卡）
+      // 检查评分数据，显示批量打招呼（只有推荐牛人页支持；沟通页/搜索页不做）
       resetGreetUI();
-      if (selectedSource === 'search') {
-        // 搜索页：不提供自动打招呼，提示查看 Excel 结果手动打招呼
-        if (searchGreetHint) searchGreetHint.style.display = '';
-      } else if (selectedSource !== 'chat') {
+      if (selectedSource !== 'chat' && selectedSource !== 'search') {
         try {
           const counts = await window.electronAPI.getGreetCandidateCounts();
           if (counts.available) {
@@ -1208,8 +1204,8 @@ function renderHistoryItem(item, index) {
   if (!item.isCurrent) {
     actions.appendChild(makeBtn('删除', 'btn--ghost btn--link-danger', async () => {
       const ok = await confirmDialog({
-        title: '删除该批次？',
-        message: `将删除「${item.name}」这一批历史数据（不含已导出的 Excel 文件），删除后不可恢复。`,
+        title: '删除该记录？',
+        message: `将删除「${item.name}」这一条记录（不含已导出的 Excel 文件），删除后不可恢复。`,
         okText: '删除',
         danger: true,
       });
@@ -1239,7 +1235,7 @@ historyOverlay.addEventListener('click', (e) => {
 btnHistoryClearAll.addEventListener('click', async () => {
   const ok = await confirmDialog({
     title: '清空全部历史？',
-    message: '将删除本地保存的全部历史批次（不含已导出的 Excel 文件），删除后不可恢复。',
+    message: '将删除本地保存的全部历史记录（不含已导出的 Excel 文件），删除后不可恢复。',
     okText: '清空',
     danger: true,
   });
@@ -1251,7 +1247,7 @@ btnHistoryClearAll.addEventListener('click', async () => {
       showToast('清理失败：' + result.error, 'error');
     } else {
       let parts = [];
-      if (result.deleted > 0) parts.push('已删除 ' + result.deleted + ' 个历史批次');
+      if (result.deleted > 0) parts.push('已删除 ' + result.deleted + ' 条历史记录');
       if (result.errors > 0) parts.push(result.errors + ' 个删除失败');
       if (result.deleted === 0 && result.errors === 0) parts.push('没有找到历史归档数据');
       showToast(parts.join('，'), result.errors > 0 ? 'error' : 'info', 4000);
@@ -1718,7 +1714,6 @@ function resetGreetUI() {
   btnStartGreet.style.display = '';
   btnStartGreet.disabled = false;
   btnCancelGreet.style.display = 'none';
-  if (searchGreetHint) searchGreetHint.style.display = 'none';
 }
 
 // 同步自动打招呼 UI（回到初始状态时调用）

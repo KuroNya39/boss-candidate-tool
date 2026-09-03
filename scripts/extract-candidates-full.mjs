@@ -210,7 +210,7 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
 
       // 先跳到顶部重新扫描一遍，确保虚拟滚动没有漏掉
       await scrollListToTop(targetId);
-      await sleep(2000);
+      await sleep(1000);
       const topItems = await readVisibleGeekItems(targetId);
       let newFound = false;
       for (const item of topItems) {
@@ -226,12 +226,12 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
         hasProbedBottom = false;
         continue;
       }
-      // 跳到底部，轮询检查 scrollHeight 是否增长（最长等 10s）
+      // 跳到底部，轮询检查 scrollHeight 是否增长（最长等 6s）
       const initial = await scrollListDown(targetId, true);
       const baseSh = initial.scrollHeight;
       let pollStart = Date.now();
       let foundMore = false;
-      while (Date.now() - pollStart < 10000) {
+      while (Date.now() - pollStart < 6000) {
         const check = await scrollListDown(targetId, true);
         if (check.movedKey !== null || check.scrollHeight > baseSh) {
           noNewCount = Math.max(0, noNewThreshold - 3);
@@ -239,7 +239,7 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
           foundMore = true;
           break;
         }
-        await sleep(1000);
+        await sleep(600);
         // 检查是否有新 geekId 出现（即使 scrollHeight 没变）
         const itemsNow = await readVisibleGeekItems(targetId);
         for (const item of itemsNow) {
@@ -259,7 +259,7 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
       }
       // 实在没有更多了：滚回顶部再扫一遍作为最终确认
       await scrollListToTop(targetId);
-      await sleep(2000);
+      await sleep(1000);
       const recheckItems = await readVisibleGeekItems(targetId);
       let anyNew = false;
       for (const item of recheckItems) {
@@ -291,11 +291,11 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
     if (scroll.movedKey === null) {
       // 如果已在底部但还没有触发底部探测，让 noNewCount 继续增长触发探测
       if (!aggressive) break;
-      await randomDelay(800, 1200);
+      await randomDelay(300, 600);
       continue;
     }
 
-    await randomDelay(800, 1200);
+    await randomDelay(300, 600);
   }
 
   return candidateList;
@@ -348,7 +348,7 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
 
       // 先跳到顶部重新扫描一遍，确保虚拟滚动没有漏掉
       await scrollListToTop(targetId);
-      await sleep(2000);
+      await sleep(1000);
       const topItems = await readVisibleGeekItems(targetId);
       let newFound = false;
       for (const item of topItems) {
@@ -365,12 +365,12 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
         hasProbedBottom = false;
         continue;
       }
-      // 跳到底部，轮询检查 scrollHeight 是否增长（最长等 10s）
+      // 跳到底部，轮询检查 scrollHeight 是否增长（最长等 6s）
       const initial = await scrollListDown(targetId, true);
       const baseSh = initial.scrollHeight;
       let pollStart = Date.now();
       let foundMore = false;
-      while (Date.now() - pollStart < 10000) {
+      while (Date.now() - pollStart < 6000) {
         const check = await scrollListDown(targetId, true);
         if (check.movedKey !== null || check.scrollHeight > baseSh) {
           noNewCount = Math.max(0, noNewThreshold - 3);
@@ -378,7 +378,7 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
           foundMore = true;
           break;
         }
-        await sleep(1000);
+        await sleep(600);
         // 检查是否有新 geekId 出现（即使 scrollHeight 没变）
         const itemsNow = await readVisibleGeekItems(targetId);
         for (const item of itemsNow) {
@@ -397,7 +397,7 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
       }
       // 实在没有更多了：滚回顶部再扫一遍作为最终确认
       await scrollListToTop(targetId);
-      await sleep(2000);
+      await sleep(1000);
       const recheckItems = await readVisibleGeekItems(targetId);
       let anyNew = false;
       for (const item of recheckItems) {
@@ -430,11 +430,11 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
     if (scroll.movedKey === null) {
       // 如果已在底部但还没有触发底部探测，让 noNewCount 继续增长触发探测
       if (!aggressive) break;
-      await randomDelay(800, 1200);
+      await randomDelay(300, 600);
       continue;
     }
 
-    await randomDelay(800, 1200);
+    await randomDelay(300, 600);
   }
 
   return candidateList;
@@ -682,8 +682,6 @@ async function extractJobDescription(targetId) {
   }
 }
 
-// ===== 未读筛选 =====
-
 async function ensureOnChatList(targetId) {
   // 恢复页面状态到列表视图，不刷新页面（刷新会导致 BOSS直聘只加载最近约40条记录）
   // 尝试关闭弹窗、回到列表视图，保留已加载的全部候选人数据
@@ -759,76 +757,6 @@ async function ensureOnChatList(targetId) {
   } catch (e) {
     console.warn(`[页面状态] 恢复列表状态失败: ${e.message}，继续`);
   }
-}
-
-async function ensureUnreadFilter(targetId) {
-  // 先检查"未读"是否已经激活（避免重复点击导致筛选被关闭）
-  const result = await proxyPost(`/eval?target=${targetId}`, `
-    (() => {
-      const el = Array.from(document.querySelectorAll('span,button,a,div,li'))
-        .find(el => (el.innerText || el.textContent || '').trim() === '未读');
-      if (!el) return { active: false, reason: 'not found' };
-      // 检查是否已激活（有 active/selected/chosen 类，或 aria-pressed="true"）
-      const isActive = el.classList.contains('active')
-        || el.classList.contains('selected')
-        || el.classList.contains('chosen')
-        || el.getAttribute('aria-pressed') === 'true'
-        || el.getAttribute('aria-selected') === 'true'
-        || el.style?.color !== ''
-        || el.matches('.tab-item.active, .filter-item.active, .tag-item.active');
-      return { active: isActive, clicked: false };
-    })()
-  `);
-
-  if (!result || !result.value) {
-    console.warn('[未读筛选] 检测"未读"按钮状态失败');
-    return;
-  }
-
-  if (result.value.active) {
-    console.log('[未读筛选] "未读"已激活，跳过点击');
-    return;
-  }
-
-  if (result.value.reason === 'not found') {
-    console.warn('[未读筛选] 未找到"未读"按钮，降级为全量提取');
-    return;
-  }
-
-  // 未激活，点击它
-  await proxyPost(`/eval?target=${targetId}`, `
-    (() => {
-      const el = Array.from(document.querySelectorAll('span,button,a,div,li'))
-        .find(el => (el.innerText || el.textContent || '').trim() === '未读');
-      if (el) el.click();
-    })()
-  `);
-
-  console.log('[未读筛选] 已点击"未读"，等待列表刷新...');
-
-  const maxWait = 8000;
-  const start = Date.now();
-  let prevCount = -1;
-  let stableCount = 0;
-
-  while (Date.now() - start < maxWait) {
-    try {
-      const count = parseInt(await cdpEval(targetId, `document.querySelectorAll('.geek-item').length`)) || 0;
-      if (count === prevCount && count > 0) {
-        stableCount++;
-        if (stableCount >= 3) {
-          console.log(`[未读筛选] 列表已刷新稳定 (${count} 项)`);
-          return;
-        }
-      } else {
-        stableCount = 0;
-        prevCount = count;
-      }
-    } catch {}
-    await sleep(400);
-  }
-
-  console.warn(`[未读筛选] 等待列表刷新超时 (当前 ${prevCount} 项)，继续`);
 }
 
 // ===== API 候选人获取（绕过虚拟滚动，直接从页面 API 获取全部候选人） =====
@@ -1296,8 +1224,7 @@ async function main() {
     const listCount = await waitForCandidateList(targetId, 15000);
     console.log(`页面已加载，候选人列表: ${listCount} 项\n`);
 
-    await ensureUnreadFilter(targetId);
-
+    // 不做「未读」自动筛选：按用户当前在沟通页看到的会话列表直接提取
     if (opts.extractAll) {
       console.log('扫描全部候选人 geekId...');
       candidateList = await scanAllCandidateGeekIds(targetId, {
@@ -1373,7 +1300,6 @@ async function main() {
 
   // 准备提取
   console.log('使用已打开的沟通页 tab 进行提取...\n');
-  await ensureUnreadFilter(targetId);
 
   const toProcess = candidateList.filter(c => !processedGeekIds.has(c.geekId));
   const totalCount = candidateList.length;
@@ -1429,6 +1355,7 @@ async function main() {
 
   // 保存最终结果
   const output = {
+    source: opts.source || 'chat', // 记录真实来源（主进程下传 --source）
     requested: opts.extractAll ? 'all' : opts.count,
     actual: candidates.length,
     totalScanned: totalCount,
