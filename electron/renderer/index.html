@@ -35,7 +35,7 @@
       <div class="status-bar" id="chrome-status-bar">
         <span class="status-dot" id="chrome-status-dot"></span>
         <span class="status-text" id="chrome-status-text">正在检查 CDP 代理…</span>
-        <button id="btn-retry-chrome" class="btn btn--ghost btn--sm btn--retry" style="display:none;">重新连接 Chrome</button>
+        <button id="btn-retry-chrome" class="btn btn--ghost btn--sm btn--retry" style="display:none;">重试</button>
       </div>
       <div class="card collapsible-card" id="api-config-card">
         <button type="button" class="collapsible-header" id="api-config-toggle" aria-expanded="false" aria-controls="api-config-body">
@@ -366,7 +366,10 @@
           <div class="result-title" tabindex="-1">执行出错</div>
         </div>
         <div class="error-message" id="error-message" role="alert"></div>
-        <button id="btn-retry" class="btn btn--primary" style="align-self:center;">重试</button>
+        <div class="result-actions">
+          <button id="btn-retry" class="btn btn--primary">重试</button>
+          <button id="btn-error-back" class="btn btn--ghost">返回</button>
+        </div>
       </div>
     </div>
   </div>

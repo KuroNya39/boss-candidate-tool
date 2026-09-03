@@ -151,6 +151,8 @@ function scheduleForceKill() {
 // CDP proxy & Chrome 状态
 let cdpProxyProcess = null;
 let cdpStatus = { state: 'initializing', message: '', chromePort: null };
+// CDP 红点错误文案：渲染端按「未开启远程调试」判断需用户开启并自动重试，主进程两处设置保持一致
+const CDP_ERR_REMOTE_DEBUG_OFF = 'Chrome 未开启远程调试';
 
 // ===== 窗口创建 =====
 function createWindow() {
@@ -555,6 +557,14 @@ const RECOMMEND_PAGE_URL = 'https://www.zhipin.com/web/chat/recommend';
 const SEARCH_PAGE_URL = 'https://www.zhipin.com/web/chat/search';
 const CHAT_PAGE_URL = 'https://www.zhipin.com/web/chat/index';
 
+// 提取脚本报「未找到已打开的XX页」时，按报错里的页名给出对应的操作提示
+// （页名关键词需与 scripts/extract-*.mjs 的报错文案保持一致）
+const PAGE_NOT_OPEN_HINTS = [
+  ['推荐牛人页', 'BOSS直聘「推荐牛人」页并设置好筛选条件'],
+  ['搜索页', 'BOSS直聘「搜索」页并设置好筛选条件'],
+  ['沟通页', 'BOSS直聘「沟通」页并选择「未读」'],
+];
+
 // 按提取来源返回要打开的 Boss 页面（v1.4.6：Chrome 未运行时自动打开对应页面）
 function getSourcePageUrl(source) {
   if (source === 'search') return SEARCH_PAGE_URL;
@@ -567,7 +577,8 @@ function getSourcePageUrl(source) {
 const CDP_PROXY_VERSION = '1.3.17';
 
 // 启动 Chrome：未运行时直接拉起（可选带 URL 打开对应提取来源页）；已运行则无需处理。
-// 被 IPC handler 和 runPipeline 共用。返回 { ok, launched?, message }。
+// 被 IPC handler 和 runPipeline 共用。message 仅在失败(ok:false)时有意义：成功后渲染端
+// 不再弹「Chrome 已启动」提示，由统一的「Chrome 未连接」检查接管。
 async function launchChrome({ openUrl = null } = {}) {
   const chromePath = findChromePath();
   if (!chromePath) {
@@ -581,15 +592,7 @@ async function launchChrome({ openUrl = null } = {}) {
   }
   const args = openUrl ? [openUrl] : [];
   spawn(chromePath, args, { detached: true, stdio: 'ignore' }).unref();
-  return {
-    ok: true,
-    launched: true,
-    message: openUrl
-      ? 'Chrome 已启动，并自动打开目标页面。首次使用请按 README 第 1 步，'
-        + '在 chrome://inspect/#remote-debugging 里勾选「允许远程调试」，之后照常使用即可。'
-      : 'Chrome 已启动。请打开 BOSS直聘页面（首次请按 README 第 1 步在 chrome://inspect/'
-        + '#remote-debugging 里勾选「允许远程调试」），再点一次「开始提取分析」。',
-  };
+  return { ok: true, launched: true };
 }
 
 // ===== AI 评分：提取与评分并行 =====
@@ -1589,12 +1592,12 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       sendProgress(1, 'idle', 0, '已取消');
       sendProgress(2, 'idle', 0, '');
       sendProgress(3, 'idle', 0, '');
-    } else if ((source === 'recommend' || source === 'recommend-attach')
-               && err.message.includes('未找到已打开的推荐牛人页')) {
-      // 推荐页未打开：提示用户自己打开后再点开始（不再自动重启 Chrome——那会关掉用户标签页）
-      sendError({
-        message: err.message + '\n请先在 Chrome 中打开 BOSS直聘「推荐牛人」页并设置好筛选条件，再点击「开始提取分析」。',
-      });
+    } else if (err.message.includes('未找到已打开的')) {
+      // 对应来源页面没打开：脚本退出码 + 页名 + URL 那串对用户太长又重复（主界面上方本来就有对应提示），
+      // 这里只弹一句动作指引。不再自动重启 Chrome——那会关掉用户标签页。
+      const hit = PAGE_NOT_OPEN_HINTS.find(([kw]) => err.message.includes(kw));
+      const pageHint = hit ? hit[1] : '对应页面';
+      sendError({ message: `请先在 Chrome 中打开 ${pageHint}，再点击「重试」。` });
     } else {
       sendError({ message: err.message });
     }
@@ -1788,7 +1791,7 @@ async function startCdpProxy() {
           cdpStatus = { state: 'connected', message: '' };
           termLog(`[cdp] Chrome 重连成功`);
         } else {
-          cdpStatus = { state: 'error', message: 'Chrome 未开启远程调试，请在 chrome://inspect/#remote-debugging 中勾选"允许远程调试"' };
+          cdpStatus = { state: 'error', message: CDP_ERR_REMOTE_DEBUG_OFF };
           termLog(`[cdp] Chrome 仍未连接`);
         }
       }
@@ -1843,7 +1846,7 @@ async function startCdpProxy() {
           // 新代理有 connectWithRetry，会在后台自动重连，这里先显示提示
           // 同时手动触发一次重连
           try { httpGet('http://127.0.0.1:3456/targets').catch(() => {}); } catch {}
-          cdpStatus = { state: 'error', message: 'Chrome 未开启远程调试，请在 chrome://inspect/#remote-debugging 中勾选"允许远程调试"' };
+          cdpStatus = { state: 'error', message: CDP_ERR_REMOTE_DEBUG_OFF };
           termLog('[cdp] CDP 代理已就绪，Chrome 未连接（后台自动重试中）');
         }
         return;
@@ -2339,7 +2342,7 @@ function registerIPC() {
     return { ...cdpStatus };
   });
 
-  // 供「开始提取分析」按钮预检：Chrome 已就绪与否；未运行则自动拉起（并提示再次点击开始）
+  // 供「开始提取分析」按钮预检：Chrome 已就绪与否；未运行则自动拉起（渲染端若未连上会提示）
   ipcMain.handle('ensure-chrome-open', () => launchChrome({}));
 
   // GUI 版本号

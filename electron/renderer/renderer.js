@@ -16,6 +16,7 @@ const SVG_PLAY = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="t
 const SVG_SKIP = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-skip"/></svg>';
 const btnRestart = document.getElementById('btn-restart');
 const btnRetry = document.getElementById('btn-retry');
+const btnErrorBack = document.getElementById('btn-error-back');
 const btnOpenDir = document.getElementById('btn-open-dir');
 const btnSelectDir = document.getElementById('btn-select-dir');
 const btnHistory = document.getElementById('btn-history');
@@ -859,8 +860,8 @@ btnStart.addEventListener('click', async () => {
   const activeToggle = document.querySelector('.toggle-btn.active');
   selectedSource = activeToggle ? activeToggle.dataset.source : 'chat';
 
-  // 开始前的 Chrome 预检：没运行则自动启动 Chrome（并提示再次点击开始）；没装 Chrome 则提示。
-  // 曾经的「边用边跑」模式已移除，Chrome 在跑就直接用当前窗口继续，不再询问重启。
+  // 开始前的 Chrome 预检：没运行则自动启动 Chrome（连不上时由下方「Chrome 未连接」提示）；
+  // 没装 Chrome 则提示。曾经的「边用边跑」模式已移除，Chrome 在跑就直接用当前窗口继续，不再询问重启。
   try {
     const st = await window.electronAPI.ensureChromeOpen();
     if (st && !st.ok) {
@@ -873,11 +874,17 @@ btnStart.addEventListener('click', async () => {
       return;
     }
     if (st && st.launched) {
+      // 软件刚自动拉起 Chrome，先触发一次重连；连不上就交给下方统一的
+      // 「Chrome 未连接」提示（请检查连接状态、允许远程调试），不再单独弹「Chrome 已启动」。
       await window.electronAPI.retryCdpConnection();
-      await updateCdpStatus();
+    }
+
+    // CDP 未连接（黄点连接中 / 红点出错）时先弹窗提醒，避免直接进运行页干等后才报错
+    const cdp = await updateCdpStatus();
+    if (cdp && cdp.state !== 'connected') {
       await confirmDialog({
-        title: 'Chrome 已启动',
-        message: st.message || 'Chrome 已启动。请打开 BOSS直聘页面，再点一次「开始提取分析」。',
+        title: 'Chrome 未连接',
+        message: '请检查软件连接状态，允许 Chrome 远程调试。',
         okText: '知道了',
         showCancel: false,
       });
@@ -885,6 +892,20 @@ btnStart.addEventListener('click', async () => {
     }
   } catch (e) {
     // 预检失败不阻塞，继续（Chrome 若真没开，主进程启动流程里也会兜底自动拉起）
+  }
+
+  // 目标岗位检查放在 Chrome 连接确认之后：先弹连接问题，连接正常再查岗位。
+  // 推荐牛人页 / 搜索页必须先选岗位，AI 才知道按什么岗位要求评分。
+  const sourceNeedsJob = selectedSource === 'recommend-attach' || selectedSource === 'search';
+  if (sourceNeedsJob && !selectedJob) {
+    const goPick = await confirmDialog({
+      title: '请选择目标岗位',
+      message: '选择已有岗位，或点击「+ 添加新岗位」新建岗位。',
+      okText: '去选择岗位',
+      cancelText: '取消',
+    });
+    if (goPick) showJobPicker();
+    return;
   }
 
   resetSteps();
@@ -972,6 +993,12 @@ btnRestart.addEventListener('click', () => {
   showState('state-initial');
 });
 
+// 返回主界面（错误状态）：不重试，回到初始页调整来源/岗位/设置后再开始
+btnErrorBack.addEventListener('click', () => {
+  resetSteps();
+  showState('state-initial');
+});
+
 // 重试（错误状态）
 btnRetry.addEventListener('click', async () => {
   const extractAll = extractAllCheck.checked;
@@ -999,12 +1026,12 @@ btnOpenDir.addEventListener('click', async () => {
 document.getElementById('btn-retry-chrome').addEventListener('click', async () => {
   const btn = document.getElementById('btn-retry-chrome');
   setLoading(btn, true);
-  btn.textContent = '重新连接中…';
+  btn.textContent = '重试中…';
   btn.disabled = true;
   await window.electronAPI.retryCdpConnection();
   await updateCdpStatus();
   setLoading(btn, false);
-  btn.textContent = '重新连接 Chrome';
+  btn.textContent = '重试';
   btn.disabled = false;
 });
 
@@ -1646,9 +1673,10 @@ btnCancelGreet.addEventListener('click', async () => {
 });
 
 // ===== CDP/Chrome 状态 =====
-async function updateCdpStatus() {
+// 传入 prefetched 可复用刚取到的状态，避免连续多次 IPC 拉取；返回本次渲染的状态
+async function updateCdpStatus(prefetched) {
   try {
-    const status = await window.electronAPI.getCdpStatus();
+    const status = prefetched || (await window.electronAPI.getCdpStatus());
     const dot = document.getElementById('chrome-status-dot');
     const text = document.getElementById('chrome-status-text');
     const retryBtn = document.getElementById('btn-retry-chrome');
@@ -1668,6 +1696,7 @@ async function updateCdpStatus() {
       text.textContent = status.message || 'Chrome 连接失败';
       retryBtn.style.display = '';
     }
+    return status;
   } catch {}
 }
 
@@ -1739,12 +1768,11 @@ async function init() {
   // 轮询 CDP 状态（未连接时持续刷新，用户勾选 Chrome 远程调试后自动变绿）
   setInterval(async () => {
     try {
-      const s = await window.electronAPI.getCdpStatus();
-      await updateCdpStatus();
+      const s = await updateCdpStatus();
       // 如果是 error 状态且内容是 Chrome 未开远程调试，自动重试检测
-      if (s.state === 'error' && s.message.includes('chrome://inspect')) {
-        await window.electronAPI.retryCdpConnection();
-        await updateCdpStatus();
+      if (s && s.state === 'error' && s.message.includes('未开启远程调试')) {
+        const retried = await window.electronAPI.retryCdpConnection();
+        await updateCdpStatus(retried);
       }
     } catch {}
   }, 3000);
