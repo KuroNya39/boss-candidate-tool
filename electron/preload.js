@@ -40,10 +40,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // CDP/Chrome 状态
   getCdpStatus: () => ipcRenderer.invoke('get-cdp-status'),
   retryCdpConnection: () => ipcRenderer.invoke('retry-cdp-connection'),
-  // "边用边跑"模式：带参数重启 Chrome（关闭遮挡暂停渲染）
-  launchBossModeChrome: (opts) => ipcRenderer.invoke('launch-boss-mode-chrome', opts),
-  // 检查 Chrome 是否已在「边用边跑」模式（开始提取前的预检）
-  checkBossMode: () => ipcRenderer.invoke('check-boss-mode'),
+  // 开始提取前预检：Chrome 已就绪与否；未运行则自动拉起（无「边用边跑」参数）
+  ensureChromeOpen: () => ipcRenderer.invoke('ensure-chrome-open'),
   // 应用版本号
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 
@@ -70,14 +68,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('extraction-error', handler);
     return () => ipcRenderer.removeListener('extraction-error', handler);
   },
-
-  // 主进程请求 renderer 弹工具确认框（如「未找到推荐页，是否重启 Chrome」），选择结果回传
-  onConfirmRequest: (callback) => {
-    const handler = (_event, req) => callback(req);
-    ipcRenderer.on('confirm-dialog-request', handler);
-    return () => ipcRenderer.removeListener('confirm-dialog-request', handler);
-  },
-  confirmDialogResult: (result) => ipcRenderer.send('confirm-dialog-result', result),
 
   // 批量打招呼事件
   onGreetProgress: (callback) => {

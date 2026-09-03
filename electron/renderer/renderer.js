@@ -610,10 +610,6 @@ async function loadScoringResults() {
 function setupListeners() {
   cleanupAll();
   registerCleanup(window.electronAPI.onProgress(handleProgress));
-  // 主进程请求的工具确认框（如「未找到推荐页，是否重启 Chrome」），选择结果回传主进程
-  registerCleanup(window.electronAPI.onConfirmRequest(async (req) => {
-    window.electronAPI.confirmDialogResult(await confirmDialog(req));
-  }));
 
   registerCleanup(
     window.electronAPI.onDone(async (data) => {
@@ -766,7 +762,7 @@ async function updateConfigStatus() {
     configStatus.className = 'config-badge config-missing';
     btnStart.disabled = true;
     if (hint) {
-      hint.textContent = '请先展开上方「API 配置」填写 ' + missingConfigFields().join('、') + ' 并保存';
+      hint.textContent = '请先展开上方「设置」填写 ' + missingConfigFields().join('、') + ' 并保存';
     }
   };
   try {
@@ -863,62 +859,32 @@ btnStart.addEventListener('click', async () => {
   const activeToggle = document.querySelector('.toggle-btn.active');
   selectedSource = activeToggle ? activeToggle.dataset.source : 'chat';
 
-  // 开始前的「边用边跑」预检：确保 Chrome 处于边用边跑模式，否则自动重启
+  // 开始前的 Chrome 预检：没运行则自动启动 Chrome（并提示再次点击开始）；没装 Chrome 则提示。
+  // 曾经的「边用边跑」模式已移除，Chrome 在跑就直接用当前窗口继续，不再询问重启。
   try {
-    const bs = await window.electronAPI.checkBossMode();
-    if (bs && !bs.chromePath) {
+    const st = await window.electronAPI.ensureChromeOpen();
+    if (st && !st.ok) {
       await confirmDialog({
         title: '未找到 Chrome',
-        message: '没有在常见位置找到 Chrome。请照常打开 Chrome，按 README 第 1 步开启远程调试后使用。',
+        message: st.message || '没有在常见位置找到 Chrome。请照常打开 Chrome，按 README 第 1 步开启远程调试后使用。',
         okText: '知道了',
         showCancel: false,
       });
       return;
     }
-    if (bs && bs.running && !bs.bossMode) {
-      // Chrome 在跑但没开边用边跑 → 询问是否重启
-      const ok = await confirmDialog({
-        title: '重启 Chrome 进入「边用边跑」模式？',
-        message: '要用「边用边跑」模式运行（推荐），需要重启 Chrome（会关闭当前标签页）。重启后请重新打开 BOSS直聘页面。是否继续？\n\n如果选「取消」，本次将按普通方式运行，运行期间请不要最小化 Chrome 窗口。',
-        okText: '重启 Chrome',
-        cancelText: '取消',
+    if (st && st.launched) {
+      await window.electronAPI.retryCdpConnection();
+      await updateCdpStatus();
+      await confirmDialog({
+        title: 'Chrome 已启动',
+        message: st.message || 'Chrome 已启动。请打开 BOSS直聘页面，再点一次「开始提取分析」。',
+        okText: '知道了',
+        showCancel: false,
       });
-      if (ok) {
-        const res = await window.electronAPI.launchBossModeChrome({ forceClose: true });
-        if (res?.ok) {
-          await window.electronAPI.retryCdpConnection();
-          await updateCdpStatus();
-          await confirmDialog({
-            title: 'Chrome 已重启',
-            message: 'Chrome 已用「边用边跑」模式重启。请确认 BOSS直聘页面已打开，然后再次点击「开始提取分析」。',
-            okText: '知道了',
-            showCancel: false,
-          });
-          return;
-        }
-        showToast(res?.message || '重启 Chrome 失败，请重试。', 'error', 5000);
-        return;
-      }
-      // 用户选择普通方式，继续（运行期间不要最小化窗口）
-    } else if (bs && !bs.running) {
-      // Chrome 未启动 → 用边用边跑模式直接启动
-      const res = await window.electronAPI.launchBossModeChrome({ forceClose: false });
-      if (res?.ok) {
-        await window.electronAPI.retryCdpConnection();
-        await updateCdpStatus();
-        await confirmDialog({
-          title: 'Chrome 已启动',
-          message: 'Chrome 已用「边用边跑」模式启动。请打开 BOSS直聘页面，然后再次点击「开始提取分析」。',
-          okText: '知道了',
-          showCancel: false,
-        });
-        return;
-      }
-      showToast(res?.message || '启动 Chrome 失败，请重试。', 'error', 5000);
       return;
     }
   } catch (e) {
-    // 预检失败不阻塞，按普通方式继续
+    // 预检失败不阻塞，继续（Chrome 若真没开，主进程启动流程里也会兜底自动拉起）
   }
 
   resetSteps();

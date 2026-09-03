@@ -129,7 +129,7 @@ async function isTabVisible(targetId) {
 // 复制/截图前确保 Boss 标签页在前台（与 cdpScreenshot 同款条件式守卫，v1.8.3）：
 // 真实鼠标拖选 + Ctrl+C 复制需要页面在前台才能把全文写进系统剪贴板。用户切走标签页后，
 // 后台页被 Chrome 冻结/降速——复制要么干等 60s 客户端超时，要么只复制出几十个字判失败重试。
-// 只有真被切走（隐藏）才 /activate 拉回最前；Boss 页本就在最前（如「开两个 Chrome」边用边跑）
+// 只有真被切走（隐藏）才 /activate 拉回最前；Boss 页本就在最前（如「开两个 Chrome 窗口」）
 // 时零开销、不抢焦点。拿不到可见状态时保守回退为照常 activate（同 cdpScreenshot 口径）。
 export async function ensureTabActive(targetId) {
   try {
@@ -144,7 +144,7 @@ export async function cdpScreenshot(targetId, filePath, clip) {
   // 截图前按需把标签页真实带到最前（Target.activateTarget，ensureTabActive）。
   // 用户切到别的标签页后，隐藏页面的合成器可能停止出帧，Page.captureScreenshot
   // 会卡到 CDP 超时（之前实测 30s 超时、截图失败）。activate 让页面前台出帧 → 截图稳定。
-  // v1.3.28：Boss 页本来就在最前（如「开两个 Chrome」边跑边用）时不再强制拉回，不抢用户焦点；
+  // v1.3.28：Boss 页本来就在最前（如「开两个 Chrome 窗口」）时不再强制拉回，不抢用户焦点；
   // 只有真的被切走（隐藏）时才激活。拿不到可见状态时保守处理：照旧 activate 保证截图稳定。
   await ensureTabActive(targetId);
   // v1.3.11: 改回 PNG 无损。JPEG q80 的块效应 + 色度抽样破坏中文细字边缘，

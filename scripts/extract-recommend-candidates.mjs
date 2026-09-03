@@ -1554,8 +1554,13 @@ async function main() {
 
           console.log('  → OCR 识别（后台进行，与关闭弹窗重叠）...');
 
-          // 等上一个人的 OCR 完成后再启动新的（避免 CPU 争抢）
-          await prevOcr;
+          // 等上一个人的 OCR 完成（最多等 3 秒，避免简历内容少的人被阻塞）
+          // 上一人多页 canvas 简历的 OCR 可达 30-40s，若无限等会把「上一人残余 OCR」的时间
+          // 全部摊到当前候选人的间隔里，表现为截图完很久才轮到下一个人
+          await Promise.race([
+            prevOcr,
+            new Promise(r => setTimeout(r, 3000))
+          ]);
 
           // 流水线：OCR 在后台执行，不阻塞关闭弹窗和下一人操作
           prevOcr = ocrScreenshots(screenshots, worker).then(resumeText => {
