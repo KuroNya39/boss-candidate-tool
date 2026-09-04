@@ -733,6 +733,7 @@ button.is-loading::before {
   box-shadow: var(--shadow-elevated);
   display: flex;
   flex-direction: column;
+  gap: 2px; /* 选项之间留一条白底空隙：选中项与悬停项相邻时底色不粘连 */
   padding: 4px;
   -webkit-app-region: no-drag;
   transform-origin: top;
