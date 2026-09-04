@@ -1129,33 +1129,38 @@ function renderHistoryItem(item, index) {
   const chipWrap = document.createElement('span');
   chipWrap.className = 'history-item-chips';
 
+  // 状态胶囊放前面（已完成=绿/未完成=黄/提取中=蓝），来源标签放后面 —— v1.9.10 顺序调整。
+  // 状态文案与颜色在当前批、历史批保持一致；「未完成」不写具体是哪一步。
+  const batchDone = item.hasScored || item.hasExcel; // 有评分结果或 Excel = 这批已经跑完
+  let stateText = null;
+  let stateClass = 'meta-chip--pass';
+  if (item.isCurrent) {
+    if (item.hasProgress) {
+      stateText = '未完成';
+      stateClass = 'meta-chip--warn';
+    } else if (batchDone) {
+      stateText = '已完成';
+    } else {
+      stateText = '提取中';
+      stateClass = 'meta-chip--info';
+    }
+  } else if (item.hasProgress) {
+    stateText = '未完成';
+    stateClass = 'meta-chip--warn';
+  } else if (batchDone) {
+    stateText = '已完成';
+  }
+  if (stateText) {
+    const stateChip = document.createElement('span');
+    stateChip.className = `meta-chip ${stateClass}`;
+    stateChip.textContent = stateText;
+    chipWrap.appendChild(stateChip);
+  }
+
   const srcChip = document.createElement('span');
   srcChip.className = 'meta-chip';
   srcChip.textContent = sourceLabel;
   chipWrap.appendChild(srcChip);
-
-  if (item.isCurrent) {
-    const curChip = document.createElement('span');
-    curChip.className = 'meta-chip meta-chip--pass';
-    if (item.hasProgress) {
-      curChip.textContent = '未完成';
-    } else if (item.hasScored || item.hasExcel) {
-      curChip.textContent = '已完成';
-    } else {
-      curChip.textContent = '提取中';
-    }
-    chipWrap.appendChild(curChip);
-  } else if (item.hasProgress) {
-    const progChip = document.createElement('span');
-    progChip.className = 'meta-chip meta-chip--pass';
-    progChip.textContent = '提取未完成';
-    chipWrap.appendChild(progChip);
-  } else if (item.hasScored) {
-    const doneChip = document.createElement('span');
-    doneChip.className = 'meta-chip';
-    doneChip.textContent = '已完成';
-    chipWrap.appendChild(doneChip);
-  }
   titleEl.append(timeEl, chipWrap);
 
   const countEl = document.createElement('div');

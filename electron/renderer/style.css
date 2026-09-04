@@ -1709,6 +1709,14 @@ button.is-loading::before {
   color: var(--color-success-strong);
   background: var(--bg-success);
 }
+.meta-chip--warn {
+  color: var(--color-warning-strong);
+  background: var(--bg-warning);
+}
+.meta-chip--info {
+  color: var(--color-info-strong);
+  background: var(--bg-info);
+}
 .meta-chip--fail {
   color: var(--color-error-strong);
   background: var(--bg-error);
