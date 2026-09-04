@@ -14,6 +14,7 @@ const btnPauseExtract = document.getElementById('btn-pause-extract');
 const SVG_PAUSE = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-pause"/></svg>';
 const SVG_PLAY = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-play"/></svg>';
 const SVG_SKIP = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-skip"/></svg>';
+const SVG_CHEVRON_RIGHT = '<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-chevron-right"/></svg>';
 const btnRestart = document.getElementById('btn-restart');
 const btnRetry = document.getElementById('btn-retry');
 const btnErrorBack = document.getElementById('btn-error-back');
@@ -21,9 +22,9 @@ const btnOpenDir = document.getElementById('btn-open-dir');
 const btnSelectDir = document.getElementById('btn-select-dir');
 const btnHistory = document.getElementById('btn-history');
 const historyOverlay = document.getElementById('history-overlay');
+const historyDrawer = document.getElementById('history-drawer');
 const historyList = document.getElementById('history-list');
 const historyEmpty = document.getElementById('history-empty');
-const btnHistoryClose = document.getElementById('btn-history-close');
 const btnHistoryClearAll = document.getElementById('btn-history-clear-all');
 const countInput = document.getElementById('count-input');
 const extractAllCheck = document.getElementById('extract-all');
@@ -373,7 +374,7 @@ function resetSteps() {
   setLoading(btnSkipExtract, false);
   btnSkipExtract.style.display = 'none';
   btnSkipExtract.disabled = false;
-  btnSkipExtract.innerHTML = SVG_SKIP + '跳过提取候选人';
+  btnSkipExtract.innerHTML = SVG_SKIP + '跳过提取';
   // 重置暂停/继续按钮
   resetPauseButton();
   // 重置步骤指示器
@@ -541,7 +542,7 @@ function renderResultsList(candidates) {
     const arrowEl = document.createElement('span');
     arrowEl.className = 'result-item-arrow';
     arrowEl.setAttribute('aria-hidden', 'true');
-    arrowEl.textContent = '▸';
+    arrowEl.innerHTML = SVG_CHEVRON_RIGHT;
 
     head.append(nameEl, scoreEl, tierEl, arrowEl);
 
@@ -577,7 +578,7 @@ function renderResultsList(candidates) {
       const expanded = head.getAttribute('aria-expanded') === 'true';
       head.setAttribute('aria-expanded', String(!expanded));
       body.style.display = expanded ? 'none' : '';
-      // 箭头字符保持 ▸ 不变，展开态由 CSS 的 rotate(90deg) 转成 ▼（带平滑过渡）
+      // 箭头图标保持 chevron-right 不变，展开态由 CSS 的 rotate(90deg) 转成向下（带平滑过渡）
     });
 
     item.append(head, body);
@@ -743,7 +744,7 @@ async function loadApiConfig() {
   updateConfigStatus();
 }
 
-// 配置缺失时指出具体缺哪一项（未配置 → 「未配置：缺 API 地址（或 Key / 模型）」）
+// 设置缺失时指出具体缺哪一项（未设置 → 「未设置：缺 API 地址（或 Key / 模型）」）
 function missingConfigFields() {
   const missing = [];
   if (!apiUrlInput.value.trim()) missing.push('API 地址');
@@ -755,7 +756,7 @@ function missingConfigFields() {
 async function updateConfigStatus() {
   const hint = document.getElementById('btn-start-hint');
   const setMissing = (msg) => {
-    configStatus.textContent = msg || '未配置：缺 ' + missingConfigFields().join('、');
+    configStatus.textContent = msg || '未设置：缺 ' + missingConfigFields().join('、');
     configStatus.className = 'config-badge config-missing';
     btnStart.disabled = true;
     if (hint) {
@@ -765,15 +766,15 @@ async function updateConfigStatus() {
   try {
     const status = await window.electronAPI.getApiConfigStatus();
     if (status.configured) {
-      configStatus.textContent = '✓ 已配置';
+      configStatus.textContent = '✓ 已设置';
       configStatus.className = 'config-badge config-ok';
       btnStart.disabled = false;
       if (hint) hint.textContent = '';
     } else {
-      setMissing('未配置');
+      setMissing('未设置');
     }
   } catch {
-    setMissing('未配置');
+    setMissing('未设置');
   }
 }
 
@@ -783,7 +784,7 @@ btnSaveConfig.addEventListener('click', async () => {
   const model = apiModelInput.value.trim();
 
   if (!url || !key || !model) {
-    configStatus.textContent = '请填写完整配置';
+    configStatus.textContent = '请把设置填写完整';
     configStatus.className = 'config-badge config-error';
     return;
   }
@@ -1055,7 +1056,8 @@ function historySourceLabel(meta) {
 
 function openHistoryDrawer() {
   loadHistory();
-  openDialog(historyOverlay, btnHistoryClose);
+  // 无右上角关闭按钮；焦点先落在抽屉容器（aria-dialog 惯例），Esc / 点空白均可关闭
+  openDialog(historyOverlay, historyDrawer);
 }
 
 function closeHistoryDrawer() {
@@ -1128,7 +1130,7 @@ function renderHistoryItem(item, index) {
     const curChip = document.createElement('span');
     curChip.className = 'meta-chip meta-chip--pass';
     if (item.hasProgress) {
-      curChip.textContent = '未完成·可继续';
+      curChip.textContent = '未完成';
     } else if (item.hasScored || item.hasExcel) {
       curChip.textContent = '已完成';
     } else {
@@ -1225,8 +1227,7 @@ function renderHistoryItem(item, index) {
 }
 
 btnHistory.addEventListener('click', openHistoryDrawer);
-btnHistoryClose.addEventListener('click', closeHistoryDrawer);
-// 点击遮罩空白处关闭
+// 点击遮罩空白处关闭（无右上角 ×，Esc 也能关，见全局 Escape 处理）
 historyOverlay.addEventListener('click', (e) => {
   if (e.target === historyOverlay) closeHistoryDrawer();
 });
@@ -1401,12 +1402,21 @@ function openDialog(overlay, firstFocusEl) {
 
 function closeDialog(overlay, { animate = false } = {}) {
   if (activeDialogTrap) { activeDialogTrap(); activeDialogTrap = null; }
-  // 系统开了「减少动态效果」时不做过渡，直接关闭，避免干等 250ms
+  // 系统开了「减少动态效果」时不做过渡，直接关闭，避免干等动画时长
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (animate && !reduceMotion) {
     // 先淡出再隐藏：与紧接着打开的弹窗淡入衔接成连续过渡，不会「啪」一下消失
     overlay.setAttribute('inert', '');
     overlay.classList.add('dialog-overlay--closing');
+    // 淡出时长直接读 CSS（.dialog-overlay--closing 的 overlay-out = --dur-dialog），改 CSS 档位不必再同步 JS
+    let exitMs = 350;
+    const durStr = (getComputedStyle(overlay).animationDuration || '').trim();
+    if (durStr) {
+      const n = parseFloat(durStr);
+      if (Number.isFinite(n) && n > 0) {
+        exitMs = (durStr.endsWith('ms') ? n : n * 1000) + 30; // +30ms 缓冲，等动画播完再隐藏
+      }
+    }
     setTimeout(() => {
       // 淡出期间这个弹窗若被重新打开（class 被移除），就不再隐藏它
       if (!overlay.classList.contains('dialog-overlay--closing')) return;
@@ -1417,7 +1427,7 @@ function closeDialog(overlay, { animate = false } = {}) {
       const anotherOpen = [...document.querySelectorAll('.dialog-overlay')]
         .some((o) => o !== overlay && o.style.display === 'flex');
       if (!anotherOpen && dialogPrevFocus && typeof dialogPrevFocus.focus === 'function') dialogPrevFocus.focus();
-    }, 260);
+    }, exitMs);
   } else {
     overlay.style.display = 'none';
     if (dialogPrevFocus && typeof dialogPrevFocus.focus === 'function') dialogPrevFocus.focus();

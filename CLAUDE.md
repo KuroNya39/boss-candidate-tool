@@ -153,3 +153,4 @@ The proxy (`scripts/cdp-proxy.mjs`) is a core dependency. It:
 - SMTP default: `smtp.mxhichina.com:25` (overridable via API config UI)
 - The AI scoring prompt template uses `{dimensions}`, `{screeningCriteria}`, `{resumeText}` placeholders
 - `output/` is gitignored; old runs auto-archived to `output-YYYYMMDD-HHMM/`
+- UI 设计规范见 `docs/design-system.md`：改界面先读它，颜色/间距/字号/圆角/动效一律用 `style.css` 里 `:root` 的设计 token，别写死数值

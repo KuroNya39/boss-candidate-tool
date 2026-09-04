@@ -22,6 +22,8 @@
       <symbol id="icon-skip" viewBox="0 0 24 24"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></symbol>
       <symbol id="icon-folder" viewBox="0 0 24 24"><path fill="currentColor" d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></symbol>
       <symbol id="icon-refresh" viewBox="0 0 24 24"><path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></symbol>
+      <symbol id="icon-chevron-right" viewBox="0 0 24 24"><path fill="currentColor" d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></symbol>
+      <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path fill="currentColor" d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></symbol>
     </defs>
   </svg>
   <div id="app">
@@ -42,9 +44,9 @@
           <span class="collapsible-header-left">
             <span class="collapsible-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#icon-settings"/></svg></span>
             <span class="collapsible-title">设置</span>
-            <span id="config-status" class="config-badge config-missing">未配置</span>
+            <span id="config-status" class="config-badge config-missing">未设置</span>
           </span>
-          <span class="collapsible-arrow" id="api-config-arrow" aria-hidden="true">▸</span>
+          <svg class="collapsible-arrow" id="api-config-arrow" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-chevron-right"/></svg>
         </button>
         <div class="collapsible-body" id="api-config-body">
           <div class="field-group">
@@ -57,7 +59,7 @@
             <label class="field-label" for="api-key">API Key</label>
             <div class="input-wrap">
               <input type="password" id="api-key" class="input-text" placeholder="sk-...">
-              <button type="button" class="input-toggle" data-target="api-key" aria-label="显示 API Key" aria-pressed="false">
+              <button type="button" class="field-icon-btn input-toggle" data-target="api-key" aria-label="显示 API Key" aria-pressed="false">
                 <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-off"/></svg>
               </button>
             </div>
@@ -79,7 +81,7 @@
             <label class="field-label" for="smtp-pass">邮箱密码</label>
             <div class="input-wrap">
               <input type="password" id="smtp-pass" class="input-text" placeholder="发件邮箱的登录密码；若开启了三方客户端安全密码，则填客户端安全密码">
-              <button type="button" class="input-toggle" data-target="smtp-pass" aria-label="显示邮箱密码" aria-pressed="false">
+              <button type="button" class="field-icon-btn input-toggle" data-target="smtp-pass" aria-label="显示邮箱密码" aria-pressed="false">
                 <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-off"/></svg>
               </button>
             </div>
@@ -87,8 +89,12 @@
           <div class="card-divider"></div>
           <div class="output-row">
             <span class="output-label">输出目录：</span>
-            <span id="output-dir" class="output-path">output/</span>
-            <button id="btn-select-dir" class="btn btn--link">选择目录</button>
+            <span class="output-dir-field">
+              <span id="output-dir" class="output-path">output/</span>
+              <button id="btn-select-dir" class="field-icon-btn output-dir-btn" aria-label="更改输出目录">
+                <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-folder"/></svg>
+              </button>
+            </span>
             <button id="btn-history" class="btn btn--link">历史记录</button>
           </div>
           <button id="btn-save-config" class="btn btn--secondary btn--save">保存设置</button>
@@ -166,7 +172,7 @@
             <div class="custom-select" id="auto-greet-level" data-value="4">
               <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
                 <span class="custom-select-label">四星及以上（81 分以上）</span>
-                <span class="custom-select-arrow" aria-hidden="true">▾</span>
+                <svg class="custom-select-arrow" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-chevron-down"/></svg>
               </button>
               <div class="custom-select-menu" role="listbox" style="display:none;">
                 <button type="button" class="custom-select-option" data-value="5" role="option" aria-selected="false">五星（91 分以上）</button>
@@ -254,7 +260,7 @@
         </div>
 
         <div class="running-actions">
-          <button id="btn-skip-extract" class="btn btn--warning" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-skip"/></svg>跳过提取候选人</button>
+          <button id="btn-skip-extract" class="btn btn--warning" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-skip"/></svg>跳过提取</button>
           <button id="btn-pause-extract" class="btn btn--ghost" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-pause"/></svg>暂停</button>
           <button id="btn-cancel" class="btn btn--ghost">取消</button>
         </div>
@@ -292,7 +298,7 @@
             </div>
             <div class="stat-cell">
               <span class="stat-value" id="stat-passed">0</span>
-              <span class="stat-label">通过</span>
+              <span class="stat-label">通过人数</span>
             </div>
             <div class="stat-cell">
               <span class="stat-value" id="stat-avg">0</span>
@@ -322,7 +328,7 @@
             <div class="custom-select" id="greet-level" data-value="4">
               <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
                 <span class="custom-select-label">四星及以上（81 分以上）</span>
-                <span class="custom-select-arrow" aria-hidden="true">▾</span>
+                <svg class="custom-select-arrow" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-chevron-down"/></svg>
               </button>
               <div class="custom-select-menu" role="listbox" style="display:none;">
                 <button type="button" class="custom-select-option" data-value="5" role="option" aria-selected="false">五星（91 分以上）</button>
@@ -416,13 +422,8 @@
 
   <!-- 历史记录抽屉（左侧滑出） -->
   <div id="history-overlay" class="history-overlay" style="display:none;">
-    <div class="history-drawer" role="dialog" aria-modal="true" aria-labelledby="history-title">
-      <div class="history-header">
-        <div class="dialog-title" id="history-title">历史记录</div>
-        <button type="button" id="btn-history-close" class="input-toggle" aria-label="关闭历史记录">
-          <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-close"/></svg>
-        </button>
-      </div>
+    <div class="history-drawer" id="history-drawer" role="dialog" aria-modal="true" aria-labelledby="history-title" tabindex="-1">
+      <div class="dialog-title" id="history-title">历史记录</div>
       <div class="history-list" id="history-list" role="list"></div>
       <div class="history-empty" id="history-empty" style="display:none;">暂无历史记录。</div>
       <div class="history-footer">

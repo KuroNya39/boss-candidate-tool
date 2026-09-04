@@ -23,6 +23,7 @@
   --text-on-accent: #ffffff;
   --color-disabled-bg: #e2e8f0;
   --color-disabled-text: #94a3b8;
+  --icon-muted: #aab6c6;          /* 次要图标静置色（如输入框清除按钮圆底），悬停加深为 --text-muted */
   --color-accent: #2563eb;
   --color-accent-hover: #1d4ed8;
   --color-accent-rgb: 37, 99, 235;
@@ -42,6 +43,9 @@
   --color-info-rgb: 59, 130, 246;
   --color-info-strong: #1e40af;
   --bg-info: #eff6ff; --border-info: #bfdbfe;
+  /* 档位橙：二星专属，独立于「警示」用的 warning 黄 */
+  --color-orange: #f97316;
+  --color-orange-strong: #ea580c;
   --border-card: #e2e8f0;
   --border-input: #cbd5e1;
   --color-scrim: rgba(15,23,42,.4);
@@ -93,7 +97,12 @@ body {
      窗口有原生标题栏可拖拽；body 级 drag 区域会干扰原生 <select> 弹层打开（批量打招呼下拉框点了没反应）。 */
 }
 
-/* ===== 滚动条：细、淡、悬停才明显 ===== */
+/* ===== 滚动条策略 =====
+   主界面整页（内容高于窗口时）与历史抽屉列表的滚动条直接隐藏——
+   滚轮 / 键盘仍可滚动，只是不显示那条「备用」的条；
+   内容列表框（选岗位 / 完成页候选人 / 岗位描述编辑框）默认也不显示，
+   鼠标移进框内才淡出 5px 细条：平时干净，要滚时能看到进度。
+   Chromium 用 ::-webkit-scrollbar；Firefox 用 scrollbar-width 兜底。 */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -102,10 +111,25 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.2);
+  background: transparent;
   border-radius: 999px;
 }
-::-webkit-scrollbar-thumb:hover {
+
+/* 主界面整页 + 历史抽屉列表：彻底不显示 */
+html { scrollbar-width: none; }
+html::-webkit-scrollbar { width: 0; height: 0; }
+.history-list { scrollbar-width: none; }
+.history-list::-webkit-scrollbar { width: 0; height: 0; }
+
+/* 内容列表框：悬停到框上才显示细条（滑块悬停再加深） */
+.job-picker-list:hover::-webkit-scrollbar-thumb,
+.results-list:hover::-webkit-scrollbar-thumb,
+.dialog-field textarea:hover::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.2);
+}
+.job-picker-list:hover::-webkit-scrollbar-thumb:hover,
+.results-list:hover::-webkit-scrollbar-thumb:hover,
+.dialog-field textarea:hover::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.45);
 }
 
@@ -137,11 +161,11 @@ textarea:focus-visible {
 
 /* ===== Header ===== */
 header h1 {
-  font-size: 15px;
+  font-size: var(--text-xl);
   font-weight: 600;
   text-align: center;
   color: var(--text-primary);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border-card);
   letter-spacing: 0.5px;
@@ -152,7 +176,7 @@ header h1 {
   font-size: 11px;
   font-weight: 400;
   color: var(--text-muted);
-  margin-left: 6px;
+  margin-left: 8px;
   vertical-align: 2px;
 }
 
@@ -173,7 +197,7 @@ header h1 {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 20px;
+  padding: 8px 20px;
   font-size: 12px;
   color: var(--text-muted);
 }
@@ -226,7 +250,7 @@ input::-webkit-clear-button {
   font-size: 14px;
   color: var(--text-primary);
   font-weight: 500;
-  padding: 6px 12px;
+  padding: 8px 12px;
   background: rgba(var(--color-accent-rgb),0.04);
   border: 1px solid var(--color-accent);
   border-radius: 6px;
@@ -245,7 +269,7 @@ input::-webkit-clear-button {
   background: var(--bg-card);
   border: 1px dashed var(--border-input);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
 }
 .job-display.placeholder:hover {
   border-color: var(--color-accent);
@@ -261,11 +285,11 @@ input::-webkit-clear-button {
 /* 搜索框复用弹窗输入框的基础样式（见 .dialog-field input） */
 .job-picker-search-input {
   font-family: inherit;
-  padding-right: 34px; /* 给右侧清空按钮留位 */
+  padding-right: 32px; /* 给右侧清空按钮留位 */
 }
 .job-search-clear {
   position: absolute;
-  right: 10px;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
   width: 16px;
@@ -283,7 +307,7 @@ input::-webkit-clear-button {
 }
 /* 实心圆底（浅灰），鼠标悬停时加深 */
 .job-search-clear-bg {
-  fill: #aab6c6;
+  fill: var(--icon-muted);
   transition: fill var(--transition-fast);
 }
 .job-search-clear:hover .job-search-clear-bg {
@@ -306,8 +330,8 @@ input::-webkit-clear-button {
 .job-picker-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
+  gap: 8px;
+  padding: 8px 12px;
   font-size: 14px;
   color: var(--text-primary);
   border-bottom: 1px solid var(--border-card);
@@ -362,7 +386,7 @@ input::-webkit-clear-button {
 }
 .job-picker-item-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -382,7 +406,7 @@ input::-webkit-clear-button {
   box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 .card-title {
   font-size: 13px;
@@ -391,7 +415,7 @@ input::-webkit-clear-button {
   letter-spacing: 0.5px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 .step-indicator {
   font-size: 11px;
@@ -407,7 +431,7 @@ input::-webkit-clear-button {
 .field-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .field-label {
   font-size: 13px;
@@ -438,7 +462,7 @@ button.is-loading::before {
   display: inline-block;
   width: 12px;
   height: 12px;
-  margin-right: 6px;
+  margin-right: 8px;
   border: 2px solid currentColor;
   border-top-color: transparent;
   border-radius: 50%;
@@ -455,12 +479,12 @@ button.is-loading::before {
   gap: 0;
   background: var(--bg-page);
   border-radius: var(--radius-btn);
-  padding: 3px;
+  padding: 4px;
   width: 100%;
 }
 .toggle-btn {
   flex: 1;
-  padding: 7px 12px;
+  padding: 8px 12px;
   font-size: 13px;
   font-weight: 500;
   border: none;
@@ -469,7 +493,7 @@ button.is-loading::before {
   color: var(--text-secondary);
   cursor: pointer;
   text-align: center;
-  transition: all var(--transition-fast);
+  transition: color var(--transition-fast), background-color var(--transition-fast);
   -webkit-app-region: no-drag;
 }
 .toggle-btn.active {
@@ -490,7 +514,7 @@ button.is-loading::before {
   font-size: var(--text-sm);
   line-height: 1.6;
   border-radius: var(--radius-md);
-  padding: 10px 12px;
+  padding: 12px 16px;
   border: 1px solid transparent;
 }
 .alert--success { background: var(--bg-success); color: var(--color-success-strong); border-color: var(--border-success); }
@@ -543,7 +567,7 @@ button.is-loading::before {
 }
 .input-number {
   width: 72px;
-  padding: 7px 10px;
+  padding: 8px 12px;
   border: 1px solid var(--border-input);
   border-radius: var(--radius-input);
   font-size: 14px;
@@ -572,7 +596,7 @@ button.is-loading::before {
 .checkbox-label {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   font-size: 13px;
   color: var(--text-secondary);
   cursor: pointer;
@@ -612,7 +636,7 @@ button.is-loading::before {
   transform: translateX(-50%);
   width: max-content;
   max-width: 240px;
-  padding: 8px 10px;
+  padding: 8px 12px;
   background: var(--text-primary);
   color: var(--bg-card);
   border-radius: 6px;
@@ -650,10 +674,10 @@ button.is-loading::before {
 .auto-greet-controls {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 .input-select {
-  padding: 5px 10px;
+  padding: 8px 12px;
   border: 1px solid var(--border-input);
   border-radius: var(--radius-input);
   font-size: 13px;
@@ -682,7 +706,7 @@ button.is-loading::before {
   justify-content: space-between;
   gap: 8px;
   min-width: 200px;
-  padding: 5px 10px;
+  padding: 8px 12px;
   border: 1px solid var(--border-input);
   border-radius: var(--radius-input);
   font-size: 13px;
@@ -696,7 +720,7 @@ button.is-loading::before {
   border-color: var(--color-accent);
 }
 .custom-select-arrow {
-  font-size: 11px;
+  flex-shrink: 0; /* 12×12 chevron svg，随 currentColor 取色 */
   color: var(--text-muted);
 }
 .custom-select-menu {
@@ -741,8 +765,8 @@ button.is-loading::before {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 7px 16px;
+  gap: 8px;
+  padding: 8px 16px;
   font-size: var(--text-md);
   font-weight: 500;
   line-height: 1.4;
@@ -806,7 +830,7 @@ button.is-loading::before {
   background: var(--bg-card);
   color: var(--color-accent);
   border-color: var(--border-input);
-  padding: 3px 10px;
+  padding: 4px 12px;
   font-size: var(--text-sm);
 }
 .btn--link:hover:not(:disabled) { border-color: var(--color-accent); background: rgba(var(--color-accent-rgb),0.04); }
@@ -854,7 +878,7 @@ button.is-loading::before {
   color: var(--text-primary);
 }
 .collapsible-arrow {
-  font-size: 14px;
+  flex-shrink: 0; /* 15×15 chevron svg，随 currentColor 取色 */
   color: var(--text-muted);
   transition: transform var(--transition-normal);
 }
@@ -867,7 +891,7 @@ button.is-loading::before {
   padding: 0 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-4);
   border-top: 0 solid var(--border-card);
   opacity: 0;
   transition: max-height var(--transition-normal), opacity var(--transition-normal), padding var(--transition-normal), border-top-width var(--transition-normal);
@@ -880,8 +904,8 @@ button.is-loading::before {
 }
 .config-badge {
   font-size: 12px;
-  padding: 3px 10px;
-  border-radius: 10px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
   font-weight: 500;
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
@@ -939,25 +963,30 @@ button.is-loading::before {
 .input-wrap input {
   display: block;
 }
-.input-toggle {
+/* 字段/输入框右端的纯图标按钮（显示/隐藏密码的眼睛、输出目录的文件夹）共用几何：
+   绝对定位于容器右端 right:10px、20×20、透明无边框、currentColor 取色。 */
+.field-icon-btn {
   position: absolute;
-  right: 10px;
   top: 50%;
+  right: 10px;
   transform: translateY(-50%);
   width: 20px;
   height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
   cursor: pointer;
   user-select: none;
-  color: var(--text-muted);
+  -webkit-app-region: no-drag;
+}
+/* 密码框眼睛按钮：静置淡一些，悬停加深并完全显示 */
+.input-toggle {
   opacity: 0.65;
   transition: opacity 0.15s;
-  background: none;
-  border: none;
-  padding: 0;
-  -webkit-app-region: no-drag;
 }
 .input-toggle:hover {
   opacity: 1;
@@ -968,21 +997,59 @@ button.is-loading::before {
 .output-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
   font-size: 13px;
   color: var(--text-secondary);
-  flex-wrap: wrap;
 }
 .output-label {
   flex-shrink: 0;
+  line-height: 1.5;
+}
+/* 输出路径框按「只读展示」处理（同「已添加的岗位名」的只读区分法）：
+   值不能就地改，就不许长得像能输入的框 —— 底色加深为 --bg-subtle、去掉描边、
+   字色用 --text-muted、字号降一档 12px，一眼看出比上面的输入框弱、不可编辑。
+   高度固定 24px（8px 网格）。
+   文件夹按钮与眼睛按钮共用 .field-icon-btn（绝对定位不撑高框体、右距统一 right:10px），
+   框内文字右侧留 32px（同输入框右侧给图标留位的 32px）。 */
+.output-dir-field {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 24px;             /* 8px 网格固定高 */
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-8) 0 var(--space-3); /* 右侧给文件夹按钮留位 32px */
+  background: var(--bg-subtle);
+  border: none;
+  border-radius: var(--radius-input);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  cursor: default;
 }
 .output-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: inherit;
-  color: var(--text-primary);
-  font-size: 12px;
-  background: var(--bg-input);
-  padding: 3px 8px;
-  border-radius: 4px;
+}
+.output-dir-btn {
+  border-radius: var(--radius-md);
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+/* 悬停只把图标变蓝，不出浅蓝圆底 —— 保持轻量，不抢框内路径文字 */
+.output-dir-btn:hover {
+  color: var(--color-accent);
+}
+.output-dir-btn:active {
+  color: var(--color-accent-hover);
+}
+.output-dir-btn svg {
+  display: block;
+}
+.output-row .btn--link {
+  flex: 0 0 auto;
 }
 
 /* ===== Step Items ===== */
@@ -999,7 +1066,7 @@ button.is-loading::before {
 .step-item-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 .step-number {
   width: 24px;
@@ -1013,7 +1080,7 @@ button.is-loading::before {
   font-size: 12px;
   font-weight: 600;
   flex-shrink: 0;
-  transition: all var(--transition-normal);
+  transition: background-color var(--transition-normal), color var(--transition-normal);
 }
 .step-item[data-state="running"] .step-number {
   background: var(--gradient-primary);
@@ -1049,11 +1116,11 @@ button.is-loading::before {
 .step-progress {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 .progress-track {
   flex: 1;
-  height: 6px;
+  height: 8px;
   background: var(--border-card);
   border-radius: var(--radius-full);
   overflow: hidden;
@@ -1100,7 +1167,7 @@ button.is-loading::before {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 8px 0;
 }
 .result-icon-circle {
@@ -1157,7 +1224,7 @@ button.is-loading::before {
   user-select: none;
 }
 .mail-error-detail {
-  margin-top: 6px;
+  margin-top: 8px;
   white-space: pre-line;
   color: var(--text-secondary);
 }
@@ -1165,7 +1232,7 @@ button.is-loading::before {
 /* ===== Result Actions ===== */
 .result-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   justify-content: center;
 }
 
@@ -1185,7 +1252,7 @@ button.is-loading::before {
 .greet-section {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-4);
   padding-top: 2px;
 }
 .greet-title {
@@ -1210,7 +1277,7 @@ button.is-loading::before {
 .greet-progress {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .greet-progress-text {
   font-size: 12px;
@@ -1221,7 +1288,7 @@ button.is-loading::before {
   font-size: 13px;
   color: var(--color-success-strong);
   text-align: center;
-  padding: 10px;
+  padding: 12px;
   background: rgba(var(--color-success-rgb),0.06);
   border: 1px solid rgba(var(--color-success-rgb),0.15);
   border-radius: 6px;
@@ -1243,7 +1310,7 @@ button.is-loading::before {
   align-items: center;
   justify-content: center;
   z-index: var(--z-overlay);
-  animation: overlay-in var(--dur-normal) var(--ease-out);
+  animation: overlay-in var(--dur-dialog) var(--ease-out); /* 遮罩与弹窗同拍：见 .dialog-box */
 }
 .dialog-box {
   background: var(--bg-card);
@@ -1256,27 +1323,27 @@ button.is-loading::before {
 }
 /* 弹窗关闭过渡：整体淡出，与下一个弹窗的淡入衔接成连续过渡 */
 .dialog-overlay--closing {
-  animation: overlay-out var(--dur-normal) var(--ease-in-out) forwards;
+  animation: overlay-out var(--dur-dialog) var(--ease-in-out) forwards;
   pointer-events: none;
 }
 .dialog-overlay--closing .dialog-box {
-  animation: box-out var(--dur-normal) var(--ease-in-out) forwards;
+  animation: box-out var(--dur-dialog) var(--ease-in-out) forwards;
 }
 .dialog-title {
   font-size: 16px;
   font-weight: 600;
-  margin-bottom: 18px;
+  margin-bottom: var(--space-4);
 }
 .dialog-field {
   position: relative; /* 为自定义文本域拖拽手柄定位 */
-  margin-bottom: 14px;
+  margin-bottom: var(--space-4);
 }
 .dialog-field label {
   display: block;
   font-size: 13px;
   font-weight: 500;
   color: var(--text-secondary);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .dialog-field input,
 .dialog-field textarea,
@@ -1334,9 +1401,9 @@ button.is-loading::before {
 }
 .dialog-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   justify-content: flex-end;
-  margin-top: 18px;
+  margin-top: 16px;
 }
 
 /* 通用确认弹窗（替代原生 confirm/alert） */
@@ -1365,7 +1432,7 @@ button.is-loading::before {
   pointer-events: none;
 }
 .toast {
-  padding: 10px 20px;
+  padding: 12px 20px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
@@ -1550,7 +1617,7 @@ button.is-loading::before {
 .tier-bar-fill--5 { background: var(--color-success); }
 .tier-bar-fill--4 { background: var(--color-accent); }
 .tier-bar-fill--3 { background: var(--color-warning); }
-.tier-bar-fill--2 { background: #f97316; }
+.tier-bar-fill--2 { background: var(--color-orange); }
 .tier-bar-fill--1 { background: var(--color-disabled-text); }
 
 /* 候选人列表 */
@@ -1569,7 +1636,7 @@ button.is-loading::before {
   color: var(--text-muted);
 }
 .results-list {
-  max-height: 210px;
+  max-height: 208px;
   overflow-y: auto;
   border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
@@ -1617,7 +1684,8 @@ button.is-loading::before {
   letter-spacing: 1px;
 }
 .result-item-arrow {
-  font-size: var(--text-sm);
+  display: inline-flex;
+  align-items: center;
   color: var(--text-muted);
   transition: transform var(--transition-fast);
 }
@@ -1627,7 +1695,7 @@ button.is-loading::before {
 .tier--5 { color: var(--color-success-strong); }
 .tier--4 { color: var(--color-accent); }
 .tier--3 { color: var(--color-warning-strong); }
-.tier--2 { color: #ea580c; }
+.tier--2 { color: var(--color-orange-strong); }
 .tier--1 { color: var(--color-disabled-text); }
 
 .result-item-body {
@@ -1670,7 +1738,7 @@ button.is-loading::before {
   align-items: stretch;
   background: rgba(15, 23, 42, 0.4);
   z-index: var(--z-overlay);
-  animation: overlay-in var(--dur-fast) var(--ease-out);
+  animation: overlay-in var(--dur-normal) var(--ease-out); /* 遮罩与抽屉同拍：见 .history-drawer */
 }
 .history-drawer {
   width: 340px;
@@ -1687,14 +1755,9 @@ button.is-loading::before {
   from { opacity: 0; transform: translateX(-24px); }
   to { opacity: 1; transform: translateX(0); }
 }
-.history-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* 抽屉标题直接挂在抽屉上（删掉右上 × 后不再有 header 容器） */
+.history-drawer > .dialog-title {
   margin-bottom: var(--space-3);
-}
-.history-header .dialog-title {
-  margin: 0;
 }
 .history-list {
   flex: 1;
