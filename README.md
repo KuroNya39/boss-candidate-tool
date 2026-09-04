@@ -294,7 +294,6 @@ AI 会按岗位描述里的 **3 个核心评估维度**（带权重）给候选�
   npm run pack       # 打包构建（icon → electron-builder → NSIS → release）
   ```
 - 详细开发文档见 [CLAUDE.md](CLAUDE.md)
-- 界面设计规范见 [docs/design-system.md](docs/design-system.md)（颜色、间距、字号、动效等设计 token 统一定义在 `electron/renderer/style.css` 的 `:root`）
 
 ---
 
