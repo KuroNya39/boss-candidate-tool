@@ -249,6 +249,65 @@ const EXTRACT_CARD_INFO_SCRIPT = `(function(){
 
 // ===== 候选人列表扫描 =====
 
+// v1.9.10 修复：判断列表底部是否正显示「正在加载中…」（Boss 懒加载占位）。
+// 滚动扫到底时撞上它，不代表没有更多人了，要等它把新候选人加载出来。
+async function isListLoading(targetId) {
+  try {
+    const text = await iframeEval(targetId, `(function(){
+      var root = document.body || document.documentElement;
+      return (root && root.innerText) || '';
+    })()`);
+    return /正在加载|加载中/.test(text);
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * v1.9.10 修复：扫描撞到「看似到底」时先别急着停——底部可能有「正在加载中…」懒加载占位。
+ * 等待期间读到的所有卡片都通过 pushCard 并入；返回 true=确认到底可停，false=等到了新卡可继续扫。
+ * 收敛保证：占位持续 12 秒仍不出人，或连续 2 次安静确认，都会结束等待。
+ */
+async function confirmScanEnd(targetId, pushCard) {
+  const startMs = Date.now();
+  let quietChecks = 0;
+  let announcedLoading = false;
+  for (;;) {
+    await sleep(1000);
+    let cards = [];
+    try {
+      cards = await iframeEval(targetId, EXTRACT_CARD_INFO_SCRIPT);
+    } catch (e) {
+      cards = [];
+    }
+    let added = 0;
+    for (const card of cards) {
+      if (pushCard(card)) added++;
+    }
+    if (added > 0) {
+      console.log(`   🔄 底部等待期间新出现 ${added} 人，继续扫描`);
+      return false;
+    }
+    const loading = await isListLoading(targetId);
+    if (loading) {
+      if (!announcedLoading) {
+        announcedLoading = true;
+        console.log('   ⌛ 底部「正在加载中…」，等待新候选人加载出来…');
+      }
+      if (Date.now() - startMs > 12000) {
+        console.log('   ⚠️ 底部「正在加载中…」超过 12 秒仍未出人，按已到底处理');
+        return true;
+      }
+      continue;
+    }
+    quietChecks++;
+    if (quietChecks >= 2) {
+      console.log('   ✓ 确认已到底部（等待后无新卡、无加载提示）');
+      return true;
+    }
+  }
+}
+
 /**
  * 扫描全部候选人：读取所有可见卡片，逐步滚动加载更多
  * 搜索页使用虚拟滚动/分页，需要不断滚动发现新人
@@ -262,6 +321,16 @@ async function scanAllCards(targetId, opts = {}) {
   let prevScrollTop = -1;
   let prevScrollHeight = 0;
 
+  // v1.9.10：统一去重并入列（扫描循环与 confirmScanEnd 共用）
+  const pushCard = (card) => {
+    if (card.expectId && !seenExpectIds.has(card.expectId)) {
+      seenExpectIds.add(card.expectId);
+      cardInfos.push(card);
+      return true;
+    }
+    return false;
+  };
+
   for (let attempt = 0; attempt < maxScrollAttempts; attempt++) {
     // 读取当前可见的卡片信息
     let visibleCards;
@@ -274,13 +343,8 @@ async function scanAllCards(targetId, opts = {}) {
     }
 
     let newInThisBatch = 0;
-
     for (const card of visibleCards) {
-      if (card.expectId && !seenExpectIds.has(card.expectId)) {
-        seenExpectIds.add(card.expectId);
-        cardInfos.push(card);
-        newInThisBatch++;
-      }
+      if (pushCard(card)) newInThisBatch++;
     }
 
     if (newInThisBatch === 0) {
@@ -330,12 +394,20 @@ async function scanAllCards(targetId, opts = {}) {
       noNewCount = Math.max(0, noNewCount - 2);
     }
 
-    if (scrollResult.scrollTop === prevScrollTop) break;
+    // 触底或连续无新卡：先确认不是 Boss 底部「正在加载中…」懒加载，再判定到底（v1.9.10 修复）
+    if (scrollResult.scrollTop === prevScrollTop || noNewCount >= noNewThreshold) {
+      const ended = await confirmScanEnd(targetId, pushCard);
+      if (ended) break;
+      // 等待期间等到了新卡（confirmScanEnd 已并入）：重置状态继续扫
+      noNewCount = 0;
+      prevScrollTop = -1;
+      prevScrollHeight = scrollResult.scrollHeight;
+      continue;
+    }
     prevScrollTop = scrollResult.scrollTop;
 
-    if (noNewCount >= noNewThreshold) break;
-
-    await randomDelay(1500, 3000);
+    // v1.9.10: 1500-3000 → 300-600（与沟通页扫描同节奏，提速）
+    await randomDelay(300, 600);
   }
 
   return cardInfos;
@@ -353,6 +425,16 @@ async function scanUpToCards(targetId, count, opts = {}) {
   let prevScrollTop = -1;
   let prevScrollHeight = 0;
 
+  // v1.9.10：统一去重并入列（扫描循环与 confirmScanEnd 共用）
+  const pushCard = (card) => {
+    if (card.expectId && !seenExpectIds.has(card.expectId)) {
+      seenExpectIds.add(card.expectId);
+      cardInfos.push(card);
+      return true;
+    }
+    return false;
+  };
+
   for (let attempt = 0; attempt < maxScrollAttempts; attempt++) {
     if (cardInfos.length >= count) break;
 
@@ -366,14 +448,9 @@ async function scanUpToCards(targetId, count, opts = {}) {
     }
 
     let newInThisBatch = 0;
-
     for (const card of visibleCards) {
-      if (card.expectId && !seenExpectIds.has(card.expectId)) {
-        seenExpectIds.add(card.expectId);
-        cardInfos.push(card);
-        newInThisBatch++;
-        if (cardInfos.length >= count) break;
-      }
+      if (pushCard(card)) newInThisBatch++;
+      if (cardInfos.length >= count) break;
     }
 
     if (newInThisBatch === 0) {
@@ -384,7 +461,6 @@ async function scanUpToCards(targetId, count, opts = {}) {
 
     if (onProgress) onProgress(cardInfos.length, attempt, newInThisBatch);
 
-    if (noNewCount >= noNewThreshold) break;
     if (cardInfos.length >= count) break;
 
     const scrollResult = await iframeEval(targetId, `(function(){
@@ -416,10 +492,19 @@ async function scanUpToCards(targetId, count, opts = {}) {
       noNewCount = Math.max(0, noNewCount - 2);
     }
 
-    if (scrollResult.scrollTop === prevScrollTop) break;
+    // 触底或连续无新卡：先确认不是 Boss 底部「正在加载中…」懒加载，再判定到底（v1.9.10 修复）
+    if (scrollResult.scrollTop === prevScrollTop || noNewCount >= noNewThreshold) {
+      const ended = await confirmScanEnd(targetId, pushCard);
+      if (ended) break;
+      noNewCount = 0;
+      prevScrollTop = -1;
+      prevScrollHeight = scrollResult.scrollHeight;
+      continue;
+    }
     prevScrollTop = scrollResult.scrollTop;
 
-    await randomDelay(1500, 2500);
+    // v1.9.10: 1500-2500 → 300-600（提速），与 scanAllCards 保持一致
+    await randomDelay(300, 600);
   }
 
   return cardInfos;
@@ -1265,8 +1350,8 @@ async function main() {
               }
               if (!success) throw new Error(`截图第 ${page + 1}/${pages} 页多次失败`);
 
-              // v1.3.31: 页间等待 300-500 → 220-350ms（截图提速，仍保留防反爬节奏）
-              if (page < pages - 1) await randomDelay(220, 350);
+              // v1.9.10: 页间等待 100-300ms（三页截图节奏统一，仍保留防反爬节奏）
+              if (page < pages - 1) await randomDelay(100, 300);
             }
 
             console.log('  → OCR 识别（后台进行，与关闭弹窗重叠）...');
@@ -1327,15 +1412,9 @@ async function main() {
         console.log(`  💾 进度已保存 (${processedExpectIds.size}/${totalCount})`);
       }
 
-      if ((i + 1) % 50 === 0 && i < toProcess.length - 1) {
-        await prevOcr;
-        const pauseMs = 20000;
-        console.log(`  ⏸ 已处理 ${i + 1} 人，暂停 ${(pauseMs / 1000).toFixed(0)}s 防风控...`);
-        await sleep(pauseMs);
-      }
-
+      // v1.9.10: 去掉每 50 人防风控暂停；候选人间隙 300-800ms（三页统一）
       if (i < toProcess.length - 1) {
-        const delayMs = 500 + Math.random() * 500;
+        const delayMs = 300 + Math.random() * 500;
         console.log(`  ⏳ 等待 ${(delayMs / 1000).toFixed(1)}s...\n`);
         await sleep(delayMs);
       }

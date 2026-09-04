@@ -554,8 +554,8 @@ export async function captureResumeScreenshots(targetId, safename, tempDir) {
       throw new Error(`截图第 ${page + 1}/${pages} 页多次失败`);
     }
 
-    // v1.3.31: 页间等待 300-500 → 220-350ms（截图提速，仍保留防反爬节奏）
-    if (page < pages - 1) await randomDelay(220, 350);
+    // v1.9.10: 页间等待 100-300ms（三页截图节奏统一，仍保留防反爬节奏）
+    if (page < pages - 1) await randomDelay(100, 300);
   }
 
   await scrollResume(targetId, 0);

@@ -168,6 +168,20 @@ async function scrollListToBottom(targetId) {
   })()`);
 }
 
+// v1.9.10 修复：判断会话列表底部是否正显示「正在加载中…」（Boss 懒加载占位）。
+// 滚动扫到底撞上它时，不代表没有更多会话了，要等它加载出来。
+async function isChatListLoading(targetId) {
+  try {
+    const text = await cdpEval(targetId, `(function(){
+      var root = document.body || document.documentElement;
+      return (root && root.innerText) || '';
+    })()`);
+    return /正在加载|加载中/.test(text);
+  } catch (e) {
+    return false;
+  }
+}
+
 async function scanAllCandidateGeekIds(targetId, opts = {}) {
   const { maxScrollAttempts = 500, noNewThreshold = 6, onProgress } = opts;
 
@@ -289,6 +303,13 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
     }
 
     if (scroll.movedKey === null) {
+      // 已在底部：若正显示「正在加载中…」（懒加载占位），等它把新会话加载出来再继续（v1.9.10 修复）
+      const bottomLoading = await isChatListLoading(targetId);
+      if (bottomLoading) {
+        console.log('   ⌛ 会话列表底部正在加载…（等待懒加载完成）');
+        await sleep(1000);
+        continue;
+      }
       // 如果已在底部但还没有触发底部探测，让 noNewCount 继续增长触发探测
       if (!aggressive) break;
       await randomDelay(300, 600);
@@ -428,6 +449,13 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
     }
 
     if (scroll.movedKey === null) {
+      // 已在底部：若正显示「正在加载中…」（懒加载占位），等它把新会话加载出来再继续（v1.9.10 修复）
+      const bottomLoading = await isChatListLoading(targetId);
+      if (bottomLoading) {
+        console.log('   ⌛ 会话列表底部正在加载…（等待懒加载完成）');
+        await sleep(1000);
+        continue;
+      }
       // 如果已在底部但还没有触发底部探测，让 noNewCount 继续增长触发探测
       if (!aggressive) break;
       await randomDelay(300, 600);
@@ -1329,15 +1357,9 @@ async function main() {
         console.log(`  💾 进度已保存 (${processedGeekIds.size}/${totalCount})`);
       }
 
-      if ((i + 1) % 50 === 0 && i < toProcess.length - 1) {
-        await prevOcrRef.current;
-        const pauseMs = 20000;
-        console.log(`  ⏸ 已处理 ${i + 1} 人，暂停 ${(pauseMs / 1000).toFixed(0)}s 防风控...`);
-        await sleep(pauseMs);
-      }
-
+      // v1.9.10: 去掉每 50 人防风控暂停；候选人间隙 300-800ms（三页统一）
       if (i < toProcess.length - 1) {
-        const delayMs = 500 + Math.random() * 500;
+        const delayMs = 300 + Math.random() * 500;
         console.log(`  ⏳ 等待 ${(delayMs / 1000).toFixed(1)}s...\n`);
         await sleep(delayMs);
       }
