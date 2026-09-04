@@ -166,8 +166,6 @@ header h1 {
   text-align: center;
   color: var(--text-primary);
   margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-card);
   letter-spacing: 0.5px;
 }
 
@@ -190,6 +188,15 @@ header h1 {
 .state.active {
   display: flex;
   animation: state-in var(--dur-normal) var(--ease-out);
+}
+
+/* 主界面初始态：状态栏 / 设置卡 / 运行配置卡之间的纵向节奏。
+   顶到标题/状态行的留白收小，卡片之间与卡片内部适度放松，整体仍一页装下、底部不顶 */
+#state-initial {
+  gap: 8px;
+}
+#run-config-card {
+  margin-top: 4px;
 }
 
 /* ===== Chrome Status Bar ===== */
