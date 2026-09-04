@@ -123,17 +123,23 @@ function initCustomSelect(container) {
   function setOpen(open) {
     const isOpen = menu.style.display !== 'none';
     if (open === isOpen) return;
+    const arrow = container.querySelector('.custom-select-arrow');
     if (open) {
       // 窗口底部空间不足时向上展开（原生 select 会自动翻转，自定义组件需手动处理）
       const rect = container.getBoundingClientRect();
       const menuH = options.length * 36 + 12;
-      if (rect.bottom + menuH + 8 > window.innerHeight) {
+      const openUp = rect.bottom + menuH + 8 > window.innerHeight;
+      if (openUp) {
         menu.style.top = 'auto';
         menu.style.bottom = 'calc(100% + 4px)';
       } else {
         menu.style.top = 'calc(100% + 4px)';
         menu.style.bottom = 'auto';
       }
+      // 箭头随展开方向翻转：朝上展开时转 180° 成 ^
+      arrow.style.transform = openUp ? 'rotate(180deg)' : '';
+    } else {
+      arrow.style.transform = '';
     }
     menu.style.display = open ? 'flex' : 'none';
     trigger.setAttribute('aria-expanded', String(open));
@@ -778,6 +784,7 @@ async function updateConfigStatus() {
   }
 }
 
+let saveStatusTimer = null; // 「✓ 已保存」→「✓ 已设置」的定时器，连点时取消旧的重新计
 btnSaveConfig.addEventListener('click', async () => {
   const url = apiUrlInput.value.trim();
   const key = apiKeyInput.value.trim();
@@ -815,8 +822,9 @@ btnSaveConfig.addEventListener('click', async () => {
     configStatus.textContent = '✓ 已保存';
     configStatus.className = 'config-badge config-ok';
     showToast('设置已保存', 'success', 3000);
-    // 延迟更新状态检测，让"✓ 已保存"可见一段时间
-    setTimeout(updateConfigStatus, 1500);
+    // 延迟更新状态检测，让"✓ 已保存"可见一段时间；连续点保存时取消旧计时、以最后一次为准
+    clearTimeout(saveStatusTimer);
+    saveStatusTimer = setTimeout(updateConfigStatus, 1500);
   } catch (err) {
     configStatus.textContent = '保存失败：' + err.message;
     configStatus.className = 'config-badge config-error';
@@ -1147,12 +1155,6 @@ function renderHistoryItem(item, index) {
     doneChip.className = 'meta-chip';
     doneChip.textContent = '已完成';
     chipWrap.appendChild(doneChip);
-  }
-  if (item.hasExcel) {
-    const xlsChip = document.createElement('span');
-    xlsChip.className = 'meta-chip';
-    xlsChip.textContent = '含 Excel';
-    chipWrap.appendChild(xlsChip);
   }
   titleEl.append(timeEl, chipWrap);
 

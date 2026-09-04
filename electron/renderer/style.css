@@ -251,8 +251,8 @@ input::-webkit-clear-button {
   color: var(--text-primary);
   font-weight: 500;
   padding: 8px 12px;
-  background: rgba(var(--color-accent-rgb),0.04);
-  border: 1px solid var(--color-accent);
+  background: var(--bg-card);
+  border: 1px solid var(--border-input); /* 选中岗位后也是普通灰框，同其它输入/下拉控件 */
   border-radius: 6px;
   flex: 1;
   min-width: 0;
@@ -262,6 +262,10 @@ input::-webkit-clear-button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.job-display:hover {
+  background: var(--bg-page);
+  border-color: var(--color-accent);
 }
 .job-display.placeholder {
   color: var(--text-muted);
@@ -389,6 +393,9 @@ input::-webkit-clear-button {
   gap: 8px;
   flex-shrink: 0;
 }
+/* 列表内小操作按钮（编辑/删除）：描边淡一档，不抢弹窗底部的大按钮 */
+.job-picker-item-actions .btn--secondary { border-color: rgba(var(--color-accent-rgb), 0.35); }
+.job-picker-item-actions .btn--danger   { border-color: rgba(var(--color-error-rgb), 0.3); }
 
 /* ===== 添加/编辑岗位弹窗（置顶于目标岗位弹窗之上） ===== */
 /* 基底 .dialog-overlay 是 var(--z-overlay)=1000，这里必须更高，否则会被目标岗位弹窗盖住 */
@@ -507,6 +514,7 @@ button.is-loading::before {
 }
 
 /* ===== Alert 体系（提示条） ===== */
+/* 浅底提示卡一律不带描边：浅底 + 深字即可区分，轮廓线交给留白 */
 .alert {
   display: flex;
   align-items: flex-start;
@@ -515,12 +523,11 @@ button.is-loading::before {
   line-height: 1.6;
   border-radius: var(--radius-md);
   padding: 12px 16px;
-  border: 1px solid transparent;
 }
-.alert--success { background: var(--bg-success); color: var(--color-success-strong); border-color: var(--border-success); }
-.alert--warning { background: var(--bg-warning); color: var(--color-warning-strong); border-color: var(--border-warning); }
-.alert--error   { background: var(--bg-error);   color: var(--color-error-strong);   border-color: var(--border-error); }
-.alert--info    { background: var(--bg-info);    color: var(--color-info-strong);    border-color: var(--border-info); }
+.alert--success { background: var(--bg-success); color: var(--color-success-strong); }
+.alert--warning { background: var(--bg-warning); color: var(--color-warning-strong); }
+.alert--error   { background: var(--bg-error);   color: var(--color-error-strong); }
+.alert--info    { background: var(--bg-info);    color: var(--color-info-strong); }
 
 /* ===== 空状态 ===== */
 .empty-state {
@@ -547,7 +554,6 @@ button.is-loading::before {
   padding-bottom: 0;
   margin: 0;
   opacity: 0;
-  border-width: 0;
 }
 .hint-icon {
   width: 18px;
@@ -676,22 +682,6 @@ button.is-loading::before {
   align-items: center;
   gap: 8px;
 }
-.input-select {
-  padding: 8px 12px;
-  border: 1px solid var(--border-input);
-  border-radius: var(--radius-input);
-  font-size: 13px;
-  outline: none;
-  background: var(--bg-card);
-  color: var(--text-primary);
-  cursor: pointer;
-  -webkit-app-region: no-drag;
-}
-.input-select:focus {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(var(--color-accent-rgb),0.1);
-}
-
 /* ===== Custom Select ===== */
 /* 原生 <select> 弹层在 Electron 里有时打不开（drag 区域/合成器问题），
    批量打招呼/自动打招呼下拉改为纯页面内自定义组件，任何情况下可展开 */
@@ -722,6 +712,7 @@ button.is-loading::before {
 .custom-select-arrow {
   flex-shrink: 0; /* 12×12 chevron svg，随 currentColor 取色 */
   color: var(--text-muted);
+  transition: transform var(--transition-fast); /* 菜单朝上展开时旋转 180° 指向菜单 */
 }
 .custom-select-menu {
   position: absolute;
@@ -755,7 +746,7 @@ button.is-loading::before {
   background: rgba(var(--color-accent-rgb), 0.1);
 }
 .custom-select-option.selected {
-  background: rgba(var(--color-accent-rgb), 0.08);
+  background: rgba(var(--color-accent-rgb), 0.1); /* 与 hover 同一底色，颜色不跳变；选中另靠 accent 色字区分 */
   color: var(--color-accent);
   font-weight: 500;
 }
@@ -1211,7 +1202,6 @@ button.is-loading::before {
 .mail-error-details {
   font-size: 12px;
   color: var(--text-secondary);
-  border: 1px solid var(--border-warning);
   border-radius: var(--radius-md);
   background: var(--bg-warning);
   padding: 8px 12px;
@@ -1239,7 +1229,6 @@ button.is-loading::before {
 /* ===== Error Message ===== */
 .error-message {
   background: rgba(var(--color-error-rgb),0.06);
-  border: 1px solid rgba(var(--color-error-rgb),0.15);
   border-radius: 8px;
   padding: 12px 16px;
   font-size: 13px;
@@ -1290,13 +1279,11 @@ button.is-loading::before {
   text-align: center;
   padding: 12px;
   background: rgba(var(--color-success-rgb),0.06);
-  border: 1px solid rgba(var(--color-success-rgb),0.15);
   border-radius: 6px;
 }
 .greet-result.greet-result-error {
   color: var(--color-error-strong);
   background: rgba(var(--color-error-rgb),0.06);
-  border-color: rgba(var(--color-error-rgb),0.15);
 }
 
 /* ===== Modal Overlay ===== */
@@ -1446,22 +1433,18 @@ button.is-loading::before {
 .toast.toast-success {
   background: var(--bg-success);
   color: var(--color-success-strong);
-  border: 1px solid var(--border-success);
 }
 .toast.toast-error {
   background: var(--bg-error);
   color: var(--color-error-strong);
-  border: 1px solid var(--border-error);
 }
 .toast.toast-info {
   background: var(--bg-info);
   color: var(--color-info-strong);
-  border: 1px solid var(--border-info);
 }
 .toast.toast-warning {
   background: var(--bg-warning);
   color: var(--color-warning-strong);
-  border: 1px solid var(--border-warning);
 }
 .toast.toast-leaving {
   animation: toast-out var(--dur-normal) var(--ease-out) forwards;
