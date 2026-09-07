@@ -1,7 +1,7 @@
 /**
  * 处理应用图标：缩放 + 圆角
- * 输入: app_icon.png (项目根目录)
- * 输出: app_icon_rounded.png (项目根目录)
+ * 输入: build/app_icon.png（源图标）
+ * 输出: build/app_icon_rounded.png（运行/打包用圆角图标）
  */
 import sharp from 'sharp';
 import { resolve, dirname } from 'node:path';
@@ -10,8 +10,8 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = resolve(__dirname, '..');
 
-const INPUT = resolve(APP_ROOT, 'app_icon.png');
-const OUTPUT = resolve(APP_ROOT, 'app_icon_rounded.png');
+const INPUT = resolve(APP_ROOT, 'build', 'app_icon.png');
+const OUTPUT = resolve(APP_ROOT, 'build', 'app_icon_rounded.png');
 const SIZE = 256;          // 输出尺寸
 const RADIUS = 48;         // 圆角半径 (相对于 256px)
 

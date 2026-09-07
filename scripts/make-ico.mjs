@@ -10,7 +10,7 @@ import sharp from 'sharp';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = resolve(__dirname, '..');
 
-const INPUT = resolve(APP_ROOT, 'app_icon_rounded.png');
+const INPUT = resolve(APP_ROOT, 'build', 'app_icon_rounded.png');
 const OUTPUT = resolve(APP_ROOT, 'build', 'icon.ico');
 
 // electron-builder 要求至少 256x256

@@ -23,14 +23,14 @@ files:
   - "!**/*.map"
   - "!**/*.md"
   - "!LICENSES.chromium.html"
-  - app_icon_rounded.png
+  - build/app_icon_rounded.png
   - ocr-lang/**/*
 asarUnpack:
   - "scripts/**"
   - "config/scoring-prompt-chat.txt"
   - "config/scoring-prompt-with-jd.txt"
   - "ocr-lang/**"
-  - "app_icon_rounded.png"
+  - "build/app_icon_rounded.png"
   # 子进程(fork)需要访问实体文件，不能放在 asar 里
   - "node_modules/**"
 win:
