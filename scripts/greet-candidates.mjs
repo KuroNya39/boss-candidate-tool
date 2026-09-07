@@ -33,6 +33,32 @@ function fatal(msg) {
   process.exit(1);
 }
 
+// ===== 停止信号（来自主进程 stdin 的 CANCEL）=====
+// main.mjs 的「停止打招呼」会往本脚本 stdin 写一行 CANCEL。旧版脚本不监听 stdin，
+// 点了停止后仍在继续给后面的候选人打招呼，直到 6 秒后被主进程强杀（浏览器里已经发出多余招呼）。
+// 现在收到 CANCEL 立即置位 stopRequested，唤醒正在等待的延时/单人操作，主循环随即收手退出。
+let stopRequested = false;
+let stopResolve = null; // 停止时触发的 resolve（只创建一次，所有等待者共享）
+const stopSignal = new Promise((resolve) => { stopResolve = resolve; });
+function requestStop() {
+  if (stopRequested) return;
+  stopRequested = true;
+  if (stopResolve) stopResolve();
+}
+// 可取消延时：正常睡满 ms，或已收到停止指令立即返回。
+async function cancellableSleep(ms) {
+  if (stopRequested) return;
+  await Promise.race([sleep(ms), stopSignal]);
+}
+// 安装停止监听：stdin 的 CANCEL 与 SIGTERM 都走 requestStop。
+function installStopHandler() {
+  process.stdin.on('data', (data) => {
+    if (data.toString().trim() === 'CANCEL') requestStop();
+  });
+  if (process.stdin && typeof process.stdin.unref === 'function') process.stdin.unref();
+  process.on('SIGTERM', requestStop);
+}
+
 // ===== CLI 参数解析 =====
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -126,8 +152,8 @@ async function greetCandidate(targetId, geekId, name, source = 'recommend') {
     return 'already-greeted';
   }
   if (result === 'clicked') {
-    // 等待按钮状态变更，确认成功
-    await sleep(1500);
+    // 等待按钮状态变更，确认成功（停止指令可打断等待，尽快收手）
+    await cancellableSleep(1500);
 
     // 验证按钮状态
     const verify = `(function(){
@@ -157,6 +183,7 @@ async function greetCandidate(targetId, geekId, name, source = 'recommend') {
 // ===== 主流程 =====
 async function main() {
   const opts = parseArgs();
+  installStopHandler(); // 尽早监听，主流程任何阶段收到停止都能即时响应
 
   // 1. 读取评分数据
   if (!existsSync(opts.input)) {
@@ -201,6 +228,8 @@ async function main() {
   let skipCount = 0;
 
   for (let i = 0; i < targets.length; i++) {
+    if (stopRequested) break; // 收到停止：不再处理下一个候选人
+
     const c = targets[i];
     const name = c.basicInfo?.name || c.geekId || `候选人${i + 1}`;
     const geekId = c.geekId;
@@ -214,7 +243,8 @@ async function main() {
 
     console.log(`[${i + 1}/${targets.length}] ${name} (${score}分) ...`);
 
-    // 单个候选人超时保护（30s），防止单个人卡死整个流程
+    // 单个候选人超时保护（30s），防止单个人卡死整个流程；停止指令也参与竞争，
+    // 这样单个候选人卡住时点停止也能立刻收手，不必干等 30 秒
     let result = 'timeout';
     try {
       const timer = new Promise(resolve =>
@@ -223,11 +253,14 @@ async function main() {
       result = await Promise.race([
         greetCandidate(targetId, geekId, name, opts.source),
         timer,
+        stopSignal.then(() => 'cancelled'),
       ]);
     } catch (err) {
       console.log(`[greet] ${name} 异常: ${err.message}`);
       result = 'error';
     }
+
+    if (result === 'cancelled') break; // 用户点了停止，直接收手
 
     switch (result) {
       case 'success':
@@ -247,14 +280,20 @@ async function main() {
         skipCount++;
     }
 
-    // 间隔 2-5 秒防风控（v1.8.3：原 3-5 秒收紧到 2-5 秒，用户要稍快一些）
-    if (i < targets.length - 1) {
+    // 间隔 2-5 秒防风控（v1.8.3：原 3-5 秒收紧到 2-5 秒，用户要稍快一些）；
+    // 间隔期间收到停止指令也立即中断，不等满防风控时间
+    if (i < targets.length - 1 && !stopRequested) {
       const delay = 2000 + Math.random() * 3000;
-      await sleep(delay);
+      await cancellableSleep(delay);
     }
   }
 
-  // 5. 输出统计
+  // 5. 输出统计。用户主动停止时不发 GREET_DONE（主进程 cancelled 分支会静默收尾），
+  // 只留一行日志，避免把「中途停止」当成完整跑完上报给界面
+  if (stopRequested) {
+    console.log('\n已收到停止指令，停止后续打招呼');
+    return;
+  }
   console.log(`\nGREET_DONE:${successCount}|${alreadyCount}|${notFoundCount}|${skipCount}`);
 }
 
