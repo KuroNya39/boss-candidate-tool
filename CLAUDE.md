@@ -12,7 +12,7 @@ Electron desktop app for extracting candidate profiles from BOSS直聘 (Boss Zhi
 electron/main.mjs        ← Electron main process (pipeline orchestration, IPC, CDP proxy mgmt)
 electron/score-comment.mjs ← Shared scoring helpers: compute match score from comment (weighted base − deductions, with 学历硬性门槛 programmatic backstop) + patch education-deduction comment text
 electron/preload.js      ← Context bridge (electronAPI exposed to renderer)
-electron/renderer/       ← UI (index.html, renderer.js, style.css)
+electron/renderer/       ← UI (index.html + style.css + renderer-*.js；渲染层脚本按功能拆成 10 个小文件，由 index.html 按序 <script src> 引入共享全局作用域)
 
 scripts/cdp-proxy.mjs                   ← HTTP → WebSocket CDP proxy daemon (port 3456)
 scripts/extract-common.mjs              ← Shared utilities (CDP calls, OCR engine, progress save/resume)
