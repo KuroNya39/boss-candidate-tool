@@ -7,8 +7,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   skipExtraction: () => ipcRenderer.invoke('skip-extraction'),
   pauseExtraction: () => ipcRenderer.invoke('pause-extraction'),
   resumeCurrentExtraction: () => ipcRenderer.invoke('resume-current-extraction'),
-  // v1.4.8: 是否还有可用的上次提取数据
-  hasScorableData: () => ipcRenderer.invoke('has-scorable-data'),
   openOutputDir: () => ipcRenderer.invoke('open-output'),
   getOutputDir: () => ipcRenderer.invoke('get-output-dir'),
 

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog, powerSaveBlocker } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog, powerSaveBlocker, screen } from 'electron';
 import { spawn, execFile } from 'node:child_process';
 import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -155,13 +155,58 @@ let cdpStatus = { state: 'initializing', message: '', chromePort: null };
 const CDP_ERR_REMOTE_DEBUG_OFF = 'Chrome 未开启远程调试';
 
 // ===== 窗口创建 =====
+// 设计稿内容区尺寸（CSS px）。窗口等比放大缩小（锁定宽高比），不是随便拉成任意形状：
+// 缩放系数 zoom = min(内容宽/660, 内容高/730)，保证页面内容区按设计稿等比铺满，
+// 固定像素布局无需改动即可精确铺满；用户拉伸窗口时跟随内容区实时缩放。
+const DESIGN_W = 660;
+const DESIGN_H = 730;
+const ZOOM_MIN = 0.7;
+const ZOOM_MAX = 1.5;
+
+function clampZoom(z) {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+}
+
+function fitZoom() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  // 最小化期间内容区尺寸会被压缩/读到临时值，此时缩放会把整窗钉小；
+  // 真正需要校准的是还原（restore）后的尺寸，见 createWindow 里的 restore 处理。
+  if (mainWindow.isMinimized()) return;
+  const [cw, ch] = mainWindow.getContentSize();
+  const z = clampZoom(Math.min(cw / DESIGN_W, ch / DESIGN_H));
+  if (Math.abs(mainWindow.webContents.getZoomFactor() - z) > 0.001) {
+    mainWindow.webContents.setZoomFactor(z);
+  }
+}
+
+// 锁定窗口宽高比：拖边角整体等比放大缩小（像放大缩小一张图），拉不成扁/瘦形状。
+// 帧边框和标题栏不参与比例，需用「窗口尺寸 - 内容尺寸」的固定差值补偿——
+// 锁定 (外宽-帧宽)/(外高-帧高) = 设计稿比例，内容区才严格等比，fitZoom 能让两个方向同时铺满。
+// 仅普通窗口拉伸态生效；最大化时由系统接管、可能出现留白，属预期。
+function lockAspectRatio() {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.setAspectRatio) return;
+  const [wW, wH] = mainWindow.getSize();
+  const [cW, cH] = mainWindow.getContentSize();
+  const aspect = (DESIGN_W + (wW - cW)) / (DESIGN_H + (wH - cH));
+  mainWindow.setAspectRatio(aspect);
+}
+
 function createWindow() {
+  // 启动尺寸：以光标所在显示器工作区为准，等比放大到设计稿并留出边距
+  const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  const s0 = clampZoom(Math.min((workArea.width * 0.92) / DESIGN_W, (workArea.height * 0.88) / DESIGN_H));
+
   mainWindow = new BrowserWindow({
-    width: 660,
-    height: 730,
-    resizable: false,
+    width: Math.round(DESIGN_W * s0),
+    height: Math.round(DESIGN_H * s0),
+    useContentSize: true,
+    resizable: true,
+    minWidth: 500,
+    minHeight: 580,
+    show: false,
+    backgroundColor: '#f5f7fa',
     title: 'BOSS直聘候选人AI评分助手',
-    icon: resolve(UNPACKED_ROOT, 'app_icon_rounded.png'),
+    icon: resolve(UNPACKED_ROOT, 'build', 'app_icon_rounded.png'),
     webPreferences: {
       preload: resolve(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -169,6 +214,30 @@ function createWindow() {
     },
   });
   mainWindow.setMenu(null);
+  mainWindow.webContents.on('did-finish-load', () => fitZoom());
+
+  // 拖动改窗口大小时，系统会先按“下一次有效尺寸”分步触发 resize；
+  // 如果每一条 resize 都立即 fitZoom，偶发会在某个中间帧读到临时的小内容区
+  // 而把 zoom 钉小（整窗内容变小），直到再拖一下才恢复。改成防抖：
+  // 只在最后一次 resize 之后 ~200ms（尺寸稳定）再 fitZoom 一次。
+  let resizeTimer = null;
+  mainWindow.on('resize', () => {
+    if (mainWindow.isMinimized()) return; // 最小化时的临时 resize 不触发缩放
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(fitZoom, 200);
+  });
+  // 从最小化还原时 resize 不一定触发，必须显式重新校准缩放与宽高比，否则会停留在变形态
+  mainWindow.on('restore', () => {
+    if (resizeTimer) { clearTimeout(resizeTimer); resizeTimer = null; }
+    lockAspectRatio();
+    fitZoom();
+  });
+  mainWindow.once('ready-to-show', () => {
+    lockAspectRatio(); // 先锁宽高比（帧尺寸此刻已稳定），再缩放到位
+    fitZoom();
+    mainWindow.center();
+    mainWindow.show();
+  });
   mainWindow.loadFile(resolve(__dirname, 'renderer', 'index.html'));
 }
 
@@ -557,13 +626,35 @@ const RECOMMEND_PAGE_URL = 'https://www.zhipin.com/web/chat/recommend';
 const SEARCH_PAGE_URL = 'https://www.zhipin.com/web/chat/search';
 const CHAT_PAGE_URL = 'https://www.zhipin.com/web/chat/index';
 
-// 提取脚本报「未找到已打开的XX页」时，按报错里的页名给出对应的操作提示
-// （页名关键词需与 scripts/extract-*.mjs 的报错文案保持一致）
+// 提取脚本报「未找到已打开的XX页」时，按报错里的页名给出对应的操作提示并自动打开对应页。
+// 页名关键词需与 scripts/extract-*.mjs 的报错文案保持一致。
 const PAGE_NOT_OPEN_HINTS = [
-  ['推荐牛人页', 'BOSS直聘「推荐牛人」页并设置好筛选条件'],
-  ['搜索页', 'BOSS直聘「搜索」页并设置好筛选条件'],
-  ['沟通页', 'BOSS直聘「沟通」页'],
+  ['推荐牛人页', '推荐牛人'],
+  ['搜索页', '搜索'],
+  ['沟通页', '沟通'],
 ];
+
+// 把「页面没开」的报错翻成一句操作提示。三个来源统一同一句式；
+// 没匹配到已知页名时返回 null，调用方按原样报错处理、不自动开页。
+function buildPageNotOpenMessage(errMessage) {
+  const hit = PAGE_NOT_OPEN_HINTS.find(([kw]) => errMessage.includes(kw));
+  if (!hit) return null;
+  const [, label] = hit;
+  return `请先在Chrome中打开BOSS直聘「${label}」页，设置好筛选条件后，点击「重试」。`;
+}
+
+// 在 Chrome 里打开指定网址：Chrome 未运行时直接拉起该网址；已在运行时（Windows）会
+// 复用它并在新标签页里打开。返回是否成功发起。
+function openUrlInChrome(url) {
+  const chromePath = findChromePath();
+  if (!chromePath) return false;
+  try {
+    spawn(chromePath, [url], { detached: true, stdio: 'ignore' }).unref();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // 按提取来源返回要打开的 Boss 页面（v1.4.6：Chrome 未运行时自动打开对应页面）
 function getSourcePageUrl(source) {
@@ -619,7 +710,7 @@ function nonEmptyCandidates(raw) {
 }
 
 // 轻量判断：目录里是否有「可能含简历数据」的候选人文件（只看文件是否存在，不解析内容）。
-// 给 has-scorable-data / 历史归档扫描 / 历史列表评分按钮这些「只要判断有没有」的场景用；
+// 给 历史归档扫描 / 历史列表评分按钮这些「只要判断有没有」的场景用；
 // 真正要拿数据时再走 restoreScorableCandidates，避免为布尔值做全量 JSON 解析 + 克隆候选人。
 function hasScorableCandidates(dirPath) {
   return existsSync(resolve(dirPath, 'zhipin-candidates.json'))
@@ -1245,15 +1336,8 @@ function cleanupTempFiles() {
   const dir = OUTPUT_DIR;
   if (!existsSync(dir)) return;
 
-  const screenshotsDir = resolve(dir, '.temp-screenshots');
-  if (existsSync(screenshotsDir)) {
-    try {
-      rmSync(screenshotsDir, { recursive: true, force: true });
-      termLog(`[main] 已清理截图目录: .temp-screenshots/`);
-    } catch (e) {
-      termLog(`[main] 清理截图目录失败: ${e.message}`, 'stderr');
-    }
-  }
+  // 截图目录 .temp-screenshots/ 有意保留：用户要求跑完后还能回看 OCR 原始截图。
+  // （体积较大时可在「设置 → 输出目录」里手动清理，或等下次归档时不占当前目录）
 
   const rawPath = resolve(dir, 'zhipin-candidates.json');
   if (existsSync(rawPath)) {
@@ -1281,7 +1365,7 @@ function cleanupTempFiles() {
 // ===== 主流程编排 =====
 // 在历史归档目录（output-YYYYMMDD-HHMM）里找最近一份含「可评分数据」的目录
 // （完整提取数据 / 提取到一半的进度 / 已评分结果都算）。
-// 用于「直接用上次数据评分（跳过提取）」：用户上一轮数据被归档后，仍能恢复出来直接重评分。
+// 用于「跳过提取 / 历史记录评分」：数据被归档后仍能恢复出来直接重新评分，无需重新提取。
 function findRecentArchiveWithScorable() {
   try {
     const parentDir = dirname(OUTPUT_DIR);
@@ -1407,7 +1491,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
 
     // 评分型运行（skipExtract）不改写批次元数据：它只读 OUTPUT_DIR 里已有的数据，
     // 界面当前选的来源/岗位未必等于这批数据的真实来源。以前这里无条件重写 .run-meta.json，
-    // 实测「直接用上次数据评分」会把推荐牛人页批次盖成 chat / count=0 / job 空——
+    // 实测「跳过提取直接评分」会把推荐牛人页批次盖成 chat / count=0 / job 空——
     // 历史记录的来源标签、以及后续「继续提取」读到的还原配置都会跟着错。
     // 有旧 meta 时保留原 meta 不覆盖，source/job 沿用批次真实记录（评分提示词、打招呼开关按真实来源走）；
     // 没有旧 meta（首次评分兜底）才按 resolveBatchSource 解析出的来源补写。
@@ -1559,7 +1643,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       if (extractError) throw extractError;
       if (scoreCtx.scoringError) throw scoreCtx.scoringError;
     } else {
-      // v1.4.8: 「直接用上次数据评分（跳过提取）」——若当前输出目录没有完整的候选人文件，
+      // v1.4.8: 「跳过提取，直接用已有数据评分」——若当前输出目录没有完整的候选人文件，
       // 依次从当前目录的进度/评分数据、最近一次历史归档里恢复（含只提取了一半就取消的数据）
       const candidatesPath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
       if (!existsSync(candidatesPath)) {
@@ -1678,11 +1762,14 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       sendProgress(2, 'idle', 0, '');
       sendProgress(3, 'idle', 0, '');
     } else if (err.message.includes('未找到已打开的')) {
-      // 对应来源页面没打开：脚本退出码 + 页名 + URL 那串对用户太长又重复（主界面上方本来就有对应提示），
-      // 这里只弹一句动作指引。不再自动重启 Chrome——那会关掉用户标签页。
-      const hit = PAGE_NOT_OPEN_HINTS.find(([kw]) => err.message.includes(kw));
-      const pageHint = hit ? hit[1] : '对应页面';
-      sendError({ message: `请先在 Chrome 中打开 ${pageHint}，再点击「重试」。` });
+      // 对应来源页面没打开：自动打开对应页带用户过去（只打开正确页面，不再重启 Chrome——
+      // 那会关掉用户标签页），同时只报一句「该怎么做」，不贴长串退出码。
+      const pageMsg = buildPageNotOpenMessage(err.message);
+      if (pageMsg) {
+        openUrlInChrome(getSourcePageUrl(source));
+        termLog(`[main] 页面未打开，已自动打开来源页: ${getSourcePageUrl(source)}`);
+      }
+      sendError({ message: pageMsg || '请先在Chrome中打开BOSS直聘对应页面，设置好筛选条件后，点击「重试」。' });
     } else {
       sendError({ message: err.message });
     }
@@ -1955,13 +2042,6 @@ function registerIPC() {
     const enableCopy = opts?.enableCopy !== false; // v1.4.4 模拟复制开关，默认开启
     runPipeline(count, skipExtract, extractAll, source, job, enableCopy);
     return { ok: true };
-  });
-
-  // 判断是否还有可用的上次候选人数据（当前目录或最近归档，含提取一半的进度/已评分结果），
-  // 决定「直接用上次数据评分」按钮是否可点
-  ipcMain.handle('has-scorable-data', () => {
-    if (hasScorableCandidates(OUTPUT_DIR)) return true;
-    return !!findRecentArchiveWithScorable();
   });
 
   ipcMain.handle('cancel-extraction', () => {
