@@ -186,6 +186,33 @@ function removeSameDayEarlierReleases() {
   }
 }
 
+// 发布后核对 GitHub 是否把本版标成 Latest。GitHub「先建草稿、再转正式」的发布方式偶发不自动切换
+// Latest（v1.10.0 实测：发布时间已最新、draft=false，但 Latest 仍停在上一个版本）；发现没切就把它
+// 转回草稿再重新发布，强制 GitHub 重算，保证每次 npm run pack 都以本版为 Latest 收尾。
+function ensureIsLatest(tag, releaseId) {
+  const isLatestNow = () => {
+    try {
+      const out = execSync('gh release list --limit 5 --json tagName,isLatest', { cwd: ROOT, encoding: 'utf-8' });
+      const row = JSON.parse(out).find(r => r.tagName === tag);
+      return !!(row && row.isLatest);
+    } catch { return false; }
+  };
+  if (isLatestNow()) return;
+  console.log('  GitHub 未自动把 Latest 标到本版，转草稿再重新发布以触发重算…');
+  try {
+    execSync(`gh api --method PATCH "repos/${REPO}/releases/${releaseId}" -F draft=true`, { cwd: ROOT, stdio: 'pipe' });
+    execSync(`gh api --method PATCH "repos/${REPO}/releases/${releaseId}" -F draft=false`, { cwd: ROOT, stdio: 'pipe' });
+  } catch (e) {
+    console.warn(`  重新发布失败（Latest 需手动到 GitHub 页面核对）: ${e.message}`);
+    return;
+  }
+  if (isLatestNow()) {
+    console.log('  ✅ Latest 已切换到本版');
+  } else {
+    console.warn('  重新发布后 Latest 仍未切换，建议到 GitHub Releases 页面手动核对');
+  }
+}
+
 function findRcedit() {
   const cacheDir = resolve(
     process.env.USERPROFILE || '',
@@ -369,6 +396,9 @@ async function main() {
 
   // 同一天只保留最新一版：删除当天较早发布的 release 及 tag（规则见 CLAUDE.md「版本号规则」）
   removeSameDayEarlierReleases();
+
+  // GitHub 偶发不自动切换 Latest，核对并自愈（见 ensureIsLatest 注释）
+  ensureIsLatest(tag, releaseId);
 
   console.log('\n✅ 构建完成');
   console.log(`   安装包: ${resolve(finalDist, SETUP_NAME)}`);
