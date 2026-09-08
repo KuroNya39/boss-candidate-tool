@@ -1,0 +1,95 @@
+:root {
+  /* 字体：思源黑体优先（未安装则回退微软雅黑） */
+  --font-sans: 'Source Han Sans SC', 'Noto Sans CJK SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Segoe UI', sans-serif;
+
+  /* 字号档位：正文/控件 14，模块标题 16，页面主标题 18——从「整体放大」回调一档
+     （辅助小字一律守 12px，不参与缩放）。
+     Google 风格：尽量 4 的倍数，退而求其次 2 的倍数，避免奇数如 11/13） */
+  --text-xs: 12px; --text-sm: 12px; --text-md: 14px;
+  --text-lg: 16px; --text-xl: 18px; --text-2xl: 20px;
+  --leading-tight: 1.3; --leading-normal: 1.5; --leading-loose: 1.8;
+
+  /* 间距（8 网格：4 半拍 / 8 / 16 / 24 / 32；12/20 旧档已收敛移除，勿再加回） */
+  --space-1: 4px; --space-2: 8px; --space-4: 16px; --space-6: 24px; --space-8: 32px;
+
+  /* 语义色：红黄绿蓝取 Google 产品色（红 #EA4335 / 黄 #FBBC05 / 绿 #34A853 / 蓝 #4285F4），
+     各配一套浅底/描边/深字，保证白底小字对比度达标；accent 仍是 Google 蓝 #1A73E8 */
+  --bg-page: #f5f7fa;             /* 页面底色：卡片去描边后靠底色衬出白块，勿过深 */
+  --bg-card: #ffffff;
+  --bg-input: #f8fafc;
+  --bg-subtle: #f1f5f9;
+  --bg-hover: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;          /* 原 #94a3b8，对比度 2.9:1 → ~4.6:1 */
+  /* 文字色的 rgb 三元组：文字要叠透明度时用（tooltip 深底、滚动条滑块、清空钮圆底） */
+  --text-primary-rgb: 15, 23, 42;
+  --text-muted-rgb: 100, 116, 139;
+  --color-shadow-rgb: 60, 64, 67;   /* 阴影专用灰 #3C4043（谷歌灰）：比纯黑暖而低对比，叠 alpha 做阴影不脏 */
+  --text-on-accent: #ffffff;
+  --color-disabled-bg: #e2e8f0;
+  --color-disabled-text: #94a3b8;
+  --icon-muted: #aab6c6;          /* 次要图标静置色（如输入框清除按钮圆底），悬停加深为 --text-muted */
+  --color-accent: #1a73e8;        /* Google 蓝（纯色，不用渐变） */
+  --color-accent-hover: #1765cc;
+  --color-accent-active: #185abc;
+  --color-accent-rgb: 26, 115, 232;
+  --color-success: #34a853;       /* Google 绿 */
+  --color-success-rgb: 52, 168, 83;
+  --color-success-strong: #0d652d;
+  --bg-success: #e6f4ea; --border-success: #a8dab5;
+  --color-warning: #fbbc05;       /* Google 黄 */
+  --color-warning-rgb: 251, 188, 4;
+  --color-warning-strong: #b25e00;
+  --bg-warning: #fef7e0; --border-warning: #fde293;
+  --color-error: #ea4335;         /* Google 红 */
+  --color-error-rgb: 234, 67, 53;
+  --color-error-strong: #c5221f;
+  --bg-error: #fce8e6; --border-error: #f6aea9;
+  --color-info: #4285f4;          /* Google 蓝（信息态；accent 的深蓝保持 #1A73E8 区分） */
+  --color-info-rgb: 66, 133, 244;
+  --color-info-strong: #1765cc;
+  --bg-info: #e8f0fe; --border-info: #aecbfa;
+  /* 档位橙：二星专属，独立于「警示」用的 warning 黄 */
+  --color-orange: #f97316;
+  --color-orange-strong: #ea580c;
+  --border-card: #e2e8f0;
+  --border-input: #cbd5e1;
+  --color-scrim: rgba(15,23,42,.4);
+
+  /* 圆角 / 阴影+焦点环 */
+  --radius-sm: 4px; --radius-md: 8px; --radius-lg: 8px; --radius-xl: 12px; --radius-full: 999px;
+  --radius-card: var(--radius-lg);   /* 兼容别名 */
+  --radius-btn: var(--radius-md);    /* 兼容别名 */
+  --radius-input: var(--radius-md);  /* 兼容别名 */
+  /* 阴影一律用「阴影灰」#3C4043（谷歌灰，--color-shadow-rgb 叠 alpha）：比纯黑暖而低对比，纸感、不脏。
+     卡片 .card 无描边，靠页面底色 + 阴影衬出层次 → --shadow-sm 三层「四向柔晕」：
+       1px 接触线勾边（清晰不糊）+ 向下近距漫射（浮起）+ 极淡上沿微影（顶边也有厚度，不显「只压下面」）。
+     刻意保持淡（alpha .12/.06/.03）：白卡在浅灰底上靠淡影衬出即可，宁浅勿深（用户反馈偏深已调浅一档） */
+  --shadow-sm:
+    0 1px 2px rgba(var(--color-shadow-rgb), .12),  /* 1 接触线：紧贴底边勾出卡片轮廓 */
+    0 2px 6px rgba(var(--color-shadow-rgb), .06),  /* 2 近距漫射：给卡片向下的浮起厚度 */
+    0 -1px 4px rgba(var(--color-shadow-rgb), .03); /* 3 上沿微影：四向都柔和，顶边不「纯切」 */
+  --shadow-card: var(--shadow-sm);
+  /* 浮起层（弹窗/浮层/抽屉/Toast）：偏移与晕影比卡片大一档，层越高影越开 */
+  --shadow-md:
+    0 2px 4px rgba(var(--color-shadow-rgb), .16),
+    0 6px 14px rgba(var(--color-shadow-rgb), .12),
+    0 -2px 8px rgba(var(--color-shadow-rgb), .05);
+  --shadow-elevated: var(--shadow-md); /* 兼容别名 */
+  --ring-color: rgba(26,115,232,.35);
+  --ring-width: 3px;
+  /* 输入框浅聚焦环（:focus 用）：accent 边框 + 3px 浅环，比键盘环淡一档。
+     三处输入框 :focus（config/overlays）同取此 token，改环宽/透明度只动这一行 */
+  --ring-input: 0 0 0 3px rgba(var(--color-accent-rgb), .1);
+
+  /* 时长与缓动 / z-index */
+  --dur-fast: .15s; --dur-normal: .25s; --dur-dialog: .4s; --dur-slow: .4s;
+  --ease-out: cubic-bezier(.22,1,.36,1);
+  --ease-in-out: cubic-bezier(.4,0,.2,1);
+  --transition-fast: var(--dur-fast) var(--ease-in-out);
+  --transition-normal: var(--dur-normal) var(--ease-in-out);
+  --transition-slow: var(--dur-slow) var(--ease-out);
+  --z-tooltip: 100; --z-dropdown: 300; --z-overlay: 1000; --z-toast: 9999;
+}
+

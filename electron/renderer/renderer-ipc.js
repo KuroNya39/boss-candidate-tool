@@ -22,8 +22,8 @@ function setupListeners() {
         }
       } else {
         doneSummary.textContent = data.emailTo
-          ? `结果Excel已发送至：${data.emailTo}`
-          : '结果Excel已生成';
+          ? `结果 Excel 已发送至：${data.emailTo}`
+          : '结果 Excel 已生成';
         if (mailDetails) mailDetails.style.display = 'none';
       }
 

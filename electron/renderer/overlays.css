@@ -1,0 +1,582 @@
+/* ===== Modal Overlay ===== */
+.dialog-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--color-scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-overlay);
+  animation: overlay-in var(--dur-dialog) var(--ease-out); /* 遮罩与弹窗同拍：见 .dialog-box */
+}
+.dialog-box {
+  background: var(--bg-card);
+  border-radius: var(--radius-xl); /* 弹窗面板档：radius-xl(12)，比卡片(8)大一档（§4/§8） */
+  padding: var(--space-6);
+  width: 504px;
+  max-width: 90vw;
+  box-shadow: var(--shadow-elevated);
+  animation: box-in var(--dur-dialog) var(--ease-out);
+}
+/* 弹窗关闭过渡：整体淡出，与下一个弹窗的淡入衔接成连续过渡。
+   退场刻意比入场快一档：遮罩淡入/弹窗入场是仪态(400)，关闭走 --dur-normal(250)——用户在
+   关闭时是想尽快进行下一步，不必陪半秒。时长由 closeDialog/swapJobDialogs 读 CSS 自动同步 */
+.dialog-overlay--closing {
+  animation: overlay-out var(--dur-normal) var(--ease-in-out) forwards;
+  pointer-events: none;
+}
+.dialog-overlay--closing .dialog-box {
+  animation: box-out var(--dur-normal) var(--ease-in-out) forwards;
+}
+/* 弹窗互切（目标岗位 ⇄ 添加/编辑岗位）——同屏交叉过渡，全程无空场：
+   旧卡退场(swap-out)只淡面板、遮罩留在原地撑住明暗；新卡以透明遮罩叠到旧弹窗之上(swap-over)，
+   两卡同时淡入/淡出交叉过渡。互切 = 界面内跳转：入场用快速档(250)与退场同拍，不重演遮罩淡入。
+   （历史上做成「先淡没旧卡、再淡入新卡」的两段式，中间只剩空黑遮罩，即用户看到的每次闪动） */
+.dialog-overlay--swap-over {
+  background: transparent;              /* 透明遮罩：露出下层旧弹窗的遮罩撑住明暗，不叠双层变暗 */
+  z-index: calc(var(--z-overlay) + 1);  /* 叠到旧弹窗之上，两卡才能同屏交叉 */
+  animation: none;                      /* 不重演遮罩淡入 */
+}
+.dialog-overlay--swap-over .dialog-box {
+  animation: box-in var(--dur-normal) var(--ease-out);
+}
+/* 过渡完成、旧弹窗收起后，新弹窗的静止态：不再浮层，恢复自有遮罩（与旧弹窗遮罩同色，交接帧无跳变）。
+   class 由 openDialog 读到 data-swap-over 时挂上，swapJobDialogs 在收尾帧换成 swap-in */
+.dialog-overlay--swap-in {
+  animation: none;
+}
+.dialog-overlay--swap-in .dialog-box {
+  animation-duration: var(--dur-normal);
+}
+/* 弹窗互切的旧卡退场：只淡面板、遮罩不动；淡完由 swapJobDialogs 收起旧弹窗并把遮罩交接给新弹窗 */
+.dialog-overlay--swap-out {
+  animation: none;
+  pointer-events: none; /* 退场期间不再响应点击，避免中途又触发一次互切 */
+}
+.dialog-overlay--swap-out .dialog-box {
+  animation: box-out var(--dur-normal) var(--ease-in-out) forwards;
+}
+.dialog-title {
+  font-size: var(--text-lg); /* 弹窗标题档：lg(16)，与模块标题同档 */
+  font-weight: 600;
+  margin-bottom: var(--space-4);
+}
+.dialog-field {
+  position: relative; /* 为自定义文本域拖拽手柄定位 */
+  margin-bottom: var(--space-4);
+}
+.dialog-field label {
+  display: block;
+  font-size: var(--text-md);
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.dialog-field input,
+.dialog-field textarea,
+.job-picker-search-input {
+  width: 100%;
+  padding: 8px 16px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  font-size: var(--text-md);
+  outline: none;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast);
+}
+/* 弹窗内的岗位搜索框右侧给 .input-clear 清空按钮留位（40px，同密码框留位） */
+.job-picker-search-input {
+  padding-right: 40px;
+}
+.dialog-field input:focus,
+.dialog-field textarea:focus,
+.job-picker-search-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: var(--ring-input); /* 输入框浅聚焦环：与 config.css 的输入框 :focus 同源（tokens --ring-input） */
+}
+.dialog-field textarea {
+  font-family: inherit;
+  resize: none; /* 隐藏原生 resize 手柄，改用右下角自定义拖拽手柄（更大、更好看） */
+  line-height: 1.5;
+  display: block; /* 消除行内元素基线空隙：否则容器底部比文本域高约 4px，右下角拖拽手柄会掉到文本域下边、贴底不均 */
+}
+/* 岗位描述文本域滚动条底部缩进：让滚动条拖到底时与手柄留 1px 空隙。
+   与手柄几何同源（bottom --space-1 4px + 高 --space-4 16px + 1px），改手柄几何不必再手动重算 */
+.dialog-field textarea::-webkit-scrollbar-track {
+  margin-bottom: calc(var(--space-1) + var(--space-4) + 1px);
+}
+.textarea-resize-handle {
+  position: absolute;
+  right: var(--space-1);
+  bottom: var(--space-1);
+  width: var(--space-4);
+  height: var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  opacity: .75;
+  cursor: ns-resize; /* 只调高度，用上下箭头 */
+  z-index: 1;
+  transition: color var(--transition-fast), opacity var(--transition-fast);
+}
+.textarea-resize-handle:hover,
+.textarea-resize-handle:active {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+/* 通用确认弹窗（替代原生 confirm/alert） */
+.confirm-box {
+  width: 424px;
+}
+.confirm-message {
+  font-size: var(--text-md);
+  line-height: var(--leading-loose);
+  color: var(--text-secondary);
+  white-space: pre-line;
+  word-break: break-word;
+}
+
+/* ===== Toast 通知 ===== */
+.toast-container {
+  position: fixed;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
+  font-weight: 500;
+  line-height: 1.4;
+  box-shadow: var(--shadow-elevated);
+  pointer-events: auto;
+  animation: toast-in var(--dur-normal) var(--ease-out);
+  max-width: 384px;
+  text-align: center;
+}
+.toast.toast-success {
+  background: var(--bg-success);
+  color: var(--color-success-strong);
+}
+.toast.toast-error {
+  background: var(--bg-error);
+  color: var(--color-error-strong);
+}
+.toast.toast-info {
+  background: var(--bg-info);
+  color: var(--color-info-strong);
+}
+.toast.toast-warning {
+  background: var(--bg-warning);
+  color: var(--color-warning-strong);
+}
+.toast.toast-leaving {
+  animation: toast-out var(--dur-normal) var(--ease-out) forwards;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+  }
+}
+
+/* ===== 动画关键帧（Phase 4） ===== */
+@keyframes state-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes box-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes overlay-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes box-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(10px) scale(0.98); }
+}
+@keyframes menu-in {
+  from { opacity: 0; transform: scaleY(0.96) translateY(-2px); }
+  to { opacity: 1; transform: scaleY(1) translateY(0); }
+}
+@keyframes step-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+@keyframes step-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+/* 尊重系统「减少动态效果」设置：关闭全部动画与过渡 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ===== 完成页结果可视化（v1.5.0）===== */
+/* 不加 margin-top：本块是 .card 的 flex 子项，与上下间距统一由卡片 gap(8px) 决定，
+   再叠 margin 会跟「结果 Excel 已发送至」上方/下方的间距不一致（历史 bug：上方 8、下方 16） */
+
+.results-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: var(--space-2) 0 var(--space-4);
+}
+
+/* 统计条：4 个指标并排 */
+.results-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.stat-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.stat-value {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.stat-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: center;
+  line-height: var(--leading-tight);
+}
+
+/* 档位分布：5 段迷你条形 */
+.tier-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+}
+.tier-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.tier-bar-label {
+  flex: 0 0 32px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.tier-bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.tier-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width var(--transition-slow);
+}
+.tier-bar-count {
+  flex: 0 0 auto;
+  min-width: 80px;
+  text-align: right;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.tier-bar-fill--5 { background: var(--color-success); }
+.tier-bar-fill--4 { background: var(--color-accent); }
+.tier-bar-fill--3 { background: var(--color-warning); }
+.tier-bar-fill--2 { background: var(--color-orange); }
+.tier-bar-fill--1 { background: var(--color-disabled-text); }
+
+/* 候选人列表 */
+.results-candidates-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+}
+.results-count {
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.results-list {
+  /* 一页正好 10 名候选人：每行高固定 40px（见 .result-item-head），
+     10×40 + 9 条分隔线(1px) + 容器上下边框(2px) = 411px，第 11 名起滚动。
+     改行高时同步改这里，公式：行高×10 + 11px */
+  max-height: calc(40px * 10 + 11px);
+  overflow-y: auto;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+}
+.result-item {
+  border-bottom: 1px solid var(--border-card);
+}
+.result-item:last-child {
+  border-bottom: none;
+}
+.result-item-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  height: 40px; /* 行高固定，保证「一页正好 10 人」的可计算性（见 .results-list 注释） */
+  padding: var(--space-2) var(--space-4);
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: var(--text-md);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.result-item-head:hover {
+  background: var(--bg-hover);
+}
+.result-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.result-item-score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.result-item-tier {
+  font-size: var(--text-sm);
+  letter-spacing: 1px;
+}
+.result-item-arrow {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  transition: transform var(--transition-fast);
+}
+.result-item-head[aria-expanded="true"] .result-item-arrow {
+  transform: rotate(90deg);
+}
+.tier--5 { color: var(--color-success-strong); }
+.tier--4 { color: var(--color-accent); }
+.tier--3 { color: var(--color-warning-strong); }
+.tier--2 { color: var(--color-orange-strong); }
+.tier--1 { color: var(--color-disabled-text); }
+
+.result-item-body {
+  padding: var(--space-1) var(--space-4) var(--space-4);
+}
+.result-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+.meta-chip {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-2);
+}
+.meta-chip--pass {
+  color: var(--color-success-strong);
+  background: var(--bg-success);
+}
+.meta-chip--warn {
+  color: var(--color-warning-strong);
+  background: var(--bg-warning);
+}
+.meta-chip--info {
+  color: var(--color-info-strong);
+  background: var(--bg-info);
+}
+.meta-chip--fail {
+  color: var(--color-error-strong);
+  background: var(--bg-error);
+}
+.result-item-comment {
+  font-size: var(--text-sm);
+  line-height: var(--leading-loose);
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+/* ===== 历史记录抽屉（v1.5.0）===== */
+.history-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: flex-start;
+  align-items: stretch;
+  background: var(--color-scrim);
+  z-index: var(--z-overlay);
+  animation: overlay-in var(--dur-dialog) var(--ease-out); /* 遮罩与抽屉同拍：见 .history-drawer（400ms，慢而柔） */
+}
+.history-drawer {
+  width: 344px;
+  max-width: 88%;
+  height: 100%;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4);
+  overflow: hidden; /* 子项再多也只在自己高度内滚动，不外溢到遮罩上 */
+  animation: drawer-in var(--dur-dialog) var(--ease-out);
+}
+@keyframes drawer-in {
+  from { opacity: 0; transform: translateX(-32px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+/* 抽屉关闭：与入场镜像（向左滑出 + 遮罩淡出），退场同弹窗走 --dur-normal(250)，出快于入。
+   closeDialog(animate) 已挂通用 closing 类，这里用双类(.history-overlay.dialog-overlay--closing)
+   提高优先级盖过 .history-overlay 的入场动画，否则入场动画会压掉退场 */
+.history-overlay.dialog-overlay--closing {
+  animation: overlay-out var(--dur-normal) var(--ease-in-out) forwards;
+  pointer-events: none;
+}
+.history-overlay.dialog-overlay--closing .history-drawer {
+  animation: drawer-out var(--dur-normal) var(--ease-in-out) forwards;
+}
+@keyframes drawer-out {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(-32px); }
+}
+/* 抽屉标题直接挂在抽屉上（删掉右上 × 后不再有 header 容器） */
+.history-drawer > .dialog-title {
+  margin-bottom: var(--space-4);
+}
+.history-list {
+  flex: 1;
+  min-height: 0; /* 很多条目时让列表自己收缩滚动，而不是把底部按钮区顶出抽屉 */
+  overflow-y: auto;
+  overscroll-behavior: contain; /* 列表滚到顶/底后不再把滚动传给背后的页面 */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2); /* 滚到底时最后一张卡离分割线留 8px 呼吸，不贴线 */
+}
+.history-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: var(--text-md);
+  text-align: center;
+  line-height: var(--leading-normal);
+  padding: var(--space-4);
+}
+.history-item {
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  background: var(--bg-card);
+}
+.history-item-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.history-item-title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.history-item-time {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.history-item-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.history-item-count {
+  flex: 0 0 auto;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.history-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.history-footer {
+  border-top: 1px solid var(--border-card);
+  padding-top: var(--space-4);
+  /* margin 归 0：分割线贴着列表滚动裁切边——卡片超出翻页时是被这条分割线截断的，
+     而不是先被分割线上方一段白底截断（白条即旧 margin-top 造成的空隙） */
+  margin-top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

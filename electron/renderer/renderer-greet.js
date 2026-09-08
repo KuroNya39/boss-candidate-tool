@@ -158,6 +158,7 @@ async function init() {
       extractAllCheck.checked = false;
       countInput.disabled = false;
     }
+    syncCountArrows(); // 恢复来源若启用了数量输入，步进箭头同步可用
     // 自动打招呼只用于推荐牛人页，不用于沟通页和搜索页（搜索页打招呼需畅聊卡）
     autoGreetSection.style.display = isChat || isSearch ? 'none' : '';
     if (isChat || isSearch) autoGreetCheck.checked = false;

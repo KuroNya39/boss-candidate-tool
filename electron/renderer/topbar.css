@@ -1,0 +1,94 @@
+/* ===== Header ===== */
+header h1 {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-primary);
+  margin: 4px 0 16px;
+  letter-spacing: 0.5px;
+}
+
+/* 版本号 */
+.app-version {
+  font-size: var(--text-xs); /* 版本号：最小辅助标签档 */
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 8px;
+  vertical-align: 2px;
+}
+
+/* ===== State ===== */
+.state {
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.state.active {
+  display: flex;
+  flex: 1; /* 当前页填满 #app 剩余高度，宽/高窗口内容不悬在页面中段 */
+  min-height: 0;
+  animation: state-in var(--dur-normal) var(--ease-out);
+}
+
+/* 主界面初始态：状态栏 / 设置卡 / 运行配置卡之间的纵向节奏。
+   卡片之间与卡片内部都留足呼吸感，整体仍一页装下、底部不顶 */
+#state-initial {
+  gap: var(--space-4); /* 卡间 16px（比紧凑档 12 再松一格，配合外扩边距给卡片更多呼吸） */
+}
+/* ===== 执行进度页 =====
+   标题、步骤 1/2/3 与按钮紧凑靠上、等距排列（不随窗口高度拉开）；卡片不拉满整页、
+   按钮不贴底——下方留白由页面底色承接（用户要求「按钮不要贴底，有空白就有空白」）。 */
+#state-running.active {
+  gap: 0;
+}
+#state-running.active > .card {
+  gap: 8px; /* 标题→步骤1、步骤1→2、2→3、3→按钮 等距 8px（原 12px 旧档收敛） */
+}
+
+/* ===== Chrome Status Bar ===== */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+.status-dot.dot-green {
+  background: var(--color-success);
+  box-shadow: 0 0 6px rgba(var(--color-success-rgb),0.4);
+}
+.status-dot.dot-yellow {
+  background: var(--color-warning);
+  box-shadow: 0 0 6px rgba(var(--color-warning-rgb),0.4);
+  animation: status-pulse 1.5s infinite;
+}
+.status-dot.dot-red {
+  background: var(--color-error);
+  box-shadow: 0 0 6px rgba(var(--color-error-rgb),0.4);
+}
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.status-text {
+  flex: 1;
+}
+
+/* 隐藏输入框自带的一键清空 ×（Chromium 原生，悬浮/有内容时出现） */
+input::-webkit-clear-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+
+
+

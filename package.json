@@ -1,6 +1,6 @@
 {
   "name": "web-access",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "type": "module",
   "description": "BOSS直聘候选人AI评分助手：从BOSS直聘提取候选人简历，AI匹配评分并导出Excel",
   "main": "electron/main.mjs",
@@ -17,8 +17,7 @@
     "exceljs": "^4.4.0",
     "iconv-lite": "^0.7.2",
     "nodemailer": "^6.9.0",
-    "tesseract.js": "^7.0.0",
-    "xlsx": "^0.18.5"
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "electron": "^42.3.0",

@@ -1,0 +1,894 @@
+/* ===== 岗位选择器 ===== */
+.job-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+.job-display {
+  font-family: inherit;
+  font-size: var(--text-md);
+  color: var(--text-primary);
+  font-weight: 500;
+  padding: 0 16px;
+  height: 40px; /* 与「提取数量」输入框同高（40px，落在 8px 网格），行内并排时顶底对齐 */
+  background: var(--bg-card);
+  border: 1px solid var(--border-input); /* 选中岗位后也是普通灰框，同其它输入/下拉控件 */
+  border-radius: var(--radius-input); /* 岗位选择框同输入/下拉档位 8px，收敛历史 6px */
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.job-display:hover {
+  background: var(--bg-page);
+  border-color: var(--color-accent);
+}
+.job-display.placeholder {
+  color: var(--text-muted);
+  font-weight: 400;
+  background: var(--bg-card);
+  border: 1px dashed var(--border-input);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast), background-color var(--transition-fast);
+}
+.job-display.placeholder:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: rgba(var(--color-accent-rgb),0.04);
+}
+
+/* ===== Job picker search ===== */
+.job-picker-search {
+  position: relative;
+  margin-bottom: 8px;
+}
+/* 搜索框复用弹窗输入框的基础样式（见 .dialog-field input）；清空按钮右侧留位统一在 overlays.css 声明 */
+.job-picker-search-input {
+  font-family: inherit;
+}
+.job-picker-list {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 4px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-input); /* 岗位列表同下拉菜单档位 8px */
+}
+.job-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: var(--text-md);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-card);
+  transition: background var(--dur-fast); /* 0.1s 非档位 → dur-fast(.15s) */
+  -webkit-app-region: no-drag;
+}
+.job-picker-item:last-child {
+  border-bottom: none;
+}
+.job-picker-item:hover {
+  background: var(--bg-page);
+}
+.job-picker-item-name {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  padding: 4px 0;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
+}
+.job-picker-add {
+  border-bottom: 1px dashed var(--border-card);
+  background: rgba(var(--color-accent-rgb),0.02);
+}
+.job-picker-add .job-picker-item-name {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+.job-picker-add:hover {
+  background: rgba(var(--color-accent-rgb),0.06);
+}
+.job-picker-item.selected .job-picker-item-name {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+.job-picker-item.selected .job-picker-item-name::before {
+  content: '✓ ';
+  color: var(--color-accent);
+  font-weight: 700;
+}
+.job-picker-item.selected {
+  background: rgba(var(--color-accent-rgb),0.04);
+}
+.job-picker-item-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+/* 列表内小操作按钮（编辑/删除）：不常用 → 灰色描边小号，不抢弹窗底部的大按钮 */
+.job-picker-item-actions .btn {
+  padding: 4px 8px;
+  font-size: var(--text-sm);
+}
+.job-picker-item-actions .btn--ghost {
+  border-color: var(--border-input);
+}
+
+/* ===== 添加/编辑岗位弹窗（置顶于目标岗位弹窗之上） ===== */
+/* 基底 .dialog-overlay 是 var(--z-overlay)=1000，这里必须更高，否则会被目标岗位弹窗盖住 */
+#job-dialog-overlay {
+  z-index: calc(var(--z-overlay) + 1);
+}
+
+
+/* ===== Card ===== */
+.card {
+  background: var(--bg-card);
+  border: none;                       /* 去描边：白块靠加深后的页面底色衬出（Google 平面卡片） */
+  border-radius: var(--radius-card);
+  padding: var(--space-4); /* 卡片内距 16，同 v1.9.11 的舒适观感 */
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.card-title {
+  font-size: var(--text-lg); /* 模块标题档：比 field-label(14) 大一号，靠字号分层（字色保持次级不过黑） */
+  font-weight: 600;
+  color: var(--text-secondary); /* 模块标题用次级字色：与下方说明文字拉开一档但不过黑（用户反馈 #0f172a 太深） */
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.step-indicator {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-page);
+  padding: var(--space-1) var(--space-2);
+  line-height: 1.2;
+  border-radius: var(--radius-sm); /* 内嵌徽标，radius-sm 档 */
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Field Group ===== */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.field-label {
+  font-size: var(--text-md); /* 字段标签档：与正文同档 14px */
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.field-hint {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+  text-align: center;
+  min-height: 16px;
+}
+/* 提示行为空时不占位；有文字时才出现（如配置未填时提示缺哪一项） */
+.field-hint:empty {
+  display: none;
+}
+
+/* ===== 按钮加载态 ===== */
+button.is-loading {
+  position: relative;
+  cursor: wait;
+  pointer-events: none;
+}
+button.is-loading::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: var(--radius-full);
+  vertical-align: -2px;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ===== Toggle Group ===== */
+.toggle-group {
+  display: flex;
+  gap: 0;
+  background: var(--bg-page);
+  border-radius: var(--radius-btn);
+  padding: 4px;
+  width: 100%;
+}
+.toggle-btn {
+  flex: 1;
+  padding: 8px 16px;
+  font-size: var(--text-md);
+  font-weight: 500;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: center;
+  transition: color var(--transition-fast), background-color var(--transition-fast), transform var(--transition-fast);
+  -webkit-app-region: no-drag;
+}
+.toggle-btn.active {
+  background: var(--color-accent);
+  color: var(--text-on-accent);
+  box-shadow: 0 1px 4px rgba(var(--color-accent-rgb),0.3);
+}
+.toggle-btn:hover:not(.active) {
+  color: var(--text-primary);
+  background: rgba(var(--color-accent-rgb),0.04);
+}
+.toggle-btn:active {
+  transform: scale(0.97); /* 按下收缩一档：非 .btn 的可点控件补按压反馈 */
+}
+
+/* ===== Alert 体系（提示条） ===== */
+/* 浅底提示卡一律不带描边：浅底 + 深字即可区分，轮廓线交给留白 */
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+}
+.alert--success { background: var(--bg-success); color: var(--color-success-strong); }
+.alert--warning { background: var(--bg-warning); color: var(--color-warning-strong); }
+.alert--error   { background: var(--bg-error);   color: var(--color-error-strong); }
+.alert--info    { background: var(--bg-info);    color: var(--color-info-strong); }
+
+/* ===== 空状态 ===== */
+.empty-state {
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+.job-picker-item.empty-state {
+  cursor: default;
+  justify-content: center;
+}
+
+/* ===== Count Controls（提取数量）=====
+   数字框即普通输入框样式（边框/圆角/底色都在输入框上，不再包一个「框中框」）。
+   原生 number spin 已隐藏，步进改由右侧两枚 sprite 图标（icon-chevron-up/down）承担，
+   交互手感对齐 Chrome 原生 spin：平时隐藏、不挡点击，鼠标悬停到框上或框获得焦点才淡入，
+   移开即淡出。不用分隔线、不做独立箭头列，箭头只是浮在数字右侧 → 不易误点也不挤占数字。
+   高度 40px 与「目标岗位」框（.job-display）同高，行内并排顶底对齐 */
+.count-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.count-field {
+  position: relative; /* 箭头以输入框为基准定位 */
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  -webkit-app-region: no-drag;
+}
+.input-number {
+  width: 76px;
+  height: 40px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  background: var(--bg-input);
+  outline: none;
+  color: var(--text-primary);
+  font-size: var(--text-md);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+  appearance: textfield;
+  transition: border-color var(--transition-fast);
+}
+.input-number:focus {
+  border-color: var(--color-accent);
+  box-shadow: var(--ring-input); /* 输入框浅聚焦环：tokens --ring-input 单源 */
+}
+/* 隐藏原生步进箭头：由悬停淡入的自绘箭头承担（见 .count-arrows） */
+.input-number::-webkit-inner-spin-button,
+.input-number::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.input-number:disabled {
+  background: var(--bg-subtle); /* 禁用底色比同款卡灰 #e2e8f0 淡一档，与只读框一致（用户反馈原色太深） */
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+/* 步进箭头：浮在数字框右侧（绝对定位不占布局），默认隐藏也不拦点击，
+   悬停框上或框聚焦时淡入才可点 */
+.count-arrows {
+  position: absolute;
+  top: 0;
+  right: 4px; /* 不贴最右边缘（原 right:0 顶着圆角/边框，太靠右），整体左移 4px */
+  bottom: 0;
+  width: 20px;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
+.count-field:hover .count-arrows,
+.count-field:focus-within .count-arrows {
+  opacity: 1;
+  pointer-events: auto;
+}
+.count-arrow {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: var(--icon-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast); /* 悬停/按下只加深图标色，不铺底色块 */
+}
+.count-arrow:hover { color: var(--text-secondary); }
+.count-arrow:active { color: var(--text-primary); }
+.count-arrow:disabled {
+  background: transparent;
+  color: var(--color-disabled-text);
+  cursor: not-allowed;
+}
+/* 整体禁用态（勾「提取全部」）：输入框变灰，箭头不再出现 */
+.count-field--disabled .count-arrows {
+  opacity: 0;
+  pointer-events: none;
+}
+.count-unit {
+  font-size: var(--text-md);
+  color: var(--text-secondary);
+  margin-right: 8px;
+}
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--color-accent);
+}
+
+/* ===== 模拟复制开关 + 悬浮提示（v1.4.4） ===== */
+.copy-opt-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+}
+.tip-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  color: var(--color-disabled-text);
+  background: transparent;
+  padding: 0;
+  cursor: help;
+  user-select: none;
+}
+.tip-icon::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 240px;
+  padding: 8px 16px;
+  background: rgba(var(--text-primary-rgb), 0.86); /* 半透明深色 + 模糊，比纯黑柔和 */
+  color: var(--bg-card);
+  border-radius: var(--radius-md); /* 收敛历史 6px */
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  text-align: center;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--transition-fast), visibility var(--transition-fast);
+  z-index: var(--z-tooltip);
+  box-shadow: var(--shadow-elevated);
+}
+.tip-icon:hover::after,
+.tip-icon:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ===== 运行配置卡：岗位弹性变宽 =====
+   岗位格占满剩余宽度、数量列按内容收缩；聊天页不选岗位时整行给数量 */
+.run-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 16px;
+  row-gap: 8px;
+  align-items: end; /* 两格标签行高不同时，控件贴底对齐 */
+}
+.run-grid > .field-group { min-width: 0; }
+.run-grid:not(.has-job) { grid-template-columns: minmax(0, 1fr); }
+
+/* 选项行：模拟复制 + 自动打招呼从左侧连排。
+   打招呼等级下拉保持正常大小（不再压成紧凑小尺寸）；
+   勾选后若一行放不下，该段自然换到下一行，行距留足，
+   「开始提取分析」按钮只会被顺延，不会被挤压变形 */
+.config-opts-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  min-height: 40px;
+}
+
+/* ===== Auto Greet ===== */
+/* 勾选框紧跟「开启模拟复制提取」的提示图标；等级下拉与勾选框同排 inline，
+   勾选/取消只增删同排的下拉控件，checkbox 横纵位置都不变 */
+.auto-greet-section {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.auto-greet-controls {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.auto-greet-controls .custom-select {
+  min-width: 0;
+}
+/* 等级下拉直接用默认尺寸，不额外压缩；选项文字单行不折行 */
+.auto-greet-controls .custom-select-trigger .custom-select-label {
+  white-space: nowrap;
+}
+/* ===== Custom Select ===== */
+/* 原生 <select> 弹层在 Electron 里有时打不开（drag 区域/合成器问题），
+   批量打招呼/自动打招呼下拉改为纯页面内自定义组件，任何情况下可展开 */
+.custom-select {
+  position: relative;
+  display: inline-block;
+  -webkit-app-region: no-drag;
+}
+.custom-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 200px;
+  padding: 8px 16px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  font-size: var(--text-md);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+  -webkit-app-region: no-drag;
+  transition: border-color var(--transition-fast), transform var(--transition-fast);
+}
+.custom-select-trigger:hover {
+  border-color: var(--color-accent);
+}
+.custom-select-trigger:active {
+  border-color: var(--color-accent-hover);
+  transform: scale(0.98); /* 按下收缩一档 */
+}
+.custom-select-arrow {
+  flex-shrink: 0; /* 12×12 chevron svg，随 currentColor 取色 */
+  color: var(--text-muted);
+  transition: transform var(--transition-fast); /* 菜单朝上展开时旋转 180° 指向菜单 */
+}
+.custom-select-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  z-index: var(--z-dropdown);
+  background: var(--bg-card);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  box-shadow: var(--shadow-elevated);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1); /* 选项之间留一条白底空隙：选中项与悬停项相邻时底色不粘连 */
+  padding: 4px;
+  -webkit-app-region: no-drag;
+  transform-origin: top;
+  animation: menu-in var(--dur-fast) var(--ease-out);
+}
+.custom-select-option {
+  padding: 8px 16px;
+  font-size: var(--text-md);
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius-input);
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.custom-select-option:hover {
+  background: rgba(var(--color-accent-rgb), 0.1);
+}
+.custom-select-option:active {
+  background: rgba(var(--color-accent-rgb), 0.16); /* 按下比悬停再深一档，整行反馈（选项行不宜整体缩放） */
+}
+.custom-select-option.selected {
+  background: rgba(var(--color-accent-rgb), 0.1); /* 与 hover 同一底色，颜色不跳变；选中另靠 accent 色字区分 */
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+/* ===== 按钮体系（统一 .btn 基底 + 语义变体 + 尺寸） ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: var(--text-md);
+  font-weight: 500;
+  line-height: 1.4;
+  border: 1px solid transparent;
+  border-radius: var(--radius-btn);
+  cursor: pointer;
+  user-select: none;
+  -webkit-app-region: no-drag;
+  transition: background var(--transition-fast), border-color var(--transition-fast),
+    color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.98) translateY(0);
+}
+.btn:disabled {
+  background: var(--color-disabled-bg);
+  color: var(--color-disabled-text);
+  border-color: transparent;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* 变体 */
+.btn--primary { background: var(--color-accent); color: var(--text-on-accent); }
+.btn--primary:hover:not(:disabled) { background: var(--color-accent-hover); box-shadow: 0 4px 15px rgba(var(--color-accent-rgb),0.3); }
+.btn--primary:active:not(:disabled) { background: var(--color-accent-active); }
+.btn--secondary { background: var(--bg-card); color: var(--color-accent); border-color: var(--color-accent); }
+.btn--secondary:hover:not(:disabled) { background: rgba(var(--color-accent-rgb),0.06); box-shadow: 0 2px 8px rgba(var(--color-accent-rgb),0.15); }
+.btn--ghost { background: transparent; color: var(--text-secondary); border-color: var(--border-input); }
+.btn--ghost:hover:not(:disabled) { background: var(--bg-page); color: var(--text-primary); }
+/* 破坏性操作（删除岗位/清空历史）用红底白字，重操作一眼可辨；不用红描边以免和次要红字链接混淆 */
+.btn--danger { background: var(--color-error); color: var(--text-on-accent); border-color: var(--color-error); }
+.btn--danger:hover:not(:disabled) { background: var(--color-error-strong); border-color: var(--color-error-strong); color: var(--text-on-accent); }
+.btn--danger:active:not(:disabled) { background: var(--color-error-strong); color: var(--text-on-accent); }
+.btn--warning { background: rgba(var(--color-warning-rgb),0.1); color: var(--color-warning-strong); border-color: var(--color-warning); }
+.btn--warning:hover:not(:disabled) { background: rgba(var(--color-warning-rgb),0.2); border-color: var(--color-warning-strong); }
+/* 「暂停」变「继续」后的视觉区分：琥珀色浅底，一眼看出提取被停住 */
+.btn--paused { background: rgba(var(--color-warning-rgb),0.12); color: var(--color-warning-strong); border-color: var(--color-warning); }
+.btn--paused:hover:not(:disabled) { background: rgba(var(--color-warning-rgb),0.2); border-color: var(--color-warning-strong); color: var(--color-warning-strong); }
+/* 运行区按钮（暂停/继续/跳过）统一用 14px Material SVG 图标：SVG 作为 flex item 由
+   align-items:center 几何居中，无需 emoji 的字形微调；缩小图标与文字的间距让三个按钮更紧凑 */
+.running-actions .btn { gap: 4px; }
+.btn--retry:hover:not(:disabled) { border-color: var(--color-error); color: var(--color-error); }
+
+/* 尺寸 */
+.btn--sm { padding: 4px 8px; font-size: var(--text-sm); }
+.btn--lg { padding: 8px 24px; font-size: var(--text-lg); font-weight: 600; letter-spacing: 0.5px; }
+.btn--block { display: flex; width: 100%; }
+
+/* 「开始提取分析」是站内唯一 .btn--lg：lg(16) 字号 + 8px 垂直内距 → 高约 40px，
+   内文字 16/40 ≈ 0.40，是规则允许的字号占比上限（见设计系统 §8「按钮与内文字比例」）。 */
+#btn-start svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* 链接式小按钮：带灰描边的轻动作。蓝字本体现在已无任何在用按钮（最后一只「历史记录」
+   已转 btn--secondary）；仅剩两只危险用途靠 .btn--link-danger 叠出红字：
+   抽屉底部「清空历史记录」btn--link、历史行内「删除」btn--sm btn--ghost */
+.btn--link {
+  background: var(--bg-card);
+  color: var(--color-accent);
+  border-color: var(--border-input);
+  padding: 4px 8px;
+  font-size: var(--text-sm);
+}
+.btn--link:hover:not(:disabled) { border-color: var(--color-accent); background: rgba(var(--color-accent-rgb),0.04); }
+.btn--link-danger { color: var(--color-error); }
+.btn--link-danger:hover:not(:disabled) { border-color: var(--color-error); background: rgba(var(--color-error-rgb),0.04); color: var(--color-error-strong); }
+
+/* ===== Collapsible Card ===== */
+.collapsible-card {
+  padding: 0;
+  overflow: hidden;
+  gap: 0;
+}
+/* 设置卡头部：单行折叠按钮（保存按钮已放回卡内右对齐，见 .collapsible-actions） */
+.collapsible-topbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.collapsible-topbar .collapsible-header {
+  flex: 1;
+  width: auto;
+}
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* 折叠条上下内边距 16：配合标题行高 1（见 .collapsible-title），整条约 48px 高——
+     用户反馈折叠后那条「设置」头偏矮，加高更好点、折起来也更醒目。改档位只动这一处。 */
+  padding: 16px;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  user-select: none;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-size: inherit;
+  transition: background var(--transition-fast);
+}
+/* 折叠头不做悬停底色：卡片与页面都是浅色，hover 底色易与背景融为一体，
+   只保留箭头/标题颜色与 pointer 光标作为可点提示（点击后整卡展开更明确）。
+   但按下（:active）仍给一次浅灰底色：整行可点元素用底色代替整体缩放，按下有反馈、松开即消失。 */
+.collapsible-header:active {
+  background: var(--bg-subtle);
+}
+.collapsible-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.collapsible-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.75;
+}
+.collapsible-title {
+  font-size: var(--text-lg); /* 折叠卡标题：与 .card-title 同为「模块标题档」16px——设置卡与运行配置卡是同级模块，标题必须同档同色，不能一大一小 */
+  font-weight: 600;
+  color: var(--text-secondary);
+  line-height: 1; /* 文字行高＝字号，消除 CJK 字体上下半行空隙，与 15px 齿轮图标精确同行居中 */
+}
+.collapsible-arrow {
+  flex-shrink: 0; /* 15×15 chevron svg，随 currentColor 取色 */
+  color: var(--text-muted);
+  transition: transform var(--transition-normal);
+}
+.collapsible-arrow.expanded {
+  transform: rotate(90deg);
+}
+.collapsible-body {
+  max-height: 0;
+  overflow: hidden;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  opacity: 0;
+  transition: max-height var(--transition-normal), opacity var(--transition-normal), padding var(--transition-normal);
+}
+.collapsible-body.expanded {
+  max-height: 1104px;
+  padding: 8px 16px 16px;
+  opacity: 1;
+}
+/* 卡内右下角动作行（保存设置） */
+.collapsible-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+/* ===== Input Text ===== */
+.input-text {
+  width: 100%;
+  padding: 8px 16px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  font-size: var(--text-md);
+  outline: none;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: inherit;
+  transition: border-color var(--transition-fast);
+  -webkit-app-region: no-drag;
+}
+.input-text:focus {
+  border-color: var(--color-accent);
+  box-shadow: var(--ring-input); /* 输入框浅聚焦环：tokens --ring-input 单源 */
+}
+.input-text::placeholder {
+  color: var(--text-muted);
+}
+/* 右侧带图标（眼睛）的密码框：给图标留位 */
+.input-wrap .input-text {
+  padding-right: 40px;
+}
+/* 编辑岗位弹窗：名称只读态（岗位名称编辑不了，用浅灰底 + 灰字区分；
+   底色已较深，按「深底少描边」原则去掉描边） */
+/* 用高特异性写法，确保盖过 .dialog-field input 的默认白底/深色字 */
+.dialog-field input.input-readonly {
+  background: var(--bg-subtle);
+  border: none;
+  color: var(--text-muted);
+  cursor: default;
+}
+.dialog-field input.input-readonly:focus {
+  border: none;
+  box-shadow: none;
+}
+/* 密码框显示/隐藏眼睛按钮 */
+.input-wrap {
+  position: relative;
+}
+/* 输入框转块级，避免内联元素底部基线空隙导致眼睛按钮垂直居中偏下 */
+.input-wrap input {
+  display: block;
+}
+/* 字段/输入框右端的纯图标按钮（显示/隐藏密码的眼睛、输出目录的文件夹）共用几何：
+   绝对定位于容器右端 right:8px、24×24、透明无边框、currentColor 取色；
+   中心与留位文字对齐（视觉位置不变，点按区比图标大）。 */
+.field-icon-btn {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  -webkit-app-region: no-drag;
+}
+/* 密码框眼睛按钮：静置淡一些，悬停加深并完全显示 */
+.input-toggle {
+  opacity: 0.65;
+  transition: opacity var(--dur-fast);
+}
+.input-toggle:hover {
+  opacity: 1;
+  color: var(--text-secondary);
+}
+
+/* ===== 输入框一键清空（学 Google） =====
+   平时只有细 ×（浅灰），鼠标悬停时外圈浮出浅灰圆底、× 变深。无内容时不显示。
+   按钮已带 .field-icon-btn（绝对定位几何/底色复位同源），这里只覆写形状与状态色 */
+.input-clear {
+  display: none;
+  border-radius: var(--radius-full);
+  color: var(--icon-muted);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+.input-clear.show {
+  display: inline-flex;
+}
+.input-clear svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+.input-clear:hover {
+  background: rgba(var(--text-muted-rgb), 0.18);
+  color: var(--text-secondary);
+}
+
+/* ===== Output Row ===== */
+.output-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  color: var(--text-secondary);
+}
+.output-label {
+  flex-shrink: 0;
+  line-height: 1.5;
+}
+/* 输出路径框按「只读展示」处理（同「已添加的岗位名」的只读区分法）：
+   值不能就地改，就不许长得像能输入的框 —— 底色加深为 --bg-subtle、去掉描边、
+   字色用 --text-muted、字号降一档 12px，一眼看出比上面的输入框弱、不可编辑。
+   高度固定 24px（8px 网格）。
+   文件夹按钮与眼睛按钮共用 .field-icon-btn（绝对定位不撑高框体、右距统一 8px、24×24），
+   框内文字右侧留 32px（同输入框右侧给图标留位的 32px）。 */
+.output-dir-field {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 24px;             /* 8px 网格固定高 */
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-8) 0 var(--space-4); /* 右侧给文件夹按钮留位 32px */
+  background: var(--bg-subtle);
+  border: none;
+  border-radius: var(--radius-input);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  cursor: default;
+}
+.output-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.output-dir-btn {
+  border-radius: var(--radius-md);
+  opacity: 0.65; /* 与眼睛按钮一致的浅灰静置态 */
+  transition: color var(--transition-fast), opacity var(--transition-fast);
+}
+/* 悬停只把图标变蓝、回到全不透明，不出浅蓝圆底 —— 保持轻量，不抢框内路径文字 */
+.output-dir-btn:hover {
+  opacity: 1;
+  color: var(--color-accent);
+}
+.output-dir-btn:active {
+  color: var(--color-accent-hover);
+}
+.output-dir-btn svg {
+  display: block;
+}
+.output-row .btn {
+  flex: 0 0 auto;
+}
+

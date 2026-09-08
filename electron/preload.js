@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getRecommendJobDesc: (jobName) => ipcRenderer.invoke('get-recommend-job-desc', jobName),
   addRecommendJob: (jobName, jobDesc) => ipcRenderer.invoke('add-recommend-job', jobName, jobDesc),
   updateRecommendJob: (jobName, jobDesc) => ipcRenderer.invoke('update-recommend-job', jobName, jobDesc),
+  renameRecommendJob: (oldName, newName) => ipcRenderer.invoke('rename-recommend-job', oldName, newName),
   deleteRecommendJob: (jobName) => ipcRenderer.invoke('delete-recommend-job', jobName),
 
   // CDP/Chrome 状态

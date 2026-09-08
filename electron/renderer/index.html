@@ -5,9 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
   <title>BOSS直聘候选人AI评分助手</title>
-  <link rel="stylesheet" href="style.css">
+  <!-- 样式已拆分：6 个 CSS 按原 style.css 内部顺序排列，级联结果与拆前逐像素一致，切勿调换顺序。
+       tokens(设计 token) → base(重置/滚动条/#app) → topbar → config → run → overlays(弹窗/结果/历史抽屉) -->
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="base.css">
+  <link rel="stylesheet" href="topbar.css">
+  <link rel="stylesheet" href="config.css">
+  <link rel="stylesheet" href="run.css">
+  <link rel="stylesheet" href="overlays.css">
 </head>
-<body>
+<body spellcheck="false">
   <!-- 图标库（Material outlined 同套）：字形统一为 outline 空心，在此一处定义，各处用 <use href="#..."> 引用；
        icon-play（开始）与 icon-skip（跳过）两个 CTA 动作键按强调需要做实心（fill=1），为全站仅有的实心功能图标 -->
 
@@ -26,9 +33,11 @@
       <symbol id="icon-refresh" viewBox="0 0 24 24"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></symbol>
       <symbol id="icon-chevron-right" viewBox="0 0 24 24"><path fill="currentColor" d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></symbol>
       <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path fill="currentColor" d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></symbol>
+      <symbol id="icon-chevron-up" viewBox="0 0 24 24"><path fill="currentColor" d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></symbol>
       <!-- icon-resize：右下角抓握标（岗位描述输入框可拖拽调高）。两线 45° 严格平行；
-           短线为长线右下方的缩短回声，两线中点落在同一公垂线上（居中对齐），主次清晰、不抢眼 -->
-      <symbol id="icon-resize" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M7 19L18 8M13 19L18 14"/></symbol>
+           短线是长线右下方的缩短回声、中点落在长线的公垂线上（相对居中）。几何：长线 (7,19)→(18,8)、
+           短线 (14.5,19.5)→(18.5,15.5)——两线中心距 ≈2.8px（紧贴但扫一眼仍能分清是两条线）。改它时保持此几何 -->
+      <symbol id="icon-resize" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M7 19L18 8M14.5 19.5L18.5 15.5"/></symbol>
     </defs>
   </svg>
   <div id="app">
@@ -122,7 +131,19 @@
           <div class="field-group">
             <label class="field-label" for="count-input">提取数量</label>
             <div class="count-controls">
-              <input type="number" id="count-input" class="input-number" value="20" min="1" max="999">
+              <!-- 提取数量：原生 spin 已隐藏（config.css），步进用 sprite 图标自绘并浮在数字框右侧。
+                   平时隐藏、悬停框上或聚焦才淡入（同 Chrome 原生箭头的交互手感），无分隔线、不占布局 -->
+              <span class="count-field">
+                <input type="number" id="count-input" class="input-number" value="20" min="1" max="999" aria-label="提取数量">
+                <span class="count-arrows">
+                  <button type="button" id="count-inc" class="count-arrow" tabindex="-1" aria-label="数量加一">
+                    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-chevron-up"/></svg>
+                  </button>
+                  <button type="button" id="count-dec" class="count-arrow" tabindex="-1" aria-label="数量减一">
+                    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-chevron-down"/></svg>
+                  </button>
+                </span>
+              </span>
               <span class="count-unit">人</span>
               <span id="extract-all-section">
                 <label class="checkbox-label">
@@ -352,13 +373,13 @@
       <div class="dialog-title" id="job-dialog-title">添加新岗位</div>
       <div class="dialog-field">
         <label for="dialog-job-name">岗位名称</label>
-        <input type="text" id="dialog-job-name" placeholder="例如：AI大模型工程师 _ 深圳 30-50K">
+        <input type="text" id="dialog-job-name">
       </div>
       <div class="dialog-field">
         <label for="dialog-job-desc">岗位描述</label>
-        <textarea id="dialog-job-desc" rows="8" placeholder="粘贴已按 README 第5步转换好的岗位描述（勿粘贴原始 JD）"></textarea>
+        <textarea id="dialog-job-desc" rows="8" spellcheck="false" placeholder="粘贴转换后的岗位描述，请勿直接粘贴原始岗位 JD"></textarea>
         <div class="textarea-resize-handle" id="dialog-resize-handle" aria-hidden="true">
-          <svg class="icon" width="14" height="14" viewBox="0 0 24 24"><use href="#icon-resize"/></svg>
+          <svg class="icon" width="12" height="12" viewBox="0 0 24 24"><use href="#icon-resize"/></svg>
         </div>
       </div>
       <div class="dialog-actions">
@@ -374,7 +395,7 @@
       <div class="dialog-title" id="job-picker-title">目标岗位</div>
       <div class="job-picker-search">
         <input type="text" id="job-search-input" class="job-picker-search-input" placeholder="搜索岗位…" autocomplete="off" />
-        <button type="button" id="job-search-clear" class="input-clear" aria-label="清空搜索">
+        <button type="button" id="job-search-clear" class="field-icon-btn input-clear" aria-label="清空搜索">
           <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-close"/></svg>
         </button>
       </div>

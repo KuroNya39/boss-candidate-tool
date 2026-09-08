@@ -6,6 +6,8 @@ electronLanguages:
   - en-US
 directories:
   output: build-tmp
+# 纯 JS/自带 wasm 依赖，无 .node 原生模块：跳过每次 @electron/rebuild，缩短打包时间
+npmRebuild: false
 files:
   - electron/**/*
   - scripts/**/*.mjs

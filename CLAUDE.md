@@ -9,10 +9,10 @@ Electron desktop app for extracting candidate profiles from BOSS直聘 (Boss Zhi
 ## Architecture
 
 ```
-electron/main.mjs        ← Electron main process (pipeline orchestration, IPC, CDP proxy mgmt)
+electron/main.mjs        ← Electron main process 入口（应用生命周期 + --score-only）；其余 12 个业务模块 electron/{util,state,config,window,archive,scoring,runner,chrome,incremental,pipeline,greet,ipc}.mjs，各模块职责见 main.mjs 顶部注释
 electron/score-comment.mjs ← Shared scoring helpers: compute match score from comment (weighted base − deductions, with 学历硬性门槛 programmatic backstop) + patch education-deduction comment text
 electron/preload.js      ← Context bridge (electronAPI exposed to renderer)
-electron/renderer/       ← UI (index.html + style.css + renderer-*.js；渲染层脚本按功能拆成 10 个小文件，由 index.html 按序 <script src> 引入共享全局作用域)
+electron/renderer/       ← UI (index.html + 6 个 CSS：tokens.css / base.css / topbar.css / config.css / run.css / overlays.css（按序 <link>，勿调换）+ renderer-*.js 10 个按序 <script src> 引入共享全局作用域；样式拆分与规范见 docs/design-system.md)
 
 scripts/cdp-proxy.mjs                   ← HTTP → WebSocket CDP proxy daemon (port 3456)
 scripts/extract-common.mjs              ← Shared utilities (CDP calls, OCR engine, progress save/resume)
@@ -31,7 +31,7 @@ config/scoring-prompt-chat.txt       ← AI scoring prompt template (chat page)
 > 岗位描述（JD）统一存用户数据目录 `%AppData%\web-access\web-access\jd-descriptions\`（开发/打包一致，重装不丢）。
 > 旧的 `config/jd-descriptions` 已废弃，不要再往里面写。
 
-### Pipeline Orchestration (in `main.mjs`)
+### Pipeline Orchestration (in `electron/pipeline.mjs`)
 
 The `runPipeline()` function drives three sequential steps:
 
@@ -64,7 +64,7 @@ Child process cancellation works by writing `CANCEL\n` to stdin, waiting 2s, the
 - **canvas 简历复制提取（v1.4.0）**: iframe 内探测到 `#resume` 里有宽高正常的 `canvas` 且 `textContent` 不足阈值时：WASM 渲染（body 含 `wasm-resume-container`/`wasm-resume`）走 `tryExtractCanvasResumeByDragCopy()`，旧版 canvas 走 `tryExtractResumeTextByTrustedCopy()`。拖拽复制端点 `/canvas-copy`（cdp-proxy.mjs）模拟「鼠标选中 → 滚动容器 → 底部延伸选中 → 真实 Ctrl+C」，Boss 的 copy 处理器把全文写进**系统剪贴板**（页面级拦截看不到），调用方用 PowerShell `Get-Clipboard` 读走（base64）。要点：滚动容器各页面不同（推荐/搜索页 `.resume-detail-wrap`，沟通页 `.resume-detail`），端点从简历 iframe 向上探测「可滚动」祖先当滚动容器——`overflowY` 须**同时接受 hidden**（Boss 弹窗常隐藏滚动条，只认 auto/scroll/overlay 会把沟通页的 `.resume-detail` 排除 → scrollMax=0 → 复制不全），缓存到 `window.__resumeScrollEl`/`__resumeOuterMax`/`__resumeInnerMax`/`__resumeIframe`；外层容器不可滚时兜底滚 c-resume iframe 内部文档（`idoc.documentElement.scrollTop`）。reset 时先短轮询归顶（≤2s），卡死才重载 c-resume iframe 再轮询（确定性回顶）；复制前会**清空系统剪贴板**（用户此时复制粘贴别的内容会被盖一下）。复制失败才退回截图 OCR。
 - **最小化 vs 盖住（v1.4.4，后续实测修正）**: Chrome 最小化后渲染冻结，截图 OCR 必然变形。v1.4.3 曾做 `/window-restore` 自动恢复窗口，因自动弹窗被用户否掉已整体回退（代理无最小化特殊处理）。引导用户「别点最小化、用别的窗口盖住」即可。曾经的「边用边跑」特殊启动参数（禁用 `CalculateNativeWinOcclusion`/`BackgroundTabFreeze` 等）**实测无效已整体移除**：同窗口切后台标签页依旧失效，开两个 Chrome 窗口（BOSS 页在独立窗口置顶）无论盖不盖都正常。README「运行中的注意事项」第 1 条即此引导。
 - **模拟复制开关（v1.4.4）**: extract-common.mjs 模块级 `enableCopyFlag`（默认 true；`parseArgs --enable-copy 0` 关闭），在 `tryExtractResumeTextByTrustedCopy`/`tryExtractCanvasResumeByDragCopy` 两个复制入口开头守卫，关闭即 return null → 调用点自动降级走截图 OCR。renderer 复选框 → main runPipeline 拼 `--enable-copy 1/0`。界面默认不勾选（电脑闲置才建议开，开启才借用系统剪贴板）。
-- **Score output parsing**: `parseSingleScoreResponse()` finds the first valid JSON `{score, comment}` object in the API response, handles markdown code blocks, formats comments with newlines before section headers.
+- **Score output parsing**: `parseBatchScoreResponse()` finds the first valid JSON `[{candidateIndex, score, comment}]` array in the API response (per-candidate batch replies), handles markdown code blocks, formats comments with newlines before section headers.
 - **权威分数 = 程序化计算**（v1.3.18）：AI 手写的「匹配度评分」算术不可靠，`computeMatchScoreFromComment()` 从评语解析各维度「独立得分×权重」重算加权基础分，再减「其他扣分合计」，作为 `totalScore`；评语里手写的匹配度评分只作解析兜底。打招呼等级过滤也据此判断。
 - **学历硬性门槛程序化兜底**（v1.3.26）：AI 常以「最高学历已达标」为由豁免第一学历扣分。只要评语「第一学历」明确为大专/专科或非全日制，`computeMatchScoreFromComment()` 就强制扣 20 分（任职资格扣分从评语独立解析，不依赖 AI 合计）；`patchEducationDeductionComment()` 同步修正评语数字并视情况追加「系统说明」。这两个函数在 `electron/score-comment.mjs`，主进程与重算脚本共用。
 - **教育经历顺序**：Excel 教育经历列最高学历在第一行、按时间由近到远排序（与推荐卡片 DOM 提取顺序一致）。简历解析优先（`fillEducationFromResumeText`），卡片学历只补充简历未覆盖的最高学历段。
@@ -153,4 +153,4 @@ The proxy (`scripts/cdp-proxy.mjs`) is a core dependency. It:
 - SMTP default: `smtp.mxhichina.com:25` (overridable via API config UI)
 - The AI scoring prompt template uses `{dimensions}`, `{screeningCriteria}`, `{resumeText}` placeholders
 - `output/` is gitignored; old runs auto-archived to `output-YYYYMMDD-HHMM/`
-- UI 设计规范见 `docs/design-system.md`：改界面先读它，颜色/间距/字号/圆角/动效一律用 `style.css` 里 `:root` 的设计 token，别写死数值
+- UI 设计规范见 `docs/design-system.md`：改界面先读它，颜色/间距/字号/圆角/动效一律用 `electron/renderer/tokens.css` 里 `:root` 的设计 token，别写死数值

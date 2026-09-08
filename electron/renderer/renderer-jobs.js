@@ -38,8 +38,7 @@ function renderJobPicker() {
   addBtn.className = 'job-picker-item-name';
   addBtn.textContent = '+ 添加新岗位';
   addBtn.addEventListener('click', () => {
-    hideJobPicker();
-    showAddJobDialog();
+    swapJobDialogs(showAddJobDialog);
   });
   addItem.appendChild(addBtn);
   jobPickerList.appendChild(addItem);
@@ -88,9 +87,8 @@ function renderJobPicker() {
     btnEdit.textContent = '编辑';
     btnEdit.addEventListener('click', (e) => {
       e.stopPropagation();
-      // 编辑弹窗层级高于「目标岗位」弹窗，关闭后立即打开即可，无需等待
-      hideJobPicker();
-      showEditJobDialog(job);
+      // 编辑弹窗互切：旧弹窗直接收起（不淡出），由编辑弹窗入场接管，避免两弹窗叠放交叉
+      swapJobDialogs(() => showEditJobDialog(job));
     });
     actions.appendChild(btnEdit);
 

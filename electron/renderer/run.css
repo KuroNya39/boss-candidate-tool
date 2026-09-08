@@ -1,0 +1,252 @@
+/* ===== Step Items ===== */
+.step-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.step-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.step-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.step-number {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm); /* 步骤编号 = 内嵌小组件，radius-sm(4) 收敛历史 6px */
+  background: var(--bg-page);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: background-color var(--transition-normal), color var(--transition-normal);
+}
+.step-item[data-state="running"] .step-number {
+  background: var(--color-accent);
+  color: var(--text-on-accent);
+  animation: step-pulse 1.6s var(--ease-in-out) infinite;
+}
+.step-item[data-state="done"] .step-number {
+  background: var(--color-success);
+  color: var(--text-on-accent);
+  animation: step-pop var(--dur-normal) var(--ease-out);
+}
+.step-item-title {
+  font-size: var(--text-md);
+  font-weight: 500;
+  color: var(--text-primary);
+  transition: color var(--transition-normal);
+}
+.step-item[data-state="waiting"] .step-item-title {
+  color: var(--text-muted);
+}
+.step-item-status {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.step-item[data-state="running"] .step-item-status {
+  color: var(--color-accent);
+  font-weight: 500;
+}
+.step-item[data-state="done"] .step-item-status {
+  color: var(--color-success);
+}
+.step-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.progress-track {
+  flex: 1;
+  height: 8px;
+  background: var(--border-card);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  transition: width var(--transition-slow);
+}
+.step-item[data-state="done"] .progress-fill {
+  background: var(--color-success);
+}
+.progress-pct {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  width: 40px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.step-msg {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.4;
+  min-height: 16px;
+}
+
+/* ===== Running Actions ===== */
+.running-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+/* ===== Result Header ===== */
+.result-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 0; /* 下侧不再自带留白，让「结果摘要」到标题、到按钮的间距一致（都由 flex gap 决定） */
+}
+.result-icon-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.result-icon-circle.success {
+  background: var(--color-success);
+}
+.result-icon-circle.error {
+  background: var(--color-error);
+}
+.result-icon-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-on-accent);
+}
+.result-title {
+  font-size: var(--text-xl); /* 完成页标题档：xl(18)，与页头标题同档 */
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ===== Result Summary ===== */
+.result-summary {
+  font-size: var(--text-md);
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.8;
+  padding: 4px 0;
+  white-space: pre-line;
+  word-break: break-word;
+}
+
+/* ===== 邮件失败折叠说明 ===== */
+.mail-error-details {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  background: var(--bg-warning);
+  padding: 8px 16px;
+  line-height: 1.6;
+}
+.mail-error-details summary {
+  cursor: pointer;
+  color: var(--color-warning-strong);
+  font-weight: 500;
+  user-select: none;
+}
+.mail-error-detail {
+  margin-top: 8px;
+  white-space: pre-line;
+  color: var(--text-secondary);
+}
+
+/* ===== Result Actions ===== */
+.result-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* ===== Error Message ===== */
+.error-message {
+  background: rgba(var(--color-error-rgb),0.06);
+  border-radius: var(--radius-md); /* 结果错误提示条，radius-md 档 */
+  padding: 8px 16px;
+  font-size: var(--text-md);
+  color: var(--color-error-strong);
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+/* ===== Greet Section ===== */
+.greet-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: 4px;
+}
+.greet-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.greet-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+/* 等级下拉 + 「开始打招呼」并排一行、各占一半；取消按钮运行时顶替按钮位，不跳动。
+   用 grid 而不用 flex，保证两列严格同宽（flex 会被下拉触发器的 min-width 撑偏）。 */
+.greet-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 8px;
+}
+.greet-controls .custom-select {
+  min-width: 0;
+}
+.greet-controls .custom-select .custom-select-trigger {
+  width: 100%;
+}
+.greet-start {
+  min-width: 0;
+}
+.greet-count-text {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.greet-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.greet-progress-text {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  text-align: center;
+}
+.greet-result {
+  font-size: var(--text-md);
+  color: var(--color-success-strong);
+  text-align: center;
+  padding: 8px 16px;
+  background: rgba(var(--color-success-rgb),0.06);
+  border-radius: var(--radius-md); /* 打招呼结果提示条，radius-md 档收敛历史 6px */
+}
+.greet-result.greet-result-error {
+  color: var(--color-error-strong);
+  background: rgba(var(--color-error-rgb),0.06);
+}
+

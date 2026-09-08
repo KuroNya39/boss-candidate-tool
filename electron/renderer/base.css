@@ -1,0 +1,89 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+  /* 不再设 user-select:none，恢复文字可选中（交互元素各自保留）。 */
+  /* 注意：不再给 body 设 -webkit-app-region: drag。
+     窗口有原生标题栏可拖拽；body 级 drag 区域会干扰原生 <select> 弹层打开（批量打招呼下拉框点了没反应）。 */
+}
+
+/* ===== 滚动条策略 =====
+   主界面整页（内容高于窗口时）与历史抽屉列表的滚动条直接隐藏——
+   滚轮 / 键盘仍可滚动，只是不显示那条「备用」的条；
+   内容列表框（选岗位 / 完成页候选人 / 岗位描述编辑框）默认也不显示，
+   鼠标移进框内才淡出 5px 细条：平时干净，要滚时能看到进度。
+   Chromium 用 ::-webkit-scrollbar；Firefox 用 scrollbar-width 兜底。 */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: var(--radius-full);
+}
+
+/* 主界面整页 + 历史抽屉列表：彻底不显示 */
+html { scrollbar-width: none; }
+html::-webkit-scrollbar { width: 0; height: 0; }
+.history-list { scrollbar-width: none; }
+.history-list::-webkit-scrollbar { width: 0; height: 0; }
+
+/* 内容列表框：悬停到框上才显示细条（滑块悬停再加深） */
+.job-picker-list:hover::-webkit-scrollbar-thumb,
+.results-list:hover::-webkit-scrollbar-thumb,
+.dialog-field textarea:hover::-webkit-scrollbar-thumb {
+  background: rgba(var(--text-muted-rgb), 0.2);
+}
+.job-picker-list:hover::-webkit-scrollbar-thumb:hover,
+.results-list:hover::-webkit-scrollbar-thumb:hover,
+.dialog-field textarea:hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--text-muted-rgb), 0.45);
+}
+
+/* 原生 <button> 自带浏览器样式，统一重置为继承视觉体系；
+   交互元素保留 user-select:none 防止点按时误选中文字。 */
+button {
+  font-family: inherit;
+  color: inherit;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-app-region: no-drag;
+}
+
+/* 键盘导航焦点环（鼠标点按时不显示；输入框已有各自 :focus 样式，不重复叠加） */
+button:focus-visible,
+[tabindex]:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 var(--ring-width) var(--ring-color);
+}
+
+#app {
+  /* 内容列 720px 居中，不随大窗口横向铺开；默认窗口 CSS 视口仍 660 宽，
+     此上限只在最大化/超宽窗口生效，避免左右拉伸过宽。
+     横向内边距保持 40，卡片与窗口边缘留足呼吸距离（不要为了调宽卡片去挤它） */
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 40px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  -webkit-app-region: no-drag;
+}
+

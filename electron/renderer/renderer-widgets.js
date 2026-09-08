@@ -153,6 +153,7 @@ function showToast(message, type = 'info', duration = 3000) {
   container.appendChild(el);
   setTimeout(() => {
     el.classList.add('toast-leaving');
+    // 移除时机与 toast-out(--dur-normal=250ms) 一致，硬编码需与它同步
     setTimeout(() => el.remove(), 250);
   }, duration);
 }

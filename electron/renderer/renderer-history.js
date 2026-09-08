@@ -21,7 +21,8 @@ function openHistoryDrawer() {
 }
 
 function closeHistoryDrawer() {
-  closeDialog(historyOverlay);
+  // 带动画关闭：触发抽屉向左滑出（drawer-out）再隐藏；纯关掉会跳过退场动效
+  closeDialog(historyOverlay, { animate: true });
 }
 
 async function loadHistory() {
@@ -101,6 +102,11 @@ function renderHistoryItem(item, index) {
     stateClass = 'meta-chip--warn';
   } else if (batchDone) {
     stateText = '已完成';
+  } else if (item.hasCandidates || item.hasScorable) {
+    // 简历已提取成功、但评分没产出结果就中断/出错（或只跑了提取）：归档后也没有
+    // 结果文件 → 明确标「未完成」，不再让状态位留空；此时可点「评分」把结果补齐
+    stateText = '未完成';
+    stateClass = 'meta-chip--warn';
   }
   if (stateText) {
     const stateChip = document.createElement('span');
@@ -192,15 +198,23 @@ historyOverlay.addEventListener('click', (e) => {
 });
 
 // 历史抽屉打开时，滚轮只作用于抽屉里的历史列表，不带动背后的主界面滚动。
-// 指针在抽屉任意位置（含底部按钮区）都滚历史列表；在遮罩空白上则只拦截、不滚动。
+// 指针在列表上时交给浏览器原生滚动（顺滑、跟手，适配不同鼠标/触控板的滚动增量）；
+// 只有滚到列表顶/底不能再滚、指针在标题/底部按钮等非列表区（转发给列表）、
+// 或点在遮罩空白上时，才 preventDefault，避免滚轮穿过遮罩带动背后的主界面。
 historyOverlay.addEventListener(
   'wheel',
   (e) => {
     if (historyOverlay.style.display !== 'flex') return; // 抽屉没开时不拦截
-    if (historyDrawer.contains(e.target)) {
-      historyList.scrollTop += e.deltaY; // 列表滚到顶/底会自然停在边界
+    if (historyList.contains(e.target)) {
+      // 列表还能继续滚 → 放行给原生滚动（不再手动 scrollTop，滚动手感才正常）
+      const atBottom = historyList.scrollTop + historyList.clientHeight >= historyList.scrollHeight - 1;
+      const atTop = historyList.scrollTop <= 0;
+      const blocked = (e.deltaY > 0 && atBottom) || (e.deltaY < 0 && atTop);
+      if (!blocked) return;
+    } else if (historyDrawer.contains(e.target)) {
+      historyList.scrollTop += e.deltaY; // 指针在标题/底部按钮等非列表区：转发给列表（滚到底自然停）
     }
-    e.preventDefault();
+    e.preventDefault(); // 已到边界 / 非列表区 / 遮罩空白：吞掉，不让页面跟着滚
   },
   { passive: false }
 );
