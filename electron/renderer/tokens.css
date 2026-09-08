@@ -14,7 +14,7 @@
 
   /* 语义色：红黄绿蓝取 Google 产品色（红 #EA4335 / 黄 #FBBC05 / 绿 #34A853 / 蓝 #4285F4），
      各配一套浅底/描边/深字，保证白底小字对比度达标；accent 仍是 Google 蓝 #1A73E8 */
-  --bg-page: #f5f7fa;             /* 页面底色：卡片去描边后靠底色衬出白块，勿过深 */
+  --bg-page: #f8fafc;             /* 页面底色：卡片去描边后靠底色衬出白块，勿过深（较旧版又浅一档） */
   --bg-card: #ffffff;
   --bg-input: #f8fafc;
   --bg-subtle: #f1f5f9;
