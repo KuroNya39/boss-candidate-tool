@@ -41,11 +41,9 @@ function resetSteps() {
     s.msg.textContent = '';
     s.status.textContent = '等待中';
   }
-  // 重置跳过提取按钮
+  // 复位跳过提取按钮（清除可能的加载态并隐藏；默认文案在 index.html，无需重写）
   setLoading(btnSkipExtract, false);
   btnSkipExtract.style.display = 'none';
-  btnSkipExtract.disabled = false;
-  btnSkipExtract.innerHTML = SVG_SKIP + '跳过提取';
   // 重置暂停/继续按钮
   resetPauseButton();
   // 重置步骤指示器

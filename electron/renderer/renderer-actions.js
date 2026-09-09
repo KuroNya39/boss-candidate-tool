@@ -94,17 +94,20 @@ btnCancel.addEventListener('click', async () => {
 // 跳过提取，直接评分
 btnSkipExtract.addEventListener('click', async () => {
   const ok = await confirmDialog({
-    title: '跳过剩余提取？',
-    message: '确定跳过剩余候选人提取，用已提取的数据直接开始 AI 评分吗？',
+    title: '跳过提取？',
+    message: '确定跳过剩余候选人，用已提取的数据开始 AI 评分吗？',
     okText: '跳过并评分',
   });
   if (!ok) return;
   setLoading(btnSkipExtract, true);
-  btnSkipExtract.disabled = true;
-  btnSkipExtract.innerHTML = SVG_SKIP + '正在跳过提取…';
   const msgEl = stepCards[1].msg;
   if (msgEl) msgEl.textContent = '正在停止提取，恢复已提取数据…';
-  await window.electronAPI.skipExtraction();
+  try {
+    await window.electronAPI.skipExtraction();
+  } finally {
+    // 无论跳过是否收尾成功都释放按钮，避免异常路径（提取已结束、不再发进度）让它一直灰着转圈
+    setLoading(btnSkipExtract, false);
+  }
 });
 
 // 暂停/继续 步骤1 提取
@@ -172,16 +175,15 @@ btnOpenDir.addEventListener('click', async () => {
 });
 
 // Chrome 重连
-document.getElementById('btn-retry-chrome').addEventListener('click', async () => {
-  const btn = document.getElementById('btn-retry-chrome');
-  setLoading(btn, true);
-  btn.textContent = '重试中…';
-  btn.disabled = true;
-  await window.electronAPI.retryCdpConnection();
-  await updateCdpStatus();
-  setLoading(btn, false);
-  btn.textContent = '重试';
-  btn.disabled = false;
+btnRetryChrome.addEventListener('click', async () => {
+  setLoading(btnRetryChrome, true);
+  try {
+    await window.electronAPI.retryCdpConnection();
+    await updateCdpStatus();
+  } finally {
+    // 无论成败都复位，避免连接报错时按钮一直灰着转圈
+    setLoading(btnRetryChrome, false);
+  }
 });
 
 // 选择输出目录

@@ -78,7 +78,7 @@
     0 6px 14px rgba(var(--color-shadow-rgb), .12),
     0 -2px 8px rgba(var(--color-shadow-rgb), .05);
   --shadow-elevated: var(--shadow-md); /* 兼容别名 */
-  --ring-color: rgba(26,115,232,.35);
+  --ring-color: rgba(var(--color-accent-rgb), .35); /* 键盘聚焦环：accent 叠透明，值改这一行 */
   --ring-width: 3px;
   /* 输入框浅聚焦环（:focus 用）：accent 边框 + 3px 浅环，比键盘环淡一档。
      三处输入框 :focus（config/overlays）同取此 token，改环宽/透明度只动这一行 */

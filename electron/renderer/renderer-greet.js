@@ -46,7 +46,7 @@ async function updateCdpStatus(prefetched) {
     const status = prefetched || (await window.electronAPI.getCdpStatus());
     const dot = document.getElementById('chrome-status-dot');
     const text = document.getElementById('chrome-status-text');
-    const retryBtn = document.getElementById('btn-retry-chrome');
+    const retryBtn = btnRetryChrome; // 顶栏重连按钮句柄已在 renderer-dom.js 统一提升
 
     dot.className = 'status-dot';
     text.textContent = '';

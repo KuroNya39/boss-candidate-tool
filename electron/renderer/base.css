@@ -65,9 +65,11 @@ button {
   -webkit-app-region: no-drag;
 }
 
-/* 键盘导航焦点环（鼠标点按时不显示；输入框已有各自 :focus 样式，不重复叠加） */
+/* 键盘导航焦点环（鼠标点按时不显示；输入框已有各自 :focus 样式，不重复叠加）。
+   只给「正 Tab 序」的元素画环：切换页面时程序聚焦的标题/抽屉（tabindex=-1）
+   只是给键盘与读屏一个落点、并非可交互控件，不画环，避免非按钮文字块误亮 */
 button:focus-visible,
-[tabindex]:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible,
 textarea:focus-visible {
   outline: none;
   box-shadow: 0 0 0 var(--ring-width) var(--ring-color);

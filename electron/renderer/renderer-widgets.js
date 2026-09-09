@@ -226,11 +226,23 @@ function confirmDialog({ title, message, okText = '确定', cancelText = '取消
 }
 
 // ===== 按钮加载态（spinner + aria-busy + 禁用）=====
+// 加载中把按钮挂成真正的 disabled（置灰、鼠标键盘都点不动），结束后恢复成加载前的状态——
+// 这样能跟其它「按条件禁用」的逻辑叠加：加载完不会把一个本就该禁用的按钮错误放开。
+// 按钮文字保持不变，转圈由 config.css 的 .is-loading::before 提供，勿在加载时改文案
 function setLoading(btn, loading) {
   if (!btn) return;
   btn.classList.toggle('is-loading', loading);
-  if (loading) btn.setAttribute('aria-busy', 'true');
-  else btn.removeAttribute('aria-busy');
+  if (loading) {
+    btn.setAttribute('aria-busy', 'true');
+    btn.dataset.prevDisabled = String(btn.disabled); // 记住进入加载前是否已禁用，结束时还原
+    btn.disabled = true;
+  } else {
+    btn.removeAttribute('aria-busy');
+    if (btn.dataset.prevDisabled !== undefined) {
+      btn.disabled = btn.dataset.prevDisabled === 'true';
+      delete btn.dataset.prevDisabled;
+    }
+  }
 }
 
 // ===== 清理函数 =====

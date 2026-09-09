@@ -11,14 +11,14 @@ const btnStart = document.getElementById('btn-start');
 const btnCancel = document.getElementById('btn-cancel');
 const btnSkipExtract = document.getElementById('btn-skip-extract');
 const btnPauseExtract = document.getElementById('btn-pause-extract');
-// 暂停/继续/跳过 统一引用 sprite 里的 Material 图标（path 数据只在 index.html 维护一份）
+// 暂停/继续 统一引用 sprite 里的 Material 图标（path 数据只在 index.html 维护一份；跳过的图标是静态 HTML，无需 JS 重建）
 const SVG_PAUSE = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-pause"/></svg>';
 const SVG_PLAY = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-play"/></svg>';
-const SVG_SKIP = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-skip"/></svg>';
 const SVG_CHEVRON_RIGHT = '<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-chevron-right"/></svg>';
 const btnRestart = document.getElementById('btn-restart');
 const btnRetry = document.getElementById('btn-retry');
 const btnErrorBack = document.getElementById('btn-error-back');
+const btnRetryChrome = document.getElementById('btn-retry-chrome'); // 顶栏 Chrome 重连按钮
 const btnOpenDir = document.getElementById('btn-open-dir');
 const btnSelectDir = document.getElementById('btn-select-dir');
 const btnHistory = document.getElementById('btn-history');
