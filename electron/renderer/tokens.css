@@ -35,6 +35,12 @@
   --color-accent-hover: #1765cc;
   --color-accent-active: #185abc;
   --color-accent-rgb: 26, 115, 232;
+  /* accent 浅底三档：来源分段按钮定下的四态配色，全应用的分段按钮/下拉/列表共用
+     （悬停未选中 = 4% 淡底 · 选中 = 10% 浅蓝底 · 悬停选中/按下 = 16% 加深）。
+     这里三行是唯一取值点，改档位只需动这三行 */
+  --bg-accent-tint: rgba(var(--color-accent-rgb), 0.04);
+  --bg-accent-tint-selected: rgba(var(--color-accent-rgb), 0.10);
+  --bg-accent-tint-active: rgba(var(--color-accent-rgb), 0.16);
   --color-success: #34a853;       /* Google 绿 */
   --color-success-rgb: 52, 168, 83;
   --color-success-strong: #0d652d;

@@ -29,30 +29,58 @@ function initCustomSelect(container) {
     set(v) { container.dataset.value = String(v); sync(); },
   });
 
-  function setOpen(open) {
-    const isOpen = menu.style.display !== 'none';
-    if (open === isOpen) return;
-    const arrow = container.querySelector('.custom-select-arrow');
-    if (open) {
-      // 窗口底部空间不足时向上展开（原生 select 会自动翻转，自定义组件需手动处理）
-      const rect = container.getBoundingClientRect();
-      const menuH = options.length * 36 + 12;
-      const openUp = rect.bottom + menuH + 8 > window.innerHeight;
-      if (openUp) {
-        menu.style.top = 'auto';
-        menu.style.bottom = 'calc(100% + 4px)';
-      } else {
-        menu.style.top = 'calc(100% + 4px)';
-        menu.style.bottom = 'auto';
-      }
-      // 打开即把箭头转 180°（∨ → ^）提示“已展开”，收起时复位；
-      // 不再跟随菜单上下方向——用户要的是“点开就翻转”的常规手感
-      arrow.style.transform = 'rotate(180deg)';
+  // 展开/收起：入场由 CSS 的 menu-in 承担；收起补 menu-out 镜像退场（同 150ms），
+  // 播完（forwards 停在透明）再隐藏 display，避免“出现有动效、收起瞬没”。
+  // openState 是语义开关：退场动画进行中已算“收起”，此刻点触发条可即时取消退场重开
+  let openState = false;
+  let closeTimer = null;
+  const menuOutMs = 170; // menu-out = --dur-fast(150ms) + 20ms 缓冲；改 CSS 档位需同步这里
+
+  function openMenu() {
+    openState = true;
+    clearTimeout(closeTimer);
+    menu.classList.remove('custom-select-menu--closing');
+    // 窗口底部空间不足时向上展开（原生 select 会自动翻转，自定义组件需手动处理）
+    const rect = container.getBoundingClientRect();
+    const menuH = options.length * 36 + 12;
+    const openUp = rect.bottom + menuH + 8 > window.innerHeight;
+    if (openUp) {
+      menu.style.top = 'auto';
+      menu.style.bottom = 'calc(100% + 4px)';
     } else {
-      arrow.style.transform = '';
+      menu.style.top = 'calc(100% + 4px)';
+      menu.style.bottom = 'auto';
     }
-    menu.style.display = open ? 'flex' : 'none';
-    trigger.setAttribute('aria-expanded', String(open));
+    // 缩放轴心随展开方向（向下=顶边、向上=底边）：入/退场都从触发条那一侧起收
+    menu.style.transformOrigin = openUp ? 'bottom' : 'top';
+    // 打开即把箭头转 180°（∨ → ^）提示“已展开”，收起时复位；
+    // 不再跟随菜单上下方向——用户要的是“点开就翻转”的常规手感
+    container.querySelector('.custom-select-arrow').style.transform = 'rotate(180deg)';
+    menu.style.display = 'flex';
+    trigger.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeMenu() {
+    if (!openState) return; // 已收起（含退场中）
+    openState = false;
+    container.querySelector('.custom-select-arrow').style.transform = '';
+    trigger.setAttribute('aria-expanded', 'false');
+    // 系统开了「减少动态效果」：全局动画已被压成 0.01ms，直接隐藏，别干等退场时长
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      menu.style.display = 'none';
+      return;
+    }
+    menu.classList.add('custom-select-menu--closing');
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => {
+      menu.classList.remove('custom-select-menu--closing');
+      menu.style.display = 'none';
+    }, menuOutMs);
+  }
+
+  function setOpen(open) {
+    if (open) openMenu();
+    else closeMenu();
   }
 
   function selectValue(v) {
@@ -66,13 +94,18 @@ function initCustomSelect(container) {
 
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
-    document.querySelectorAll('.custom-select-menu').forEach(m => { if (m !== menu) m.style.display = 'none'; });
-    setOpen(menu.style.display === 'none');
+    // 点开本组时先收起其它已展开的下拉：走各自的退场动效，而不是瞬没
+    document.querySelectorAll('.custom-select-menu').forEach(m => {
+      if (m === menu) return;
+      if (typeof m._closeCustomSelect === 'function') m._closeCustomSelect();
+      else m.style.display = 'none'; // 兜底：个别未注册实例直接隐藏
+    });
+    setOpen(!openState);
   });
 
   // 触发按钮键盘：↓/↑/Home/End 打开并定位；Escape 收起
   trigger.addEventListener('keydown', (e) => {
-    const isOpen = menu.style.display !== 'none';
+    const isOpen = openState;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
       e.preventDefault();
       if (!isOpen) {
@@ -108,6 +141,9 @@ function initCustomSelect(container) {
   document.addEventListener('click', (e) => {
     if (!container.contains(e.target)) setOpen(false);
   });
+
+  // 暴露给其它下拉实例：跨关本菜单时走退场动效（见上方 trigger click 的互关逻辑）
+  menu._closeCustomSelect = closeMenu;
 
   sync();
 }

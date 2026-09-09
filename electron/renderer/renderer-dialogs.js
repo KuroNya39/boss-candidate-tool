@@ -135,8 +135,21 @@ jobSearchClear.addEventListener('click', () => {
 // 设置卡输入框不再提供一键清空 ×（只留密码眼睛），相关通用接线已删除。
 // 岗位搜索框的清除按钮自带单独逻辑（上方 jobSearchClear）。
 // Source toggle (card-style buttons)
+// 选中浅蓝底由滑动指示条（.toggle-pill）承载：切换时指示条滑到新档，点当前档直接忽略
+const sourceGroup = document.getElementById('source-toggle-group');
+const sourcePill = sourceGroup ? sourceGroup.querySelector('.toggle-pill') : null;
+
+// 指示条贴到目标按钮：用 offsetWidth/offsetLeft（布局几何，不受 :active 缩放变换影响），
+// 与按钮同以 toggle-group 为 offsetParent，任何内边距/宽度下都对齐
+function slideSourcePill(btn) {
+  if (!sourcePill || !btn) return;
+  sourcePill.style.width = `${btn.offsetWidth}px`;
+  sourcePill.style.transform = `translateX(${btn.offsetLeft}px)`;
+}
+
 document.querySelectorAll('.toggle-btn').forEach(btn => {
   btn.addEventListener('click', () => {
+    if (btn.classList.contains('active')) return; // 已在此档：不重复切换
     document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const source = btn.dataset.source;
@@ -157,8 +170,17 @@ document.querySelectorAll('.toggle-btn').forEach(btn => {
     autoGreetSection.style.display = isChat || isSearch ? 'none' : '';
     if (isChat || isSearch) autoGreetCheck.checked = false;
     syncCountArrows(); // 上方可能已把 countInput 重新启用，步进箭头跟着启用
+    slideSourcePill(btn); // 指示条滑到新选中的档
   });
 });
+
+// 把指示条贴到当前选中的档（找 active 再 slide）。首帧与 resize 共用——
+// 首帧加载时无上一次样式可比，transition 不会开场滑动；resize 改变 flex 均分宽度，需重量贴合
+function repinSourcePill() {
+  slideSourcePill(sourceGroup ? sourceGroup.querySelector('.toggle-btn.active') : null);
+}
+repinSourcePill();
+window.addEventListener('resize', repinSourcePill);
 
 // 添加/编辑岗位弹窗
 function showAddJobDialog() {

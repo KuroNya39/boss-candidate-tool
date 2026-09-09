@@ -82,12 +82,12 @@ function registerIPC() {
     return { ok: true };
   });
 
-  // 批量打招呼
+  // 批量打招呼。opts.retry 为真 = 只补上次失败名单里的人
   ipcMain.handle('start-greeting', (_event, opts) => {
     if (hasRunningTask()) return { error: '已有任务运行中' };
     const level = opts?.level ?? 4;
     const source = opts?.source || 'recommend';
-    runGreeting(level, source);
+    runGreeting(level, source, { retry: !!opts?.retry });
     return { ok: true };
   });
 

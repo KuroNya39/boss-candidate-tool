@@ -117,6 +117,8 @@
           <button class="toggle-btn active" data-source="recommend-attach">推荐牛人页</button>
           <button class="toggle-btn" data-source="search">搜索页</button>
           <button class="toggle-btn" data-source="chat">沟通页</button>
+          <!-- 滑动指示条：放在按钮之后，悬停选中按钮时可借兄弟选择器加深它；JS 负责落位，pointer-events none 不挡点击 -->
+          <span class="toggle-pill" aria-hidden="true"></span>
         </div>
 
         <!-- 目标岗位 + 提取数量：两列并排，一屏更紧凑 -->

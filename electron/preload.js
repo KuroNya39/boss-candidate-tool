@@ -44,8 +44,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 应用版本号
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 
-  // 批量打招呼
-  startGreeting: (level) => ipcRenderer.invoke('start-greeting', { level }),
+  // 批量打招呼（source/retry 一并透传：打招呼只针对推荐牛人页，但 source 不能丢）
+  startGreeting: (opts) => ipcRenderer.invoke('start-greeting', opts),
   cancelGreeting: () => ipcRenderer.invoke('cancel-greeting'),
   getGreetCandidateCounts: () => ipcRenderer.invoke('get-greet-candidate-counts'),
 

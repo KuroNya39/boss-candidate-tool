@@ -53,7 +53,11 @@ function setupListeners() {
                 greetProgressBar.style.width = '0%';
                 if (greetProgressBar.setAttribute) greetProgressBar.setAttribute('aria-valuenow', '0');
                 greetProgressText.textContent = '自动打招呼中…';
-                const res = await window.electronAPI.startGreeting(level, selectedSource);
+                // 记录本轮档位，跑完有失败时「重试」沿用同一批（auto-greet 与手动共用 onGreetDone）；
+                // 来源统一 greetSource()（共享函数在 renderer-dom.js），不另存（见 renderer-dom.js 状态注释）
+                lastGreetRun = { level };
+                const source = greetSource();
+                const res = await window.electronAPI.startGreeting({ level, source, retry: false });
                 autoGreetEnabled = false;
                 // 已有任务运行中：主进程拒绝，恢复打招呼面板而不是停在假进度
                 if (res?.error) {
@@ -97,12 +101,23 @@ function setupListeners() {
       btnCancelGreet.style.display = 'none';
       btnStartGreet.style.display = '';
       greetResult.style.display = '';
-      greetResult.className = 'greet-result'; // 重置，避免上一次失败的红色样式残留
+
+      const hasRetry = data.retryable > 0;
+      // 有可重试失败 → 按钮当场变「重试」，只补「点过没成」的人；全成功 → 回「开始打招呼」。
+      // level 取本轮跑的档位；greetRetry 不记 source——重试点击时由 greetSource() 现算（见 renderer-dom.js）
+      greetRetry = hasRetry
+        ? { level: lastGreetRun ? lastGreetRun.level : parseInt(greetLevel.value, 10) }
+        : null;
+      updateGreetButton();
+
+      // 可重试失败 ≠ 全红错误（不是流程挂了，是部分人被风控挡下），用警示色区别于红错
+      greetResult.className = hasRetry ? 'greet-result greet-result-warn' : 'greet-result';
       greetResult.textContent =
         `成功打招呼 ${data.success} 人` +
         (data.already > 0 ? `，${data.already} 人已打过招呼` : '') +
         (data.notFound > 0 ? `，${data.notFound} 人不在当前列表中` : '') +
-        (data.skipped > 0 ? `，${data.skipped} 人跳过` : '');
+        (hasRetry ? `，${data.retryable} 人没成功，可点上方「重试」再试` : '') +
+        (data.skipped > 0 ? `，${data.skipped} 人当前无打招呼按钮、未打招呼` : '');
       autoGreetEnabled = false;
     })
   );
@@ -115,6 +130,7 @@ function setupListeners() {
       greetResult.style.display = '';
       greetResult.className = 'greet-result greet-result-error';
       greetResult.textContent = '打招呼失败：' + data.message;
+      clearGreetRetry(); // 出错不延续「重试」，按钮回「开始打招呼」
       autoGreetEnabled = false;
     })
   );

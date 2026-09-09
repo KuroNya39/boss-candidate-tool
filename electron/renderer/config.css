@@ -38,7 +38,7 @@
 .job-display.placeholder:hover {
   border-color: var(--color-accent);
   color: var(--color-accent);
-  background: rgba(var(--color-accent-rgb),0.04);
+  background: var(--bg-accent-tint);
 }
 
 /* ===== Job picker search ===== */
@@ -72,7 +72,7 @@
   border-bottom: none;
 }
 .job-picker-item:hover {
-  background: var(--bg-page);
+  background: var(--bg-accent-tint); /* 悬停未选中行 = 4% 淡底（同来源分段按钮），字色不变 */
 }
 .job-picker-item-name {
   flex: 1;
@@ -112,7 +112,10 @@
   font-weight: 600;
 }
 .job-picker-item.selected {
-  background: rgba(var(--color-accent-rgb),0.04);
+  background: var(--bg-accent-tint-selected); /* 选中 = 10% 浅蓝底（同来源分段按钮/下拉选中），蓝勾蓝字已能区分 */
+}
+.job-picker-item.selected:hover {
+  background: var(--bg-accent-tint-active); /* 悬停选中的行：底色加深一档（16%） */
 }
 .job-picker-item-actions {
   display: flex;
@@ -216,7 +219,14 @@ button.is-loading::before {
 }
 
 /* ===== Toggle Group ===== */
+/* 配色规则（沿用来源按钮原四态，一套固定规则，全应用的分段按钮/下拉/列表共用）：
+   选中      = 10% 浅蓝底 + 蓝字（底色由滑动指示条承载）
+   悬停未选中 = 4% 淡底（只提示可点，字色不变）
+   悬停选中   = 底色加深到 16%（指示条在悬停态加深）
+   按下      = 整格缩放 0.97
+   三档浅底的具体值集中在 tokens.css（--bg-accent-tint / -selected / -active），这里只引用 */
 .toggle-group {
+  position: relative; /* 定位基准：让 .toggle-pill 相对组内贴位（JS 用 offset 落位） */
   display: flex;
   gap: 0;
   background: var(--bg-page);
@@ -235,22 +245,47 @@ button.is-loading::before {
   color: var(--text-secondary);
   cursor: pointer;
   text-align: center;
+  position: relative;
+  z-index: 1; /* 文字叠在滑动的指示条之上 */
   transition: color var(--transition-fast), background-color var(--transition-fast), transform var(--transition-fast);
   -webkit-app-region: no-drag;
 }
 .toggle-btn.active {
-  background: rgba(var(--color-accent-rgb), 0.10); /* 浅蓝选中态：轻量「已选中」，不与主 CTA 实心蓝撞车 */
   color: var(--color-accent);
 }
-.toggle-btn.active:hover {
-  background: rgba(var(--color-accent-rgb), 0.16); /* 选中项 hover 再加深一点，保持可点反馈 */
-}
 .toggle-btn:hover:not(.active) {
-  color: var(--text-primary);
-  background: rgba(var(--color-accent-rgb),0.04);
+  /* 悬停只加 4% 淡底、字色不变（用户要求：悬停别让字变深，浅底已足够提示） */
+  background: var(--bg-accent-tint); /* 4% 淡悬停底，与「选中 10%」明显分层 */
 }
 .toggle-btn:active {
   transform: scale(0.97); /* 按下收缩一档：非 .btn 的可点控件补按压反馈 */
+}
+/* 滑动指示条：绝对定位贴住当前档按钮（top/bottom 4 = 组内边距），JS 按按钮几何落位。
+   只用 transform 位移（合成层动画），不逐帧动布局 */
+.toggle-pill {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  width: 0; /* 初始无宽，JS 首帧按默认选中按钮填充 */
+  background: var(--bg-accent-tint-selected); /* 选中浅蓝底 */
+  border-radius: var(--radius-md);
+  pointer-events: none; /* 不挡按钮点击与悬停 */
+  /* 平滑滑动：ease-in-out 起收温和、速度曲线对称，无「先冲后拖」的顿挫；0.3s 介于
+     0.25/0.4 两档之间，兼顾跟手与可见（长距离滑到第三档也从容） */
+  transition: transform 0.3s var(--ease-in-out),
+              background-color var(--transition-fast);
+  will-change: transform;
+}
+/* 悬停当前选中的按钮：选中底色加深一档（原 active:hover 的 0.16 效果），保持可点反馈 */
+.toggle-btn.active:hover ~ .toggle-pill {
+  background: var(--bg-accent-tint-active);
+}
+/* 系统开启「减弱动态」：切档直接瞬移，不做位移 */
+@media (prefers-reduced-motion: reduce) {
+  .toggle-pill {
+    transition: none;
+  }
 }
 
 /* ===== Alert 体系（提示条） ===== */
@@ -543,11 +578,17 @@ button.is-loading::before {
   box-shadow: var(--shadow-elevated);
   display: flex;
   flex-direction: column;
-  gap: var(--space-1); /* 选项之间留一条白底空隙：选中项与悬停项相邻时底色不粘连 */
+  gap: 2px; /* 选项胶囊间的白缝：刻意收紧到 2px（小于 space-1 半拍，仅此微缝用），相邻选中/悬停块仍不粘连 */
   padding: 4px;
   -webkit-app-region: no-drag;
-  transform-origin: top;
+  transform-origin: top; /* 展开方向（向下/向上）在 JS 里按需改；入/出场同一原点才能互相倒放 */
   animation: menu-in var(--dur-fast) var(--ease-out);
+}
+/* 收起退场：与入场同路径镜像（menu-out），forwards 让动画停帧在透明态，JS 在播完后隐藏不会闪回。
+   时长与 menu-out=--dur-fast(150ms) 同步，改档位需同步 renderer-widgets.js 的延迟 */
+.custom-select-menu--closing {
+  animation: menu-out var(--dur-fast) var(--ease-out) forwards;
+  pointer-events: none; /* 退场期间不可再点，避免选到正淡出的项 */
 }
 .custom-select-option {
   padding: 8px 16px;
@@ -561,15 +602,18 @@ button.is-loading::before {
   white-space: nowrap;
 }
 .custom-select-option:hover {
-  background: rgba(var(--color-accent-rgb), 0.1);
+  background: var(--bg-accent-tint); /* 悬停未选中 = 4% 淡底（同来源分段按钮），只提示可点，字色不变 */
 }
 .custom-select-option:active {
-  background: rgba(var(--color-accent-rgb), 0.16); /* 按下比悬停再深一档，整行反馈（选项行不宜整体缩放） */
+  background: var(--bg-accent-tint-active); /* 按下比悬停再深一档，整行反馈（选项行不宜整体缩放） */
 }
 .custom-select-option.selected {
-  background: rgba(var(--color-accent-rgb), 0.1); /* 与 hover 同一底色，颜色不跳变；选中另靠 accent 色字区分 */
+  background: var(--bg-accent-tint-selected); /* 选中 = 10% 浅蓝底（同来源分段按钮），靠 accent 蓝字 + 600 区分 */
   color: var(--color-accent);
   font-weight: 600;
+}
+.custom-select-option.selected:hover {
+  background: var(--bg-accent-tint-active); /* 悬停选中的选项：底色加深一档（同来源按钮「悬停选中」） */
 }
 
 /* ===== 按钮体系（统一 .btn 基底 + 语义变体 + 尺寸） ===== */
@@ -644,7 +688,7 @@ button.is-loading::before {
   padding: 4px 8px;
   font-size: var(--text-sm);
 }
-.btn--link:hover:not(:disabled) { border-color: var(--color-accent); background: rgba(var(--color-accent-rgb),0.04); }
+.btn--link:hover:not(:disabled) { border-color: var(--color-accent); background: var(--bg-accent-tint); }
 .btn--link-danger { color: var(--color-error); }
 .btn--link-danger:hover:not(:disabled) { border-color: var(--color-error); background: rgba(var(--color-error-rgb),0.04); color: var(--color-error-strong); }
 

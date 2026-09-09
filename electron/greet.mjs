@@ -9,26 +9,33 @@ import { OUTPUT_DIR, currentProcess, cancelled, setCancelled, setCurrentProcess 
 import { sendGreetProgress, sendGreetDone, sendGreetError } from './window.mjs';
 
 // ===== 批量打招呼 =====
-async function runGreeting(level, source = 'recommend') {
+async function runGreeting(level, source = 'recommend', opts = {}) {
   setCancelled(false); // 重置取消标志
   const scoredPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
+  const retryPath = resolve(OUTPUT_DIR, 'greet-retry.json'); // 失败名单固定位置，与脚本同目录约定一致
+  const isRetry = !!opts.retry; // 重试：只补上次「点过没成」的人
   if (!existsSync(scoredPath)) {
     sendGreetError({ message: '未找到评分结果文件，请先完成评分' });
     return;
   }
 
-  // 读取评分数据，计算各等级人数用于进度显示
+  // 计算进度总量：重试 = 名单人数；普通 = 评分数据按等级阈值的人数
   let totalTargets = 0;
   try {
-    const raw = JSON.parse(readFileSync(scoredPath, 'utf-8'));
-    const candidates = raw.candidates || raw;
-    const threshold = thresholdForLevel(level);
-    totalTargets = candidates.filter(c => (c.matchScore ?? c.totalScore ?? c.jobRelevanceScore ?? 0) >= threshold).length;
+    if (isRetry) {
+      const retryList = JSON.parse(readFileSync(retryPath, 'utf-8'));
+      totalTargets = Array.isArray(retryList) ? retryList.length : 0;
+    } else {
+      const raw = JSON.parse(readFileSync(scoredPath, 'utf-8'));
+      const candidates = raw.candidates || raw;
+      const threshold = thresholdForLevel(level);
+      totalTargets = candidates.filter(c => (c.matchScore ?? c.totalScore ?? c.jobRelevanceScore ?? 0) >= threshold).length;
+    }
   } catch (err) {
-    termLog(`[greet] 读取评分数据失败: ${err.message}`, 'stderr');
+    termLog(`[greet] 读取目标人数失败: ${err.message}`, 'stderr');
   }
 
-  termLog(`[greet] 开始批量打招呼，level=${level}，source=${source}，目标 ${totalTargets} 人`);
+  termLog(`[greet] 开始批量打招呼${isRetry ? '（重试失败名单）' : ''}，level=${level}，source=${source}，目标 ${totalTargets} 人`);
 
   // 打招呼也是长任务，运行期间同样阻止系统休眠/显示器关闭（与 runPipeline 一致）
   const greetKeepAwakeId = powerSaveBlocker.start('prevent-display-sleep');
@@ -50,10 +57,13 @@ async function runGreeting(level, source = 'recommend') {
     const greetPath = resolve(UNPACKED_ROOT, 'scripts', 'greet-candidates.mjs');
     const procCwd = app.isPackaged ? OUTPUT_DIR : APP_ROOT;
 
-    const proc = spawn(process.execPath, [greetPath,
-      '--input', scoredPath,
-      '--level', String(level),
-      '--source', source,
+    // 重试只补失败名单：脚本以 --retry 名单为准（名单自带 geekId/name/score，不再 join 评分大文件），
+    // 无需 --input/--level；普通整批才需要评分数据 + 等级阈值
+    const proc = spawn(process.execPath, [
+      greetPath,
+      ...(isRetry
+        ? ['--retry', retryPath, '--source', source]
+        : ['--input', scoredPath, '--level', String(level), '--source', source]),
     ], {
       cwd: procCwd,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -77,14 +87,15 @@ async function runGreeting(level, source = 'recommend') {
           continue;
         }
 
-        // GREET_DONE: 最终统计
-        const doneMatch = line.match(/^GREET_DONE:(\d+)\|(\d+)\|(\d+)\|(\d+)/);
+        // GREET_DONE: 最终统计（第 5 段 = 可重试失败数，供界面把按钮变成「重试」）
+        const doneMatch = line.match(/^GREET_DONE:(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)/);
         if (doneMatch) {
           sendGreetDone({
             success: parseInt(doneMatch[1]),
             already: parseInt(doneMatch[2]),
             notFound: parseInt(doneMatch[3]),
             skipped: parseInt(doneMatch[4]),
+            retryable: parseInt(doneMatch[5]),
           });
           continue;
         }

@@ -1,26 +1,35 @@
 // renderer-greet.js —— 由原 renderer.js 第 1620–1786 行按顺序拆分；加载顺序即文件排列顺序，请勿调整
 //
 // ===== 批量打招呼 =====
+// 打招呼只在推荐牛人页的名单上点按钮，来源统一归 recommend——判定函数 greetSource()
+// 定义在 renderer-dom.js（最先加载的共享文件），这里直接用，别重复定义
 
-// 等级选择变化时更新人数
+// 等级选择变化时更新人数。手动换等级 = 想按新档整批打，放弃当前「重试」名单
 greetLevel.addEventListener('change', async () => {
+  clearGreetRetry();
   try {
     const counts = await window.electronAPI.getGreetCandidateCounts();
     if (counts.available) updateGreetCount(counts);
   } catch {}
 });
 
-// 开始打招呼
+// 开始打招呼。greetRetry 非空 = 主按钮当前是「重试」：只补上次失败名单里的人，
+// 档位沿用失败那轮（重试脚本只看名单，不再按等级过滤）；否则普通整批。
+// 启动前把本轮档位记进 lastGreetRun（只记 level，source 用现算的 greetSource()），
+// 跑完有失败时界面据此把按钮变「重试」
 btnStartGreet.addEventListener('click', async () => {
-  const level = parseInt(greetLevel.value, 10);
+  const isRetry = !!greetRetry;
+  const level = isRetry ? greetRetry.level : parseInt(greetLevel.value, 10);
+  const source = greetSource();
+  lastGreetRun = { level }; // 只记档位；source 重试时由 greetSource() 现算，无需存档（见 renderer-dom.js 状态注释）
   btnStartGreet.style.display = 'none';
   btnCancelGreet.style.display = '';
   greetResult.style.display = 'none';
   greetProgress.style.display = '';
   greetProgressBar.style.width = '0%';
   if (greetProgressBar.setAttribute) greetProgressBar.setAttribute('aria-valuenow', '0');
-  greetProgressText.textContent = '正在打招呼…';
-  const res = await window.electronAPI.startGreeting(level, selectedSource);
+  greetProgressText.textContent = isRetry ? '正在重试失败的人…' : '正在打招呼…';
+  const res = await window.electronAPI.startGreeting({ level, source, retry: isRetry });
   // 已有任务运行中：主进程拒绝，恢复打招呼面板，避免卡在「正在打招呼」的假进度
   if (res?.error) {
     showToast(res.error, 'warning', 4000);
@@ -68,11 +77,29 @@ async function updateCdpStatus(prefetched) {
 }
 
 // ===== 批量打招呼辅助函数 =====
+// 统一主按钮：有可重试失败（greetRetry 非空）→ 文字「重试」且可用（不带人数，用户口径）；
+// 否则「开始打招呼」，按该档可打人数决定禁用
+function updateGreetButton() {
+  if (greetRetry) {
+    btnStartGreet.textContent = '重试';
+    btnStartGreet.disabled = false;
+  } else {
+    btnStartGreet.textContent = '开始打招呼';
+    btnStartGreet.disabled = greetTargetCount === 0;
+  }
+}
+
 function updateGreetCount(counts) {
   const level = parseInt(greetLevel.value, 10);
-  const n = counts.counts[level] || 0;
-  greetCount.textContent = `可打招呼 ${n} 人`;
-  btnStartGreet.disabled = n === 0;
+  greetTargetCount = counts.counts[level] || 0;
+  greetCount.textContent = `可打招呼 ${greetTargetCount} 人`;
+  updateGreetButton();
+}
+
+// 清掉「重试」态（换等级 / 回首页 / 新一批 / 出错时调用），按钮回「开始打招呼」
+function clearGreetRetry() {
+  greetRetry = null;
+  updateGreetButton();
 }
 
 function resetGreetUI() {
@@ -82,9 +109,11 @@ function resetGreetUI() {
   greetResult.className = 'greet-result';
   greetResult.textContent = '';
   greetCount.textContent = '';
+  greetRetry = null; // 新一批/回首页：作废旧的重试名单
+  lastGreetRun = null;
   btnStartGreet.style.display = '';
-  btnStartGreet.disabled = false;
   btnCancelGreet.style.display = 'none';
+  updateGreetButton(); // 文字回「开始打招呼」（默认文案在 index.html，状态切换时由 JS 写回）
 }
 
 // 同步自动打招呼 UI（回到初始状态时调用）

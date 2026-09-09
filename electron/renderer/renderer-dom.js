@@ -55,6 +55,11 @@ let selectedJob = '';
 let jobList = [];
 let jobSearchQuery = ''; // 目标岗位搜索词（实时过滤岗位列表）
 let selectedSource = 'chat'; // 当前选中的提取来源
+// 打招呼只在推荐牛人页的名单上点按钮；recommend 系来源统一归 recommend
+// （搜索/沟通页不显示打招呼面板，不会走到这）。放最先加载的 dom，供 greet/ipc 共用
+function greetSource() {
+  return selectedSource === 'search' ? 'search' : 'recommend';
+}
 
 // 编辑岗位模式（非空时表示正在编辑已有岗位）
 let editJobName = '';
@@ -89,4 +94,15 @@ const autoGreetCheck = document.getElementById('auto-greet-check');
 const autoGreetControls = document.getElementById('auto-greet-controls');
 const autoGreetLevel = document.getElementById('auto-greet-level');
 let autoGreetEnabled = false; // 本次分析是否自动打招呼
+
+// 打招呼「重试」共享状态（renderer-greet.js / renderer-ipc.js 读写）。
+// 上一轮有可重试失败（点过没成，多为太频繁/风控）时非空 = {level}，
+// 主按钮随之变「重试」；全成功/换等级/回首页都置回 null（按钮回「开始打招呼」）。
+// 只记 level 不记 source：重试时来源恒由 greetSource() 实时算（打招呼只在推荐牛人页，
+// search/chat 到不了这），先存下来也没人读，属冗余状态
+let greetRetry = null;
+// 最近一次打招呼用的 {level}：跑完有失败时按它回填 greetRetry（重试沿用同档口径）
+let lastGreetRun = null;
+// 当前等级可打招呼人数：决定「开始打招呼」是否禁用（重试态固定可用）
+let greetTargetCount = 0;
 

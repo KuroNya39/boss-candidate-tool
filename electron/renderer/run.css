@@ -247,4 +247,9 @@
   color: var(--color-error-strong);
   background: rgba(var(--color-error-rgb),0.06);
 }
+/* 部分候选人没成功（太频繁/风控）提示条：警示色，区别于整轮失败的全红错误 */
+.greet-result.greet-result-warn {
+  color: var(--color-warning-strong);
+  background: rgba(var(--color-warning-rgb),0.08);
+}
 
