@@ -9,7 +9,7 @@
   font-family: inherit;
   font-size: var(--text-md);
   color: var(--text-primary);
-  font-weight: 500;
+  font-weight: 400; /* 控件当前值：与输入框/下拉等值显示一致，走正文常规 */
   padding: 0 16px;
   height: 40px; /* 与「提取数量」输入框同高（40px，落在 8px 网格），行内并排时顶底对齐 */
   background: var(--bg-card);
@@ -109,7 +109,7 @@
 .job-picker-item.selected .job-picker-item-name::before {
   content: '✓ ';
   color: var(--color-accent);
-  font-weight: 700;
+  font-weight: 600;
 }
 .job-picker-item.selected {
   background: rgba(var(--color-accent-rgb),0.04);
@@ -146,6 +146,10 @@
   flex-direction: column;
   gap: 8px;
 }
+/* 运行配置卡：卡片标题已去掉，上、下内距 16 → 24（8 网格一档）补足呼吸；左右仍 16 */
+#run-config-card {
+  padding: var(--space-6) var(--space-4);
+}
 .card-title {
   font-size: var(--text-lg); /* 模块标题档：比 field-label(14) 大一号，靠字号分层（字色保持次级不过黑） */
   font-weight: 600;
@@ -157,7 +161,7 @@
 }
 .step-indicator {
   font-size: var(--text-sm);
-  font-weight: 500;
+  font-weight: 400; /* 辅助灰字：走正文常规，不作强调 */
   color: var(--text-muted);
   background: var(--bg-page);
   padding: var(--space-1) var(--space-2);
@@ -174,7 +178,7 @@
 }
 .field-label {
   font-size: var(--text-md); /* 字段标签档：与正文同档 14px */
-  font-weight: 500;
+  font-weight: 400; /* 标签不加粗：靠 --text-secondary 次级色与正文/输入值区分 */
   color: var(--text-secondary);
 }
 .field-hint {
@@ -224,7 +228,7 @@ button.is-loading::before {
   flex: 1;
   padding: 8px 16px;
   font-size: var(--text-md);
-  font-weight: 500;
+  font-weight: 600; /* 500 在微软雅黑下无字形会被降成 400，与正文拉不开；600 才真正显粗 */
   border: none;
   border-radius: var(--radius-md);
   background: transparent;
@@ -235,9 +239,11 @@ button.is-loading::before {
   -webkit-app-region: no-drag;
 }
 .toggle-btn.active {
-  background: var(--color-accent);
-  color: var(--text-on-accent);
-  box-shadow: 0 1px 4px rgba(var(--color-accent-rgb),0.3);
+  background: rgba(var(--color-accent-rgb), 0.10); /* 浅蓝选中态：轻量「已选中」，不与主 CTA 实心蓝撞车 */
+  color: var(--color-accent);
+}
+.toggle-btn.active:hover {
+  background: rgba(var(--color-accent-rgb), 0.16); /* 选中项 hover 再加深一点，保持可点反馈 */
 }
 .toggle-btn:hover:not(.active) {
   color: var(--text-primary);
@@ -303,7 +309,8 @@ button.is-loading::before {
   outline: none;
   color: var(--text-primary);
   font-size: var(--text-md);
-  text-align: center;
+  padding: 0 8px 0 20px; /* 数字偏左但不太贴边（左留 20px，观感“居中偏左”）；值变长往左延展，不会顶到右侧箭头 */
+  text-align: left; /* 短数字不必完全居中；居中只在「成列数字纵向比较」时才讲究 */
   font-variant-numeric: tabular-nums;
   -webkit-appearance: none;
   -moz-appearance: textfield;
@@ -392,7 +399,7 @@ button.is-loading::before {
   flex-direction: row;
   align-items: center;
   justify-content: flex-start;
-  gap: var(--space-2);
+  gap: var(--space-1); /* 「开启模拟复制提取」文字与右侧 ○i 信息圈的间距收小一档（8→4），图标贴着字看 */
 }
 .tip-icon {
   position: relative;
@@ -562,7 +569,7 @@ button.is-loading::before {
 .custom-select-option.selected {
   background: rgba(var(--color-accent-rgb), 0.1); /* 与 hover 同一底色，颜色不跳变；选中另靠 accent 色字区分 */
   color: var(--color-accent);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 /* ===== 按钮体系（统一 .btn 基底 + 语义变体 + 尺寸） ===== */
@@ -573,7 +580,7 @@ button.is-loading::before {
   gap: 8px;
   padding: 8px 16px;
   font-size: var(--text-md);
-  font-weight: 500;
+  font-weight: 400; /* 普通按钮不加粗（靠边框/底色识别），加粗只留给主 CTA .btn--lg */
   line-height: 1.4;
   border: 1px solid transparent;
   border-radius: var(--radius-btn);
@@ -625,12 +632,7 @@ button.is-loading::before {
 .btn--lg { padding: 8px 24px; font-size: var(--text-lg); font-weight: 600; letter-spacing: 0.5px; }
 .btn--block { display: flex; width: 100%; }
 
-/* 「开始提取分析」是站内唯一 .btn--lg：lg(16) 字号 + 8px 垂直内距 → 高约 40px，
-   内文字 16/40 ≈ 0.40，是规则允许的字号占比上限（见设计系统 §8「按钮与内文字比例」）。 */
-#btn-start svg {
-  width: 16px;
-  height: 16px;
-}
+/* 「开始提取分析」是站内唯一 .btn--lg：lg(16) 字号 + 8px 垂直内距 → 高约 40px（前导播放图标已去掉，纯文字） */
 
 /* 链接式小按钮：带灰描边的轻动作。蓝字本体现在已无任何在用按钮（最后一只「历史记录」
    已转 btn--secondary）；仅剩两只危险用途靠 .btn--link-danger 叠出红字：

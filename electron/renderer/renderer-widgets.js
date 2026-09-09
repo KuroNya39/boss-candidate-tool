@@ -45,8 +45,9 @@ function initCustomSelect(container) {
         menu.style.top = 'calc(100% + 4px)';
         menu.style.bottom = 'auto';
       }
-      // 箭头随展开方向翻转：朝上展开时转 180° 成 ^
-      arrow.style.transform = openUp ? 'rotate(180deg)' : '';
+      // 打开即把箭头转 180°（∨ → ^）提示“已展开”，收起时复位；
+      // 不再跟随菜单上下方向——用户要的是“点开就翻转”的常规手感
+      arrow.style.transform = 'rotate(180deg)';
     } else {
       arrow.style.transform = '';
     }

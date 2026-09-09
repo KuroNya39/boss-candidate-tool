@@ -16,7 +16,7 @@
 </head>
 <body spellcheck="false">
   <!-- 图标库（Material outlined 同套）：字形统一为 outline 空心，在此一处定义，各处用 <use href="#..."> 引用；
-       icon-play（开始）与 icon-skip（跳过）两个 CTA 动作键按强调需要做实心（fill=1），为全站仅有的实心功能图标 -->
+       icon-skip（跳过提取）与 icon-play（暂停后的「继续」）两个动作键按强调需要做实心，为全站仅有的实心功能图标 -->
 
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
@@ -41,9 +41,10 @@
     </defs>
   </svg>
   <div id="app">
-    <!-- 标题 -->
+    <!-- 标题：软件名居中、版本号放右侧不参与居中（topbar.css 三列 grid 布局） -->
     <header>
-      <h1>BOSS直聘候选人AI评分助手<span id="app-version" class="app-version"></span></h1>
+      <h1>BOSS直聘候选人AI评分助手</h1>
+      <span id="app-version" class="app-version"></span>
     </header>
 
     <!-- 初始状态 -->
@@ -111,8 +112,6 @@
       </div>
 
       <div class="card" id="run-config-card">
-        <div class="card-title run-config-title" tabindex="-1">运行配置</div>
-
         <!-- 来源分段选择：三个按钮文字本身就是来源名，无需再配「提取来源」标题 -->
         <div class="toggle-group" id="source-toggle-group">
           <button class="toggle-btn active" data-source="recommend-attach">推荐牛人页</button>
@@ -188,9 +187,7 @@
         </div>
 
         <!-- Start button -->
-        <button id="btn-start" class="btn btn--primary btn--lg btn--block">
-          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-play"/></svg>开始提取分析
-        </button>
+        <button id="btn-start" class="btn btn--primary btn--lg btn--block">开始提取分析</button>
         <p id="btn-start-hint" class="field-hint" aria-live="polite"></p>
       </div>
     </div>

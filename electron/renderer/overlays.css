@@ -68,7 +68,7 @@
 .dialog-field label {
   display: block;
   font-size: var(--text-md);
-  font-weight: 500;
+  font-weight: 400; /* 同 .field-label：标签不加粗，靠次级色区分 */
   color: var(--text-secondary);
   margin-bottom: 8px;
 }
@@ -162,7 +162,7 @@
   padding: 8px 16px;
   border-radius: var(--radius-md);
   font-size: var(--text-md);
-  font-weight: 500;
+  font-weight: 400; /* 提示条是阅读性正文，常规档 */
   line-height: 1.4;
   box-shadow: var(--shadow-elevated);
   pointer-events: auto;
@@ -286,7 +286,7 @@
 }
 .stat-value {
   font-size: var(--text-xl);
-  font-weight: 700;
+  font-weight: 600; /* 700 与 600 在雅黑下渲染相同，统一归并到 600 */
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
@@ -398,7 +398,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 500;
+  font-weight: 400; /* 姓名不加粗：可点整行靠 hover 底色呈现 */
 }
 .result-item-score {
   font-variant-numeric: tabular-nums;
@@ -461,6 +461,7 @@
   line-height: var(--leading-loose);
   color: var(--text-secondary);
   word-break: break-word;
+  text-align: justify; /* 评分理由是多行长段落：两端对齐，左右边缘整齐 */
 }
 
 /* ===== 历史记录抽屉（v1.5.0）===== */

@@ -1,6 +1,7 @@
 :root {
-  /* 字体：思源黑体优先（未安装则回退微软雅黑） */
-  --font-sans: 'Source Han Sans SC', 'Noto Sans CJK SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Segoe UI', sans-serif;
+  /* 字体：默认微软雅黑（Windows 自带）。雅黑只有常规/粗两档字形，
+     据此定下字重只取 400/600 两档（500 无字形会渲染成 400，600 即粗体）。 */
+  --font-sans: 'Microsoft YaHei UI', 'Microsoft YaHei', 'Segoe UI', sans-serif;
 
   /* 字号档位：正文/控件 14，模块标题 16，页面主标题 18——从「整体放大」回调一档
      （辅助小字一律守 12px，不参与缩放）。
@@ -65,11 +66,11 @@
   /* 阴影一律用「阴影灰」#3C4043（谷歌灰，--color-shadow-rgb 叠 alpha）：比纯黑暖而低对比，纸感、不脏。
      卡片 .card 无描边，靠页面底色 + 阴影衬出层次 → --shadow-sm 三层「四向柔晕」：
        1px 接触线勾边（清晰不糊）+ 向下近距漫射（浮起）+ 极淡上沿微影（顶边也有厚度，不显「只压下面」）。
-     刻意保持淡（alpha .12/.06/.03）：白卡在浅灰底上靠淡影衬出即可，宁浅勿深（用户反馈偏深已调浅一档） */
+     刻意保持淡（alpha .09/.05/.02）：白卡在浅灰底上靠淡影衬出即可，宁浅勿深（用户反馈偏深，已又调浅一档） */
   --shadow-sm:
-    0 1px 2px rgba(var(--color-shadow-rgb), .12),  /* 1 接触线：紧贴底边勾出卡片轮廓 */
-    0 2px 6px rgba(var(--color-shadow-rgb), .06),  /* 2 近距漫射：给卡片向下的浮起厚度 */
-    0 -1px 4px rgba(var(--color-shadow-rgb), .03); /* 3 上沿微影：四向都柔和，顶边不「纯切」 */
+    0 1px 2px rgba(var(--color-shadow-rgb), .09),  /* 1 接触线：紧贴底边勾出卡片轮廓 */
+    0 2px 6px rgba(var(--color-shadow-rgb), .05),  /* 2 近距漫射：给卡片向下的浮起厚度 */
+    0 -1px 4px rgba(var(--color-shadow-rgb), .02); /* 3 上沿微影：四向都柔和，顶边不「纯切」 */
   --shadow-card: var(--shadow-sm);
   /* 浮起层（弹窗/浮层/抽屉/Toast）：偏移与晕影比卡片大一档，层越高影越开 */
   --shadow-md:

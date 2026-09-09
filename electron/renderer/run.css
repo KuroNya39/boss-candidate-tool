@@ -40,7 +40,7 @@
 }
 .step-item-title {
   font-size: var(--text-md);
-  font-weight: 500;
+  font-weight: 400; /* 步骤标题不加粗：所在行层次靠左侧步号色块与右侧状态文字 */
   color: var(--text-primary);
   transition: color var(--transition-normal);
 }
@@ -53,8 +53,7 @@
   font-variant-numeric: tabular-nums;
 }
 .step-item[data-state="running"] .step-item-status {
-  color: var(--color-accent);
-  font-weight: 500;
+  color: var(--color-accent); /* 运行中高亮靠 accent 色 + 数字/进度条，状态属辅助行不加粗 */
 }
 .step-item[data-state="done"] .step-item-status {
   color: var(--color-success);
@@ -160,8 +159,7 @@
 }
 .mail-error-details summary {
   cursor: pointer;
-  color: var(--color-warning-strong);
-  font-weight: 500;
+  color: var(--color-warning-strong); /* 靠琥珀色字区分，展开项不加粗 */
   user-select: none;
 }
 .mail-error-detail {

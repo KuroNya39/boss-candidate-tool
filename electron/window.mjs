@@ -7,10 +7,14 @@ let mainWindow = null;
 
 // ===== 窗口创建 =====
 // 设计稿内容区尺寸（CSS px）。窗口等比放大缩小（锁定宽高比），不是随便拉成任意形状：
-// 缩放系数 zoom = min(内容宽/660, 内容高/730)，保证页面内容区按设计稿等比铺满，
+// 缩放系数 zoom = min(内容宽/656, 内容高/720)，保证页面内容区按设计稿等比铺满，
 // 固定像素布局无需改动即可精确铺满；用户拉伸窗口时跟随内容区实时缩放。
-const DESIGN_W = 660;
-const DESIGN_H = 730;
+// 原 660×730 是「固定窗口」年代直接留下的旧内容区像素（660 不在设计系统，仅剩宽度观感参考）。
+// 设计系统只约束内容列 max-width 720：只要宽度 ≤720，页面就整列流式铺满、不截断不居中。
+// 竖长比例由用户从 8 网格方案中选定：656×720 = 82×8 × 90×8，宽:高 0.911（原 660 宽观感不变，
+// 高度上移到 8 网格），既符合 8px 原则又不影响既有排版。
+const DESIGN_W = 656;
+const DESIGN_H = 720;
 const ZOOM_MIN = 0.7;
 const ZOOM_MAX = 1.5;
 
@@ -55,7 +59,7 @@ export function createWindow() {
     minWidth: 500,
     minHeight: 580,
     show: false,
-    backgroundColor: '#f5f7fa',
+    backgroundColor: '#f8fafc',
     title: 'BOSS直聘候选人AI评分助手',
     icon: resolve(UNPACKED_ROOT, 'build', 'app_icon_rounded.png'),
     webPreferences: {
