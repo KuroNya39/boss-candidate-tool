@@ -60,7 +60,9 @@ export function sleep(ms) {
 }
 
 // ===== 暂停/继续 步骤1 提取 =====
-// 主进程通过 stdin 发 'PAUSE' / 'RESUME'，脚本在「处理下一个候选人前」检查暂停标志。
+// 主进程通过 stdin 发 'PAUSE' / 'RESUME'。约定：提取脚本里每个不设上限的循环都要在循环
+// 开头 await waitWhilePaused()——列表扫描（每轮滚动前）和逐人提取（处理下一个候选人前）
+// 两个阶段都能在「单元之间」暂停；漏加的循环在对应阶段点「暂停」会无效（历史 bug）。
 // 暂停时进程不退出、不关 CDP、内存里已提取数据不丢；waitWhilePaused 是 await 轮询，
 // 不阻塞事件循环——暂停期间 CANCEL/SIGTERM 监听依然即时响应（暂停中能取消/跳过）。
 let _paused = false;
