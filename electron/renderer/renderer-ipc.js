@@ -87,7 +87,7 @@ function setupListeners() {
       const pct = total > 0 ? Math.min(Math.round((cur / total) * 100), 100) : 0;
       greetProgressBar.style.width = pct + '%';
       if (greetProgressBar.setAttribute) greetProgressBar.setAttribute('aria-valuenow', String(pct));
-      greetProgressText.textContent = total > 0 ? `正在打招呼 ${cur}/${total}` : '正在打招呼';
+      greetProgressText.textContent = total > 0 ? `正在打招呼… ${cur}/${total}` : '正在打招呼…';
     })
   );
 

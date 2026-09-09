@@ -384,6 +384,16 @@ function stepCount(delta) {
   syncCountArrows();
 }
 
+// 手动输入上限：HTML 的 max=999 只拦原生微调、不拦直接输入，这里在输入时即时收住——
+// 数字框里敲超过 999 的值会立刻变回 999，敲 0 或负数会变回 1（范围 1–999，与步进箭头一致）
+countInput.addEventListener('input', () => {
+  if (countInput.value === '') return;
+  const v = Number(countInput.value);
+  if (!Number.isFinite(v)) return;
+  const clamped = Math.min(999, Math.max(1, v));
+  if (clamped !== v) countInput.value = String(clamped);
+});
+
 // 输入框被禁用（勾了「提取全部」/ 来源不支持数量）时，步进箭头与组合框整体一起禁用
 function syncCountArrows() {
   const disabled = countInput.disabled;
