@@ -194,6 +194,7 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
   await scrollListToTop(targetId);
 
   for (let attempt = 0; attempt < maxScrollAttempts; attempt++) {
+    await waitWhilePaused(); // 暂停：扫描阶段每次滚动前也响应「暂停」（原只在逐人提取时检查，扫描列表期间点暂停无效）
     const visibleItems = await readVisibleGeekItems(targetId);
     let newInThisBatch = 0;
 
@@ -334,6 +335,7 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
   await scrollListToTop(targetId);
 
   for (let attempt = 0; attempt < maxScrollAttempts; attempt++) {
+    await waitWhilePaused(); // 暂停：扫描阶段每次滚动前也响应「暂停」（原只在逐人提取时检查）
     if (candidateList.length >= count) break;
 
     const visibleItems = await readVisibleGeekItems(targetId);

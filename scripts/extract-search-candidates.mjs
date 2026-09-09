@@ -332,6 +332,7 @@ async function scanAllCards(targetId, opts = {}) {
   };
 
   for (let attempt = 0; attempt < maxScrollAttempts; attempt++) {
+    await waitWhilePaused(); // 暂停：扫描阶段每次滚动前也响应「暂停」（原只在逐人提取时检查，扫描列表期间点暂停无效）
     // 读取当前可见的卡片信息
     let visibleCards;
     try {
@@ -436,6 +437,7 @@ async function scanUpToCards(targetId, count, opts = {}) {
   };
 
   for (let attempt = 0; attempt < maxScrollAttempts; attempt++) {
+    await waitWhilePaused(); // 暂停：扫描阶段每次滚动前也响应「暂停」（原只在逐人提取时检查）
     if (cardInfos.length >= count) break;
 
     let visibleCards;
