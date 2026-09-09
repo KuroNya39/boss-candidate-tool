@@ -188,9 +188,9 @@ async function init() {
       countInput.disabled = false;
     }
     syncCountArrows(); // 恢复来源若启用了数量输入，步进箭头同步可用
-    // 自动打招呼只用于推荐牛人页，不用于沟通页和搜索页（搜索页打招呼需畅聊卡）
+    // 自动打招呼只用于推荐牛人页，不用于沟通页和搜索页（搜索页打招呼需畅聊卡）。
+    // 与 renderer-dialogs.js 的来源切换一致：只藏整块、不动勾选（勾选是用户偏好，见其注释）
     autoGreetSection.style.display = isChat || isSearch ? 'none' : '';
-    if (isChat || isSearch) autoGreetCheck.checked = false;
   }
   await loadJobList();
   showState('state-initial');

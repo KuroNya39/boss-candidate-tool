@@ -166,9 +166,10 @@ document.querySelectorAll('.toggle-btn').forEach(btn => {
       countInput.disabled = false;
     }
     if (isAttach) updateJobDisplay();
-    // 自动打招呼只用于推荐牛人页，不用于沟通页和搜索页（搜索页打招呼需畅聊卡）
+    // 自动打招呼只用于推荐牛人页，不用于沟通页和搜索页（搜索页打招呼需畅聊卡）。
+    // 切走只藏整块、不动勾选：勾选是用户偏好，切走再切回应原样保留（不再置 false——
+    // 程序置 false 不触发 change 事件、等级下拉没跟着收，回来就是「没勾但下拉还在」的错位）
     autoGreetSection.style.display = isChat || isSearch ? 'none' : '';
-    if (isChat || isSearch) autoGreetCheck.checked = false;
     syncCountArrows(); // 上方可能已把 countInput 重新启用，步进箭头跟着启用
     slideSourcePill(btn); // 指示条滑到新选中的档
   });
