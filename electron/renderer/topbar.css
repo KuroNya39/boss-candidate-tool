@@ -40,21 +40,25 @@ header h1 {
   height: 32px;
   display: flex;
   align-items: center;
-  /* 图标贴按钮左缘：按钮本身就在卡片左缘（x=40），图标因此与卡片左缘齐平。
-     不用 justify-content:center + 负外边距——那样字形位置一样，却会把 32×32 的
-     点击区与悬停圆底推出内容列 7px（见 §2 由几何反推的内距） */
-  justify-content: flex-start;
+  justify-content: center;
+  /* 由几何反推（§2）：18 图标在 32 钮里居中 → 两侧各留 (32−18)/2 = 7。
+     左那 7 用负外边距还给页面，于是「字形」仍落在卡片左缘 x=40，而 32×32 的
+     悬停/展开底色框以字形为中心（框 33→65、中心 49 = 字形中心 49）。
+     少这 7px，底色框就整块右偏 7px，看着像没对准图标 */
+  margin-left: -7px;
   padding: 0;
   border: none;
   border-radius: var(--radius-md);
   background: transparent;
-  color: var(--text-secondary);
+  /* 静置色走 --icon-muted（§7「需调淡的次要图标统一走 --icon-muted」），与同为
+     无底色图标钮的 .count-arrow 同档；--text-secondary 是正文档，做图标明显偏重 */
+  color: var(--icon-muted);
   cursor: pointer;
   transition: background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 .menu-btn:hover {
   background: var(--bg-page);
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 .menu-btn:active {
   transform: scale(0.98); /* 纯图标按钮按下：整块收缩（无文字可压缩，用缩放给反馈）。
