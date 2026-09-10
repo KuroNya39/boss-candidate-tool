@@ -717,19 +717,81 @@ const server = http.createServer(async (req, res) => {
         var rf = firstByName(document,'recommendFrame');
         if (rf && rf.contentDocument) scopes.push(rf.contentDocument);
         scopes.push(document);
+        // 命中测试：从顶层文档按坐标逐层钻进 iframe，返回最上层命中的那个元素
+        function topHit(x, y){
+          var w = window, dx = x, dy = y, el = null, guard = 0;
+          while (guard++ < 10) {
+            try { el = w.document.elementFromPoint(dx, dy); } catch(e) { return null; }
+            if (!el) return null;
+            if (el.tagName === 'IFRAME' || el.tagName === 'FRAME') {
+              var nd = null;
+              try { nd = el.contentDocument; } catch(e) { nd = null; }
+              if (!nd) return el;
+              var r = el.getBoundingClientRect();
+              dx -= r.x; dy -= r.y;
+              w = el.contentWindow;
+              continue;
+            }
+            return el;
+          }
+          return el;
+        }
+        // 命中元素是否属于这份弹窗（跨 iframe 逐层向上找祖先）
+        function belongsTo(el, wrap, idoc){
+          var n = el, guard = 0;
+          while (n && guard++ < 40) {
+            if (n === wrap) return true;
+            if (n.ownerDocument === idoc) return true;
+            var d = n.ownerDocument;
+            var fe = (d && d.defaultView) ? d.defaultView.frameElement : null;
+            if (!fe) return false;
+            n = fe;
+          }
+          return false;
+        }
+        // 同一文档里可能同时挂着多份简历弹窗（残留的那份 + 当前这份，位置尺寸几乎一样），
+        // querySelector 只拿第一个：沟通页会挑中看不见的那份 → 拖动落在别的简历上，
+        // 页面看着不滚动、起点也错位。这里靠命中测试（浏览器自己判断谁在最上层）挑，
+        // 拿不到的再退回按可见面积挑，保证不会挑不出东西。
+        var bestOnTop = null, bestAny = null, cands = [];
         for (var s=0; s<scopes.length; s++) {
           var doc = scopes[s];
-          var wrap = doc.querySelector('.resume-detail-wrap') || doc.querySelector('.resume-detail');
-          if (!wrap) continue;
-          var iframe = wrap.querySelector('iframe');
-          if (!iframe) continue;
-          var idoc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
-          if (!idoc) continue;
-          var cv = idoc.querySelector('#resume canvas') || idoc.querySelector('#resume') || idoc.querySelector('canvas');
-          if (!cv) continue;
-          var cv2 = cv.tagName === 'CANVAS' ? cv : (cv.querySelector ? cv.querySelector('canvas') : null);
-          if (!cv2 || cv2.width < 50 || cv2.height < 50) continue;
-          var cr = cv2.getBoundingClientRect();
+          var wraps = doc.querySelectorAll('.resume-detail-wrap, .resume-detail');
+          for (var wi=0; wi<wraps.length; wi++) {
+            var wrap = wraps[wi];
+            var iframe = wrap.querySelector('iframe');
+            if (!iframe) continue;
+            var idoc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+            if (!idoc) continue;
+            var cv = idoc.querySelector('#resume canvas') || idoc.querySelector('#resume') || idoc.querySelector('canvas');
+            if (!cv) continue;
+            var cv2 = cv.tagName === 'CANVAS' ? cv : (cv.querySelector ? cv.querySelector('canvas') : null);
+            if (!cv2 || cv2.width < 50 || cv2.height < 50) continue;
+            var cr = cv2.getBoundingClientRect();
+            // 渲染尺寸下限：太小的（含 display:none 残留弹窗 —— canvas 位图仍有尺寸但 rect 全 0）不算数
+            if (cr.width < 100 || cr.height < 100) continue;
+            var vo = frameOffset(cv2);
+            var visX = Math.max(0, Math.min(vo.x + cr.width, window.innerWidth) - Math.max(vo.x, 0));
+            var visY = Math.max(0, Math.min(vo.y + cr.height, window.innerHeight) - Math.max(vo.y, 0));
+            var score = visX * visY;
+            if (score <= 0) continue;
+            // canvas 上取 3 个采样点：有一个点命中的是这份弹窗自己，说明它摆在最上层
+            var onTop = false;
+            var pts = [[vo.x + cr.width/2, vo.y + cr.height/2], [vo.x + cr.width*0.25, vo.y + cr.height*0.5], [vo.x + cr.width*0.75, vo.y + cr.height*0.5]];
+            for (var pi=0; pi<pts.length && !onTop; pi++) {
+              var h = topHit(pts[pi][0], pts[pi][1]);
+              if (h && belongsTo(h, wrap, idoc)) onTop = true;
+            }
+            cands.push({ cls: String(wrap.className || '').slice(0,70), scope: s, y: Math.round(vo.y), h: Math.round(cr.height), sh: wrap.scrollHeight, ch: wrap.clientHeight, vis: Math.round(score), onTop: onTop });
+            var cand = { score: score, doc: doc, iframe: iframe, idoc: idoc, cv2: cv2, cr: cr, scope: s };
+            if (!bestAny || score > bestAny.score) bestAny = cand;
+            if (onTop && (!bestOnTop || score > bestOnTop.score)) bestOnTop = cand;
+          }
+        }
+        var best = bestOnTop || bestAny;
+        if (best) {
+          var doc = best.doc, iframe = best.iframe, idoc = best.idoc, cv2 = best.cv2, cr = best.cr, s = best.scope;
+          // 拖动起点沿用 v1.11.1 的坐标基准（frameOffset(iframe) + canvas 在简历文档内的 rect），只对胜出者算一次
           var off = frameOffset(iframe);
           var sc = findScrollEl(iframe, doc);
           var outerMax = Math.max(0, sc.scrollHeight - sc.clientHeight);
@@ -748,7 +810,7 @@ const server = http.createServer(async (req, res) => {
           var scrollMax = Math.max(outerMax, innerMax);
           var scrollSel = (sc.className || sc.id || sc.tagName || '?');
           var diag = { outer: scrollSel, outerSH: sc.scrollHeight, outerCH: sc.clientHeight, innerSH: idocSH, innerVH: idocVH };
-          return JSON.stringify({ canvasMain: canvasMain, scrollMax: scrollMax, scope: s, winH: window.innerHeight, scrollSel: scrollSel, diag: diag });
+          return JSON.stringify({ canvasMain: canvasMain, scrollMax: scrollMax, scope: s, winH: window.innerHeight, scrollSel: scrollSel, diag: diag, cands: cands });
         }
         return JSON.stringify({ error: 'no-canvas-scope' });
       })()`;
@@ -767,13 +829,21 @@ const server = http.createServer(async (req, res) => {
         }
         return last;
       };
+      // 候选弹窗实况（多份弹窗时用来确认挑中的是哪一份）
+      const logCands = (i) => {
+        if (!i) return;
+        if (i.error) console.log(`[canvas-copy] 选弹窗失败: ${i.error}`);
+        else if (i.cands) console.log(`[canvas-copy] 候选弹窗: ${JSON.stringify(i.cands)}`);
+      };
       let { info, canvasY } = await pollInfo(4, 500);
+      logCands(info);
       if (info && !info.error && canvasY !== null && canvasY >= 120) {
         console.log(`[canvas-copy] canvas 未回顶(y=${canvasY})，重载 c-resume iframe 重建渲染状态`);
         await sendCDP('Runtime.evaluate', { expression: reloadJs, returnByValue: true }, sid);
         await sleepMs(500);
         await sendCDP('Runtime.evaluate', { expression: resetJs, returnByValue: true }, sid);
         ({ info, canvasY } = await pollInfo(16, 500));
+        logCands(info);
       }
       if (!info || info.error || canvasY === null || canvasY >= 120) {
         res.end(JSON.stringify({ error: `canvas 未归顶或找不到 (y=${canvasY})` }));

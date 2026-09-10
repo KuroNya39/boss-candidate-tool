@@ -1046,11 +1046,13 @@ export function getRunSource() { return currentRunSource; }
 export function getEnableCopyFlag() { return enableCopyFlag; }
 
 // 读系统剪贴板文本（PowerShell 兜底通道：页面复制处理器把全文写进 OS 剪贴板，直接读它最贴近手动复制）
+// 本文件每次 execSync 调 powershell 都必须显式写 stdio:'pipe'：Windows 上不写它，子进程的 stderr
+// 会直接被转写进本进程 stderr、被 app 收进日志面板（中文以 GBK 出来，看着就是一段乱码）；写了才被吞掉
 function readOsClipboard() {
   try {
     const out = execSync(
       'powershell -NoProfile -Command "$t = Get-Clipboard -Raw -ErrorAction SilentlyContinue; if ($t -ne $null) { [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($t)) }"',
-      { encoding: 'utf8', timeout: 8000, windowsHide: true },
+      { encoding: 'utf8', timeout: 8000, windowsHide: true, stdio: 'pipe' },
     );
     if (!out || !out.trim()) return ''; // PowerShell 正常返回空 = 剪贴板本来就是空的
     return Buffer.from(out.trim(), 'base64').toString('utf8');
@@ -1062,14 +1064,24 @@ function readOsClipboard() {
   }
 }
 
-// 写系统剪贴板（用 base64 避开引号/特殊字符问题）
+// 清空系统剪贴板的那条 PowerShell。两处要用——「还原一份本来就为空的剪贴板」和「拖拽复制前清场」，
+// 只留一份：两处各自抄一遍，改了一处忘了另一处就成了两套行为
+const PS_CLIPBOARD_CLEAR = 'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Clipboard]::Clear()';
+
+// 写系统剪贴板；text 为空 = 清空剪贴板。内容用 base64 走 stdin（input）传，不拼进命令行：
+// 拼命令行有两个坑——① 内容一长（用户复制过长文档）就超 Windows 命令行长度上限，spawn 直接
+// ENAMETOOLONG，还原悄悄失败；② 还得处理引号转义。走 stdin 这些都不存在，命令串是固定常量。
+// 空内容也不能直接交给 `Set-Clipboard -Value`：空串会被当成 null 抛 ArgumentNullException
+// （「值不能为 null」），而「原本的剪贴板就是空的」是最常见的一种情况——不判空就每位候选人报一次错
 function setOsClipboard(text) {
   try {
-    const b64 = Buffer.from(String(text), 'utf8').toString('base64');
-    execSync(
-      `powershell -NoProfile -Command "Set-Clipboard -Value ([System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64}')))"`,
-      { encoding: 'utf8', timeout: 8000, windowsHide: true },
-    );
+    const b64 = Buffer.from(text, 'utf8').toString('base64');
+    const ps = [
+      '$b64 = [Console]::In.ReadToEnd()',
+      '$t = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b64))',
+      `if ($t) { Set-Clipboard -Value $t } else { ${PS_CLIPBOARD_CLEAR} }`,
+    ].join('; ');
+    execSync(`powershell -NoProfile -Command "${ps}"`, { encoding: 'utf8', timeout: 8000, windowsHide: true, stdio: 'pipe', input: b64 });
   } catch (e) {}
 }
 
@@ -1381,7 +1393,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
 //   清空系统剪贴板 → 真实鼠标按住拖选 → 滚动简历容器到最底（选中扩展） → 真实 Ctrl+C → powershell 读剪贴板全文。
 function clearSystemClipboard() {
   try {
-    execSync('powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Clipboard]::Clear()"', { timeout: 10000, encoding: 'utf8', stdio: 'pipe' });
+    execSync(`powershell -NoProfile -Command "${PS_CLIPBOARD_CLEAR}"`, { timeout: 10000, encoding: 'utf8', stdio: 'pipe' });
   } catch (e) {
     console.warn(`  ⚠ 清空系统剪贴板失败: ${e.message}`);
   }
