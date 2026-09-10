@@ -21,7 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 清空历史归档数据
   clearHistory: () => ipcRenderer.invoke('clear-history'),
 
-  // v1.5.0: 历史记录抽屉
+  // v1.5.0: 历史记录（v1.12.0 起为居中弹窗，早期是左侧抽屉）
   listHistory: () => ipcRenderer.invoke('list-history'),
   deleteHistory: (dirPath) => ipcRenderer.invoke('delete-history', dirPath),
   openHistory: (dirPath) => ipcRenderer.invoke('open-history', dirPath),

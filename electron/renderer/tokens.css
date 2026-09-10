@@ -18,8 +18,8 @@
   --bg-page: #f8fafc;             /* 页面底色：卡片去描边后靠底色衬出白块，勿过深（较旧版又浅一档） */
   --bg-card: #ffffff;
   --bg-input: #f8fafc;
-  --bg-subtle: #f1f5f9;
-  --bg-hover: #f1f5f9;
+  --bg-subtle: #f1f5f9;           /* 次级底（下陷面）：只读框、进度条轨道底、分段钮的槽底 */
+
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #64748b;          /* 原 #94a3b8，对比度 2.9:1 → ~4.6:1 */
@@ -35,28 +35,30 @@
   --color-accent-hover: #1765cc;
   --color-accent-active: #185abc;
   --color-accent-rgb: 26, 115, 232;
-  /* accent 浅底三档：来源分段按钮定下的四态配色，全应用的分段按钮/下拉/列表共用
-     （悬停未选中 = 4% 淡底 · 选中 = 10% 浅蓝底 · 悬停选中/按下 = 16% 加深）。
+  /* accent 浅底三档：来源分段按钮定下的四态配色，全应用的分段按钮/下拉/列表/菜单项共用
+     （悬停未选中 = 5% 淡底 · 选中 = 10% 浅蓝底 · 悬停选中/按下 = 15% 加深）。
+     三档是等差数列、档间恒差 5（5 / 10 / 15）：加一档减一档都落在同一条梯子上，
+     不会出现某一档特别难分辨。选中档 10% 是设计系统 §8 写死的那一档，不要单独改。
      这里三行是唯一取值点，改档位只需动这三行 */
-  --bg-accent-tint: rgba(var(--color-accent-rgb), 0.04);
+  --bg-accent-tint: rgba(var(--color-accent-rgb), 0.05);
   --bg-accent-tint-selected: rgba(var(--color-accent-rgb), 0.10);
-  --bg-accent-tint-active: rgba(var(--color-accent-rgb), 0.16);
+  --bg-accent-tint-active: rgba(var(--color-accent-rgb), 0.15);
   --color-success: #34a853;       /* Google 绿 */
   --color-success-rgb: 52, 168, 83;
   --color-success-strong: #0d652d;
-  --bg-success: #e6f4ea; --border-success: #a8dab5;
+  --bg-success: #e6f4ea;
   --color-warning: #fbbc05;       /* Google 黄 */
   --color-warning-rgb: 251, 188, 4;
   --color-warning-strong: #b25e00;
-  --bg-warning: #fef7e0; --border-warning: #fde293;
+  --bg-warning: #fef7e0;
   --color-error: #ea4335;         /* Google 红 */
   --color-error-rgb: 234, 67, 53;
   --color-error-strong: #c5221f;
-  --bg-error: #fce8e6; --border-error: #f6aea9;
+  --bg-error: #fce8e6;
   --color-info: #4285f4;          /* Google 蓝（信息态；accent 的深蓝保持 #1A73E8 区分） */
   --color-info-rgb: 66, 133, 244;
   --color-info-strong: #1765cc;
-  --bg-info: #e8f0fe; --border-info: #aecbfa;
+  --bg-info: #e8f0fe;
   /* 档位橙：二星专属，独立于「警示」用的 warning 黄 */
   --color-orange: #f97316;
   --color-orange-strong: #ea580c;
@@ -78,12 +80,18 @@
     0 2px 6px rgba(var(--color-shadow-rgb), .05),  /* 2 近距漫射：给卡片向下的浮起厚度 */
     0 -1px 4px rgba(var(--color-shadow-rgb), .02); /* 3 上沿微影：四向都柔和，顶边不「纯切」 */
   --shadow-card: var(--shadow-sm);
-  /* 浮起层（弹窗/浮层/抽屉/Toast）：偏移与晕影比卡片大一档，层越高影越开 */
+  /* 浮起层（弹窗/浮层/Toast）：偏移与晕影比卡片大一档，层越高影越开 */
   --shadow-md:
     0 2px 4px rgba(var(--color-shadow-rgb), .16),
     0 6px 14px rgba(var(--color-shadow-rgb), .12),
     0 -2px 8px rgba(var(--color-shadow-rgb), .05);
   --shadow-elevated: var(--shadow-md); /* 兼容别名 */
+  /* 下拉面板（左上角菜单 / 等级下拉）专用：比 --shadow-md 明显淡一档。
+     两者都是「白底 + 1px 描边」的小面板，弹窗那套 0.16/0.12 的晕影压在白面板边缘会发灰发脏
+     （用户反馈下拉阴影太深）。这里只留 1 层接触线 + 1 层近距漫射，够托起面板即可 */
+  --shadow-dropdown:
+    0 1px 2px rgba(var(--color-shadow-rgb), .07),
+    0 4px 10px rgba(var(--color-shadow-rgb), .06);
   --ring-color: rgba(var(--color-accent-rgb), .35); /* 键盘聚焦环：accent 叠透明，值改这一行 */
   --ring-width: 3px;
   /* 输入框浅聚焦环（:focus 用）：accent 边框 + 3px 浅环，比键盘环淡一档。

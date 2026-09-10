@@ -29,6 +29,11 @@ btnStart.addEventListener('click', async () => {
 
   // 开始前的 Chrome 预检：没运行则自动启动 Chrome（连不上时由下方「Chrome 未连接」提示）；
   // 没装 Chrome 则提示。曾经的「边用边跑」模式已移除，Chrome 在跑就直接用当前窗口继续，不再询问重启。
+  //
+  // 预检全程给按钮挂加载态：ensureChromeOpen 可能要拉起 Chrome、retryCdpConnection 还要等重连，
+  // 这几秒里按钮必须看得出在忙、且点不动，否则用户会重复点击（§8 loading = 转圈 + 真禁用，文字不变）。
+  // 放在 finally 里收尾，本段任何一条 return / 抛错路径都能还原。
+  setLoading(btnStart, true);
   try {
     const st = await window.electronAPI.ensureChromeOpen();
     if (st && !st.ok) {
@@ -59,6 +64,8 @@ btnStart.addEventListener('click', async () => {
     }
   } catch (e) {
     // 预检失败不阻塞，继续（Chrome 若真没开，主进程启动流程里也会兜底自动拉起）
+  } finally {
+    setLoading(btnStart, false);
   }
 
   // 目标岗位检查放在 Chrome 连接确认之后：先弹连接问题，连接正常再查岗位。

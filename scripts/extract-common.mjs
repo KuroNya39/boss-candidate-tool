@@ -1052,10 +1052,13 @@ function readOsClipboard() {
       'powershell -NoProfile -Command "$t = Get-Clipboard -Raw -ErrorAction SilentlyContinue; if ($t -ne $null) { [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($t)) }"',
       { encoding: 'utf8', timeout: 8000, windowsHide: true },
     );
-    if (!out || !out.trim()) return '';
+    if (!out || !out.trim()) return ''; // PowerShell 正常返回空 = 剪贴板本来就是空的
     return Buffer.from(out.trim(), 'base64').toString('utf8');
   } catch (e) {
-    return '';
+    // 读失败（超时/被拦）返回 null，与上一行的空串区分开：空串是「读到了，内容是空」，
+    // null 是「根本没读到」。还原时若把「没读到」当空串写回去，等于借一条读不到内容的路径
+    // 把用户剪贴板顺手清空（restoreOsClipboard 只跳过 null/undefined）
+    return null;
   }
 }
 
@@ -1070,15 +1073,15 @@ function setOsClipboard(text) {
   } catch (e) {}
 }
 
-// 保存原剪贴板，结束后恢复（尽量不打扰用户正在复制的文字）
-let prevClipboard = null;
+// 保存原剪贴板，结束后恢复（尽量不打扰用户正在复制的文字）。
+// 保存的内容由调用方持有（saveOsClipboard 返回它、restoreOsClipboard 收回去），
+// 不放模块级变量：这样谁存的谁还，即使将来两条复制路径嵌套也不会把别人的内容还错。
 function saveOsClipboard() {
-  prevClipboard = readOsClipboard();
+  return readOsClipboard();
 }
-function restoreOsClipboard() {
-  if (prevClipboard === null) return;
-  setOsClipboard(prevClipboard);
-  prevClipboard = null;
+function restoreOsClipboard(saved) {
+  if (saved === null || saved === undefined) return;
+  setOsClipboard(saved);
 }
 
 // 读并清空两处 copy 捕获（iframe 内 + 外层页面），返回 { text, evCtx, evOuter }
@@ -1228,7 +1231,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
     })()`);
   } catch {}
 
-  saveOsClipboard();
+  const savedClipboard = saveOsClipboard();
   setOsClipboard('__BCT_COPY_SENTINEL__');
 
   const picks = []; // 各尝试的捕获结果
@@ -1346,7 +1349,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
   // 2) 系统剪贴板兜底：哨兵还在 = 都没写入；变了 = 某次尝试真的生成了全文
   const osClip = readOsClipboard();
   const osHit = !!osClip && osClip !== '__BCT_COPY_SENTINEL__';
-  restoreOsClipboard();
+  restoreOsClipboard(savedClipboard);
   await cleanupTrustedCopy(targetId, ctx);
 
   for (const p of picks) {
@@ -1408,6 +1411,20 @@ export async function tryExtractCanvasResumeByDragCopy(targetId, label = 'DOM') 
   // 复制开始时若已被切走就先拉回前台；若真拉回过，稍等渲染器解除冻结再发指令。
   if (await ensureTabActive(targetId)) await sleep(500);
 
+  // 这条路径会先清空系统剪贴板、再写入简历全文，而它自己从不还原 —— 改前的结果是
+  // 用户的剪贴板被永久顶掉（README 里「占用几秒」的说法对不上）。现在起止都包住：
+  // 成功、拿不到文本、超时、抛异常，一律把原内容还回去。
+  const savedClipboard = saveOsClipboard();
+  try {
+    return await runCanvasDragCopy(targetId, label);
+  } finally {
+    restoreOsClipboard(savedClipboard);
+  }
+}
+
+// 上一条的实体：单次复制尝试与那次重试的全部逻辑，语句原样保留（只搬出外层，
+// 好让剪贴板的 save/restore 用 try/finally 收口 —— 函数里 return 分支多，逐个手动还原迟早漏一个）
+async function runCanvasDragCopy(targetId, label) {
   // 单次 /canvas-copy 限时：正常复制端点最坏 ~15s（重载 iframe + 滚动 + Ctrl+C）。
   // 复制进行中若标签页被切走，页面冻结会让端点的 CDP 操作卡住。处理方式不是「干等满额超时、
   // 放弃后再重开一个」——那样两个拖拽复制会在同一页上打架；而是设一个「唤醒点」：
@@ -1424,7 +1441,9 @@ export async function tryExtractCanvasResumeByDragCopy(targetId, label = 'DOM') 
   // { empty } 服务器说成功但剪贴板为空/文本不可用。外层据此决定要不要重试。
   const attempt = async () => {
     clearSystemClipboard();
-    await sleep(250);
+    // clearSystemClipboard 是同步 PowerShell（进程退出即生效），不需要长等；120ms 只是让
+    // 剪贴板服务的写入落到系统里（原 250ms 是纯保险，占的也是用户剪贴板被清空的时间）
+    await sleep(120);
 
     // —— 自愈唤醒点：请求没按时回来，多半是标签页被切走了，把 Boss 页切回前台让它自己跑完 ——
     // 直接用 ensureTabActive（本文件抽的「可见则不动、被切走才激活」守卫），不再手写一遍
@@ -1448,7 +1467,7 @@ export async function tryExtractCanvasResumeByDragCopy(targetId, label = 'DOM') 
       console.log(`  ${label}🔍 canvas复制: 拖拽复制失败 ${errMsg}${elapsedTxt}`);
       return { errCode: r && r.error, elapsed: r && r.elapsed };
     }
-    await sleep(100);
+    await sleep(50); // 端点返回即剪贴板已写好，50ms 只够系统剪贴板服务提交；读剪贴板本身还要起 PowerShell（几百毫秒），余量足够
     const raw = readSystemClipboard();
     const text = (raw || '').replace(/^﻿/, '').replace(/\r\n/g, '\n').trim();
     if (goodText(text)) {
@@ -1475,7 +1494,7 @@ export async function tryExtractCanvasResumeByDragCopy(targetId, label = 'DOM') 
   // 其余失败（剪贴板为空/文本不可用/个别服务器瞬时错误）：多半是渲染没缓过来，切回前台再试一次
   console.log(`  ${label}🔍 canvas复制: 第 1 次没成功，切回 Boss 标签页重试…`);
   await ensureTabActive(targetId);
-  await sleep(800);
+  await sleep(400); // 只走失败重试路径：给渲染器/iframe 一点缓过来的时间，原 800ms 属过保险
   const a2 = await attempt();
   if (a2 && a2.text) return a2.text;
 

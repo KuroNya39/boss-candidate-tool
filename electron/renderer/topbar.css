@@ -1,9 +1,13 @@
 /* ===== Header =====
-   标题区用三列 grid（1fr / auto / 1fr）：软件名放中间列居中、版本号放右侧列，
-   版本号宽度不参与居中计算——软件名像素级居中，不再被尾随的版本号挤偏。 */
+   标题区用三列 grid（minmax(0,1fr) / auto / minmax(0,1fr)）：软件名居中列、左侧菜单按钮、
+   右侧版本号各占一列。
+   两侧写 minmax(0,1fr) 而不是 1fr：1fr 的最小值是 auto（= 内容宽度），左列被菜单按钮撑宽后
+   两侧不再等分，中间列就会被推偏；minmax(0,…) 把最小宽度压到 0，两侧严格等分，标题必然落在容器正中。
+   已实测（隐窗加载 index.html，设计宽 656）：三列 = 169.1 / 237.8 / 169.1，标题中心 328 = 窗口正中。
+   版本号靠最右（justify-self:end）：实测右边缘 616 = 卡片右边缘，与卡片严格对齐。 */
 header {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   margin: 4px 0 16px;
 }
@@ -16,14 +20,105 @@ header h1 {
   letter-spacing: 0.5px;
 }
 
-/* 版本号 */
+/* 版本号：贴最右（左菜单 / 中标题 / 右版本，三列各归各位，标题居中不再有歧义） */
 .app-version {
   grid-column: 3;
-  justify-self: start; /* 紧跟软件名右侧，不占居中宽度 */
+  justify-self: end;
   font-size: var(--text-xs); /* 版本号：最小辅助标签档 */
   font-weight: 400;
   color: var(--text-muted);
-  margin-left: 8px;
+}
+
+/* ===== 左上角菜单（「设置」与「历史记录」的唯一入口） ===== */
+.menu-wrap {
+  position: relative; /* 下拉面板的定位基准 */
+  grid-column: 1;
+  justify-self: start;
+}
+.menu-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  /* 图标贴按钮左缘：按钮本身就在卡片左缘（x=40），图标因此与卡片左缘齐平。
+     不用 justify-content:center + 负外边距——那样字形位置一样，却会把 32×32 的
+     点击区与悬停圆底推出内容列 7px（见 §2 由几何反推的内距） */
+  justify-content: flex-start;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+}
+.menu-btn:hover {
+  background: var(--bg-page);
+  color: var(--text-primary);
+}
+.menu-btn:active {
+  transform: scale(0.98); /* 纯图标按钮按下：整块收缩（无文字可压缩，用缩放给反馈）。
+                             幅度取 §8 的 .97–.98 档——0.94 收缩过狠，按下去像被「捏了一下」 */
+}
+/* 展开态：与来源分段/下拉的「选中」同色（10% 浅蓝底 + 蓝字），一眼看出菜单开着 */
+.menu-btn[aria-expanded="true"] {
+  background: var(--bg-accent-tint-selected);
+  color: var(--color-accent);
+}
+.menu-btn svg {
+  display: block;
+}
+
+/* 下拉面板：挂在按钮左下方向下展开。视觉与 .custom-select-menu 同源（白底/描边/圆角/阴影/入出场 keyframes），
+   transform-origin 落在左上角 → 面板像从按钮里长出来，而不是凭空出现在半空 */
+.menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0; /* = .menu-wrap 左缘 = 卡片左缘，与触发按钮同一条竖线 */
+  min-width: 160px;
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: 2px; /* 选项胶囊间的白缝：同 .custom-select-menu，刻意收紧到 2px（仅此微缝用） */
+  padding: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card); /* 与 .custom-select-menu 同档：浮层描边取最浅，靠阴影分层（用户反馈描边太重） */
+  border-radius: var(--radius-input);
+  box-shadow: var(--shadow-dropdown); /* 下拉专属浅阴影（同 .custom-select-menu），不跟弹窗那档 */
+  transform-origin: top left;
+  animation: menu-in var(--dur-fast) var(--ease-out);
+  -webkit-app-region: no-drag;
+}
+/* 收起退场：与 menu-in 沿同路径镜像（menu-out），forwards 停帧在透明态，播完由 JS 隐藏不会闪回 */
+.menu-panel--closing {
+  animation: menu-out var(--dur-fast) var(--ease-out) forwards;
+  pointer-events: none;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4); /* 与 .custom-select-option 同为「下拉选项行」，内距取同一档（原 12px 不在 8 网格上） */
+  border: none;
+  border-radius: var(--radius-input);
+  background: none;
+  font-family: inherit;
+  font-size: var(--text-md);
+  color: var(--text-primary);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+.menu-item svg {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+.menu-item:hover {
+  background: var(--bg-accent-tint); /* 悬停 = 5% 淡底（同下拉选项），字色与图标都不变 */
+}
+.menu-item:active {
+  background: var(--bg-accent-tint-active); /* 按下比悬停再深一档，整行反馈 */
 }
 
 /* ===== State ===== */
@@ -40,10 +135,20 @@ header h1 {
   animation: state-in var(--dur-normal) var(--ease-out);
 }
 
-/* 主界面初始态：状态栏 / 设置卡 / 运行配置卡之间的纵向节奏。
-   卡片之间与卡片内部都留足呼吸感，整体仍一页装下、底部不顶 */
+/* 主界面初始态：状态栏 + 运行配置卡两块的纵向节奏。
+   状态条必须贴在标题正下方——原先整块 justify-content:center，把「CDP 代理已就绪」也推到了版面中段，
+   离标题一百多像素，看着像掉队的一行。改成从顶部顺排，状态条就回到标题下沿 16px 处。
+   设置卡已搬进菜单弹窗，首页只剩这两块，竖直方向才有留白可谈。 */
 #state-initial {
   gap: var(--space-4); /* 卡间 16px（比紧凑档 12 再松一格，配合外扩边距给卡片更多呼吸） */
+  justify-content: flex-start;
+}
+/* 运行配置卡再让开一档：状态条贴顶后卡片紧跟其下显得「顶头」，这里补一段页面级留白。
+   取 --space-8(32) = §2 的「页面级留白」档，不新造值（此前写 7vh≈50px，不落在 8 网格上）。
+   注意固定值只能兑现「让开一档留白」，兑现不了「重心固定落在窗口 40% 高度」——
+   卡片高度随来源切换变化（自动打招呼 / 提取全部两区块按来源出现），比例钉不住，别照这句反推数值 */
+#state-initial > #run-config-card {
+  margin-top: var(--space-8);
 }
 /* ===== 执行进度页 =====
    标题、步骤 1/2/3 与按钮紧凑靠上、等距排列（不随窗口高度拉开）；卡片不拉满整页、

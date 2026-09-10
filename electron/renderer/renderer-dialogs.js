@@ -58,15 +58,8 @@ function closeDialog(overlay, { animate = false } = {}) {
     // 先淡出再隐藏：与紧接着打开的弹窗淡入衔接成连续过渡，不会「啪」一下消失
     overlay.setAttribute('inert', '');
     overlay.classList.add('dialog-overlay--closing');
-    // 淡出时长直接读 CSS（closing 的 overlay-out/box-out 均 = --dur-normal=250ms），改 CSS 档位只需同步这里
-    let exitMs = 280;
-    const durStr = (getComputedStyle(overlay).animationDuration || '').trim();
-    if (durStr) {
-      const n = parseFloat(durStr);
-      if (Number.isFinite(n) && n > 0) {
-        exitMs = (durStr.endsWith('ms') ? n : n * 1000) + 30; // +30ms 缓冲，等动画播完再隐藏
-      }
-    }
+    // 淡出时长直接读 CSS（closing 的 overlay-out/box-out 均 = --dur-normal=250ms），改 CSS 档位只需改 CSS
+    const exitMs = exitMsOf(overlay, 280);
     setTimeout(() => {
       // 淡出期间这个弹窗若被重新打开（closing 类被摘、动画被取消），就不再隐藏它
       if (!overlay.classList.contains('dialog-overlay--closing')) return;
@@ -92,11 +85,123 @@ function hideSwappedOutOverlay(overlay) {
   overlay.style.display = 'none';
 }
 
-// 全局 Escape：关闭当前打开的弹窗
+// ===== 左上角菜单（「设置」「历史记录」的唯一入口）=====
+// 面板出入场用 menu-in / menu-out（topbar.css），退场比入场短，与弹窗同一套「出快于入」。
+let menuExitTimer = null;
+// 语义上的「菜单开着」。不能拿 style.display 当开关：进 --closing 退场后 display 仍是 flex，
+// 要等退场计时器跑完才变 none —— 那段窗口里点 ☰ 会被判成「已开着」而只重复关闭、不重开，
+// 按 Esc 也会先被菜单吃掉一层。退场一开始就算收起（同 renderer-widgets.js 的 openState）：
+// 此刻点 ☰ 能立刻取消退场重开，Esc 也能直接落到下面的弹窗上。
+let menuOpen = false;
+
+function openMenu() {
+  if (!menuPanel) return;
+  menuOpen = true;
+  clearTimeout(menuExitTimer);
+  menuPanel.classList.remove('menu-panel--closing');
+  menuPanel.style.display = 'flex';
+  btnMenu.setAttribute('aria-expanded', 'true');
+  // 键盘打开的菜单要把焦点送进第一项（ARIA 菜单契约）；鼠标点击则不抢焦点。
+  // 用 :focus-visible 判断输入方式：键盘激活 ⋮ 时为真，鼠标点击时为假
+  if (btnMenu.matches(':focus-visible')) focusMenuItem(0);
+}
+
+// restoreFocus：从菜单项跳去弹窗时把焦点交还 ☰，
+// 这样弹窗关闭后 closeDialog 记录的「打开前的焦点」正好是 ☰，键盘用户不会丢失落点
+function closeMenu({ restoreFocus = false } = {}) {
+  if (!menuOpen) return;
+  menuOpen = false; // 先落状态：退场期间再点 ☰ 就是「重新打开」，不是「再关一次」
+  btnMenu.setAttribute('aria-expanded', 'false');
+  clearTimeout(menuExitTimer);
+  const settle = () => {
+    menuPanel.classList.remove('menu-panel--closing');
+    menuPanel.style.display = 'none';
+  };
+  // 系统开了「减少动态效果」：全局动画已被压成 0.01ms，直接收起，别干等退场时长（同 closeDialog）
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    settle();
+  } else {
+    menuPanel.classList.add('menu-panel--closing');
+    // 退场时长直接读 CSS（menu-out = --dur-fast 150ms），改 CSS 档位不必回来改数字
+    menuExitTimer = setTimeout(settle, exitMsOf(menuPanel, 180));
+  }
+  if (restoreFocus) btnMenu.focus();
+}
+
+btnMenu.addEventListener('click', () => {
+  if (menuOpen) closeMenu();
+  else openMenu();
+});
+
+// --- 键盘漫游 ---
+// 面板标了 role="menu"、菜单项标了 role="menuitem"，就必须兑现这套角色的键盘契约：
+// 方向键在项间移动。不兑现的话读屏会把「菜单」念给用户听，用户按方向键却没反应 —— 比不标角色更糟。
+// 菜单项固定两项（设置 / 历史记录），打开后不再增删 —— 一次性取好。
+// 方向键按住会以约 30 次/秒连发，每次事件重查 DOM 是白费的
+const menuItems = Array.from(menuPanel.querySelectorAll('.menu-item'));
+function focusMenuItem(index) {
+  if (!menuItems.length) return;
+  menuItems[((index % menuItems.length) + menuItems.length) % menuItems.length].focus(); // 取模 + 加长度：首尾相接、负数也正确
+}
+menuPanel.addEventListener('keydown', (e) => {
+  const cur = menuItems.indexOf(document.activeElement);
+  switch (e.key) {
+    case 'ArrowDown': e.preventDefault(); focusMenuItem(cur + 1); break;
+    case 'ArrowUp': e.preventDefault(); focusMenuItem(cur - 1); break;
+    case 'Home': e.preventDefault(); focusMenuItem(0); break;
+    case 'End': e.preventDefault(); focusMenuItem(menuItems.length - 1); break;
+    default: break;
+  }
+});
+// 焦点一旦离开面板就收起（Tab 走开、点到别处、切换窗口都算）。
+// Tab 因此不用特殊处理：焦点自然落到面板之后的下一个控件，菜单顺手关掉。
+// relatedTarget 仍在面板内（两项之间移动）时不关，否则方向键漫游会被自己打断
+menuPanel.addEventListener('focusout', (e) => {
+  if (e.relatedTarget instanceof Node && menuPanel.contains(e.relatedTarget)) return;
+  closeMenu();
+});
+
+// 点菜单外收起。用 pointerdown 捕获阶段：比 click 早一步，点别处时菜单不会「晚半拍才消失」。
+// .menu-wrap 内部（按钮本身 + 两个菜单项）不关 —— 否则点「设置」时菜单先被关掉、
+// 随后的 click 落到面板外，菜单项反而点不中
+document.addEventListener('pointerdown', (e) => {
+  if (!menuOpen) return;
+  if (e.target instanceof Node && btnMenu.parentElement.contains(e.target)) return;
+  closeMenu();
+}, true);
+
+// 窗口尺寸变化时面板可能戳到窗口外，直接收起（与指示条 repinSourcePill 同为 resize 善后）。
+// 连同把焦点还给 ☰：不还的话焦点还留在面板里，收成 display:none 后直接掉到 body。
+// 焦点本来就不在面板里时（比如指针悬停触发的收起），menuOpen 早已被 focusout 处理掉，这里不会再跑
+window.addEventListener('resize', () => closeMenu({ restoreFocus: true }));
+
+// ===== 设置弹窗 =====
+function openSettingsDialog() {
+  openDialog(settingsOverlay, apiUrlInput);
+}
+function closeSettingsDialog() {
+  closeDialog(settingsOverlay, { animate: true });
+}
+btnOpenSettings.addEventListener('click', () => {
+  closeMenu({ restoreFocus: true });
+  openSettingsDialog();
+});
+btnSettingsClose.addEventListener('click', closeSettingsDialog);
+settingsOverlay.addEventListener('click', (e) => {
+  if (e.target === settingsOverlay) closeSettingsDialog();
+});
+
+// 全局 Escape：关闭当前打开的弹窗（菜单 → 各弹窗，一次只关一层）
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (jobDialogOverlay.style.display === 'flex') closeJobDialogAll();
+  // 通用确认弹窗（删除/清空等）自带 Esc 处理，且它总是叠在别的弹窗之上。
+  // 这里必须让路：全局链注册得更早、会先跑，不放行就会一次 Esc 把确认框和它底下的
+  // 弹窗（如历史记录）一起关掉 —— 用户只想取消确认框，结果连历史记录也没了
+  if (confirmOverlay && confirmOverlay.style.display === 'flex') return;
+  if (menuOpen) closeMenu({ restoreFocus: true });
+  else if (jobDialogOverlay.style.display === 'flex') closeJobDialogAll();
   else if (jobPickerOverlay.style.display === 'flex') hideJobPicker();
+  else if (settingsOverlay.style.display === 'flex') closeSettingsDialog();
   else if (historyOverlay.style.display === 'flex') closeHistoryDrawer();
 });
 
@@ -147,33 +252,119 @@ function slideSourcePill(btn) {
   sourcePill.style.transform = `translateX(${btn.offsetLeft}px)`;
 }
 
-document.querySelectorAll('.toggle-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    if (btn.classList.contains('active')) return; // 已在此档：不重复切换
-    document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const source = btn.dataset.source;
-    selectedSource = source;
-    const isAttach = source === 'recommend-attach';
-    const isSearch = source === 'search';
-    const isChat = source === 'chat';
-    const showJobSelector = isAttach || isSearch;
-    jobSelectSection.style.display = showJobSelector ? 'flex' : 'none';
-    runGridMain.classList.toggle('has-job', showJobSelector);
-    extractAllSection.style.display = isChat ? '' : 'none';
-    if (!isChat && extractAllCheck.checked) {
-      extractAllCheck.checked = false;
-      countInput.disabled = false;
-    }
-    if (isAttach) updateJobDisplay();
-    // 自动打招呼只用于推荐牛人页，不用于沟通页和搜索页（搜索页打招呼需畅聊卡）。
-    // 切走只藏整块、不动勾选：勾选是用户偏好，切走再切回应原样保留（不再置 false——
-    // 程序置 false 不触发 change 事件、等级下拉没跟着收，回来就是「没勾但下拉还在」的错位）
-    autoGreetSection.style.display = isChat || isSearch ? 'none' : '';
-    syncCountArrows(); // 上方可能已把 countInput 重新启用，步进箭头跟着启用
-    slideSourcePill(btn); // 指示条滑到新选中的档
-  });
+// 切到某个来源：高亮该档 + 同步 selectedSource + 按来源铺开/收起下方控件，
+// 三件事一次做完。原先「点分段按钮」和 renderer-greet.js 的 init 里各写了一份（逐行重复），
+// 抽成一处，来源增删只改这里。
+// 指示条一律交给 slideSourcePill 走 CSS 过渡：点击切档、拖动跨格都同一条滑行动画，
+// 快慢只由 .toggle-pill 的 transition 决定
+function selectSource(source, btn) {
+  document.querySelectorAll('.toggle-btn').forEach((b) => b.classList.toggle('active', b === btn));
+  selectedSource = source;
+  const isAttach = source === 'recommend-attach';
+  const isSearch = source === 'search';
+  const isChat = source === 'chat';
+  const showJobSelector = isAttach || isSearch;
+  jobSelectSection.style.display = showJobSelector ? 'flex' : 'none';
+  runGridMain.classList.toggle('has-job', showJobSelector);
+  extractAllSection.style.display = isChat ? '' : 'none';
+  if (!isChat && extractAllCheck.checked) {
+    extractAllCheck.checked = false;
+    countInput.disabled = false;
+  }
+  if (isAttach) updateJobDisplay();
+  // 自动打招呼只用于推荐牛人页，不用于沟通页和搜索页（搜索页打招呼需畅聊卡）。
+  // 切走只藏整块、不动勾选：勾选是用户偏好，切走再切回应原样保留（不再置 false——
+  // 程序置 false 不触发 change 事件、等级下拉没跟着收，回来就是「没勾但下拉还在」的错位）
+  autoGreetSection.style.display = isChat || isSearch ? 'none' : '';
+  syncCountArrows(); // 上方可能已把 countInput 重新启用，步进箭头跟着启用
+  if (btn) slideSourcePill(btn); // 指示条滑到新选中的档
+}
+
+// 拖动收尾时浏览器会补发一次 click（指到起手那一格），用它吞掉。
+// 消费点在下面组上的 click 处理里 —— 唯一入口，标记不会漏消费
+let suppressSourceClick = false;
+
+// ===== 来源分段：按住鼠标左右拖动选择 =====
+// 单纯点击仍走上面的 click 分支；只有位移越过阈值才算拖动。
+// 拖动期间指示条不跟手（不做 1:1 追指针），而是「跨一格、跳一格」：
+// 指针从 A 格滑进 B 格，指示条才带着 .toggle-pill 的 CSS 过渡（--transition-normal）滑过去，
+// 然后停住等指针继续推 —— 这一格一顿的节奏就是用户要的「拖动时有停顿感」。
+// 跟手 1:1 太顺，三档之间反而没有分界感。
+const SOURCE_DRAG_THRESHOLD = 4; // px：小于它视为手抖，仍按点击处理
+let sourceDrag = null;           // { pointerId, startX, lastBtn, moved, base, w }
+
+// 三个来源按钮加载后不再增删：一次取好，起手时再量一次组几何即可
+const sourceBtns = Array.from(sourceGroup.querySelectorAll('.toggle-btn'));
+
+// 指针当前落在第几格。三档等宽，按「首格左边缘 + 格宽」均分取整即可；
+// 比逐个 hit-test 稳——指针压在格与格的交界上时不会忽左忽右。
+// base / w 由 pointerdown 量好传进来（拖动中组不会移动或改宽，不必每次 pointermove 重读布局）
+function sourceBtnAt(clientX, base, w) {
+  if (!sourceBtns.length) return null;
+  const i = Math.floor((clientX - base) / w);
+  return sourceBtns[Math.min(sourceBtns.length - 1, Math.max(0, i))];
+}
+
+// 点一下换来源 —— 唯一入口，委托在组上，不给每个按钮各挂一个 click。
+// 原因：拖拽起手时组会 setPointerCapture，而指针捕获会把随后的兼容鼠标事件（含 click）
+// 一并重定向到捕获元素。capture 一旦落在组上，按钮上的 click 根本不会发生，
+// 「点一下换来源」就整个失效了（只剩拖动还能用）。委托到组上则两条路径都能收到。
+sourceGroup.addEventListener('click', (e) => {
+  if (suppressSourceClick) { suppressSourceClick = false; return; } // 拖动后补发的那一次：吞掉
+  const first = sourceBtns[0];
+  const btn = (e.target instanceof Element ? e.target.closest('.toggle-btn') : null)
+    // e.target 是组本身（被捕获重定向过来）时按坐标认格：三档等宽，见 sourceBtnAt。
+    // 点击很稀疏，几何现量现用，不像拖动那样缓存
+    || (first ? sourceBtnAt(e.clientX, sourceGroup.getBoundingClientRect().left + first.offsetLeft, first.offsetWidth || 1) : null);
+  if (!btn || btn.classList.contains('active')) return; // 已在此档：不重复切换
+  selectSource(btn.dataset.source, btn);
 });
+
+sourceGroup.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return; // 只响应鼠标左键
+  if (!e.target.closest('.toggle-btn') || !sourcePill) return;
+  suppressSourceClick = false;
+  const firstBtn = sourceBtns[0];
+  sourceDrag = {
+    pointerId: e.pointerId,
+    startX: e.clientX,
+    // 起手时指着哪一格（一般就是当前选中那格）。拖动中只在「换格」时才动指示条
+    lastBtn: sourceGroup.querySelector('.toggle-btn.active'),
+    moved: false,
+    // 拖动期间组不会移动或改宽：几何在起手时量一次，pointermove 直接算，不重读布局
+    base: sourceGroup.getBoundingClientRect().left + firstBtn.offsetLeft,
+    w: firstBtn.offsetWidth || 1,
+  };
+  // 捕获指针：拖出组外（甚至拖到窗口外）也不断线
+  try { sourceGroup.setPointerCapture(e.pointerId); } catch {}
+});
+
+sourceGroup.addEventListener('pointermove', (e) => {
+  if (!sourceDrag || e.pointerId !== sourceDrag.pointerId) return;
+  if (!sourceDrag.moved) {
+    if (Math.abs(e.clientX - sourceDrag.startX) < SOURCE_DRAG_THRESHOLD) return; // 还没过阈值，先当手抖
+    sourceDrag.moved = true;
+    document.body.classList.add('is-dragging-source'); // 整窗换成抓握光标（见 config.css）
+  }
+  const hovered = sourceBtnAt(e.clientX, sourceDrag.base, sourceDrag.w);
+  if (!hovered || hovered === sourceDrag.lastBtn) return; // 还在同一格：指示条原地不动，等跨格
+  sourceDrag.lastBtn = hovered;
+  // 交给 selectSource 把指示条滑到这一格（走 .toggle-pill 的 CSS 过渡，不是瞬移），
+  // 下方岗位/数量行同步换掉 —— 滑到哪一格就选到哪一格，不用等松手
+  selectSource(hovered.dataset.source, hovered);
+});
+
+function endSourceDrag(e) {
+  if (!sourceDrag || e.pointerId !== sourceDrag.pointerId) return;
+  const wasDrag = sourceDrag.moved;
+  sourceDrag = null;
+  document.body.classList.remove('is-dragging-source'); // 光标还原
+  try { sourceGroup.releasePointerCapture(e.pointerId); } catch {}
+  if (!wasDrag) return; // 没进入拖动，随后那次 click 正常生效
+  suppressSourceClick = true; // 吞掉浏览器随后补发的 click
+}
+sourceGroup.addEventListener('pointerup', endSourceDrag);
+sourceGroup.addEventListener('pointercancel', endSourceDrag);
 
 // 把指示条贴到当前选中的档（找 active 再 slide）。首帧与 resize 共用——
 // 首帧加载时无上一次样式可比，transition 不会开场滑动；resize 改变 flex 均分宽度，需重量贴合
@@ -247,13 +438,8 @@ function swapJobDialogs(openFn) {
   toOpen.setAttribute('data-swap-over', '');
   openFn();
   // 退场时长：等 swap-out 挂上后再读 getComputedStyle，此刻面板走的才是 box-out(--dur-normal .25s)。
-  // 挂类前读会拿到入场 box-in(--dur-dialog .4s) 的时长，交接就比实际晚 ~180ms。+30ms 缓冲兜住尾帧
-  let outMs = 280;
-  const durStr = box ? (getComputedStyle(box).animationDuration || '').trim() : '';
-  if (durStr) {
-    const n = parseFloat(durStr);
-    if (Number.isFinite(n) && n > 0) outMs = (durStr.endsWith('ms') ? n : n * 1000) + 30;
-  }
+  // 挂类前读会拿到入场 box-in(--dur-dialog .4s) 的时长，交接就比实际晚 ~180ms
+  const outMs = exitMsOf(box, 280);
   setTimeout(() => {
     // 收尾帧：旧弹窗已淡尽 → 直接隐藏它（遮罩交给新弹窗），新弹窗从「透明浮层」转成常驻态 swap-in。
     // 两处 DOM 改动同一帧生效，遮罩同色、无跳变。
@@ -357,13 +543,22 @@ btnDialogSave.addEventListener('click', async () => {
     dialogJobName.focus();
     return;
   }
+  // 保存要走三次 IPC（重命名 / 写描述 / 重载列表），慢盘上看得出来；期间转圈 + 禁点，
+  // 防止连点保存写出两份（§8 loading = 转圈 + 真禁用，文字不变）。finally 保证异常路径也还原
+  // 保存要跑三次 await（重命名 / 写描述 / 重载列表），期间用户可能按 Esc 或点遮罩把弹窗关掉
+  // （closeJobDialogAll 会把 editJobName 清空）。这些 await 回来时必须先确认弹窗还在：
+  // 否则 hideAddJobDialog 会顺着互切把刚被关掉的「目标岗位」列表又弹回来，报错文案也会因为
+  // editJobName 已经被清空而把「编辑失败」说成「添加失败」。起手把模式记在局部变量里
+  const editing = editJobName;
+  const stillOpen = () => jobDialogOverlay.style.display === 'flex';
+  setLoading(btnDialogSave, true);
   try {
-    if (editJobName) {
+    if (editing) {
       // 编辑模式：名称变了先重命名岗位文件（保留描述内容），再按需更新描述。
       // 选中中的岗位同步到新名，否则 loadJobList 会因旧名不在列表而清空选中
-      if (jobName !== editJobName) {
-        await window.electronAPI.renameRecommendJob(editJobName, jobName);
-        if (selectedJob === editJobName) selectedJob = jobName;
+      if (jobName !== editing) {
+        await window.electronAPI.renameRecommendJob(editing, jobName);
+        if (selectedJob === editing) selectedJob = jobName;
       }
       await window.electronAPI.updateRecommendJob(jobName, jobDesc);
     } else {
@@ -372,9 +567,11 @@ btnDialogSave.addEventListener('click', async () => {
       selectedJob = jobName;
     }
     await loadJobList();
-    hideAddJobDialog();
+    if (stillOpen()) hideAddJobDialog();
   } catch (err) {
-    showToast((editJobName ? '编辑' : '添加') + '失败：' + err.message, 'error');
+    showToast((editing ? '编辑' : '添加') + '失败：' + err.message, 'error');
+  } finally {
+    setLoading(btnDialogSave, false);
   }
 });
 

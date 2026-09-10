@@ -21,6 +21,16 @@ const btnErrorBack = document.getElementById('btn-error-back');
 const btnRetryChrome = document.getElementById('btn-retry-chrome'); // 顶栏 Chrome 重连按钮
 const btnOpenDir = document.getElementById('btn-open-dir');
 const btnSelectDir = document.getElementById('btn-select-dir');
+// 左上角菜单：设置与历史记录的唯一入口（开关逻辑在 renderer-dialogs.js）。
+// btnHistory 原先挂在设置折叠卡里，现在它是菜单的第二项，id 与 renderer-history.js 的绑定都没变
+const btnMenu = document.getElementById('btn-menu');
+const menuPanel = document.getElementById('menu-panel');
+const btnOpenSettings = document.getElementById('btn-open-settings');
+const settingsOverlay = document.getElementById('settings-overlay');
+const btnSettingsClose = document.getElementById('btn-settings-close');
+// 通用确认弹窗（renderer-widgets.js 的 confirmDialog 自己按需取用；这里只为全局 Esc 链
+// 判断「最上层是不是确认框」——是就让路，免得一次 Esc 连底下的弹窗一起关掉）
+const confirmOverlay = document.getElementById('confirm-overlay');
 const btnHistory = document.getElementById('btn-history');
 const historyOverlay = document.getElementById('history-overlay');
 const historyDrawer = document.getElementById('history-drawer');
@@ -69,9 +79,6 @@ const apiUrlInput = document.getElementById('api-url');
 const apiKeyInput = document.getElementById('api-key');
 const apiModelInput = document.getElementById('api-model');
 const btnSaveConfig = document.getElementById('btn-save-config');
-const apiConfigToggle = document.getElementById('api-config-toggle');
-const apiConfigBody = document.getElementById('api-config-body');
-const apiConfigArrow = document.getElementById('api-config-arrow');
 
 // 邮件配置 DOM
 const emailPrefixInput = document.getElementById('email-prefix');

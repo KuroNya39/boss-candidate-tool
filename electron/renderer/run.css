@@ -161,7 +161,20 @@
   cursor: pointer;
   color: var(--color-warning-strong); /* 靠琥珀色字区分，展开项不加粗 */
   user-select: none;
+  /* 收起/展开用精灵图箭头，不用浏览器默认的 ▸ 三角形（§7：Unicode 字形不当图标）。
+     默认三角先关掉：Firefox 用 list-style，Chromium 用 ::-webkit-details-marker */
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  list-style: none;
 }
+.mail-error-details summary::-webkit-details-marker { display: none; }
+/* 收起指向右、展开转 90° 指向下（§7：方向箭头由 CSS rotate 转向，不换图标） */
+.mail-error-arrow {
+  flex: none;
+  transition: transform var(--transition-fast);
+}
+.mail-error-details[open] .mail-error-arrow { transform: rotate(90deg); }
 .mail-error-detail {
   margin-top: 8px;
   white-space: pre-line;
@@ -177,7 +190,7 @@
 
 /* ===== Error Message ===== */
 .error-message {
-  background: rgba(var(--color-error-rgb),0.06);
+  background: var(--bg-error);
   border-radius: var(--radius-md); /* 结果错误提示条，radius-md 档 */
   padding: 8px 16px;
   font-size: var(--text-md);
@@ -240,16 +253,16 @@
   color: var(--color-success-strong);
   text-align: center;
   padding: 8px 16px;
-  background: rgba(var(--color-success-rgb),0.06);
+  background: var(--bg-success);
   border-radius: var(--radius-md); /* 打招呼结果提示条，radius-md 档收敛历史 6px */
 }
 .greet-result.greet-result-error {
   color: var(--color-error-strong);
-  background: rgba(var(--color-error-rgb),0.06);
+  background: var(--bg-error);
 }
 /* 部分候选人没成功（太频繁/风控）提示条：警示色，区别于整轮失败的全红错误 */
 .greet-result.greet-result-warn {
   color: var(--color-warning-strong);
-  background: rgba(var(--color-warning-rgb),0.08);
+  background: var(--bg-warning);
 }
 

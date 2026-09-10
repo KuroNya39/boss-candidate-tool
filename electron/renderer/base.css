@@ -20,9 +20,9 @@ body {
 }
 
 /* ===== 滚动条策略 =====
-   主界面整页（内容高于窗口时）与历史抽屉列表的滚动条直接隐藏——
-   滚轮 / 键盘仍可滚动，只是不显示那条「备用」的条；
-   内容列表框（选岗位 / 完成页候选人 / 岗位描述编辑框）默认也不显示，
+   主界面整页（内容高于窗口时）的滚动条直接隐藏——滚轮 / 键盘仍可滚动，
+   只是不显示那条「备用」的条；
+   内容列表框（选岗位 / 完成页候选人 / 历史记录 / 设置表单 / 岗位描述编辑框）默认也不显示，
    鼠标移进框内才淡出 5px 细条：平时干净，要滚时能看到进度。
    Chromium 用 ::-webkit-scrollbar；Firefox 用 scrollbar-width 兜底。 */
 ::-webkit-scrollbar {
@@ -37,23 +37,30 @@ body {
   border-radius: var(--radius-full);
 }
 
-/* 主界面整页 + 历史抽屉列表：彻底不显示 */
+/* 主界面整页：彻底不显示 */
 html { scrollbar-width: none; }
 html::-webkit-scrollbar { width: 0; height: 0; }
-.history-list { scrollbar-width: none; }
-.history-list::-webkit-scrollbar { width: 0; height: 0; }
 
-/* 内容列表框：悬停到框上才显示细条（滑块悬停再加深） */
+/* 内容列表框：悬停到框上才显示细条（滑块悬停再加深）。
+   设置弹窗的表单区在列（窗口矮时才滚，但一旦要滚就得看得见） */
 .job-picker-list:hover::-webkit-scrollbar-thumb,
 .results-list:hover::-webkit-scrollbar-thumb,
+.settings-body:hover::-webkit-scrollbar-thumb,
 .dialog-field textarea:hover::-webkit-scrollbar-thumb {
   background: rgba(var(--text-muted-rgb), 0.2);
 }
 .job-picker-list:hover::-webkit-scrollbar-thumb:hover,
 .results-list:hover::-webkit-scrollbar-thumb:hover,
+.settings-body:hover::-webkit-scrollbar-thumb:hover,
 .dialog-field textarea:hover::-webkit-scrollbar-thumb:hover {
   background: rgba(var(--text-muted-rgb), 0.45);
 }
+
+/* 历史记录弹窗的列表：彻底不显示滚动条（用户要求）。
+   条目是一张张独立卡片，滚没滚到底一眼看得出来，不需要那条「备用」的细条；
+   做法同上面的 html——Chromium 关掉 ::-webkit-scrollbar 宽高，Firefox 用 scrollbar-width 兜底 */
+.history-list { scrollbar-width: none; }
+.history-list::-webkit-scrollbar { width: 0; height: 0; }
 
 /* 原生 <button> 自带浏览器样式，统一重置为继承视觉体系；
    交互元素保留 user-select:none 防止点按时误选中文字。 */
@@ -66,7 +73,7 @@ button {
 }
 
 /* 键盘导航焦点环（鼠标点按时不显示；输入框已有各自 :focus 样式，不重复叠加）。
-   只给「正 Tab 序」的元素画环：切换页面时程序聚焦的标题/抽屉（tabindex=-1）
+   只给「正 Tab 序」的元素画环：切换页面时程序聚焦的标题/弹窗（tabindex=-1）
    只是给键盘与读屏一个落点、并非可交互控件，不画环，避免非按钮文字块误亮 */
 button:focus-visible,
 [tabindex]:not([tabindex="-1"]):focus-visible,

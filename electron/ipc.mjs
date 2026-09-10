@@ -269,7 +269,7 @@ function registerIPC() {
     };
   });
 
-  // v1.5.0: 历史记录抽屉 —— 列出所有历史归档批次（含当前输出目录里的未完成批次）
+  // v1.5.0: 历史记录 —— 列出所有历史归档批次（含当前输出目录里的未完成批次）；v1.12.0 起展示为居中弹窗
   ipcMain.handle('list-history', () => {
     const parentDir = dirname(OUTPUT_DIR);
     const list = [];

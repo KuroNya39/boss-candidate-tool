@@ -1,6 +1,9 @@
 // renderer-history.js —— 由原 renderer.js 第 1009–1243 行按顺序拆分；加载顺序即文件排列顺序，请勿调整
 //
-// ===== 历史记录抽屉 =====
+// ===== 历史记录弹窗 =====
+// v1.12.0 从左侧滑出的抽屉改为居中弹窗（与「设置」同一套），入口也从设置卡挪到左上角菜单。
+// 本文件的函数名仍带 Drawer（openHistoryDrawer / closeHistoryDrawer）——只改外观与入口，
+// 逻辑一行没动，改名会牵动 renderer-dialogs.js 的调用点，收益不抵风险
 
 const HISTORY_SOURCE_LABELS = {
   'recommend-attach': '推荐牛人页',
@@ -16,12 +19,12 @@ function historySourceLabel(meta) {
 
 function openHistoryDrawer() {
   loadHistory();
-  // 无右上角关闭按钮；焦点先落在抽屉容器（aria-dialog 惯例），Esc / 点空白均可关闭
+  // 无右上角关闭按钮；焦点先落在弹窗容器（aria-dialog 惯例），Esc / 点空白均可关闭
   openDialog(historyOverlay, historyDrawer);
 }
 
 function closeHistoryDrawer() {
-  // 带动画关闭：触发抽屉向左滑出（drawer-out）再隐藏；纯关掉会跳过退场动效
+  // 带动画关闭：走通用弹窗淡出（overlay-out/box-out），纯关掉会跳过退场动效
   closeDialog(historyOverlay, { animate: true });
 }
 
@@ -158,7 +161,7 @@ function renderHistoryItem(item, index) {
     actions.appendChild(makeBtn('评分', 'btn--secondary', async () => {
       closeHistoryDrawer();
       resetSteps();
-      showState('state-running'); // 先切界面再发请求，避免留在抽屉里等结果
+      showState('state-running'); // 先切界面再发请求，避免留在弹窗里等结果
       const res = await window.electronAPI.rescoreFromHistory(item.path);
       if (res?.error) { showToast(res.error, 'warning', 4000); showState('state-initial'); }
     }));
@@ -169,7 +172,7 @@ function renderHistoryItem(item, index) {
   }));
   // 当前输出目录不能删除（软件正在用的目录），不显示删除按钮
   if (!item.isCurrent) {
-    actions.appendChild(makeBtn('删除', 'btn--ghost btn--link-danger', async () => {
+    actions.appendChild(makeBtn('删除', 'btn--danger-ghost', async () => {
       const ok = await confirmDialog({
         title: '删除该记录？',
         message: `将删除「${item.name}」这一条记录，删除后不可恢复。`,
@@ -191,20 +194,27 @@ function renderHistoryItem(item, index) {
   return row;
 }
 
-btnHistory.addEventListener('click', openHistoryDrawer);
+// 与「设置」同一套次序：先把菜单收起、焦点交还 ☰，再开弹窗。
+// 顺序不能反 —— openDialog 会把「打开前的焦点」记下来，好让弹窗关闭时还回去；
+// 若此刻焦点还停在菜单项上，菜单随后收起会让它在 display:none 里，归还时 focus() 静默失效，
+// 键盘用户的焦点直接掉到 body，下一次 Tab 从页面开头重来
+btnHistory.addEventListener('click', () => {
+  closeMenu({ restoreFocus: true });
+  openHistoryDrawer();
+});
 // 点击遮罩空白处关闭（无右上角 ×，Esc 也能关，见全局 Escape 处理）
 historyOverlay.addEventListener('click', (e) => {
   if (e.target === historyOverlay) closeHistoryDrawer();
 });
 
-// 历史抽屉打开时，滚轮只作用于抽屉里的历史列表，不带动背后的主界面滚动。
+// 历史弹窗打开时，滚轮只作用于弹窗里的历史列表，不带动背后的主界面滚动。
 // 指针在列表上时交给浏览器原生滚动（顺滑、跟手，适配不同鼠标/触控板的滚动增量）；
 // 只有滚到列表顶/底不能再滚、指针在标题/底部按钮等非列表区（转发给列表）、
 // 或点在遮罩空白上时，才 preventDefault，避免滚轮穿过遮罩带动背后的主界面。
 historyOverlay.addEventListener(
   'wheel',
   (e) => {
-    if (historyOverlay.style.display !== 'flex') return; // 抽屉没开时不拦截
+    if (historyOverlay.style.display !== 'flex') return; // 弹窗没开时不拦截
     if (historyList.contains(e.target)) {
       // 列表还能继续滚 → 放行给原生滚动（不再手动 scrollTop，滚动手感才正常）
       const atBottom = historyList.scrollTop + historyList.clientHeight >= historyList.scrollHeight - 1;
@@ -219,7 +229,7 @@ historyOverlay.addEventListener(
   { passive: false }
 );
 
-// 清空历史记录（抽屉底部）
+// 清空历史记录（弹窗底部）
 btnHistoryClearAll.addEventListener('click', async () => {
   const ok = await confirmDialog({
     title: '清空历史记录？',

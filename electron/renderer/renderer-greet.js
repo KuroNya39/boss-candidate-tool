@@ -172,26 +172,11 @@ async function init() {
     } catch {}
   }, 3000);
   setupListeners();
-  // Set default source from active toggle
+  // 按当前选中的来源铺一遍界面（HTML 里默认选中的是「推荐牛人页」）。
+  // 这段原本与 renderer-dialogs.js 的点击切换逐行重复，现统一走 selectSource()——
+  // 本文件在 dialogs 之后加载，运行时函数已存在
   const activeToggle = document.querySelector('.toggle-btn.active');
-  if (activeToggle) {
-    selectedSource = activeToggle.dataset.source;
-    const isAttach = selectedSource === 'recommend-attach';
-    const isSearch = selectedSource === 'search';
-    const isChat = selectedSource === 'chat';
-    const showJobSelector = isAttach || isSearch;
-    jobSelectSection.style.display = showJobSelector ? 'flex' : 'none';
-    runGridMain.classList.toggle('has-job', showJobSelector);
-    extractAllSection.style.display = isChat ? '' : 'none';
-    if (!isChat && extractAllCheck.checked) {
-      extractAllCheck.checked = false;
-      countInput.disabled = false;
-    }
-    syncCountArrows(); // 恢复来源若启用了数量输入，步进箭头同步可用
-    // 自动打招呼只用于推荐牛人页，不用于沟通页和搜索页（搜索页打招呼需畅聊卡）。
-    // 与 renderer-dialogs.js 的来源切换一致：只藏整块、不动勾选（勾选是用户偏好，见其注释）
-    autoGreetSection.style.display = isChat || isSearch ? 'none' : '';
-  }
+  if (activeToggle) selectSource(activeToggle.dataset.source, activeToggle);
   await loadJobList();
   showState('state-initial');
 }

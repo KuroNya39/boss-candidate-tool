@@ -89,6 +89,19 @@
 .job-picker-search-input {
   padding-right: 40px;
 }
+/* 悬停描边变 accent（§8 输入框四态之一）；禁用态与 .input-number:disabled 同款 */
+.dialog-field input:hover:not(:disabled),
+.dialog-field textarea:hover:not(:disabled),
+.job-picker-search-input:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+.dialog-field input:disabled,
+.dialog-field textarea:disabled,
+.job-picker-search-input:disabled {
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
 .dialog-field input:focus,
 .dialog-field textarea:focus,
 .job-picker-search-input:focus {
@@ -323,7 +336,7 @@
 .tier-bar-track {
   flex: 1;
   height: 8px;
-  background: var(--bg-hover);
+  background: var(--bg-subtle); /* 轨道底 = 次级底；原 --bg-hover 与它同值，已删除这个重复 token */
   border-radius: var(--radius-full);
   overflow: hidden;
 }
@@ -394,8 +407,13 @@
   cursor: pointer;
   transition: background var(--transition-fast);
 }
+/* 候选人整行可点：悬停 / 按下走 accent 洗涤三档（tokens 里写明三档为「分段按钮/下拉/列表共用」），
+   与岗位行、下拉选项同一套语言；行级元素按下用底色加深，不整体缩放（§8） */
 .result-item-head:hover {
-  background: var(--bg-hover);
+  background: var(--bg-accent-tint);
+}
+.result-item-head:active {
+  background: var(--bg-accent-tint-active);
 }
 .result-item-name {
   flex: 1;
@@ -469,60 +487,25 @@
   text-align: justify; /* 评分理由是多行长段落：两端对齐，左右边缘整齐 */
 }
 
-/* ===== 历史记录抽屉（v1.5.0）===== */
-.history-overlay {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  justify-content: flex-start;
-  align-items: stretch;
-  background: var(--color-scrim);
-  z-index: var(--z-overlay);
-  animation: overlay-in var(--dur-dialog) var(--ease-out); /* 遮罩与抽屉同拍：见 .history-drawer（400ms，慢而柔） */
-}
-.history-drawer {
-  width: 344px;
-  max-width: 88%;
-  height: 100%;
-  background: var(--bg-card);
-  box-shadow: var(--shadow-md);
+/* ===== 历史记录弹窗（v1.5.0 起为左侧抽屉，v1.12.0 改居中弹窗） =====
+   与「设置」是同一套居中弹窗：出入场直接用 .dialog-overlay / .dialog-box 的淡入缩放，
+   不再有 drawer-in / drawer-out 那套左右滑入（抽屉专属的样式与关键帧已随改造删除）。
+   高度封顶 78vh，列表自己滚、标题与底部「清空」固定不动。 */
+.history-box {
+  width: 560px; /* 历史条目比设置字段宽，给摘要行多留一点横向空间 */
+  max-height: 78vh;
   display: flex;
   flex-direction: column;
-  padding: var(--space-4);
-  overflow: hidden; /* 子项再多也只在自己高度内滚动，不外溢到遮罩上 */
-  animation: drawer-in var(--dur-dialog) var(--ease-out);
-}
-@keyframes drawer-in {
-  from { opacity: 0; transform: translateX(-32px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-/* 抽屉关闭：与入场镜像（向左滑出 + 遮罩淡出），退场同弹窗走 --dur-normal(250)，出快于入。
-   closeDialog(animate) 已挂通用 closing 类，这里用双类(.history-overlay.dialog-overlay--closing)
-   提高优先级盖过 .history-overlay 的入场动画，否则入场动画会压掉退场 */
-.history-overlay.dialog-overlay--closing {
-  animation: overlay-out var(--dur-normal) var(--ease-in-out) forwards;
-  pointer-events: none;
-}
-.history-overlay.dialog-overlay--closing .history-drawer {
-  animation: drawer-out var(--dur-normal) var(--ease-in-out) forwards;
-}
-@keyframes drawer-out {
-  from { opacity: 1; transform: translateX(0); }
-  to { opacity: 0; transform: translateX(-32px); }
-}
-/* 抽屉标题直接挂在抽屉上（删掉右上 × 后不再有 header 容器） */
-.history-drawer > .dialog-title {
-  margin-bottom: var(--space-4);
 }
 .history-list {
   flex: 1;
-  min-height: 0; /* 很多条目时让列表自己收缩滚动，而不是把底部按钮区顶出抽屉 */
+  min-height: 0; /* 很多条目时让列表自己收缩滚动，而不是把底部按钮区顶出弹窗 */
   overflow-y: auto;
   overscroll-behavior: contain; /* 列表滚到顶/底后不再把滚动传给背后的页面 */
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding-bottom: var(--space-2); /* 滚到底时最后一张卡离分割线留 8px 呼吸，不贴线 */
+  padding-bottom: var(--space-2); /* 滚到底时最后一张卡离底部按钮区留 8px 呼吸（该处已无分割线） */
 }
 .history-empty {
   flex: 1;
@@ -575,12 +558,11 @@
   flex-wrap: wrap;
   gap: var(--space-1);
 }
+/* 底部「清空历史记录」区：不再有上分割线（用户要求删掉）。
+   与列表的分隔改由留白承担——列表自带 8px 底部内距，这里补 16px，
+   滚到底（或列表被裁断）时，最后一张卡与按钮之间都有 24px 空白，比原来那条线更透气 */
 .history-footer {
-  border-top: 1px solid var(--border-card);
   padding-top: var(--space-4);
-  /* margin 归 0：分割线贴着列表滚动裁切边——卡片超出翻页时是被这条分割线截断的，
-     而不是先被分割线上方一段白底截断（白条即旧 margin-top 造成的空隙） */
-  margin-top: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;

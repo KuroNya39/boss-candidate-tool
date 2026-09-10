@@ -93,6 +93,8 @@ function renderJobPicker() {
     actions.appendChild(btnEdit);
 
     const btnDelete = document.createElement('button');
+    // 与「编辑」同为灰描边灰字：这一行两枚按钮并排，一红一灰会读成「删除比编辑重一级」，
+    // 实际是同一层的行内操作；红色留给真正不可逆的主操作（历史记录里的「清空」仍走红）
     btnDelete.className = 'btn btn--sm btn--ghost';
     btnDelete.textContent = '删除';
     btnDelete.addEventListener('click', (e) => {

@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
   <title>BOSS直聘候选人AI评分助手</title>
   <!-- 样式已拆分：6 个 CSS 按原 style.css 内部顺序排列，级联结果与拆前逐像素一致，切勿调换顺序。
-       tokens(设计 token) → base(重置/滚动条/#app) → topbar → config → run → overlays(弹窗/结果/历史抽屉) -->
+       tokens(设计 token) → base(重置/滚动条/#app) → topbar → config → run → overlays(弹窗/结果/历史记录) -->
   <link rel="stylesheet" href="tokens.css">
   <link rel="stylesheet" href="base.css">
   <link rel="stylesheet" href="topbar.css">
@@ -34,6 +34,9 @@
       <symbol id="icon-chevron-right" viewBox="0 0 24 24"><path fill="currentColor" d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></symbol>
       <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path fill="currentColor" d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></symbol>
       <symbol id="icon-chevron-up" viewBox="0 0 24 24"><path fill="currentColor" d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></symbol>
+      <!-- 顶栏菜单按钮（Material more_vert：竖三点）与菜单项图标 -->
+      <symbol id="icon-more-vert" viewBox="0 0 24 24"><path fill="currentColor" d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></symbol>
+      <symbol id="icon-history" viewBox="0 0 24 24"><path fill="currentColor" d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></symbol>
       <!-- icon-resize：右下角抓握标（岗位描述输入框可拖拽调高）。两线 45° 严格平行；
            短线是长线右下方的缩短回声、中点落在长线的公垂线上（相对居中）。几何：长线 (7,19)→(18,8)、
            短线 (14.5,19.5)→(18.5,15.5)——两线中心距 ≈2.8px（紧贴但扫一眼仍能分清是两条线）。改它时保持此几何 -->
@@ -41,8 +44,22 @@
     </defs>
   </svg>
   <div id="app">
-    <!-- 标题：软件名居中、版本号放右侧不参与居中（topbar.css 三列 grid 布局） -->
+    <!-- 标题：软件名居中、版本号放最右不参与居中（topbar.css 三列 grid 布局）。
+         左上角 ⋮ 是「设置 / 历史记录」的唯一入口，两项都在它的下拉里（原来设置是首页折叠卡） -->
     <header>
+      <div class="menu-wrap">
+        <button type="button" id="btn-menu" class="menu-btn" aria-haspopup="menu" aria-expanded="false" aria-label="菜单">
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-more-vert"/></svg>
+        </button>
+        <div class="menu-panel" id="menu-panel" role="menu" style="display:none;">
+          <button type="button" class="menu-item" id="btn-open-settings" role="menuitem">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-settings"/></svg><span>设置</span>
+          </button>
+          <button type="button" class="menu-item" id="btn-history" role="menuitem">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-history"/></svg><span>历史记录</span>
+          </button>
+        </div>
+      </div>
       <h1>BOSS直聘候选人AI评分助手</h1>
       <span id="app-version" class="app-version"></span>
     </header>
@@ -54,63 +71,6 @@
         <span class="status-text" id="chrome-status-text">正在检查 CDP 代理…</span>
         <button id="btn-retry-chrome" class="btn btn--ghost btn--sm btn--retry" style="display:none;">重试</button>
       </div>
-      <div class="card collapsible-card" id="api-config-card">
-        <div class="collapsible-topbar">
-          <button type="button" class="collapsible-header" id="api-config-toggle" aria-expanded="false" aria-controls="api-config-body">
-            <span class="collapsible-header-left">
-              <span class="collapsible-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#icon-settings"/></svg></span>
-              <span class="collapsible-title">设置</span>
-            </span>
-            <svg class="collapsible-arrow" id="api-config-arrow" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-chevron-right"/></svg>
-          </button>
-        </div>
-        <div class="collapsible-body" id="api-config-body">
-          <div class="field-group">
-            <label class="field-label" for="api-url">API 地址（Anthropic 格式）</label>
-            <input type="text" id="api-url" class="input-text" placeholder="https://api.example.com">
-          </div>
-          <div class="field-group">
-            <label class="field-label" for="api-key">API Key</label>
-            <div class="input-wrap">
-              <input type="password" id="api-key" class="input-text" placeholder="sk-...">
-              <button type="button" class="field-icon-btn input-toggle" data-target="api-key" aria-label="显示 API Key" aria-pressed="false">
-                <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-off"/></svg>
-              </button>
-            </div>
-          </div>
-          <div class="field-group">
-            <label class="field-label" for="api-model">模型名称</label>
-            <input type="text" id="api-model" class="input-text" placeholder="gpt-5.6-…">
-          </div>
-          <div class="field-group">
-            <label class="field-label" for="email-prefix">邮件通知（可选）</label>
-            <input type="text" id="email-prefix" class="input-text" placeholder="zhangsan@example.com">
-          </div>
-          <div class="field-group">
-            <label class="field-label" for="smtp-pass">邮箱密码</label>
-            <div class="input-wrap">
-              <input type="password" id="smtp-pass" class="input-text" placeholder="邮箱登录密码，或三方客户端安全密码">
-              <button type="button" class="field-icon-btn input-toggle" data-target="smtp-pass" aria-label="显示邮箱密码" aria-pressed="false">
-                <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-off"/></svg>
-              </button>
-            </div>
-          </div>
-          <div class="output-row">
-            <span class="output-label">输出目录：</span>
-            <span class="output-dir-field">
-              <span id="output-dir" class="output-path">output/</span>
-              <button id="btn-select-dir" class="field-icon-btn output-dir-btn" aria-label="更改输出目录">
-                <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-folder"/></svg>
-              </button>
-            </span>
-            <button id="btn-history" class="btn btn--secondary btn--sm">历史记录</button>
-          </div>
-          <div class="collapsible-actions">
-            <button id="btn-save-config" class="btn btn--secondary">保存设置</button>
-          </div>
-        </div>
-      </div>
-
       <div class="card" id="run-config-card">
         <!-- 来源分段选择：三个按钮文字本身就是来源名，无需再配「提取来源」标题 -->
         <div class="toggle-group" id="source-toggle-group">
@@ -126,7 +86,7 @@
           <div id="job-select-section" class="field-group" style="display:none;">
             <label class="field-label" id="job-select-label">目标岗位</label>
             <div class="job-selector">
-              <button type="button" id="job-display" class="job-display placeholder">请选择岗位</button>
+              <button type="button" id="job-display" class="job-display placeholder" aria-haspopup="dialog">请选择岗位</button>
             </div>
           </div>
           <div class="field-group">
@@ -137,10 +97,10 @@
               <span class="count-field">
                 <input type="number" id="count-input" class="input-number" value="20" min="1" max="999" aria-label="提取数量">
                 <span class="count-arrows">
-                  <button type="button" id="count-inc" class="count-arrow" tabindex="-1" aria-label="数量加一">
+                  <button type="button" id="count-inc" class="count-arrow" aria-label="数量加一">
                     <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-chevron-up"/></svg>
                   </button>
-                  <button type="button" id="count-dec" class="count-arrow" tabindex="-1" aria-label="数量减一">
+                  <button type="button" id="count-dec" class="count-arrow" aria-label="数量减一">
                     <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-chevron-down"/></svg>
                   </button>
                 </span>
@@ -188,9 +148,8 @@
           </div>
         </div>
 
-        <!-- Start button -->
+        <!-- Start button：设置没填全时按钮置灰（updateConfigStatus），按钮下方不加说明文字 -->
         <button id="btn-start" class="btn btn--primary btn--lg btn--block">开始提取分析</button>
-        <p id="btn-start-hint" class="field-hint" aria-live="polite"></p>
       </div>
     </div>
 
@@ -272,7 +231,7 @@
         </div>
         <div class="result-summary" id="done-summary"></div>
         <details id="mail-error-details" class="mail-error-details" style="display:none;">
-          <summary>邮件发送失败的原因</summary>
+          <summary><svg class="mail-error-arrow" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-chevron-right"/></svg>邮件发送失败的原因</summary>
           <div id="mail-error-detail" class="mail-error-detail"></div>
         </details>
         <div class="result-actions">
@@ -303,7 +262,9 @@
             </div>
           </div>
 
-          <div class="tier-bars" id="tier-bars" aria-label="档位分布"></div>
+          <!-- role=group 让 aria-label 生效（裸 div 上的 aria-label 会被读屏忽略）；
+               不用 role=img：那样整块被当成一张图，右列「N 人 · P%」的文字就读不到了 -->
+          <div class="tier-bars" id="tier-bars" role="group" aria-label="档位分布"></div>
 
           <div class="results-candidates">
             <div class="results-candidates-head">
@@ -393,7 +354,7 @@
     <div class="dialog-box">
       <div class="dialog-title" id="job-picker-title">目标岗位</div>
       <div class="job-picker-search">
-        <input type="text" id="job-search-input" class="job-picker-search-input" placeholder="搜索岗位…" autocomplete="off" />
+        <input type="text" id="job-search-input" class="job-picker-search-input" placeholder="搜索岗位…" aria-label="搜索岗位" autocomplete="off" />
         <button type="button" id="job-search-clear" class="field-icon-btn input-clear" aria-label="清空搜索">
           <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-close"/></svg>
         </button>
@@ -405,14 +366,67 @@
     </div>
   </div>
 
-  <!-- 历史记录抽屉（左侧滑出） -->
-  <div id="history-overlay" class="history-overlay" style="display:none;">
-    <div class="history-drawer" id="history-drawer" role="dialog" aria-modal="true" aria-labelledby="history-title" tabindex="-1">
+  <!-- 设置弹窗：原首页折叠卡的内容整块搬进来，字段 id 一个没改（renderer-ipc.js 的读写逻辑照旧） -->
+  <div id="settings-overlay" class="dialog-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="dialog-box settings-box">
+      <div class="dialog-title" id="settings-title">设置</div>
+      <!-- 窗口矮时只有表单区滚动，标题与底部按钮固定不动 -->
+      <div class="settings-body">
+        <div class="field-group">
+          <label class="field-label" for="api-url">API 地址（Anthropic 格式）</label>
+          <input type="text" id="api-url" class="input-text" placeholder="https://api.example.com">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="api-key">API Key</label>
+          <div class="input-wrap">
+            <input type="password" id="api-key" class="input-text" placeholder="sk-...">
+            <button type="button" class="field-icon-btn input-toggle" data-target="api-key" aria-label="显示 API Key" aria-pressed="false">
+              <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-off"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="api-model">模型名称</label>
+          <input type="text" id="api-model" class="input-text" placeholder="gpt-5.6-…">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="email-prefix">邮件通知（可选）</label>
+          <input type="text" id="email-prefix" class="input-text" placeholder="zhangsan@example.com">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="smtp-pass">邮箱密码</label>
+          <div class="input-wrap">
+            <input type="password" id="smtp-pass" class="input-text" placeholder="邮箱登录密码，或三方客户端安全密码">
+            <button type="button" class="field-icon-btn input-toggle" data-target="smtp-pass" aria-label="显示邮箱密码" aria-pressed="false">
+              <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-off"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="output-row">
+          <span class="output-label">输出目录：</span>
+          <span class="output-dir-field">
+            <span id="output-dir" class="output-path">output/</span>
+            <button id="btn-select-dir" class="field-icon-btn output-dir-btn" aria-label="更改输出目录">
+              <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-folder"/></svg>
+            </button>
+          </span>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button id="btn-settings-close" class="btn btn--ghost">关闭</button>
+        <button id="btn-save-config" class="btn btn--primary">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 历史记录弹窗（与设置同一套居中弹窗；原来是左侧滑出的抽屉） -->
+  <div id="history-overlay" class="dialog-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="history-title">
+    <div class="dialog-box history-box" id="history-drawer" tabindex="-1">
       <div class="dialog-title" id="history-title">历史记录</div>
       <div class="history-list" id="history-list" role="list"></div>
       <div class="history-empty" id="history-empty" style="display:none;">暂无历史记录。</div>
       <div class="history-footer">
-        <button id="btn-history-clear-all" class="btn btn--link btn--link-danger">清空历史记录</button>
+        <button id="btn-history-clear-all" class="btn btn--link btn--danger-ghost">清空历史记录</button>
       </div>
     </div>
   </div>
@@ -429,8 +443,10 @@
     </div>
   </div>
 
-  <!-- Toast 容器 -->
-  <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
+  <!-- Toast 容器：本身不做 live region，改由每条 toast 自己带 role（错误=alert、其余=status）。
+       容器若也标 role=status，就成了「live region 套 live region」，读屏会把同一条提示念两遍。
+       注意 showToast 是先插入空节点、下一帧才填文字（读屏只在既有 live region 内容变化时播报） -->
+  <div id="toast-container" class="toast-container"></div>
 
   <!-- 渲染层脚本已拆分：10 个文件共享全局作用域，加载顺序即下方排列顺序，切勿调整 -->
   <script src="renderer-dom.js"></script>

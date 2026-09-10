@@ -34,7 +34,6 @@ function initCustomSelect(container) {
   // openState 是语义开关：退场动画进行中已算“收起”，此刻点触发条可即时取消退场重开
   let openState = false;
   let closeTimer = null;
-  const menuOutMs = 170; // menu-out = --dur-fast(150ms) + 20ms 缓冲；改 CSS 档位需同步这里
 
   function openMenu() {
     openState = true;
@@ -72,10 +71,12 @@ function initCustomSelect(container) {
     }
     menu.classList.add('custom-select-menu--closing');
     clearTimeout(closeTimer);
+    // 退场时长直接读 CSS（menu-out = --dur-fast 150ms），改档位只需改 CSS
+    const outMs = exitMsOf(menu, 170);
     closeTimer = setTimeout(() => {
       menu.classList.remove('custom-select-menu--closing');
       menu.style.display = 'none';
-    }, menuOutMs);
+    }, outMs);
   }
 
   function setOpen(open) {
@@ -185,9 +186,14 @@ function showToast(message, type = 'info', duration = 3000) {
   if (!container) return;
   const el = document.createElement('div');
   el.className = 'toast toast-' + type;
-  if (type === 'error') el.setAttribute('role', 'alert');
-  el.textContent = message;
+  // 每条 toast 自带 live region 角色（容器不再是 live region，见 index.html 该容器注释）：
+  // 错误用 alert（插话式，立即播报），其余用 status（排队播报，不打断用户）
+  el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  // 先插入空节点、下一帧再填字。读屏只在「已经存在于无障碍树里的 live region 内容发生变化」时
+  // 播报；带着文字一次性插入的新节点（role=status 尤其）NVDA/JAWS 经常整条漏掉 ——
+  // 这正是 WAI 推荐「先插入空 region、后一帧再塞文本」的原因。alert 两种写法都念，但统一走这条更稳
   container.appendChild(el);
+  requestAnimationFrame(() => { el.textContent = message; });
   setTimeout(() => {
     el.classList.add('toast-leaving');
     // 移除时机与 toast-out(--dur-normal=250ms) 一致，硬编码需与它同步
@@ -279,6 +285,18 @@ function setLoading(btn, loading) {
       delete btn.dataset.prevDisabled;
     }
   }
+}
+
+// ===== 浮层退场时长 =====
+// 读元素当前 CSS 动画时长，换算成「等它播完再收尾」的毫秒数（+30ms 兜住尾帧）。
+// 弹窗淡出、下拉收起、菜单收起共用同一套「出快于入」的时序，档位只在 CSS 里定义一次：
+// 改 CSS 档位后这里自动跟着变，不必回来同步任何数字。fallback 是读不到时长时的兜底。
+function exitMsOf(el, fallback) {
+  if (!el) return fallback;
+  const durStr = (getComputedStyle(el).animationDuration || '').trim();
+  const n = parseFloat(durStr);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return (durStr.endsWith('ms') ? n : n * 1000) + 30;
 }
 
 // ===== 清理函数 =====

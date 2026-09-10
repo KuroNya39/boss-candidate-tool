@@ -860,7 +860,9 @@ const server = http.createServer(async (req, res) => {
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyDown', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL }, sid);
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyUp', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL }, sid);
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17, modifiers: 0 }, sid);
-      await sleepMs(350);
+      // 等浏览器把 Ctrl+C 处理完、文本落到系统剪贴板再响应。200ms 足够：客户端收到响应后
+      // 还会 sleep 50ms 再起一次 PowerShell（Get-Clipboard），进程启动本身就有三四百毫秒的缓冲
+      await sleepMs(200);
       res.end(JSON.stringify({ ok: true, canvasMain, scrollMax, scrolled, scope, winH: info.winH, yBottom: (info.winH || 900) - 2, scrollSel: info.scrollSel, diag: info.diag, elapsed: Date.now() - copyStart }));
     }
 

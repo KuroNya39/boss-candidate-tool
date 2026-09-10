@@ -22,10 +22,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: border-color var(--transition-fast), color var(--transition-fast),
+    background-color var(--transition-fast), transform var(--transition-fast);
 }
 .job-display:hover {
   background: var(--bg-page);
   border-color: var(--color-accent);
+}
+/* 下拉式触发器按下收缩一档，与 .custom-select-trigger 同一套反馈（§8 可缩放控件） */
+.job-display:active {
+  transform: scale(0.98);
 }
 .job-display.placeholder {
   color: var(--text-muted);
@@ -33,7 +39,6 @@
   background: var(--bg-card);
   border: 1px dashed var(--border-input);
   cursor: pointer;
-  transition: border-color var(--transition-fast), color var(--transition-fast), background-color var(--transition-fast);
 }
 .job-display.placeholder:hover {
   border-color: var(--color-accent);
@@ -72,7 +77,7 @@
   border-bottom: none;
 }
 .job-picker-item:hover {
-  background: var(--bg-accent-tint); /* 悬停未选中行 = 4% 淡底（同来源分段按钮），字色不变 */
+  background: var(--bg-accent-tint); /* 悬停未选中行 = 5% 淡底（同来源分段按钮），字色不变 */
 }
 .job-picker-item-name {
   flex: 1;
@@ -91,38 +96,37 @@
   border: none;
   color: inherit;
 }
+/* 「＋ 添加新岗位」是列表里的一行，只把实线底边换成虚线作区分；
+   静置底色与悬停底色一律沿用上面 .job-picker-item 那套，不再自写 2% / 6% 的洗涤
+   （accent 洗涤只有 --bg-accent-tint 三档，见 tokens.css） */
 .job-picker-add {
   border-bottom: 1px dashed var(--border-card);
-  background: rgba(var(--color-accent-rgb),0.02);
 }
 .job-picker-add .job-picker-item-name {
   color: var(--color-accent);
   font-weight: 600;
 }
-.job-picker-add:hover {
-  background: rgba(var(--color-accent-rgb),0.06);
-}
 .job-picker-item.selected .job-picker-item-name {
   color: var(--color-accent);
   font-weight: 600;
 }
-.job-picker-item.selected .job-picker-item-name::before {
-  content: '✓ ';
-  color: var(--color-accent);
-  font-weight: 600;
-}
+/* 这里原有 ::before { content: '✓ ' } 的勾号前缀，已删：
+   §7 规定 Unicode 字形（✔ ✓）不当图标，且选中态靠「10% 浅蓝底 + accent 蓝字 + 600」
+   三通道已经足够（§8/§9 只要求底色 + 字色双通道），勾号是多余的一层，
+   也与下拉选中项（.custom-select-option.selected 无勾号）不一致 */
 .job-picker-item.selected {
-  background: var(--bg-accent-tint-selected); /* 选中 = 10% 浅蓝底（同来源分段按钮/下拉选中），蓝勾蓝字已能区分 */
+  background: var(--bg-accent-tint-selected); /* 选中 = 10% 浅蓝底（同来源分段按钮/下拉选中） */
 }
 .job-picker-item.selected:hover {
-  background: var(--bg-accent-tint-active); /* 悬停选中的行：底色加深一档（16%） */
+  background: var(--bg-accent-tint-active); /* 悬停选中的行：底色加深一档（15%） */
 }
 .job-picker-item-actions {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
 }
-/* 列表内小操作按钮（编辑/删除）：不常用 → 灰色描边小号，不抢弹窗底部的大按钮 */
+/* 列表内小操作按钮：编辑、删除同为灰色描边（.btn--ghost），都收成小号，不抢弹窗底部的大按钮。
+   删除曾经走红描边（.btn--danger-ghost），与旁边的编辑并排显得「更重一级」，已统一（用户要求） */
 .job-picker-item-actions .btn {
   padding: 4px 8px;
   font-size: var(--text-sm);
@@ -149,9 +153,13 @@
   flex-direction: column;
   gap: 8px;
 }
-/* 运行配置卡：卡片标题已去掉，上、下内距 16 → 24（8 网格一档）补足呼吸；左右仍 16 */
+/* 运行配置卡：卡片标题已去掉，上、下内距 16 → 24（8 网格一档）补足呼吸；左右仍 16。
+   行间距从默认的 8 一路提到 24（两档）：卡里是「来源 / 岗位 / 数量 / 复选 / 按钮」几组功能各异的控件，
+   8px 会让它们糊成一片。16 已能分组，24 是「相关组之间」这一档（§2），
+   在只有这一张卡的首页上留着更松弛——卡片自己高一点，重心也跟着上移，和 §6 的构图一致 */
 #run-config-card {
   padding: var(--space-6) var(--space-4);
+  gap: var(--space-6);
 }
 .card-title {
   font-size: var(--text-lg); /* 模块标题档：比 field-label(14) 大一号，靠字号分层（字色保持次级不过黑） */
@@ -184,18 +192,6 @@
   font-weight: 400; /* 标签不加粗：靠 --text-secondary 次级色与正文/输入值区分 */
   color: var(--text-secondary);
 }
-.field-hint {
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  color: var(--text-muted);
-  text-align: center;
-  min-height: 16px;
-}
-/* 提示行为空时不占位；有文字时才出现（如配置未填时提示缺哪一项） */
-.field-hint:empty {
-  display: none;
-}
-
 /* ===== 按钮加载态 ===== */
 button.is-loading {
   position: relative;
@@ -221,15 +217,18 @@ button.is-loading::before {
 /* ===== Toggle Group ===== */
 /* 配色规则（沿用来源按钮原四态，一套固定规则，全应用的分段按钮/下拉/列表共用）：
    选中      = 10% 浅蓝底 + 蓝字（底色由滑动指示条承载）
-   悬停未选中 = 4% 淡底（只提示可点，字色不变）
-   悬停选中   = 底色加深到 16%（指示条在悬停态加深）
+   悬停未选中 = 5% 淡底（只提示可点，字色不变）
+   悬停选中   = 底色加深到 15%（指示条在悬停态加深）
    按下      = 整格缩放 0.97
    三档浅底的具体值集中在 tokens.css（--bg-accent-tint / -selected / -active），这里只引用 */
 .toggle-group {
   position: relative; /* 定位基准：让 .toggle-pill 相对组内贴位（JS 用 offset 落位） */
   display: flex;
   gap: 0;
-  background: var(--bg-page);
+  /* 槽底用次级底（--bg-subtle #f1f5f9），不用页面底（--bg-page #f8fafc）：
+     这一条在白色卡片里，页面底色和卡片只差一点点，槽的轮廓几乎看不见；
+     次级底是「下陷面」那一档（同只读框、进度条轨道），才读得出「三个格子嵌在一个槽里」 */
+  background: var(--bg-subtle);
   border-radius: var(--radius-btn);
   padding: 4px;
   width: 100%;
@@ -254,8 +253,8 @@ button.is-loading::before {
   color: var(--color-accent);
 }
 .toggle-btn:hover:not(.active) {
-  /* 悬停只加 4% 淡底、字色不变（用户要求：悬停别让字变深，浅底已足够提示） */
-  background: var(--bg-accent-tint); /* 4% 淡悬停底，与「选中 10%」明显分层 */
+  /* 悬停只加 5% 淡底、字色不变（用户要求：悬停别让字变深，浅底已足够提示） */
+  background: var(--bg-accent-tint); /* 5% 淡悬停底，与「选中 10%」明显分层 */
 }
 .toggle-btn:active {
   transform: scale(0.97); /* 按下收缩一档：非 .btn 的可点控件补按压反馈 */
@@ -271,9 +270,9 @@ button.is-loading::before {
   background: var(--bg-accent-tint-selected); /* 选中浅蓝底 */
   border-radius: var(--radius-md);
   pointer-events: none; /* 不挡按钮点击与悬停 */
-  /* 平滑滑动：ease-in-out 起收温和、速度曲线对称，无「先冲后拖」的顿挫；0.3s 介于
-     0.25/0.4 两档之间，兼顾跟手与可见（长距离滑到第三档也从容） */
-  transition: transform 0.3s var(--ease-in-out),
+  /* 平滑滑动：ease-in-out 起收温和、速度曲线对称，无「先冲后拖」的顿挫；
+     时长走 --transition-normal（.25s + 同一 easing），长距离滑到第三档也从容 */
+  transition: transform var(--transition-normal),
               background-color var(--transition-fast);
   will-change: transform;
 }
@@ -287,22 +286,21 @@ button.is-loading::before {
     transition: none;
   }
 }
-
-/* ===== Alert 体系（提示条） ===== */
-/* 浅底提示卡一律不带描边：浅底 + 深字即可区分，轮廓线交给留白 */
-.alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: var(--text-sm);
-  line-height: 1.6;
-  border-radius: var(--radius-md);
-  padding: 8px 16px;
+/* 按住左右拖动来源分段时：整窗换成「抓握中」光标。
+   拖动中指针多半已经滑出分段区（指针捕获仍在生效），只给 .toggle-btn 设 cursor 会中途
+   变回箭头、读起来像「拖丢了」；挂 body 标记用 !important 统一压住全窗口。
+   同时禁用选字：拖动中指针扫过标题等文本会划出一片反白的选区。
+   标记由 renderer-dialogs.js 在跨过拖动阈值时挂上、松手时摘掉 */
+body.is-dragging-source,
+body.is-dragging-source * {
+  cursor: grabbing !important;
+  user-select: none;
 }
-.alert--success { background: var(--bg-success); color: var(--color-success-strong); }
-.alert--warning { background: var(--bg-warning); color: var(--color-warning-strong); }
-.alert--error   { background: var(--bg-error);   color: var(--color-error-strong); }
-.alert--info    { background: var(--bg-info);    color: var(--color-info-strong); }
+
+/* 这里原有 .alert 提示条体系（.alert / --success / --warning / --error / --info）。
+   全项目从未引用过（HTML 与 JS 里零个 class="alert"），四个语义浅底提示条实际是
+   run.css 的 .error-message / .greet-result* 在承担，已删。
+   它承载的原则（语义浅底 + strong 深字、一律不带描边）记在 docs/design-system.md §1 */
 
 /* ===== 空状态 ===== */
 .empty-state {
@@ -362,8 +360,12 @@ button.is-loading::before {
   -webkit-appearance: none;
   margin: 0;
 }
-.input-number:disabled {
-  background: var(--bg-subtle); /* 禁用底色比同款卡灰 #e2e8f0 淡一档，与只读框一致（用户反馈原色太深） */
+/* 输入框禁用态：config 这一族（数字框 / 文本框）共用一条，不再各写一份；
+   弹窗那族（.dialog-field input 等，在 overlays.css）是同款三件套，见那里的注释。
+   禁用底色比同款卡灰 #e2e8f0 淡一档，与只读框一致（用户反馈原色太深） */
+.input-number:disabled,
+.input-text:disabled {
+  background: var(--bg-subtle);
   color: var(--text-muted);
   cursor: not-allowed;
 }
@@ -413,7 +415,14 @@ button.is-loading::before {
 .count-unit {
   font-size: var(--text-md);
   color: var(--text-secondary);
-  margin-right: 8px;
+}
+/* 「人」与「提取全部」之间的额外留白挂在后者的左外边距上，不挂在「人」的右外边距上：
+   后者在推荐牛人页是 display:none，此时「人」就是数量列的最后一格，
+   它若自带 8px 右外边距，这一列会离卡片右边界短 8px，与上下的来源分段条、主按钮对不齐
+   （实测 592 vs 600）。挪到复选框那侧后：隐藏时右边缘对齐 600，
+   显示时「人」→勾选框仍是 8(gap)+8 = 16px，排布不变 */
+#extract-all-section {
+  margin-left: 8px;
 }
 .checkbox-label {
   display: inline-flex;
@@ -450,35 +459,61 @@ button.is-loading::before {
   cursor: help;
   user-select: none;
 }
+/* 气泡本体（::after）与尖角（::before）的共用属性：显隐、上浮、底色写一次，
+   两边同步（尖角必须与气泡同色，否则接缝会显出一道边；显隐也必须同步，否则只亮一半）。
+   出现/消失带 2px 上浮——用独立的 translate 属性做，不动负责水平居中的 transform。
+   底色不透明：半透明色叠两层必然在重叠处显出更深的方块。 */
+.tip-icon::before,
+.tip-icon::after {
+  position: absolute;
+  background: var(--text-secondary); /* 不透明深灰 #475569（原 0.86 半透明 + 模糊；--text-primary 又太黑，取次级字色） */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--transition-fast), visibility var(--transition-fast), translate var(--transition-fast);
+  translate: 0 2px; /* 隐藏时整体低 2px，出现时升到位（极轻的“冒出来”） */
+}
+/* 气泡本体 */
 .tip-icon::after {
   content: attr(data-tip);
-  position: absolute;
   left: 50%;
   bottom: calc(100% + 8px);
   transform: translateX(-50%);
   width: max-content;
   max-width: 240px;
   padding: 8px 16px;
-  background: rgba(var(--text-primary-rgb), 0.86); /* 半透明深色 + 模糊，比纯黑柔和 */
   color: var(--bg-card);
   border-radius: var(--radius-md); /* 收敛历史 6px */
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
   font-size: var(--text-sm);
   line-height: 1.5;
   text-align: center;
   white-space: normal;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity var(--transition-fast), visibility var(--transition-fast);
   z-index: var(--z-tooltip);
   box-shadow: var(--shadow-elevated);
 }
+/* 气泡尖角：8×8 方块自转 45° 成菱形，中心咬在气泡下缘，正指着 ℹ️。
+   几何：方块底边在图标上方 4px、高 8px → 中心在图标上方 8px，正是气泡下缘；
+   旋转后最下端顶点落在图标上方约 2px（尖锋几乎触到图标），上半截被气泡盖住（见下）。
+   水平居中用 left 算而不是 translateX(-50%)：旋转后的外接盒是 11.3px 不是 8px，
+   用 -50% 会偏 1.7px；left: calc(50% - 4px) 让「方块中心」落在中线上，旋转不改变中心。 */
+.tip-icon::before {
+  content: '';
+  left: calc(50% - 4px);
+  bottom: calc(100% + 4px);
+  width: 8px;
+  height: 8px;
+  transform: rotate(45deg);
+}
+/* ::before 在 ::after 之前绘制，且 ::after 带 z-index —— 菱形的上半截自动被气泡盖住，
+   露在外面的正好是一个指着图标的小三角，不需要额外裁剪。
+   悬停 / 键盘聚焦（焦点落在 ℹ️ 上）同时点亮两个伪元素 */
+.tip-icon:hover::before,
 .tip-icon:hover::after,
+.tip-icon:focus-visible::before,
 .tip-icon:focus-visible::after {
   opacity: 1;
   visibility: visible;
+  translate: 0 0;
 }
 
 /* ===== 运行配置卡：岗位弹性变宽 =====
@@ -573,9 +608,10 @@ button.is-loading::before {
   min-width: 100%;
   z-index: var(--z-dropdown);
   background: var(--bg-card);
-  border: 1px solid var(--border-input);
+  border: 1px solid var(--border-card); /* 浮层描边取最浅档：悬在下方的白面是「浮起来」的，靠阴影分层即可，
+                                          用 --border-input（输入框档）会像一块画了边框的贴纸，太重（用户反馈） */
   border-radius: var(--radius-input);
-  box-shadow: var(--shadow-elevated);
+  box-shadow: var(--shadow-dropdown); /* 下拉专属浅阴影：--shadow-elevated 在白色面板下太重（用户反馈） */
   display: flex;
   flex-direction: column;
   gap: 2px; /* 选项胶囊间的白缝：刻意收紧到 2px（小于 space-1 半拍，仅此微缝用），相邻选中/悬停块仍不粘连 */
@@ -602,7 +638,7 @@ button.is-loading::before {
   white-space: nowrap;
 }
 .custom-select-option:hover {
-  background: var(--bg-accent-tint); /* 悬停未选中 = 4% 淡底（同来源分段按钮），只提示可点，字色不变 */
+  background: var(--bg-accent-tint); /* 悬停未选中 = 5% 淡底（同来源分段按钮），只提示可点，字色不变 */
 }
 .custom-select-option:active {
   background: var(--bg-accent-tint-active); /* 按下比悬停再深一档，整行反馈（选项行不宜整体缩放） */
@@ -654,18 +690,20 @@ button.is-loading::before {
 .btn--primary:hover:not(:disabled) { background: var(--color-accent-hover); box-shadow: 0 4px 15px rgba(var(--color-accent-rgb),0.3); }
 .btn--primary:active:not(:disabled) { background: var(--color-accent-active); }
 .btn--secondary { background: var(--bg-card); color: var(--color-accent); border-color: var(--color-accent); }
-.btn--secondary:hover:not(:disabled) { background: rgba(var(--color-accent-rgb),0.06); box-shadow: 0 2px 8px rgba(var(--color-accent-rgb),0.15); }
+.btn--secondary:hover:not(:disabled) { background: var(--bg-accent-tint); box-shadow: 0 2px 8px rgba(var(--color-accent-rgb),0.15); }
 .btn--ghost { background: transparent; color: var(--text-secondary); border-color: var(--border-input); }
 .btn--ghost:hover:not(:disabled) { background: var(--bg-page); color: var(--text-primary); }
 /* 破坏性操作（删除岗位/清空历史）用红底白字，重操作一眼可辨；不用红描边以免和次要红字链接混淆 */
 .btn--danger { background: var(--color-error); color: var(--text-on-accent); border-color: var(--color-error); }
 .btn--danger:hover:not(:disabled) { background: var(--color-error-strong); border-color: var(--color-error-strong); color: var(--text-on-accent); }
 .btn--danger:active:not(:disabled) { background: var(--color-error-strong); color: var(--text-on-accent); }
-.btn--warning { background: rgba(var(--color-warning-rgb),0.1); color: var(--color-warning-strong); border-color: var(--color-warning); }
-.btn--warning:hover:not(:disabled) { background: rgba(var(--color-warning-rgb),0.2); border-color: var(--color-warning-strong); }
-/* 「暂停」变「继续」后的视觉区分：琥珀色浅底，一眼看出提取被停住 */
-.btn--paused { background: rgba(var(--color-warning-rgb),0.12); color: var(--color-warning-strong); border-color: var(--color-warning); }
-.btn--paused:hover:not(:disabled) { background: rgba(var(--color-warning-rgb),0.2); border-color: var(--color-warning-strong); color: var(--color-warning-strong); }
+/* 警示档：琥珀浅底 + warning 描边。两个类同款，合并成一条选择器列表——
+   .btn--warning 给「跳过本次」这类警示动作，.btn--paused 给「暂停已生效」的状态标记，
+   语义不同、外观一致（琥珀浅底 + warning 描边），分别维护会在改色时漏掉一个 */
+.btn--warning,
+.btn--paused { background: var(--bg-warning); color: var(--color-warning-strong); border-color: var(--color-warning); }
+.btn--warning:hover:not(:disabled),
+.btn--paused:hover:not(:disabled) { background: rgba(var(--color-warning-rgb),0.2); border-color: var(--color-warning-strong); }
 /* 运行区按钮（暂停/继续/跳过）统一用 14px Material SVG 图标：SVG 作为 flex item 由
    align-items:center 几何居中，无需 emoji 的字形微调；缩小图标与文字的间距让三个按钮更紧凑 */
 .running-actions .btn { gap: 4px; }
@@ -678,9 +716,9 @@ button.is-loading::before {
 
 /* 「开始提取分析」是站内唯一 .btn--lg：lg(16) 字号 + 8px 垂直内距 → 高约 40px（前导播放图标已去掉，纯文字） */
 
-/* 链接式小按钮：带灰描边的轻动作。蓝字本体现在已无任何在用按钮（最后一只「历史记录」
-   已转 btn--secondary）；仅剩两只危险用途靠 .btn--link-danger 叠出红字：
-   抽屉底部「清空历史记录」btn--link、历史行内「删除」btn--sm btn--ghost */
+/* 链接式小按钮：轻动作的紧凑档（白底 + 12px 字 + 更小的内距）。
+   蓝字本体现在已无任何在用按钮（最后一只「历史记录」已转 btn--secondary），
+   只剩「清空历史记录」借它的尺寸；红字由下面的 .btn--danger-ghost 叠上 */
 .btn--link {
   background: var(--bg-card);
   color: var(--color-accent);
@@ -689,93 +727,44 @@ button.is-loading::before {
   font-size: var(--text-sm);
 }
 .btn--link:hover:not(:disabled) { border-color: var(--color-accent); background: var(--bg-accent-tint); }
-.btn--link-danger { color: var(--color-error); }
-.btn--link-danger:hover:not(:disabled) { border-color: var(--color-error); background: rgba(var(--color-error-rgb),0.04); color: var(--color-error-strong); }
 
-/* ===== Collapsible Card ===== */
-.collapsible-card {
-  padding: 0;
-  overflow: hidden;
-  gap: 0;
+/* 幽灵危险钮：行内删除 / 清空历史这类「轻量破坏性动作」。
+   描边钮一律「描边与文字同色」——secondary 蓝描边蓝字、ghost 灰描边灰字、本档红描边红字。
+   （历史遗留：删除与清空曾是「灰描边 + 红字」，与蓝描边蓝字并存两套「这个不一样」的表达，
+     同一层级的差异却用了边框和字色两种机制，读起来像没做完；用户要求统一）
+   只做描边浅底、不做红底白字：后者留给确认弹窗里的 .btn--danger，重操作与轻操作一眼可分 */
+.btn--danger-ghost {
+  background: transparent;
+  color: var(--color-error);
+  border-color: var(--color-error);
 }
-/* 设置卡头部：单行折叠按钮（保存按钮已放回卡内右对齐，见 .collapsible-actions） */
-.collapsible-topbar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.btn--danger-ghost:hover:not(:disabled) {
+  background: rgba(var(--color-error-rgb),0.06);
+  border-color: var(--color-error-strong);
+  color: var(--color-error-strong);
 }
-.collapsible-topbar .collapsible-header {
-  flex: 1;
-  width: auto;
-}
-.collapsible-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  /* 折叠条上下内边距 16：配合标题行高 1（见 .collapsible-title），整条约 48px 高——
-     用户反馈折叠后那条「设置」头偏矮，加高更好点、折起来也更醒目。改档位只动这一处。 */
-  padding: 16px;
-  cursor: pointer;
-  -webkit-app-region: no-drag;
-  user-select: none;
-  border: none;
-  background: none;
-  width: 100%;
-  text-align: left;
-  font-size: inherit;
-  transition: background var(--transition-fast);
-}
-/* 折叠头不做悬停底色：卡片与页面都是浅色，hover 底色易与背景融为一体，
-   只保留箭头/标题颜色与 pointer 光标作为可点提示（点击后整卡展开更明确）。
-   但按下（:active）仍给一次浅灰底色：整行可点元素用底色代替整体缩放，按下有反馈、松开即消失。 */
-.collapsible-header:active {
-  background: var(--bg-subtle);
-}
-.collapsible-header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.collapsible-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.75;
-}
-.collapsible-title {
-  font-size: var(--text-lg); /* 折叠卡标题：与 .card-title 同为「模块标题档」16px——设置卡与运行配置卡是同级模块，标题必须同档同色，不能一大一小 */
-  font-weight: 600;
-  color: var(--text-secondary);
-  line-height: 1; /* 文字行高＝字号，消除 CJK 字体上下半行空隙，与 15px 齿轮图标精确同行居中 */
-}
-.collapsible-arrow {
-  flex-shrink: 0; /* 15×15 chevron svg，随 currentColor 取色 */
-  color: var(--text-muted);
-  transition: transform var(--transition-normal);
-}
-.collapsible-arrow.expanded {
-  transform: rotate(90deg);
-}
-.collapsible-body {
-  max-height: 0;
-  overflow: hidden;
-  padding: 0 16px;
+
+/* ===== 设置弹窗（原首页折叠卡，v1.12.0 搬进弹窗） =====
+   高度封顶 90vh、表单区自己滚，标题与底部按钮固定不动 —— 窗口拉矮时用户看到的永远是
+   「标题 + 可滚的表单 + 保存按钮」，按钮不会被挤出可视区。
+   为什么是 90vh 而不是原来的 78vh：五个字段组的自然高度实测 550px，78vh 在设计视口(720)下只有
+   562px，只剩 11px 余量 —— 稍矮一点的窗口就溢出、表单区开始滚，用户反馈「内容一页放不下」。
+   90vh = 648px，留出 98px 余量，正常窗口下永远不需要滚。 */
+.settings-box {
+  /* 宽度沿用 .dialog-box 的 504px，不重复声明：两个类都挂在同一元素上，重复写只会
+     在基底改宽度时留下一个悄悄不同步的旧值（.confirm-box / .history-box 是有意改宽，才覆写） */
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  opacity: 0;
-  transition: max-height var(--transition-normal), opacity var(--transition-normal), padding var(--transition-normal);
 }
-.collapsible-body.expanded {
-  max-height: 1104px;
-  padding: 8px 16px 16px;
-  opacity: 1;
-}
-/* 卡内右下角动作行（保存设置） */
-.collapsible-actions {
+.settings-body {
   display: flex;
-  justify-content: flex-end;
-  padding-top: 4px;
+  flex-direction: column;
+  gap: var(--space-4); /* 字段组之间 16px，与弹窗内其它字段的节奏一致 */
+  overflow-y: auto;
+  overscroll-behavior: contain; /* 表单区滚到顶/底后不再把滚动链传给遮罩背后的主界面（同 .history-list） */
+  min-height: 0; /* 允许被压到内容高度以下，flex 子项的滚动才会真正生效 */
+  padding-bottom: var(--space-1); /* 滚到底时最后一行不贴死底部按钮 */
 }
 
 /* ===== Input Text ===== */
@@ -792,10 +781,14 @@ button.is-loading::before {
   transition: border-color var(--transition-fast);
   -webkit-app-region: no-drag;
 }
+.input-text:hover:not(:disabled) {
+  border-color: var(--color-accent); /* 悬停描边变 accent（§8 输入框四态之一，同 .dialog-field input） */
+}
 .input-text:focus {
   border-color: var(--color-accent);
   box-shadow: var(--ring-input); /* 输入框浅聚焦环：tokens --ring-input 单源 */
 }
+/* .input-text:disabled 与 .input-number:disabled 的共用规则在文件上方（.input-number 那一节） */
 .input-text::placeholder {
   color: var(--text-muted);
 }
@@ -854,6 +847,10 @@ button.is-loading::before {
   opacity: 1;
   color: var(--text-secondary);
 }
+.input-toggle:active {
+  opacity: 1;
+  color: var(--text-primary); /* 按下再深一档（§8 五态底线：图标钮没有底色可加，靠字色给反馈） */
+}
 
 /* ===== 输入框一键清空（学 Google） =====
    平时只有细 ×（浅灰），鼠标悬停时外圈浮出浅灰圆底、× 变深。无内容时不显示。
@@ -875,6 +872,10 @@ button.is-loading::before {
 .input-clear:hover {
   background: rgba(var(--text-muted-rgb), 0.18);
   color: var(--text-secondary);
+}
+.input-clear:active {
+  background: rgba(var(--text-muted-rgb), 0.3); /* 按下圆底再深一档（§8 五态底线） */
+  color: var(--text-primary);
 }
 
 /* ===== Output Row ===== */

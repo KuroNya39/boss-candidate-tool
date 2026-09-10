@@ -149,33 +149,14 @@ async function loadApiConfig() {
   updateConfigStatus();
 }
 
-// 设置缺失时指出具体缺哪一项（未设置 → 「未设置：缺 API 地址（或 Key / 模型）」）
-function missingConfigFields() {
-  const missing = [];
-  if (!apiUrlInput.value.trim()) missing.push('API 地址');
-  if (!apiKeyInput.value.trim()) missing.push('API Key');
-  if (!apiModelInput.value.trim()) missing.push('模型名称');
-  return missing;
-}
-
-// 根据设置是否完整，决定主按钮可用性与下方提示（无状态胶囊，仅做门控）
+// 根据设置是否完整决定主按钮能不能点（仅做门控，按钮下方不加说明文字）。
+// 未配置时按钮就是灰的，设置入口在左上角「⋮」菜单里
 async function updateConfigStatus() {
-  const hint = document.getElementById('btn-start-hint');
-  const missing = missingConfigFields();
-  const setMissing = (msg) => {
-    btnStart.disabled = true;
-    if (hint) hint.textContent = msg || '请先展开上方「设置」填写 ' + missing.join('、') + ' 并保存';
-  };
   try {
     const status = await window.electronAPI.getApiConfigStatus();
-    if (status.configured) {
-      btnStart.disabled = false;
-      if (hint) hint.textContent = '';
-    } else {
-      setMissing();
-    }
+    btnStart.disabled = !status.configured;
   } catch {
-    setMissing();
+    btnStart.disabled = true;
   }
 }
 
@@ -215,12 +196,5 @@ btnSaveConfig.addEventListener('click', async () => {
   } catch (err) {
     showToast('保存失败：' + err.message, 'error', 4000);
   }
-});
-
-// Collapsible API Config
-apiConfigToggle.addEventListener('click', () => {
-  const expanded = apiConfigBody.classList.toggle('expanded');
-  apiConfigArrow.classList.toggle('expanded');
-  apiConfigToggle.setAttribute('aria-expanded', String(expanded));
 });
 
