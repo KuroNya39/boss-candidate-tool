@@ -250,6 +250,7 @@
 - **按钮内**图标边长还要受 §8 的比例约束（≲ 字号 1.1×）：14px 文字的菜单项配 16 图标，不配 18——18 是留给「没有文字、自己占一格」的页头图标钮的。
 - 实现：全部画在 `index.html` 顶部 `<symbol>` 库（24 viewBox、`currentColor`），用 `<svg><use href="#icon-…"/></svg>` 引用，界面不散落 `<path>`；方向箭头用 `icon-chevron-*` 由 CSS `rotate()` 转向，不写字形字符。
 - 颜色跟随 `currentColor`；需调淡的次要图标统一走 `--icon-muted` 或 `opacity:.75`。
+- **图标与中文同一行时，垂直方向对齐文字的「墨迹中线」，不能只靠 flex 盒子居中**：中文在字体行框里比中线低约 0.035em（14px 字号 ≈ 0.5px），只做盒子居中会让图标看着偏高半像素，齿轮这类上下对称的图标最明显。做法是给该行图标半个像素的光学补偿（`.menu-item svg` 的 `translateY(0.5px)`，按 0.035em 随字号走），不是把图标盒撑高、也不改行高。
 - `icon-resize`（岗位描述框拖拽手柄）是全站唯一内联画线：两条 45° 斜线平行、短线收在右下不越出长线，保持该几何。
 
 ---
@@ -269,7 +270,7 @@
 | 组件 | 状态要点 | 关键规范 |
 |---|---|---|
 | **按钮** `.btn` | rest / hover（浅上浮）/ active（scale .98）/ focus-visible / disabled / loading | 变体：`primary`（accent 实心，主 CTA）→ `secondary`（描边）/ `ghost`（次操作）→ `danger`（红实心，仅确认弹窗破坏位）/ `danger-ghost`（红描边，行内删除、清空历史这类轻量破坏动作）。主行动实心、次要描边 / 幽灵，层级一眼可分。**描边钮一律描边与文字同色**（secondary 蓝、ghost 灰、danger-ghost 红），不允许「灰描边 + 彩字」的混搭。尺寸 `btn--sm/lg/block`。文字常规 400，仅 `.btn--lg` 加粗 600。 |
-| **输入框** `.input-text` | rest（hover 描边变 accent）/ focus（accent 边框 + 浅环）/ disabled / 错误态（error 边框 + 提示文字或图标） | `--radius-md` / `--border-input` / `--bg-input`。错误不只变红。 |
+| **输入框** `.input-text` | rest（hover 描边变 accent）/ focus（accent 边框 + 浅环）/ disabled / 错误态（error 边框 + 提示文字或图标） | `--radius-md` / `--border-input` / `--bg-input`。错误不只变红。字段之间有依赖时（「邮箱密码」依赖「邮箱地址」）用原生 `disabled` 整框禁用、框内图标钮一起禁用，并换一句 placeholder 说明为什么不能填——不只靠变灰；已存的值不清空，依赖满足后原样回来。密码框每次打开弹窗一律复位成隐藏态，不把上次点开过的明文留在屏幕上。 |
 | **下拉 / 分段钮 / 开关** | 五态；选中态 accent | 原生 `<select>` 在 Electron 部分场景打不开 → 下拉统一用自研 `custom-select`，任何情况可展开，菜单朝上展开时箭头 `rotate(180°)` 指向菜单。分段钮 `toggle-group`：槽底 = `--bg-subtle`（下陷面，**不用 `--bg-page`**——它和白色卡片只差一点点，槽的轮廓在白卡里几乎看不见）；选中 = 浅蓝底 `rgba(accent,.10)` + accent 蓝字（轻量选中态，不与主 CTA 实心蓝撞车）。accent 洗涤固定三档 `5 / 10 / 15`（悬停未选中 / 选中 / 悬停选中·按下），档间恒差 5，取值只在 `tokens.css` 三行里改；其中选中档 `.10` 是本节定值，不随同批调整。 |
 | **卡片** `.card` | 可点卡 hover 浅浮 / focus-visible 环 | 白底 + `--shadow-card`、无描边、内距 16、内部 gap 8。 |
 | **设置弹窗** `.settings-box` | 与 `.dialog-box` 同一套进出 | 高度封顶 90vh、表单区自己滚，标题与底部按钮固定不动；保存后不自动关闭，按钮旁弹提示。 |
@@ -281,7 +282,7 @@
 | **步骤条** `.step-item` | running：accent 步号 + 脉冲；done：success + pop | 步号 + 标题 + 状态文字三通道给状态；标题常规 400，层次靠步号色块。 |
 | **候选人列表行** `.result-item` | 整行可点，hover 底色 + focus-visible 环 | 姓名常规 400 + 省略号，分数 600 `tabular-nums`，评分理由两端对齐。 |
 | **统计块** `.results-stats` | — | 四指标并排：大号数字 600 `tabular-nums`，配档位分布条。 |
-| **弹窗** `.dialog-overlay/.dialog-box` | 遮罩 + 面板同拍进出 | `--radius-xl`、`--shadow-md`、遮罩 `--color-scrim`；Esc 取消、Tab 圈内循环。危险确认弹窗说明后果。 |
+| **弹窗** `.dialog-overlay/.dialog-box` | 遮罩 + 面板同拍进出 | `--radius-xl`、`--shadow-md`、遮罩 `--color-scrim`；Esc 取消、Tab 圈内循环；点遮罩空白关闭必须走 `bindBackdropDismiss`——「按下与松开都落在遮罩上」才算数，只判 click 的 `e.target` 会把「弹窗内按住拖动、松手已在弹窗外」（如在长输入框里拖看后面的内容）误判成点空白：此时 click 派发到按下点与松开点的共同祖先，正是遮罩本身。危险确认弹窗说明后果。 |
 | **历史记录弹窗** `.history-box` | 与设置同一套居中弹窗，Esc / 点遮罩关闭 | 标题 + 可滚列表 + 底部操作区（无分割线，靠留白分层）；滚动条隐藏；空态「暂无历史记录。」；删除 / 清空经确认弹窗。 |
 | **Toast** | 进 `toast-in` / 退 `toast-out` | 顶部居中，语义浅底 + strong 字。live region 由**每条 toast 自己带**（错误 `role=alert`、其余 `role=status`），容器**不标** `role=status`——`live region` 套 `live region` 会把同一条提示念两遍。 |
 

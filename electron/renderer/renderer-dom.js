@@ -83,6 +83,8 @@ const btnSaveConfig = document.getElementById('btn-save-config');
 // 邮件配置 DOM
 const emailPrefixInput = document.getElementById('email-prefix');
 const smtpPassInput = document.getElementById('smtp-pass');
+// 密码框的眼睛按钮：邮箱地址为空时要跟着一起禁用（见 renderer-ipc.js 的 updateSmtpPassState）
+const smtpPassToggle = document.querySelector('.input-toggle[data-target="smtp-pass"]');
 
 // 批量打招呼 DOM
 const greetSection = document.getElementById('greet-section');

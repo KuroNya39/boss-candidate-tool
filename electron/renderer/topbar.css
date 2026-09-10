@@ -117,6 +117,11 @@ header h1 {
 .menu-item svg {
   flex-shrink: 0;
   color: var(--text-secondary);
+  /* 光学对齐（由实测反推，非随手值）：图标盒和文字行框都是「盒子居中」，但中文在字体里
+     坐得比行框中线低一点点——14px 字号下约 0.5px。于是图标相对文字的「墨迹」看着偏高半像素
+     （齿轮这种上下对称的图标最显眼）。下移半像素后，实测图标与文字的墨迹中线重合（差 ≤0.2px）。
+     改字号要重新量：偏移量按 0.035em 走，14px → 0.5px、16px → 0.55px */
+  transform: translateY(0.5px);
 }
 .menu-item:hover {
   background: var(--bg-accent-tint); /* 悬停 = 5% 淡底（同下拉选项），字色与图标都不变 */

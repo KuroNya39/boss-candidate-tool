@@ -304,7 +304,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       // 发件邮箱 = 收件邮箱 = 填的邮箱（必须填完整邮箱，含 @；工具会分享给不同公司使用，不再自动补域名）
       const emailUser = apiConfig.emailPrefix.trim();
       if (!emailUser.includes('@')) {
-        throw new Error('「邮件通知」的邮箱请填写完整地址（含 @），例如 hr@example.com，否则无法发送邮件');
+        throw new Error('「邮箱地址」请填写完整地址（含 @），例如 hr@example.com，否则无法发送邮件');
       }
       exportArgs.push('--to-prefix', emailUser);
       exportArgs.push('--email-subject', emailSubject);

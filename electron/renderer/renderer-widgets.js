@@ -151,6 +151,45 @@ function initCustomSelect(container) {
 initCustomSelect(greetLevel);
 initCustomSelect(autoGreetLevel);
 
+// ===== 密码框的显示 / 隐藏（👁）=====
+// 引用 index.html 顶部图标库里的 #icon-eye-on / #icon-eye-off，切换时大小位置不跳。
+// 放在通用 widget 里（原先挂在 renderer-greet.js 的 init 内）是为了让「复位」能跨文件被调：
+// 设置弹窗每次打开都把密码框复位成隐藏态（renderer-dialogs.js 的 openSettingsDialog），
+// 上次点开看过的明文不该关了弹窗还留在屏幕上
+const EYE_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-on"/></svg>';
+const EYE_OFF_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-off"/></svg>';
+
+// 单个密码框复位成隐藏（闭眼）。renderer-ipc.js 禁用一个密码框时也走它，
+// 免得「灰框里晾着明文密码」
+function setPasswordHidden(toggle) {
+  const targetId = toggle.getAttribute('data-target');
+  const input = targetId && document.getElementById(targetId);
+  if (!input) return;
+  input.type = 'password';
+  toggle.innerHTML = EYE_OFF_SVG; // 隐藏 → 闭眼
+  toggle.setAttribute('aria-pressed', 'false');
+}
+
+// 所有密码框一律复位（设置弹窗每次打开时调）
+function resetPasswordToggles() {
+  document.querySelectorAll('.input-toggle').forEach(setPasswordHidden);
+}
+
+document.addEventListener('click', (e) => {
+  const toggle = e.target.closest('.input-toggle');
+  if (!toggle) return;
+  const targetId = toggle.getAttribute('data-target');
+  const input = targetId && document.getElementById(targetId);
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    toggle.innerHTML = EYE_SVG; // 明文 → 睁眼
+    toggle.setAttribute('aria-pressed', 'true');
+  } else {
+    setPasswordHidden(toggle);
+  }
+});
+
 // ===== 步骤元素 =====
 const stepCards = {
   1: {
@@ -201,6 +240,37 @@ function showToast(message, type = 'info', duration = 3000) {
   }, duration);
 }
 
+// ===== 遮罩空白处关闭弹窗（设置 / 历史记录 / 目标岗位 / 添加编辑岗位 / 确认弹窗共用）=====
+// 光判 click 的 e.target === overlay 是不够的：在弹窗里按下鼠标、拖到弹窗外再松开
+// （最典型的是在很长的输入框里按住拖动看后面的内容），浏览器会把 click 派发到「按下点与
+// 松开点的共同祖先」——正是遮罩本身，target 恰好等于 overlay，弹窗就被当「点了空白」关掉，
+// 用户刚填的内容还没保存就没了。松手落到窗口外时同理（click 也可能整个不派发，或派发给遮罩）。
+// 所以「点了空白」要按下、松开、click 三个点都落在遮罩上才算，任一环节在弹窗内就不关。
+// 返回值是解绑函数，给按次挂载监听的弹窗（确认弹窗）在关闭时摘干净。
+function bindBackdropDismiss(overlay, dismiss) {
+  let downOnBackdrop = false;
+  let upOnBackdrop = false;
+  const onDown = (e) => {
+    downOnBackdrop = e.target === overlay;
+    upOnBackdrop = false; // 松手前先作废：万一本轮没有 pointerup 派发（松手落在窗口外），也不会沿用上一轮的旧值
+  };
+  const onUp = (e) => { upOnBackdrop = e.target === overlay; };
+  const onClick = (e) => {
+    const backdrop = downOnBackdrop && upOnBackdrop && e.target === overlay;
+    downOnBackdrop = false;
+    upOnBackdrop = false;
+    if (backdrop) dismiss();
+  };
+  overlay.addEventListener('pointerdown', onDown);
+  overlay.addEventListener('pointerup', onUp);
+  overlay.addEventListener('click', onClick);
+  return () => {
+    overlay.removeEventListener('pointerdown', onDown);
+    overlay.removeEventListener('pointerup', onUp);
+    overlay.removeEventListener('click', onClick);
+  };
+}
+
 // ===== 通用确认弹窗（替代原生 confirm/alert）=====
 // 返回 Promise<boolean>。danger 时确定按钮变红色；showCancel:false 时只保留确定按钮。
 function confirmDialog({ title, message, okText = '确定', cancelText = '取消', danger = false, showCancel = true }) {
@@ -239,14 +309,13 @@ function confirmDialog({ title, message, okText = '确定', cancelText = '取消
       overlay.style.display = 'none';
       okBtn.removeEventListener('click', onOk);
       cancelBtn.removeEventListener('click', onCancel);
-      overlay.removeEventListener('click', onBackdrop);
+      unbindBackdrop();
       document.removeEventListener('keydown', onKey);
       if (prevFocus && typeof prevFocus.focus === 'function') prevFocus.focus();
       resolve(val);
     };
     const onOk = () => done(true);
     const onCancel = () => done(false);
-    const onBackdrop = (e) => { if (e.target === overlay) done(false); };
     const onKey = (e) => {
       if (e.key === 'Escape') { done(false); return; }
       if (e.key === 'Enter' && e.target === okBtn) { done(true); return; }
@@ -262,7 +331,7 @@ function confirmDialog({ title, message, okText = '确定', cancelText = '取消
     };
     okBtn.addEventListener('click', onOk);
     cancelBtn.addEventListener('click', onCancel);
-    overlay.addEventListener('click', onBackdrop);
+    const unbindBackdrop = bindBackdropDismiss(overlay, () => done(false));
     document.addEventListener('keydown', onKey);
   });
 }

@@ -146,8 +146,24 @@ async function loadApiConfig() {
     if (config.emailPrefix) emailPrefixInput.value = config.emailPrefix;
     if (config.smtpPass) smtpPassInput.value = config.smtpPass;
   } catch {}
+  updateSmtpPassState(); // 值填完再定密码框的状态，否则会先按空值禁用一次
   updateConfigStatus();
 }
+
+// 邮箱密码框跟着邮箱地址走：没填地址就禁用（没地址 = 没发件人，密码填了也发不出去），
+// 填了地址才恢复可填。用原生 disabled —— config.css 里 .input-text:disabled /
+// .input-toggle:disabled 已备好禁用那一档；placeholder 顺便换一句话，免得灰框看着像坏了
+// （§9「状态不只靠颜色」）。禁用不清空已存的密码：把地址填回来，之前的密码还在。
+const SMTP_PASS_PLACEHOLDER = smtpPassInput.placeholder; // 原文写在 index.html 的 placeholder 属性上，不在这里抄第二份
+function updateSmtpPassState() {
+  const off = !emailPrefixInput.value.trim();
+  smtpPassInput.disabled = off;
+  smtpPassInput.placeholder = off ? '请先填写上方邮箱地址' : SMTP_PASS_PLACEHOLDER;
+  smtpPassToggle.disabled = off;
+  // 顺手收回「点了眼睛在看明文」的状态：灰框里晾着一个明文密码很怪
+  if (off && smtpPassInput.type === 'text') setPasswordHidden(smtpPassToggle);
+}
+emailPrefixInput.addEventListener('input', updateSmtpPassState);
 
 // 根据设置是否完整决定主按钮能不能点（仅做门控，按钮下方不加说明文字）。
 // 未配置时按钮就是灰的，设置入口在左上角「⋮」菜单里

@@ -202,10 +202,10 @@ btnHistory.addEventListener('click', () => {
   closeMenu({ restoreFocus: true });
   openHistoryDrawer();
 });
-// 点击遮罩空白处关闭（无右上角 ×，Esc 也能关，见全局 Escape 处理）
-historyOverlay.addEventListener('click', (e) => {
-  if (e.target === historyOverlay) closeHistoryDrawer();
-});
+// 点击遮罩空白处关闭（无右上角 ×，Esc 也能关，见全局 Escape 处理）。
+// 走 bindBackdropDismiss（见 renderer-widgets.js）：按下与松开都落在遮罩上才算点空白，
+// 在弹窗内拖动选字松手拖到窗外不会把它误关
+bindBackdropDismiss(historyOverlay, closeHistoryDrawer);
 
 // 历史弹窗打开时，滚轮只作用于弹窗里的历史列表，不带动背后的主界面滚动。
 // 指针在列表上时交给浏览器原生滚动（顺滑、跟手，适配不同鼠标/触控板的滚动增量）；

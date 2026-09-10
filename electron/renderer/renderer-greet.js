@@ -138,26 +138,6 @@ async function init() {
     if (verEl && version) verEl.textContent = `v${version}`;
   } catch {}
 
-  // 密码框显示/隐藏切换（👁 点击切换，睁眼/闭眼图标）
-  // 引用 index.html 顶部图标库里的 #icon-eye-on / #icon-eye-off，切换时大小位置不跳
-  const EYE_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-on"/></svg>';
-  const EYE_OFF_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-off"/></svg>';
-  document.addEventListener('click', (e) => {
-    const toggle = e.target.closest('.input-toggle');
-    if (!toggle) return;
-    const targetId = toggle.getAttribute('data-target');
-    const input = targetId && document.getElementById(targetId);
-    if (input && input.type === 'password') {
-      input.type = 'text';
-      toggle.innerHTML = EYE_SVG; // 明文 → 睁眼
-      toggle.setAttribute('aria-pressed', 'true');
-    } else if (input) {
-      input.type = 'password';
-      toggle.innerHTML = EYE_OFF_SVG; // 隐藏 → 闭眼
-      toggle.setAttribute('aria-pressed', 'false');
-    }
-  });
-
   await loadApiConfig();
   await updateCdpStatus();
   // 轮询 CDP 状态（未连接时持续刷新，用户勾选 Chrome 远程调试后自动变绿）

@@ -838,6 +838,20 @@ body.is-dragging-source * {
   user-select: none;
   -webkit-app-region: no-drag;
 }
+/* 禁用态：整族一条（同 .btn:disabled 的做法），谁被禁用都吃它 —— 眼睛 / 清空 × / 文件夹
+   三个按钮共用这个底座，不必每个变体各写一份。图标钮没有底色可加，禁用靠
+   「更淡 + 禁用字色 + 禁止光标」表达。
+   连 :hover / :active 一起列上：禁用元素照样会被鼠标划过命中 :hover，不写死就会「灰着还
+   亮起来」，看着像能点。这里用显式选择器而不是给各变体的悬停补 :not(:disabled)——那要把
+   守卫补在每个变体上，漏一个就复发；`.btn` 那族要守卫是因为 `.btn:disabled` 换的是底色/
+   字色另一组属性，本就压不住悬停的 background */
+.field-icon-btn:disabled,
+.field-icon-btn:disabled:hover,
+.field-icon-btn:disabled:active {
+  opacity: 0.4;
+  color: var(--color-disabled-text);
+  cursor: not-allowed;
+}
 /* 密码框眼睛按钮：静置淡一些，悬停加深并完全显示 */
 .input-toggle {
   opacity: 0.65;

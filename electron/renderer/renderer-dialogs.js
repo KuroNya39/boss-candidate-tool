@@ -177,6 +177,10 @@ window.addEventListener('resize', () => closeMenu({ restoreFocus: true }));
 
 // ===== 设置弹窗 =====
 function openSettingsDialog() {
+  // 每次打开都把密码框复位成隐藏态：上一次点开的明文不该关了弹窗还留在屏幕上。
+  // 邮箱密码框「能不能填」不在这里重算 —— 值只可能从设置弹窗里改，改的时候
+  // renderer-ipc.js 的 input 监听已经同步过状态，启动时 loadApiConfig 也定过一次
+  resetPasswordToggles();
   openDialog(settingsOverlay, apiUrlInput);
 }
 function closeSettingsDialog() {
@@ -187,9 +191,10 @@ btnOpenSettings.addEventListener('click', () => {
   openSettingsDialog();
 });
 btnSettingsClose.addEventListener('click', closeSettingsDialog);
-settingsOverlay.addEventListener('click', (e) => {
-  if (e.target === settingsOverlay) closeSettingsDialog();
-});
+// 点遮罩空白关闭。走 bindBackdropDismiss（见 renderer-widgets.js）：
+// 只在遮罩上按下并松开才算「点空白」——在 API Key 这类长输入框里按住拖动看后面的内容、
+// 松手时指针已经拖到弹窗外，以前会被判成「点了空白」直接关掉，没保存的内容就丢了
+bindBackdropDismiss(settingsOverlay, closeSettingsDialog);
 
 // 全局 Escape：关闭当前打开的弹窗（菜单 → 各弹窗，一次只关一层）
 document.addEventListener('keydown', (e) => {
@@ -219,9 +224,8 @@ function hideJobPicker() {
 // 目标岗位弹窗事件
 jobDisplay.addEventListener('click', showJobPicker);
 btnPickerCancel.addEventListener('click', hideJobPicker);
-jobPickerOverlay.addEventListener('click', (e) => {
-  if (e.target === jobPickerOverlay) hideJobPicker();
-});
+// 点遮罩空白关闭（同上：只在遮罩上按下并松开才算，拖动选字不会误关）
+bindBackdropDismiss(jobPickerOverlay, hideJobPicker);
 // 岗位搜索：输入实时过滤列表
 jobSearchInput.addEventListener('input', () => {
   jobSearchQuery = jobSearchInput.value;
@@ -495,17 +499,15 @@ async function deleteJob(jobName) {
 btnDialogCancel.addEventListener('click', hideAddJobDialog);
 // 岗位描述文本域：右下角自定义拖拽手柄，替代原生 resize 手柄
 const dialogResizeHandle = document.getElementById('dialog-resize-handle');
-let isDialogResizing = false;
-jobDialogOverlay.addEventListener('click', (e) => {
-  // 点遮罩空白 = 直接关掉所有弹窗回主界面（不退回目标岗位列表，见 closeJobDialogAll）
-  if (e.target === jobDialogOverlay && !isDialogResizing) closeJobDialogAll();
-});
+// 点遮罩空白 = 直接关掉所有弹窗回主界面（不退回目标岗位列表，见 closeJobDialogAll）。
+// 拖右下角手柄调高度不会误关：手柄起手就 stopPropagation，bindBackdropDismiss 收不到
+// 「按在遮罩上」那一步，无论松手落在哪都不会判成点了空白（原先靠 isDialogResizing 标志挡，已被这层覆盖）
+bindBackdropDismiss(jobDialogOverlay, closeJobDialogAll);
 if (dialogResizeHandle) {
   dialogResizeHandle.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return; // 只响应鼠标左键
-    isDialogResizing = true;
     e.preventDefault();
-    e.stopPropagation(); // 不让事件冒泡到遮罩，避免误关弹窗
+    e.stopPropagation(); // 不让事件冒泡到遮罩：bindBackdropDismiss 就不会把这次起手记成「按在空白上」
     const startY = e.clientY;
     const startH = dialogJobDesc.offsetHeight;
     const maxH = Math.round(window.innerHeight * 0.6);
@@ -516,7 +518,6 @@ if (dialogResizeHandle) {
       dialogJobDesc.style.height = Math.max(64, Math.min(next, maxH)) + 'px';
     };
     const onUp = () => {
-      isDialogResizing = false;
       dialogResizeHandle.removeEventListener('pointermove', onMove);
       dialogResizeHandle.removeEventListener('pointerup', onUp);
       dialogResizeHandle.removeEventListener('pointercancel', onUp);
