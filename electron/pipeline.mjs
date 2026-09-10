@@ -164,7 +164,9 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
 
       let extractPromise;
       try {
-        extractPromise = runScript(scriptName, extractArgs, 1, parseExtractProgress, {}, 'extract');
+        // BOSS_OUTPUT_PREARCHIVED：本函数开头已归档过旧输出目录、并写好了本轮的 .run-meta.json，
+        // 子进程不必（也不能）再归档一次——否则会把本轮 meta 卷进上一批的归档目录，导致来源错标。
+        extractPromise = runScript(scriptName, extractArgs, 1, parseExtractProgress, { BOSS_OUTPUT_PREARCHIVED: '1' }, 'extract');
       } catch (err) {
         scoreCtx.extractResult = { ok: false, error: err };
         extractError = err;

@@ -754,6 +754,11 @@ export function archiveOldOutput(outputDir, isResume) {
     console.log('恢复模式：保留现有 output 目录');
     return;
   }
+  // 主进程已在启动子进程前把旧输出目录归档过了（pipeline 里做完归档才写本轮的 .run-meta.json）。
+  // 子进程若再归档一次，会把主进程刚写好的本轮 meta 一起卷进归档目录：文件按分钟命名，
+  // 两次归档同名合并，于是「上一批的数据」配上「这一批的来源/岗位」——历史记录里就会出现
+  // 沟通页批次被标成推荐牛人页这类错标。故主进程下发的运行里子进程不再归档。
+  if (process.env.BOSS_OUTPUT_PREARCHIVED === '1') return;
   if (!existsSync(outputDir)) return;
   let entries;
   try {
