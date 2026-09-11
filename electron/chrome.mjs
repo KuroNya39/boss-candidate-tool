@@ -85,7 +85,7 @@ async function launchChrome({ openUrl = null } = {}) {
   if (!chromePath) {
     return {
       ok: false,
-      message: '没有在常见位置找到 Chrome。请照常打开 Chrome，按 README 第 1 步开启远程调试后使用。',
+      message: '没有在常见位置找到 Chrome。请正常打开 Chrome，开启远程调试后使用。',
     };
   }
   if (await isChromeRunning()) {

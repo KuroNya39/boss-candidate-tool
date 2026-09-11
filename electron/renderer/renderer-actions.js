@@ -39,7 +39,7 @@ btnStart.addEventListener('click', async () => {
     if (st && !st.ok) {
       await confirmDialog({
         title: '未找到 Chrome',
-        message: st.message || '没有在常见位置找到 Chrome。请照常打开 Chrome，按 README 第 1 步开启远程调试后使用。',
+        message: st.message || '没有在常见位置找到 Chrome。请正常打开 Chrome，开启远程调试后使用。',
         okText: '知道了',
         showCancel: false,
       });
@@ -56,7 +56,7 @@ btnStart.addEventListener('click', async () => {
     if (cdp && cdp.state !== 'connected') {
       await confirmDialog({
         title: 'Chrome 未连接',
-        message: '请检查软件连接状态，允许 Chrome 远程调试。',
+        message: '请检查软件连接状态，并允许 Chrome 远程调试。',
         okText: '知道了',
         showCancel: false,
       });

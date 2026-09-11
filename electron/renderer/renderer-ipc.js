@@ -116,7 +116,7 @@ function setupListeners() {
         `成功打招呼 ${data.success} 人` +
         (data.already > 0 ? `，${data.already} 人已打过招呼` : '') +
         (data.notFound > 0 ? `，${data.notFound} 人不在当前列表中` : '') +
-        (hasRetry ? `，${data.retryable} 人没成功，可点上方「重试」再试` : '') +
+        (hasRetry ? `，${data.retryable} 人未成功，可点上方「重试」再试` : '') +
         (data.skipped > 0 ? `，${data.skipped} 人当前无打招呼按钮、未打招呼` : '');
       autoGreetEnabled = false;
     })
@@ -182,7 +182,7 @@ btnSaveConfig.addEventListener('click', async () => {
   const model = apiModelInput.value.trim();
 
   if (!url || !key || !model) {
-    showToast('请把设置填写完整（API 地址、Key、模型名称）', 'warning');
+    showToast('请填写完整的设置信息', 'warning');
     return;
   }
 

@@ -244,7 +244,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
           // 无数据：评分器无意义，先让它退出再报错
           scoreCtx.extractResult = { ok: false, error: 'no data' };
           await scoringPromise;
-          throw new Error('未找到已提取的候选人数据。请先点「开始提取分析」完成提取，或用上次跑完的数据。');
+          throw new Error('未找到已提取的候选人数据。请先点击「开始提取分析」进行提取，或使用上次已提取的数据进行评分。');
         }
       }
       sendProgress(1, 'done', 100, '已跳过提取，直接用已有数据评分');
@@ -298,7 +298,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     const smtpEnv = {};
     if (apiConfig.emailPrefix) {
       if (!apiConfig.smtpPass) {
-        throw new Error('未配置邮箱密码：请到「设置」填写发件邮箱的密码后再发送邮件（公司邮箱若开启了三方客户端安全密码，要填邮箱设置里获取的"客户端安全密码"，不是登录密码）');
+        throw new Error('未配置邮箱密码：请在「设置」填写邮箱密码后再发送邮件（若邮箱开启了「三方客户端安全密码」功能，须填写该密码，而非邮箱登录密码）');
       }
       let emailSubject = '候选人评分结果';
       if (isRecommendMode) emailSubject = '推荐牛人评分结果';

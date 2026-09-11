@@ -121,8 +121,8 @@ async function findTab(source) {
   const tab = list.find(t => t.url && t.url.includes(urlPattern));
   if (!tab || !tab.targetId) {
     throw new Error(
-      `未找到${pageName} tab。\n` +
-      `请确保已打开 https://www.zhipin.com${urlPattern}`
+      `未找到${pageName}标签页。\n` +
+      `请确保已打开 https://www.zhipin.com${urlPattern}。`
     );
   }
   return tab.targetId;

@@ -49,7 +49,7 @@ const SEARCH_PAGE_URL = 'https://www.zhipin.com/web/chat/search';
 async function findExistingSearchTab() {
   const targets = await proxyGet('/targets');
   if (!Array.isArray(targets) || targets.length === 0) {
-    throw new Error('无法获取 Chrome tab 列表，请确保 CDP Proxy 已连接');
+    throw new Error('无法获取 Chrome 标签页列表，请确保 CDP Proxy 已连接。');
   }
   const tab = targets.find(t =>
     t.url && t.url.includes('/web/chat/search')
