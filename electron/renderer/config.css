@@ -702,8 +702,10 @@ body.is-dragging-source * {
    语义不同、外观一致（琥珀浅底 + warning 描边），分别维护会在改色时漏掉一个 */
 .btn--warning,
 .btn--paused { background: var(--bg-warning); color: var(--color-warning-strong); border-color: var(--color-warning); }
+/* hover 必须重申 color，否则琥珀字会被压成黑字：暂停/继续按钮是 .btn--ghost + .btn--paused，
+   两者 :hover 权重相同，本规则自己不写 color 时就落到更靠前的 .btn--ghost:hover 的 --text-primary 上 */
 .btn--warning:hover:not(:disabled),
-.btn--paused:hover:not(:disabled) { background: rgba(var(--color-warning-rgb),0.2); border-color: var(--color-warning-strong); }
+.btn--paused:hover:not(:disabled) { background: rgba(var(--color-warning-rgb),0.2); border-color: var(--color-warning-strong); color: var(--color-warning-strong); }
 /* 运行区按钮（暂停/继续/跳过）统一用 14px Material SVG 图标：SVG 作为 flex item 由
    align-items:center 几何居中，无需 emoji 的字形微调；缩小图标与文字的间距让三个按钮更紧凑 */
 .running-actions .btn { gap: 4px; }
