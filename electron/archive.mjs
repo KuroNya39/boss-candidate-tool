@@ -64,14 +64,14 @@ export function restoreHistoryToOutput(dirPath) {
         const pad = (n) => String(n).padStart(2, '0');
         const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
         renameSync(OUTPUT_DIR, `${OUTPUT_DIR}-${stamp}`);
-        termLog(`[resume] 已把当前输出目录归档: ${OUTPUT_DIR}-${stamp}`);
+        termLog(`[resume] 已把当前输出目录归档： ${OUTPUT_DIR}-${stamp}`);
       }
     }
     renameSync(dirPath, OUTPUT_DIR);
-    termLog(`[resume] 已还原历史目录为输出目录: ${OUTPUT_DIR}`);
+    termLog(`[resume] 已还原历史目录为输出目录： ${OUTPUT_DIR}`);
     return { ok: true };
   } catch (err) {
-    termLog(`[resume] 还原目录失败: ${err.message}`, 'stderr');
-    return { error: `还原历史目录失败: ${err.message}` };
+    termLog(`[resume] 还原目录失败： ${err.message}`, 'stderr');
+    return { error: `还原历史目录失败： ${err.message}` };
   }
 }

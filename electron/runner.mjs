@@ -10,11 +10,11 @@ import { sendProgress } from './window.mjs';
 function parseExtractProgress(line) {
   if (line.includes('提取结果摘要')) return { progress: 100, message: '提取完成' };
   // 扫描阶段（滚动列表收集候选人）：实时显示扫描进度，提示语换成「正在扫描候选人列表」
-  const scanCount = line.match(/扫描进度:\s*(\d+)\/(\d+) 人/);
+  const scanCount = line.match(/扫描进度：\s*(\d+)\/(\d+) 人/);
   if (scanCount) {
     return { progress: 0, message: `正在扫描候选人列表… ${scanCount[1]}/${scanCount[2]} 人` };
   }
-  const scanAll = line.match(/扫描进度:\s*(\d+) 人/);
+  const scanAll = line.match(/扫描进度：\s*(\d+) 人/);
   if (scanAll) {
     return { progress: 0, message: `正在扫描候选人列表… 已发现 ${scanAll[1]} 人` };
   }
@@ -29,7 +29,7 @@ function parseExtractProgress(line) {
 
 function parseExportProgress(line) {
   // 捕获实际输出的文件路径（可能是被另存的）
-  const pathMatch = line.match(/导出成功:\s+(.+)/) || line.match(/另存为:\s+(.+)/);
+  const pathMatch = line.match(/导出成功：\s*(.+)/) || line.match(/另存为：\s*(.+)/);
   if (pathMatch) {
     setActualExportPath(pathMatch[1].trim());
   }

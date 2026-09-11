@@ -17,7 +17,7 @@ const MAX_RESUME_LEN = 4000;              // 每份简历截断，避免 prompt 
 // 调 API（Anthropic 格式）
 async function callClaudeAPI(prompt, { signal } = {}) {
   const url = `${apiConfig.url}/v1/messages`.replace(/\/+v1/, '/v1'); // 防双斜杠
-  termLog(`[AI评分] 调 API: ${url}, model=${apiConfig.model}`);
+  termLog(`[AI评分] 调 API： ${url}, model=${apiConfig.model}`);
 
   const res = await fetch(url, {
     signal, // 传递中止信号
@@ -99,7 +99,7 @@ async function callClaudeAPI(prompt, { signal } = {}) {
   }
 
   if (!text) {
-    termLog(`[AI评分] 完整返回: ${JSON.stringify(data).slice(0, 2000)}`, 'stderr');
+    termLog(`[AI评分] 完整返回： ${JSON.stringify(data).slice(0, 2000)}`, 'stderr');
     throw new Error(`API 返回内容为空，请检查 API 地址和格式`);
   }
 
@@ -150,7 +150,7 @@ function parseBatchScoreResponse(text) {
               results.push({ candidateIndex: idx, score, comment: formatted });
               valid = true;
             } else {
-              results.push({ candidateIndex: idx ?? -1, score: score ?? 0, comment: comment ?? '(AI评分未生成评语)' });
+              results.push({ candidateIndex: idx ?? -1, score: score ?? 0, comment: comment ?? '（AI评分未生成评语）' });
             }
           }
           if (valid) return results;
@@ -249,7 +249,7 @@ export function createPositionPromptBuilder(positionName, extractSource, getPool
   try {
     template = readFileSync(templatePath, 'utf-8');
   } catch {
-    throw new Error(`未找到评分模板: ${templatePath}`);
+    throw new Error(`未找到评分模板： ${templatePath}`);
   }
   const dimensionsText = apiConfig.dimensions || '';
   const screeningCriteriaText = apiConfig.screeningCriteria || '';
@@ -296,14 +296,14 @@ export function createPositionPromptBuilder(positionName, extractSource, getPool
         }
       }
       p = template
-        .replace('{jdText}', jd || dimensionsText || '(无岗位JD描述)');
+        .replace('{jdText}', jd || dimensionsText || '（无岗位JD描述）');
     }
 
     // 拼接本批所有候选人的简历（基础信息/教育经历来自页面 DOM，可靠性高；简历正文为 OCR 仅供参考）
     const resumeSections = cands.map((c, i) => {
       const resumeForAI = (c.resumeText || '').length > MAX_RESUME_LEN
-        ? (c.resumeText || '').slice(0, MAX_RESUME_LEN) + '\n\n...(后续内容略)'
-        : (c.resumeText || '(无)');
+        ? (c.resumeText || '').slice(0, MAX_RESUME_LEN) + '\n\n…（后续内容略）'
+        : (c.resumeText || '（无）');
       // 结构化教育经历逐条列出（AI 评学历时不再依赖 OCR 正文）
       const eduList = Array.isArray(c.educationExperience) && c.educationExperience.length > 0
         ? c.educationExperience.map(e =>
@@ -335,7 +335,7 @@ export async function scoreOneBatch(batch, run) {
 
   const prompt = run.buildBatchPrompt(batch);
   const batchNames = batch.map(c => c.basicInfo?.name || c.geekId || '未知').join('、');
-  termLog(`[AI评分] 评分批: ${batchNames}`);
+  termLog(`[AI评分] 评分批： ${batchNames}`);
 
   // 最多重试 2 次
   let lastError = null;
@@ -351,25 +351,25 @@ export async function scoreOneBatch(batch, run) {
             batch[idx].jobRelevanceScore = r.score;
             batch[idx].jobRelevanceComment = r.comment;
             const nm = batch[idx].basicInfo?.name || batch[idx].geekId || '未知';
-            termLog(`  ✓ ${nm}: ${r.score}分`);
+            termLog(`  ✓ ${nm}： ${r.score}分`);
           }
         }
         lastError = null;
         break;
       }
-      lastError = new Error('解析失败(无有效JSON)');
+      lastError = new Error('解析失败（无有效JSON）');
       if (retry < 2) {
         const ts = Date.now();
         const debugPath = resolve(OUTPUT_DIR, `api-raw-response-${ts}.txt`);
         try { writeFileSync(debugPath, text, 'utf-8'); } catch {}
-        termLog(`  ⚠ 解析失败: ${debugPath}，${retry + 1}/2 重试`, 'stderr');
+        termLog(`  ⚠ 解析失败： ${debugPath}，${retry + 1}/2 重试`, 'stderr');
         await sleep(2000);
       }
     } catch (err) {
       if (run.signal.aborted) throw err;
       lastError = err;
       if (retry < 2) {
-        termLog(`  ⚠ 请求失败: ${err.message}，${retry + 1}/2 重试`, 'stderr');
+        termLog(`  ⚠ 请求失败： ${err.message}，${retry + 1}/2 重试`, 'stderr');
         await sleep(2000);
       }
     }
@@ -382,7 +382,7 @@ export async function scoreOneBatch(batch, run) {
     // 单候选人稳定出分），模型偶尔抽风时不至于整批丢失。
     if (batch.length > 1) {
       let recovered = 0;
-      termLog(`  ↻ 批次评分失败(${lastError.message})，改为逐人重试 ${batch.length} 人`, 'stderr');
+      termLog(`  ↻ 批次评分失败（${lastError.message}），改为逐人重试 ${batch.length} 人`, 'stderr');
       for (const c of batch) {
         if (cancelled) return;
         const singlePrompt = run.buildBatchPrompt([c]);
@@ -396,12 +396,12 @@ export async function scoreOneBatch(batch, run) {
             if (results && results.length > 0 && typeof results[0].score === 'number') {
               c.jobRelevanceScore = results[0].score;
               c.jobRelevanceComment = results[0].comment;
-              termLog(`  ✓ ${nm}: ${results[0].score}分 (逐人重试)`);
+              termLog(`  ✓ ${nm}： ${results[0].score}分（逐人重试）`);
               recovered++;
               singleError = null;
               break;
             }
-            singleError = new Error('解析失败(无有效JSON)');
+            singleError = new Error('解析失败（无有效JSON）');
           } catch (err) {
             if (run.signal.aborted) throw err;
             singleError = err;
@@ -410,16 +410,16 @@ export async function scoreOneBatch(batch, run) {
         }
         if (singleError) {
           c.jobRelevanceScore = 0;
-          c.jobRelevanceComment = `评分失败: ${singleError.message}`;
+          c.jobRelevanceComment = `评分失败： ${singleError.message}`;
         }
       }
       termLog(`  ↻ 逐人重试完成：成功 ${recovered}/${batch.length} 人`, 'stderr');
     } else {
       for (const c of batch) {
         c.jobRelevanceScore = 0;
-        c.jobRelevanceComment = `评分失败: ${lastError.message}`;
+        c.jobRelevanceComment = `评分失败： ${lastError.message}`;
       }
-      termLog(`  ✗ 批次评分失败: ${lastError.message}`, 'stderr');
+      termLog(`  ✗ 批次评分失败： ${lastError.message}`, 'stderr');
     }
   }
 
@@ -477,7 +477,7 @@ export async function scoreCandidateList(candidates, extractSource, { signal, on
     for (let i = 0; i < withResume.length; i += BATCH_SIZE) {
       batches.push(withResume.slice(i, i + BATCH_SIZE));
     }
-    termLog(`[AI评分] 岗位 "${positionName}": ${withResume.length} 人，${batches.length} 批，并发 ${SCORE_CONCURRENCY} 批`);
+    termLog(`[AI评分] 岗位「${positionName}」： ${withResume.length} 人，${batches.length} 批，并发 ${SCORE_CONCURRENCY} 批`);
     await runBatchWindow(batches, { signal, buildBatchPrompt, onBatchDone });
   }
 }

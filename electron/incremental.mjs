@@ -59,7 +59,7 @@ async function runIncrementalScoring(ctx) {
         termLog(`[AI评分] 已播种上次评分 ${scoredRefs.size} 人，只补评新增候选人`);
       }
     } catch (err) {
-      termLog(`[AI评分] 播种上次评分失败: ${err.message}`, 'stderr');
+      termLog(`[AI评分] 播种上次评分失败： ${err.message}`, 'stderr');
     }
   }
 
@@ -343,9 +343,9 @@ function cleanupTempFiles() {
   if (existsSync(rawPath)) {
     try {
       unlinkSync(rawPath);
-      termLog(`[main] 已清理: zhipin-candidates.json`);
+      termLog(`[main] 已清理： zhipin-candidates.json`);
     } catch (e) {
-      termLog(`[main] 清理 zhipin-candidates.json 失败: ${e.message}`, 'stderr');
+      termLog(`[main] 清理 zhipin-candidates.json 失败： ${e.message}`, 'stderr');
     }
   }
 
@@ -354,11 +354,11 @@ function cleanupTempFiles() {
     for (const entry of entries) {
       if (entry.startsWith('api-raw-response-') && entry.endsWith('.txt')) {
         unlinkSync(resolve(dir, entry));
-        termLog(`[main] 已清理: ${entry}`);
+        termLog(`[main] 已清理： ${entry}`);
       }
     }
   } catch (e) {
-    termLog(`[main] 清理 API 日志失败: ${e.message}`, 'stderr');
+    termLog(`[main] 清理 API 日志失败： ${e.message}`, 'stderr');
   }
 }
 

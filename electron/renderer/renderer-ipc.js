@@ -117,7 +117,7 @@ function setupListeners() {
         (data.already > 0 ? `，${data.already} 人已打过招呼` : '') +
         (data.notFound > 0 ? `，${data.notFound} 人不在当前列表中` : '') +
         (hasRetry ? `，${data.retryable} 人未成功，可点上方「重试」再试` : '') +
-        (data.skipped > 0 ? `，${data.skipped} 人当前无打招呼按钮、未打招呼` : '');
+        (data.skipped > 0 ? `，${data.skipped} 人当前无打招呼按钮，未打招呼` : '');
       autoGreetEnabled = false;
     })
   );

@@ -161,11 +161,11 @@ export async function cdpScreenshot(targetId, filePath, clip) {
   const result = await proxyGet(url);
   // 验证文件是否真正保存成功
   if (!existsSync(filePath)) {
-    throw new Error(`截图文件未保存: ${filePath}, proxy响应: ${JSON.stringify(result)}`);
+    throw new Error(`截图文件未保存： ${filePath}, proxy响应： ${JSON.stringify(result)}`);
   }
   const stat = readFileSync(filePath);
   if (stat.length === 0) {
-    throw new Error(`截图文件为空: ${filePath}`);
+    throw new Error(`截图文件为空： ${filePath}`);
   }
   return result;
 }
@@ -226,7 +226,7 @@ export async function clickOnlineResume(targetId) {
             // 内容就绪检测：DOM #resume 或 canvas 已加载即视为就绪（替代固定 2-4s 等待）
             const contentReady = await waitForResumeContentLoaded(targetId, 2000);
             const sizeWarn = sizeOk ? '' : ' ⚠尺寸偏小';
-            console.log(`    弹窗尺寸稳定: ${state.width}x${state.height}, iframe=${state.hasIframe}, resume=${state.hasResume}, canvas=${state.hasCanvas}, 内容${contentReady ? '就绪' : '未就绪'}${sizeWarn}`);
+            console.log(`    弹窗尺寸稳定： ${state.width}x${state.height}, iframe=${state.hasIframe}, resume=${state.hasResume}, canvas=${state.hasCanvas}，内容${contentReady ? '就绪' : '未就绪'}${sizeWarn}`);
             await sleep(contentReady ? 300 : 800);
             return true;
           }
@@ -498,7 +498,7 @@ export async function captureResumeScreenshots(targetId, safename, tempDir) {
   // 旧判断（scrollHeight > clientHeight）对这种空白状态永远等不到。改用 divHeight > 0 判定。
   if (info.scrollHeight <= info.clientHeight || !(info.divHeight > 0)) {
     for (let retry = 0; retry < 5; retry++) {
-      console.log(`    等待内容渲染... (第${retry + 1}次)`);
+      console.log(`    等待内容渲染…（第${retry + 1}次）`);
       await sleep(2000);
       info = await getResumeScrollInfo(targetId);
       if (info.scrollHeight > info.clientHeight || info.divHeight > 0) break;
@@ -512,10 +512,10 @@ export async function captureResumeScreenshots(targetId, safename, tempDir) {
 
   const clip = await getDialogClip(targetId);
   if (clip) {
-    console.log(`    弹窗区域: x=${clip.x}, y=${clip.y}, ${clip.width}x${clip.height} (source=${clip.source}${clip.detailWidth ? ', detailW=' + clip.detailWidth : ''})`);
+    console.log(`    弹窗区域： x=${clip.x}, y=${clip.y}, ${clip.width}x${clip.height} （source=${clip.source}${clip.detailWidth ? ', detailW=' + clip.detailWidth : ''}）`);
   }
-  console.log(`    检测源: ${source || 'unknown'}${canvasSize ? ', Canvas: ' + canvasSize : ''}${info.heights ? ', ' + info.heights : ''}${info.debug ? ', debug: ' + info.debug : ''}`);
-  console.log(`    简历高度: ${scrollHeight}px, 可视: ${clientHeight}px, 步进: ${step}px, 需截 ${pages} 页`);
+  console.log(`    检测源： ${source || 'unknown'}${canvasSize ? ', Canvas: ' + canvasSize : ''}${info.heights ? ', ' + info.heights : ''}${info.debug ? ', debug: ' + info.debug : ''}`);
+  console.log(`    简历高度： ${scrollHeight}px，可视： ${clientHeight}px，步进： ${step}px，需截 ${pages} 页`);
 
   let prevActualTop = -1;
   for (let page = 0; page < pages; page++) {
@@ -523,10 +523,10 @@ export async function captureResumeScreenshots(targetId, safename, tempDir) {
     await scrollResume(targetId, scrollTop);
 
     const actualScrollTop = parseInt(await cdpEval(targetId, `document.querySelector('.resume-detail').scrollTop`)) || 0;
-    console.log(`    第${page + 1}页: 目标=${scrollTop}, 实际=${actualScrollTop}`);
+    console.log(`    第${page + 1}页： 目标=${scrollTop}，实际=${actualScrollTop}`);
 
     if (page > 0 && actualScrollTop <= prevActualTop) {
-      console.log(`    ⚡ 已到达底部 (滚动停滞在 ${actualScrollTop}), 跳过剩余 ${pages - page} 页`);
+      console.log(`    ⚡ 已到达底部（滚动停滞在 ${actualScrollTop}），跳过剩余 ${pages - page} 页`);
       break;
     }
     prevActualTop = actualScrollTop;
@@ -541,7 +541,7 @@ export async function captureResumeScreenshots(targetId, safename, tempDir) {
         success = true;
         break;
       } catch (e) {
-        console.warn(`    ⚠ 截图第 ${page + 1}/${pages} 页失败 (${retry + 1}/3): ${e.message}`);
+        console.warn(`    ⚠ 截图第 ${page + 1}/${pages} 页失败（${retry + 1}/3）： ${e.message}`);
         if (retry < 2) {
           // 失败多半是内容未渲染完：等待更久 + 重新滚动定位，再重试
           // v1.3.12: 拉长等待给 OOPIF 简历弹窗 iframe 更多渲染时间
@@ -669,7 +669,7 @@ export async function ocrScreenshots(screenshots, worker) {
   } catch { /* 部分版本参数名差异时忽略 */ }
   const texts = [];
   for (let i = 0; i < screenshots.length; i++) {
-    console.log(`    OCR 第 ${i + 1}/${screenshots.length} 页...`);
+    console.log(`    OCR 第 ${i + 1}/${screenshots.length} 页…`);
     // v1.3.12: 内建预处理。isNormalize（对比度归一化）默认已开；
     // isBinarize（Otsu 二值化）降低彩色/低对比度噪声对中文细字的干扰。
     // 若实测对低对比度简历过曝，回退为 { isNormalize: true }。
@@ -702,7 +702,7 @@ export function saveScanCache(candidateList, outputPath, source) {
     source: source || currentRunSource || undefined, // 记录这批页面真实来源，meta 丢失/被覆盖后仍能从数据本身还原（推荐/搜索/沟通）
     candidates: candidateList,
   }, null, 2), 'utf8');
-  console.log(`扫描缓存已保存: ${cachePath} (${candidateList.length} 人)`);
+  console.log(`扫描缓存已保存： ${cachePath} （${candidateList.length} 人）`);
 }
 
 export function loadScanCache(outputPath) {
@@ -710,7 +710,7 @@ export function loadScanCache(outputPath) {
   if (!existsSync(cachePath)) return null;
   try {
     const data = JSON.parse(readFileSync(cachePath, 'utf8'));
-    console.log(`加载扫描缓存: ${data.totalCandidates} 人 (扫描于 ${data.scannedAt})`);
+    console.log(`加载扫描缓存： ${data.totalCandidates} 人（扫描于 ${data.scannedAt}）`);
     return data;
   } catch {
     return null;
@@ -733,7 +733,7 @@ export function loadProgress(outputPath) {
   if (!existsSync(progressPath)) return null;
   try {
     const data = JSON.parse(readFileSync(progressPath, 'utf8'));
-    console.log(`加载提取进度: ${data.processedCount} 人已完成`);
+    console.log(`加载提取进度： ${data.processedCount} 人已完成`);
     return data;
   } catch {
     return null;
@@ -788,7 +788,7 @@ export function archiveOldOutput(outputDir, isResume) {
   }
 
   if (moved > 0) {
-    console.log(`已归档 ${moved} 个文件到: ${archivedDir}`);
+    console.log(`已归档 ${moved} 个文件到： ${archivedDir}`);
   } else {
     // 全部失败时清理空目录
     try { readdirSync(archivedDir).length === 0 && rmdirSync(archivedDir); } catch {}
@@ -873,35 +873,35 @@ export async function diagnoseResumeIframeDom(targetId, nestedSrc, label = 'DOM'
   try {
     const framesResp = await proxyGet(`/frames?target=${targetId}`);
     if (!framesResp.frameTree) {
-      console.warn(`  ${label}🔍 DOM诊断: /frames 未返回 frameTree`);
+      console.warn(`  ${label}🔍 DOM诊断： /frames 未返回 frameTree`);
       return null;
     }
     // 1) frame 匹配
     const targetFrame = findFrameInTree(framesResp.frameTree, nestedSrc);
     if (!targetFrame) {
-      console.warn(`  ${label}🔍 DOM诊断: frameTree 未匹配到嵌套Src=${(nestedSrc || '').slice(0, 80)}`);
+      console.warn(`  ${label}🔍 DOM诊断： frameTree 未匹配到嵌套Src=${(nestedSrc || '').slice(0, 80)}`);
       (function dump(node, depth) {
         if (!node) return;
         const f = node.frame;
-        if (f) console.warn(`  ${label}🔍 DOM诊断:   frame[${depth}] url=${(f.url || '').slice(0, 100)}`);
+        if (f) console.warn(`  ${label}🔍 DOM诊断：   frame[${depth}] url=${(f.url || '').slice(0, 100)}`);
         if (node.childFrames) node.childFrames.forEach((c) => dump(c, depth + 1));
       })(framesResp.frameTree);
       return null;
     }
-    console.warn(`  ${label}🔍 DOM诊断: 匹配到 frame id=${targetFrame.id} url=${(targetFrame.url || '').slice(0, 100)}`);
+    console.warn(`  ${label}🔍 DOM诊断： 匹配到 frame id=${targetFrame.id} url=${(targetFrame.url || '').slice(0, 100)}`);
     // 2) createIsolatedWorld
     let ctx = null;
     try {
       const iw = await proxyGet(`/isolated-world?target=${targetId}&frame=${encodeURIComponent(targetFrame.id)}`);
       if (iw && iw.executionContextId) {
         ctx = { id: iw.executionContextId };
-        console.warn(`  ${label}🔍 DOM诊断: createIsolatedWorld OK contextId=${iw.executionContextId}`);
+        console.warn(`  ${label}🔍 DOM诊断： createIsolatedWorld OK contextId=${iw.executionContextId}`);
       } else {
-        console.warn(`  ${label}🔍 DOM诊断: createIsolatedWorld 失败: ${JSON.stringify(iw)}`);
+        console.warn(`  ${label}🔍 DOM诊断： createIsolatedWorld 失败： ${JSON.stringify(iw)}`);
         return null;
       }
     } catch (e) {
-      console.warn(`  ${label}🔍 DOM诊断: createIsolatedWorld 异常: ${e.message}`);
+      console.warn(`  ${label}🔍 DOM诊断： createIsolatedWorld 异常： ${e.message}`);
       return null;
     }
     // 3) iframe 内 #resume 文本长度 + canvas 探测（判断是图片简历还是 HTML 简历）
@@ -923,14 +923,14 @@ export async function diagnoseResumeIframeDom(targetId, nestedSrc, label = 'DOM'
           docReady: document.readyState
         };
       })()`);
-      console.warn(`  ${label}🔍 DOM诊断: iframe内探测结果=${JSON.stringify(probe && probe.value ? probe.value : probe)}`);
+      console.warn(`  ${label}🔍 DOM诊断： iframe内探测结果=${JSON.stringify(probe && probe.value ? probe.value : probe)}`);
       return probe && probe.value ? probe.value : null;
     } catch (e) {
-      console.warn(`  ${label}🔍 DOM诊断: eval 异常: ${e.message}`);
+      console.warn(`  ${label}🔍 DOM诊断： eval 异常： ${e.message}`);
       return null;
     }
   } catch (e) {
-    console.warn(`  ${label}🔍 DOM诊断: 异常: ${e.message}`);
+    console.warn(`  ${label}🔍 DOM诊断： 异常： ${e.message}`);
     return null;
   }
 }
@@ -1006,7 +1006,7 @@ export async function probeFramesForResumeText(targetId, preferredSrc, label = '
           break;
         }
         if (r && r.value) {
-          console.log(`  ✓ DOM提取简历文本 (${label} frame兜底, ${r.value.length} 字)`);
+          console.log(`  ✓ DOM提取简历文本（${label} frame兜底，${r.value.length} 字）`);
           return r.value;
         }
       } catch {}
@@ -1155,11 +1155,11 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
       // v1.3.43: WASM canvas 简历复制走系统剪贴板，改为模拟「手动拖拽滚动选中 + Ctrl+C」再从系统剪贴板读取
       const copied = await tryExtractCanvasResumeByDragCopy(targetId, label);
       if (copied) return copied;
-      console.log(`  ${label}🔍 复制提取(真实): 简历为 WASM canvas 渲染（拖拽复制也未命中），放弃复制直接截图`);
+      console.log(`  ${label}🔍 复制提取（真实）： 简历为 WASM canvas 渲染（拖拽复制也未命中），放弃复制直接截图`);
       return null;
     }
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取(真实): WASM 探测失败 ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取（真实）： WASM 探测失败 ${e.message}`);
   }
 
   // 0) 结构诊断：iframe 里到底有没有可选文字 / 隐藏文字层 / 纯 canvas。
@@ -1197,7 +1197,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
       } catch(e) { out.err = e.message; }
       return JSON.stringify(out);
     })()`);
-    if (diag && diag.value) console.log(`  ${label}🔍 复制提取结构诊断(iframe): ${diag.value}`);
+    if (diag && diag.value) console.log(`  ${label}🔍 复制提取结构诊断（iframe）： ${diag.value}`);
   } catch {}
   // 外层弹窗结构：简历正文会不会就藏在弹窗容器里
   try {
@@ -1207,7 +1207,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
       var t = (d.textContent||'').replace(/\\s+/g,' ').trim();
       return JSON.stringify({ len: t.length, hasResumeMark: /工作经历|教育经历|项目经验|期望职位|技能|自我评价/.test(t), preview: t.slice(0,80) });
     })()`);
-    if (od) console.log(`  ${label}🔍 复制提取结构诊断(外层): ${od}`);
+    if (od) console.log(`  ${label}🔍 复制提取结构诊断（外层）： ${od}`);
   } catch {}
 
   // 1) 装监听（iframe 内 + 外层页面），记录每次 copy 事件的目标与文字长度
@@ -1228,7 +1228,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
       return true;
     })()`);
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取(真实): 装监听失败 ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取（真实）： 装监听失败 ${e.message}`);
     return null;
   }
   try {
@@ -1254,7 +1254,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
   const picks = []; // 各尝试的捕获结果
 
   // ===== 尝试 A：点 iframe → iframe 内智能全选 → Ctrl+A+C（v1.3.41 方案，改选 #resume） =====
-  let resA = { tag: 'A:点iframe+选resume+CtrlAC', focus: '', sel: -1, evCtx: '', evOuter: '', text: '' };
+  let resA = { tag: 'A：点iframe+选resume+CtrlAC', focus: '', sel: -1, evCtx: '', evOuter: '', text: '' };
   try {
     const clickSel = '.boss-popup__content .resume-detail-wrap iframe, .dialog-wrap.active .resume-detail-wrap iframe, .boss-popup__content .resume-detail-wrap, .dialog-wrap.active .resume-detail-wrap';
     await proxyPost(`/clickAt?target=${targetId}`, clickSel);
@@ -1279,7 +1279,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
     })()`);
     resA.sel = (s && typeof s.value === 'number') ? s.value : -1;
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取A: ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取A： ${e.message}`);
   }
   try {
     await proxyPost(`/keyseq?target=${targetId}`, JSON.stringify({ keys: 'ctrl+a+c' }));
@@ -1287,14 +1287,14 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
     const r = await readCopyHooks(targetId, ctx);
     resA.evCtx = r.evCtx; resA.evOuter = r.evOuter; resA.text = r.text;
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取A: 按键失败 ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取A： 按键失败 ${e.message}`);
   }
   picks.push(resA);
 
   // ===== 尝试 B：真实点击外层弹窗空白区（焦点留在外层页面），全选外层 → Ctrl+A+C =====
   // 假设：copy 处理器注册在外层弹窗文档。手动复制时焦点在外层页面；
   // 事件不跨文档冒泡，之前一直把焦点给 iframe，外层处理器从未被触发。
-  let resB = { tag: 'B:点外层+全选+CtrlAC', focus: '', sel: -1, evCtx: '', evOuter: '', text: '' };
+  let resB = { tag: 'B：点外层+全选+CtrlAC', focus: '', sel: -1, evCtx: '', evOuter: '', text: '' };
   try {
     // 在外层页面弹窗左上角放一个临时透明元素，真实点击它把焦点交给外层页面（避免点到 iframe/按钮）
     await cdpEval(targetId, `(function(){
@@ -1323,7 +1323,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
     })()`);
     resB.sel = typeof s === 'number' ? s : -1;
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取B: ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取B： ${e.message}`);
   }
   try {
     await proxyPost(`/keyseq?target=${targetId}`, JSON.stringify({ keys: 'ctrl+a+c' }));
@@ -1331,12 +1331,12 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
     const r = await readCopyHooks(targetId, ctx);
     resB.evCtx = r.evCtx; resB.evOuter = r.evOuter; resB.text = r.text;
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取B: 按键失败 ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取B： 按键失败 ${e.message}`);
   }
   picks.push(resB);
 
   // ===== 尝试 C：仅 window.focus() 外层 + 全选外层 → Ctrl+A+C（对照：不点也看外层处理器是否触发） =====
-  let resC = { tag: 'C:外层focus+全选+CtrlAC', focus: '', sel: -1, evCtx: '', evOuter: '', text: '' };
+  let resC = { tag: 'C：外层focus+全选+CtrlAC', focus: '', sel: -1, evCtx: '', evOuter: '', text: '' };
   try {
     const b = await cdpEval(targetId, `(function(){
       window.focus();
@@ -1351,7 +1351,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
     })()`);
     resC.sel = typeof s === 'number' ? s : -1;
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取C: ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取C： ${e.message}`);
   }
   try {
     await proxyPost(`/keyseq?target=${targetId}`, JSON.stringify({ keys: 'ctrl+a+c' }));
@@ -1359,7 +1359,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
     const r = await readCopyHooks(targetId, ctx);
     resC.evCtx = r.evCtx; resC.evOuter = r.evOuter; resC.text = r.text;
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取C: 按键失败 ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取C： 按键失败 ${e.message}`);
   }
   picks.push(resC);
 
@@ -1370,7 +1370,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
   await cleanupTrustedCopy(targetId, ctx);
 
   for (const p of picks) {
-    console.log(`  ${label}🔍 复制提取(真实)诊断 ${p.tag}: 焦点=${p.focus} 选中=${p.sel} iframe事件[${p.evCtx || ''}] 外层事件[${p.evOuter || ''}] 捕获=${p.text ? p.text.length : 0}字 剪贴板=${osHit ? osClip.length : '未变'}`);
+    console.log(`  ${label}🔍 复制提取（真实）诊断 ${p.tag}： 焦点=${p.focus} 选中=${p.sel} iframe事件[${p.evCtx || ''}] 外层事件[${p.evOuter || ''}] 捕获=${p.text ? p.text.length : 0}字 剪贴板=${osHit ? osClip.length : '未变'}`);
   }
 
   // 3) 取最长有效文本（页面监听优先，剪贴板兜底）
@@ -1386,7 +1386,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
     if (t.length >= DOM_MIN_TEXT_LEN && !new RegExp(COPY_JUNK_RE, 'i').test(t)) best = t;
   }
   if (best) {
-    console.log(`  ✓ 真实复制提取简历文本 (${label}, ${best.length} 字)`);
+    console.log(`  ✓ 真实复制提取简历文本（${label}, ${best.length} 字）`);
     return best;
   }
   return null;
@@ -1400,7 +1400,7 @@ function clearSystemClipboard() {
   try {
     execSync(`powershell -NoProfile -Command "${PS_CLIPBOARD_CLEAR}"`, { timeout: 10000, encoding: 'utf8', stdio: 'pipe' });
   } catch (e) {
-    console.warn(`  ⚠ 清空系统剪贴板失败: ${e.message}`);
+    console.warn(`  ⚠ 清空系统剪贴板失败： ${e.message}`);
   }
 }
 
@@ -1416,7 +1416,7 @@ function readSystemClipboard() {
     if (!b64) return '';
     return Buffer.from(b64, 'base64').toString('utf8');
   } catch (e) {
-    console.warn(`  ⚠ 读取系统剪贴板失败: ${e.message}`);
+    console.warn(`  ⚠ 读取系统剪贴板失败： ${e.message}`);
     return '';
   }
 }
@@ -1465,7 +1465,7 @@ async function runCanvasDragCopy(targetId, label) {
     // —— 自愈唤醒点：请求没按时回来，多半是标签页被切走了，把 Boss 页切回前台让它自己跑完 ——
     // 直接用 ensureTabActive（本文件抽的「可见则不动、被切走才激活」守卫），不再手写一遍
     const kickTimer = setTimeout(async () => {
-      if (await ensureTabActive(targetId)) console.log(`  ${label}🔍 canvas复制: 复制进行中标签页被切走了，已自动切回 Boss 页继续…`);
+      if (await ensureTabActive(targetId)) console.log(`  ${label}🔍 canvas复制： 复制进行中标签页被切换，已自动切回 Boss 页继续…`);
     }, KICK_AFTER_MS);
 
     let r = null;
@@ -1481,19 +1481,19 @@ async function runCanvasDragCopy(targetId, label) {
     if (!r || r.error || !r.ok) {
       const errMsg = (r && (r.error || 'unknown')) || '无响应';
       const elapsedTxt = r && r.elapsed ? ` (${(r.elapsed / 1000).toFixed(1)}s)` : '';
-      console.log(`  ${label}🔍 canvas复制: 拖拽复制失败 ${errMsg}${elapsedTxt}`);
+      console.log(`  ${label}🔍 canvas复制： 拖拽复制失败 ${errMsg}${elapsedTxt}`);
       return { errCode: r && r.error, elapsed: r && r.elapsed };
     }
     await sleep(50); // 端点返回即剪贴板已写好，50ms 只够系统剪贴板服务提交；读剪贴板本身还要起 PowerShell（几百毫秒），余量足够
     const raw = readSystemClipboard();
     const text = (raw || '').replace(/^﻿/, '').replace(/\r\n/g, '\n').trim();
     if (goodText(text)) {
-      const diag = r.diag ? `, 容器SH/CH=${r.diag.outerSH}/${r.diag.outerCH}, iframe内=${r.diag.innerSH}/${r.diag.innerVH}` : '';
-      const el = r.elapsed ? `, 用时 ${(r.elapsed / 1000).toFixed(1)}s` : '';
-      console.log(`  ✓ 复制提取(canvas拖拽滚动): ${text.length} 字 (滚动 ${r.scrollMax}px, 容器 ${r.scrollSel || '?'}${diag}${el})`);
+      const diag = r.diag ? `，容器SH/CH=${r.diag.outerSH}/${r.diag.outerCH}, iframe内=${r.diag.innerSH}/${r.diag.innerVH}` : '';
+      const el = r.elapsed ? `，用时 ${(r.elapsed / 1000).toFixed(1)}s` : '';
+      console.log(`  ✓ 复制提取（canvas拖拽滚动）： ${text.length} 字（滚动 ${r.scrollMax}px，容器 ${r.scrollSel || '?'}${diag}${el}）`);
       return { text };
     }
-    if (text.length > 0) console.log(`  ${label}🔍 canvas复制: 剪贴板 ${text.length} 字不可用`);
+    if (text.length > 0) console.log(`  ${label}🔍 canvas复制： 剪贴板 ${text.length} 字不可用`);
     return { empty: true };
   };
 
@@ -1504,18 +1504,18 @@ async function runCanvasDragCopy(targetId, label) {
   // 客户端等满超时（页面卡住）或服务器撞上复制硬上限：重试大概率复现，且客户端超时后再开一次
   // 会和服务器可能还在跑的拖拽在同一页面打架——直接放弃复制走截图，别叠第二份复制的时钟。
   if (a1 && (a1.timeout || a1.errCode === 'copy-timeout')) {
-    console.log(`  ${label}🔍 canvas复制: ${a1.timeout ? '等满超时(页面卡住)' : `复制超时(${(a1.elapsed / 1000).toFixed(1)}s)`}，不再重试，放弃复制直接走截图`);
+    console.log(`  ${label}🔍 canvas复制： ${a1.timeout ? '等满超时（页面卡住）' : `复制超时（${(a1.elapsed / 1000).toFixed(1)}s）`}，不再重试，放弃复制直接走截图`);
     return null;
   }
 
   // 其余失败（剪贴板为空/文本不可用/个别服务器瞬时错误）：多半是渲染没缓过来，切回前台再试一次
-  console.log(`  ${label}🔍 canvas复制: 第 1 次没成功，切回 Boss 标签页重试…`);
+  console.log(`  ${label}🔍 canvas复制： 第 1 次未成功，切回 Boss 标签页重试…`);
   await ensureTabActive(targetId);
   await sleep(400); // 只走失败重试路径：给渲染器/iframe 一点缓过来的时间，原 800ms 属过保险
   const a2 = await attempt();
   if (a2 && a2.text) return a2.text;
 
-  console.log(`  ${label}🔍 canvas复制: 重试后仍拿不到有效文本，放弃走截图`);
+  console.log(`  ${label}🔍 canvas复制： 重试后仍拿不到有效文本，放弃走截图`);
   return null;
 }
 
@@ -1558,7 +1558,7 @@ export async function tryExtractResumeTextFromDOM(targetId) {
       return iframe.src || iframe.getAttribute('src') || '';
     })()`);
   } catch (e) {
-    console.warn(`  🔍 DOM提取诊断: 读取 iframe src 失败: ${e.message}`);
+    console.warn(`  🔍 DOM提取诊断： 读取 iframe src 失败： ${e.message}`);
     return null;
   }
   if (!iframeSrc) return null; // 弹窗无 iframe，交给调用方走方式二/截图
@@ -1568,12 +1568,12 @@ export async function tryExtractResumeTextFromDOM(targetId) {
   try {
     framesResp = await proxyGet(`/frames?target=${targetId}`);
   } catch (e) {
-    console.warn(`  🔍 DOM提取诊断: /frames 请求失败: ${e.message}`);
+    console.warn(`  🔍 DOM提取诊断： /frames 请求失败： ${e.message}`);
     await diagnoseResumeIframeDom(targetId, iframeSrc);
     return null;
   }
   if (!framesResp || !framesResp.frameTree) {
-    console.warn(`  🔍 DOM提取诊断: /frames 未返回 frameTree`);
+    console.warn(`  🔍 DOM提取诊断： /frames 未返回 frameTree`);
     await diagnoseResumeIframeDom(targetId, iframeSrc);
     return null;
   }
@@ -1581,7 +1581,7 @@ export async function tryExtractResumeTextFromDOM(targetId) {
   // 在 frame 树中匹配简历 iframe
   const targetFrame = findFrameInTree(framesResp.frameTree, iframeSrc);
   if (!targetFrame || !targetFrame.id) {
-    console.warn(`  🔍 DOM提取诊断: frameTree 未匹配到 iframe src=${(iframeSrc || '').slice(0, 80)}`);
+    console.warn(`  🔍 DOM提取诊断： frameTree 未匹配到 iframe src=${(iframeSrc || '').slice(0, 80)}`);
     await diagnoseResumeIframeDom(targetId, iframeSrc);
     return null;
   }
@@ -1592,9 +1592,9 @@ export async function tryExtractResumeTextFromDOM(targetId) {
     try {
       const iw = await proxyGet(`/isolated-world?target=${targetId}&frame=${encodeURIComponent(targetFrame.id)}`);
       if (iw && iw.executionContextId) ctx = { id: iw.executionContextId };
-      else console.warn(`  🔍 DOM提取诊断: createIsolatedWorld 未返回 contextId: ${JSON.stringify(iw)}`);
+      else console.warn(`  🔍 DOM提取诊断： createIsolatedWorld 未返回 contextId： ${JSON.stringify(iw)}`);
     } catch (e) {
-      console.warn(`  🔍 DOM提取诊断: createIsolatedWorld 异常: ${e.message}`);
+      console.warn(`  🔍 DOM提取诊断： createIsolatedWorld 异常： ${e.message}`);
     }
   }
   if (!ctx) {
@@ -1623,7 +1623,7 @@ export async function tryExtractResumeTextFromDOM(targetId) {
         return null;
       })()`);
     } catch (e) {
-      console.warn(`  🔍 DOM提取诊断: eval-context 异常: ${e.message}`);
+      console.warn(`  🔍 DOM提取诊断： eval-context 异常： ${e.message}`);
       break;
     }
     if (result && result.value === '__WASM_CANVAS_RESUME__') {
@@ -1642,7 +1642,7 @@ export async function tryExtractResumeTextFromDOM(targetId) {
       return null;
     }
     if (result && result.value) {
-      console.log(`  ✓ DOM提取简历文本 (iframe执行上下文, ${result.value.length} 字)`);
+      console.log(`  ✓ DOM提取简历文本（iframe执行上下文，${result.value.length} 字）`);
       return result.value;
     }
     await sleep(500);
@@ -1651,7 +1651,7 @@ export async function tryExtractResumeTextFromDOM(targetId) {
   const deepText = await probeFramesForResumeText(targetId, iframeSrc);
   if (deepText) return deepText;
   // 有 context 但文本不足阈值：探测是否 canvas 图片简历
-  console.warn(`  🔍 DOM提取诊断: 有 context 但文本不足 ${DOM_MIN_TEXT_LEN} 字，探测简历渲染方式`);
+  console.warn(`  🔍 DOM提取诊断： 有 context 但文本不足 ${DOM_MIN_TEXT_LEN} 字，探测简历渲染方式`);
   await diagnoseResumeIframeDom(targetId, iframeSrc);
   return null;
 }

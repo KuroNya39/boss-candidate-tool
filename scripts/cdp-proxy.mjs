@@ -73,7 +73,7 @@ async function discoverChromePort() {
           // 第二行是带 UUID 的 WebSocket 路径（如 /devtools/browser/xxx-xxx）
           // 非显式 --remote-debugging-port 启动时，Chrome 可能只接受此路径
           const wsPath = lines[1] || null;
-          console.log(`[CDP Proxy] 从 DevToolsActivePort 发现端口: ${port}${wsPath ? ' (带 wsPath)' : ''}`);
+          console.log(`[CDP Proxy] 从 DevToolsActivePort 发现端口： ${port}${wsPath ? '（带 wsPath）' : ''}`);
           return { port, wsPath };
         }
       }
@@ -85,7 +85,7 @@ async function discoverChromePort() {
   for (const port of commonPorts) {
     const ok = await checkPort(port);
     if (ok) {
-      console.log(`[CDP Proxy] 扫描发现 Chrome 调试端口: ${port}`);
+      console.log(`[CDP Proxy] 扫描发现 Chrome 调试端口： ${port}`);
       return { port, wsPath: null };
     }
   }
@@ -141,7 +141,7 @@ async function connect() {
     const onOpen = () => {
       cleanup();
       connectingPromise = null;
-      console.log(`[CDP Proxy] 已连接 Chrome (端口 ${chromePort})`);
+      console.log(`[CDP Proxy] 已连接 Chrome（端口 ${chromePort}）`);
       resolve();
     };
     const onError = (e) => {
@@ -151,7 +151,7 @@ async function connect() {
       chromePort = null;
       chromeWsPath = null;
       const msg = e.message || e.error?.message || '连接失败';
-      console.error('[CDP Proxy] 连接错误:', msg, '（端口缓存已清除，下次将重新发现）');
+      console.error('[CDP Proxy] 连接错误：', msg, '（端口缓存已清除，下次将重新发现）');
       reject(new Error(msg));
     };
     const onClose = () => {
@@ -216,7 +216,7 @@ async function connectWithRetry() {
       await connect();
       return; // 连接成功
     } catch (e) {
-      console.log(`[CDP Proxy] 连接 Chrome 失败，5 秒后重试: ${e.message}`);
+      console.log(`[CDP Proxy] 连接 Chrome 失败，5 秒后重试： ${e.message}`);
       await new Promise(r => setTimeout(r, 5000));
     }
   }
@@ -232,7 +232,7 @@ function sendCDP(method, params = {}, sessionId = null) {
     if (sessionId) msg.sessionId = sessionId;
     const timer = setTimeout(() => {
       pending.delete(id);
-      reject(new Error('CDP 命令超时: ' + method));
+      reject(new Error('CDP 命令超时： ' + method));
     }, 30000);
     pending.set(id, { resolve, timer });
     ws.send(JSON.stringify(msg));
@@ -252,7 +252,7 @@ async function ensureSession(targetId) {
     await enablePortGuard(sid);
     return sid;
   }
-  throw new Error('attach 失败: ' + JSON.stringify(resp.error));
+  throw new Error('attach 失败： ' + JSON.stringify(resp.error));
 }
 
 // 拦截页面对 Chrome 调试端口的探测（反风控）
@@ -517,7 +517,7 @@ const server = http.createServer(async (req, res) => {
       const selectorJson = JSON.stringify(selector);
       const js = `(() => {
         const el = document.querySelector(${selectorJson});
-        if (!el) return { error: '未找到元素: ' + ${selectorJson} };
+        if (!el) return { error: '未找到元素： ' + ${selectorJson} };
         el.scrollIntoView({ block: 'center' });
         el.click();
         return { clicked: true, tag: el.tagName, text: (el.textContent || '').slice(0, 100) };
@@ -552,7 +552,7 @@ const server = http.createServer(async (req, res) => {
       const selectorJson = JSON.stringify(selector);
       const js = `(() => {
         const el = document.querySelector(${selectorJson});
-        if (!el) return { error: '未找到元素: ' + ${selectorJson} };
+        if (!el) return { error: '未找到元素： ' + ${selectorJson} };
         el.scrollIntoView({ block: 'center' });
         const rect = el.getBoundingClientRect();
         return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, tag: el.tagName, text: (el.textContent || '').slice(0, 100) };
@@ -608,7 +608,7 @@ const server = http.createServer(async (req, res) => {
       const events = SEQ[body.keys] || [];
       if (!events.length) {
         res.statusCode = 400;
-        res.end(JSON.stringify({ error: '不支持的按键序列: ' + body.keys }));
+        res.end(JSON.stringify({ error: '不支持的按键序列： ' + body.keys }));
         return;
       }
       for (const ev of events) {
@@ -832,13 +832,13 @@ const server = http.createServer(async (req, res) => {
       // 候选弹窗实况（多份弹窗时用来确认挑中的是哪一份）
       const logCands = (i) => {
         if (!i) return;
-        if (i.error) console.log(`[canvas-copy] 选弹窗失败: ${i.error}`);
-        else if (i.cands) console.log(`[canvas-copy] 候选弹窗: ${JSON.stringify(i.cands)}`);
+        if (i.error) console.log(`[canvas-copy] 选弹窗失败： ${i.error}`);
+        else if (i.cands) console.log(`[canvas-copy] 候选弹窗： ${JSON.stringify(i.cands)}`);
       };
       let { info, canvasY } = await pollInfo(4, 500);
       logCands(info);
       if (info && !info.error && canvasY !== null && canvasY >= 120) {
-        console.log(`[canvas-copy] canvas 未回顶(y=${canvasY})，重载 c-resume iframe 重建渲染状态`);
+        console.log(`[canvas-copy] canvas 未回顶（y=${canvasY}），重载 c-resume iframe 重建渲染状态`);
         await sendCDP('Runtime.evaluate', { expression: reloadJs, returnByValue: true }, sid);
         await sleepMs(500);
         await sendCDP('Runtime.evaluate', { expression: resetJs, returnByValue: true }, sid);
@@ -846,7 +846,7 @@ const server = http.createServer(async (req, res) => {
         logCands(info);
       }
       if (!info || info.error || canvasY === null || canvasY >= 120) {
-        res.end(JSON.stringify({ error: `canvas 未归顶或找不到 (y=${canvasY})` }));
+        res.end(JSON.stringify({ error: `canvas 未归顶或找不到（y=${canvasY}）` }));
         return;
       }
       if (copyOverdue()) { await bailCopy('copy-timeout'); return; }
@@ -955,7 +955,7 @@ const server = http.createServer(async (req, res) => {
       }, sid);
       if (!node.result?.nodeId) {
         res.statusCode = 400;
-        res.end(JSON.stringify({ error: '未找到元素: ' + body.selector }));
+        res.end(JSON.stringify({ error: '未找到元素： ' + body.selector }));
         return;
       }
       // 设置文件
@@ -1229,7 +1229,7 @@ async function main() {
         process.exit(0);
       }
       // 旧版本实例（可能还在跑旧代码，截图守卫缺失）→ 请求它退出，等端口释放后由本实例接管
-      console.log(`[CDP Proxy] 检测到旧版本实例 (version=${health.version})，请求退出以加载新代码...`);
+      console.log(`[CDP Proxy] 检测到旧版本实例（version=${health.version}），请求退出以加载新代码…`);
       await httpGetJson(`http://127.0.0.1:${PORT}/shutdown`);
       for (let i = 0; i < 10; i++) {
         await new Promise(r => setTimeout(r, 300));
@@ -1254,10 +1254,10 @@ async function main() {
 
 // 防止未捕获异常导致进程崩溃
 process.on('uncaughtException', (e) => {
-  console.error('[CDP Proxy] 未捕获异常:', e.message);
+  console.error('[CDP Proxy] 未捕获异常：', e.message);
 });
 process.on('unhandledRejection', (e) => {
-  console.error('[CDP Proxy] 未处理拒绝:', e?.message || e);
+  console.error('[CDP Proxy] 未处理拒绝：', e?.message || e);
 });
 
 main();

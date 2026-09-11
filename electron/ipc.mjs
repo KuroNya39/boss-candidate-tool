@@ -192,7 +192,7 @@ function registerIPC() {
     setOutputDir(newDir);
     apiConfig.outputDir = parentDir;
     saveApiConfig(apiConfig);
-    termLog(`[config] 输出目录已更改: ${newDir}`);
+    termLog(`[config] 输出目录已更改： ${newDir}`);
     return { path: newDir };
   });
 
@@ -202,7 +202,7 @@ function registerIPC() {
     const baseName = basename(OUTPUT_DIR);
     // 校验：baseName 必须只包含合法字符，避免误删
     if (!/^[a-zA-Z0-9_一-龥-]+$/.test(baseName)) {
-      return { error: `输出目录名 "${baseName}" 包含非法字符，拒绝操作` };
+      return { error: `输出目录名「${baseName}」包含非法字符，拒绝操作` };
     }
 
     let deletedCount = 0;
@@ -214,12 +214,12 @@ function registerIPC() {
       const entries = readdirSync(parentDir, { withFileTypes: true });
       for (const entry of entries) {
         if (!entry.isDirectory()) {
-          termLog(`[clear-history] 跳过非目录: ${entry.name}`);
+          termLog(`[clear-history] 跳过非目录： ${entry.name}`);
           continue;
         }
         // 归档目录名须形如 {输出目录名}-YYYYMMDD-HHMM（复用 archiveDirNameMatches，防止误删任意目录）
         if (!archiveDirNameMatches(entry.name)) {
-          termLog(`[clear-history] 不匹配归档模式: ${entry.name}`);
+          termLog(`[clear-history] 不匹配归档模式： ${entry.name}`);
           skippedDirs.push(entry.name);
           continue;
         }
@@ -239,25 +239,25 @@ function registerIPC() {
               lastErr = e;
               retries--;
               if (retries > 0) {
-                termLog(`[clear-history] ${entry.name} 删除失败，${retries} 次重试...`, 'stderr');
+                termLog(`[clear-history] ${entry.name} 删除失败，${retries} 次重试…`, 'stderr');
                 await sleep(500);
               }
             }
           }
           if (lastErr) throw lastErr;
-          termLog(`[clear-history] 已删除: ${entry.name}`);
+          termLog(`[clear-history] 已删除： ${entry.name}`);
           deletedCount++;
         } catch (err) {
-          termLog(`[clear-history] 删除失败 ${entry.name}: ${err.message}`, 'stderr');
+          termLog(`[clear-history] 删除失败 ${entry.name}： ${err.message}`, 'stderr');
           errorCount++;
         }
       }
     } catch (err) {
-      return { error: `读取目录失败: ${err.message}` };
+      return { error: `读取目录失败： ${err.message}` };
     }
 
-    termLog(`[clear-history] 匹配到的目录: ${JSON.stringify(matchedDirs)}`);
-    termLog(`[clear-history] 未匹配的目录: ${JSON.stringify(skippedDirs)}`);
+    termLog(`[clear-history] 匹配到的目录： ${JSON.stringify(matchedDirs)}`);
+    termLog(`[clear-history] 未匹配的目录： ${JSON.stringify(skippedDirs)}`);
 
     return {
       ok: true,
@@ -361,7 +361,7 @@ function registerIPC() {
       });
       return { ok: true, list };
     } catch (err) {
-      return { error: `读取历史记录失败: ${err.message}` };
+      return { error: `读取历史记录失败： ${err.message}` };
     }
   });
 
@@ -384,14 +384,14 @@ function registerIPC() {
         } catch (e) {
           lastErr = e;
           retries--;
-          if (retries > 0) { termLog(`[delete-history] 删除失败，${retries} 次重试...`, 'stderr'); await sleep(500); }
+          if (retries > 0) { termLog(`[delete-history] 删除失败，${retries} 次重试…`, 'stderr'); await sleep(500); }
         }
       }
       if (lastErr) throw lastErr;
-      termLog(`[delete-history] 已删除: ${dirPath}`);
+      termLog(`[delete-history] 已删除： ${dirPath}`);
       return { ok: true };
     } catch (err) {
-      return { error: `删除失败: ${err.message}` };
+      return { error: `删除失败： ${err.message}` };
     }
   });
 
@@ -452,9 +452,9 @@ function registerIPC() {
       const targetPath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
       const restored = restoreScorableCandidates(dirPath, targetPath);
       if (!restored) return { error: '该批次没有可评分的数据（既无提取数据，也无评分结果）' };
-      termLog(`[rescore] 已从历史批次恢复可评分数据: ${dirPath}`);
+      termLog(`[rescore] 已从历史批次恢复可评分数据： ${dirPath}`);
     } catch (err) {
-      return { error: `恢复数据失败: ${err.message}` };
+      return { error: `恢复数据失败： ${err.message}` };
     }
     const meta = readRunMeta(dirPath);
     // 来源取「该批次 meta 明确写的页面，否则数据文件写明的页面」
@@ -498,7 +498,7 @@ function registerIPC() {
 
   ipcMain.handle('retry-cdp-connection', async () => {
     if (cdpStatus.state === 'connected') return { ...cdpStatus };
-    setCdpStatus({ state: 'connecting', message: '正在重试...', chromePort: null });
+    setCdpStatus({ state: 'connecting', message: '正在重试…', chromePort: null });
     startCdpProxy().catch(() => {});
     return { ...cdpStatus };
   });

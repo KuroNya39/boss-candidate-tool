@@ -32,7 +32,7 @@ async function runGreeting(level, source = 'recommend', opts = {}) {
       totalTargets = candidates.filter(c => (c.matchScore ?? c.totalScore ?? c.jobRelevanceScore ?? 0) >= threshold).length;
     }
   } catch (err) {
-    termLog(`[greet] 读取目标人数失败: ${err.message}`, 'stderr');
+    termLog(`[greet] 读取目标人数失败： ${err.message}`, 'stderr');
   }
 
   termLog(`[greet] 开始批量打招呼${isRetry ? '（重试失败名单）' : ''}，level=${level}，source=${source}，目标 ${totalTargets} 人`);

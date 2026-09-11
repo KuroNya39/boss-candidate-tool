@@ -830,24 +830,24 @@ async function main() {
     const ts = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
     finalPath = resolve(dirname(outputPath), `candidates-${ts}.xlsx`);
     renameSync(tmpPath, finalPath);
-    console.warn(`输出文件被占用，已另存为: ${finalPath}`);
+    console.warn(`输出文件被占用，已另存为： ${finalPath}`);
   }
 
-  console.log(`导出成功: ${finalPath}`);
+  console.log(`导出成功： ${finalPath}`);
   console.log(`共导出 ${candidates.length} 条记录，${sheetCount} 个岗位`);
 
   // 输出各岗位人数
   for (const [position, groupCandidates] of positionGroups) {
     const passCount = groupCandidates.filter(c => c.passed !== false).length;
-    console.log(`  ${position}: ${groupCandidates.length} 人 (通过 ${passCount})`);
+    console.log(`  ${position}： ${groupCandidates.length} 人（通过 ${passCount}）`);
   }
 
   // 统计信息
   if (input.totalCandidates && input.passedCount) {
-    console.log(`筛选规则: ${input.filterName || '未知'} (v${input.filterVersion || '?'})`);
-    console.log(`通过率: ${input.passedCount}/${input.totalCandidates} (${Math.round(input.passedCount / input.totalCandidates * 100)}%)`);
+    console.log(`筛选规则： ${input.filterName || '未知'} （v${input.filterVersion || '?'}）`);
+    console.log(`通过率： ${input.passedCount}/${input.totalCandidates} （${Math.round(input.passedCount / input.totalCandidates * 100)}%）`);
   } else if (input.mode === 'default') {
-    console.log(`评分模式: 默认评分 (全量)`);
+    console.log(`评分模式： 默认评分（全量）`);
   }
 
   // 邮件发送（可选，--to-prefix 时触发）
@@ -871,10 +871,10 @@ async function sendEmailAfterExport(opts, excelPath) {
     // MAIL_OK / MAIL_FAIL 是给主进程解析的机器标记，主进程据此判断邮件是否真的发出去了，
     // 避免导出脚本退出码为 0 时界面误报「邮件已发送」（实际可能认证失败没发出去）
     console.log(`MAIL_OK:${result.to}`);
-    console.log(`邮件发送成功: ${result.to}`);
+    console.log(`邮件发送成功： ${result.to}`);
   } catch (err) {
     console.log(`MAIL_FAIL:${err.message}`);
-    console.error(`邮件发送失败: ${err.message}`);
+    console.error(`邮件发送失败： ${err.message}`);
   }
 }
 
@@ -882,7 +882,7 @@ async function sendEmailAfterExport(opts, excelPath) {
 const isMainModule = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
 if (isMainModule) {
   main().catch(err => {
-    console.error(`导出失败: ${err.message}`);
+    console.error(`导出失败： ${err.message}`);
     process.exit(1);
   });
 }

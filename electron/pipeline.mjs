@@ -57,7 +57,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
           archiveOldOutput(OUTPUT_DIR, false); // 跳过被锁文件，其余照常归档，日志随主进程走 console
         }
       } catch (e) {
-        termLog(`[main] 归档旧输出目录跳过: ${e.message}`, 'stderr');
+        termLog(`[main] 归档旧输出目录跳过： ${e.message}`, 'stderr');
       }
       // 兜底：万一归档没挪干净（个别文件仍被占用留在原地），清掉评分器会误读的残留进度/扫描缓存。
       // 新开一轮的进度必须从零开始，绝不能沿用上一批候选人为新岗位抢先开评。
@@ -121,13 +121,13 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       const openUrl = getSourcePageUrl(source);
       const launchRes = await launchChrome({ openUrl });
       if (launchRes.ok) {
-        termLog(`[main] Chrome 未运行，已自动启动并打开 ${pageLabel}页: ${openUrl}`);
+        termLog(`[main] Chrome 未运行，已自动启动并打开 ${pageLabel}页： ${openUrl}`);
         sendProgress(1, 'idle', 0,
           `检测到 Chrome 未运行，已自动启动并打开${pageLabel}页。`
           + '请等待页面加载、登录 BOSS直聘并设置好筛选条件后，再次点击「开始提取分析」。');
         return;
       }
-      termLog(`[main] Chrome 未运行，自动启动失败: ${launchRes.message}`, 'stderr');
+      termLog(`[main] Chrome 未运行，自动启动失败： ${launchRes.message}`, 'stderr');
     }
 
     // —— 启动并行评分器（提取过程中边提取边评分） ——
@@ -144,7 +144,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     });
 
     if (!skipExtract) {
-      sendProgress(1, 'running', 0, extractAll ? `正在扫描候选人列表 (${pageLabel}页)…` : '正在扫描候选人列表…');
+      sendProgress(1, 'running', 0, extractAll ? `正在扫描候选人列表（${pageLabel}页）…` : '正在扫描候选人列表…');
       const extractArgs = extractAll
         ? ['--all', '--output', resolve(OUTPUT_DIR, 'zhipin-candidates.json')]
         : ['--count', String(count), '--output', resolve(OUTPUT_DIR, 'zhipin-candidates.json')];
@@ -235,8 +235,8 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
         for (const srcDir of sources) {
           restored = restoreScorableCandidates(srcDir, candidatesPath);
           if (restored) {
-            termLog(`[main] 从数据目录恢复可评分数据: ${srcDir}`);
-            sendProgress(1, 'running', 30, srcDir === OUTPUT_DIR ? '正在恢复上次的数据…' : '正在从上次提取的数据恢复…');
+            termLog(`[main] 从数据目录恢复可评分数据： ${srcDir}`);
+            sendProgress(1, 'running', 30, '正在恢复上次提取的数据…');
             break;
           }
         }
@@ -258,7 +258,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     sendProgress(2, 'done', 100, 'AI 评分完成');
     sendProgress(3, 'running', 0, '正在导出 Excel…');
     const scoredPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
-    if (!existsSync(scoredPath)) throw new Error(`未找到评分结果文件: ${scoredPath}`);
+    if (!existsSync(scoredPath)) throw new Error(`未找到评分结果文件： ${scoredPath}`);
 
     // v1.9.3 自愈：这轮跑到评分完成，确保当前目录一定留有 .run-meta.json。
     // 个别异常流程（早期写 meta 被占用/被跳过）可能留下「有数据没 meta」的批次，
@@ -284,7 +284,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
           extractAll,
           startedAt: new Date().toISOString(),
         }, null, 2), 'utf-8');
-        termLog(`[main] 自愈：补写缺失的 .run-meta.json (source=${resolved})`);
+        termLog(`[main] 自愈：补写缺失的 .run-meta.json（source=${resolved}）`);
       }
     } catch (e) {
       termLog(`[main] 补写 .run-meta.json 失败：${e.message}`, 'stderr');
@@ -347,7 +347,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       const pageMsg = buildPageNotOpenMessage(err.message);
       if (pageMsg) {
         openUrlInChrome(getSourcePageUrl(source));
-        termLog(`[main] 页面未打开，已自动打开来源页: ${getSourcePageUrl(source)}`);
+        termLog(`[main] 页面未打开，已自动打开来源页： ${getSourcePageUrl(source)}`);
       }
       sendError({ message: pageMsg || '请先在 Chrome 中打开 BOSS直聘对应页面，设置好筛选条件后，点击「重试」。' });
     } else {

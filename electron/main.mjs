@@ -28,12 +28,12 @@ app.whenReady().then(() => {
   const scoreOnly = process.argv.includes('--score-only');
   if (scoreOnly) {
     // 无界面模式：只跑评分+导出（跑完自动退出，避免无窗口进程挂起）
-    termLog('[main] 模式: --score-only (跳过提取，直接评分导出)');
+    termLog('[main] 模式： --score-only（跳过提取，直接评分导出）');
     runPipeline(20, true, true, 'chat', '').then(() => {
       termLog('[main] --score-only 完成，进程退出');
       app.exit(0);
     }).catch((err) => {
-      termLog(`[main] --score-only 异常: ${err.message}`, 'stderr');
+      termLog(`[main] --score-only 异常： ${err.message}`, 'stderr');
       app.exit(1);
     });
     return;

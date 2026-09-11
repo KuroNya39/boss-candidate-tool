@@ -77,7 +77,7 @@ function parseArgs() {
     if (args[i] === '--retry' && args[i + 1]) opts.retry = args[++i]; // 重试名单路径
   }
   if (!opts.input && !opts.retry) {
-    fatal('缺少 --input 或 --retry 参数。\nUsage: node greet-candidates.mjs --input <scored-candidates.json> --level <5|4|3|2|0> --source <recommend|search> | --retry <greet-retry.json>');
+    fatal('缺少 --input 或 --retry 参数。\nUsage： node greet-candidates.mjs --input <scored-candidates.json> --level <5|4|3|2|0> --source <recommend|search> | --retry <greet-retry.json>');
   }
   return opts;
 }
@@ -108,7 +108,7 @@ function writeRetryFile(path, retryList) {
       writeFileSync(path, JSON.stringify(retryList, null, 2), 'utf-8');
     }
   } catch (err) {
-    console.log(`[greet] 写入可重试名单失败: ${err.message}`);
+    console.log(`[greet] 写入可重试名单失败： ${err.message}`);
   }
 }
 
@@ -145,7 +145,7 @@ async function iframeEval(targetId, expr, source = 'recommend') {
   })()`;
   const raw = await cdpEval(targetId, wrapped);
   const parsed = JSON.parse(raw);
-  if (parsed.error) throw new Error(`iframe 操作失败: ${parsed.error}`);
+  if (parsed.error) throw new Error(`iframe 操作失败： ${parsed.error}`);
   return parsed.value;
 }
 
@@ -232,13 +232,13 @@ async function main() {
   let sourceInfo;
   if (retryMode) {
     if (!rPath || !existsSync(rPath)) {
-      fatal(`未找到可重试名单: ${rPath || '未知路径'}`);
+      fatal(`未找到可重试名单： ${rPath || '未知路径'}`);
     }
     let list;
     try {
       list = JSON.parse(readFileSync(rPath, 'utf-8'));
     } catch (err) {
-      fatal(`读取可重试名单失败: ${err.message}`);
+      fatal(`读取可重试名单失败： ${err.message}`);
     }
     if (!Array.isArray(list) || list.length === 0) {
       console.log('GREET_DONE:0|0|0|0|0'); // 名单已空：无事可做，干净收尾
@@ -256,7 +256,7 @@ async function main() {
 
     // 1. 读取评分数据
     if (!existsSync(opts.input)) {
-      fatal(`未找到文件: ${opts.input}`);
+      fatal(`未找到文件： ${opts.input}`);
     }
     const raw = JSON.parse(readFileSync(opts.input, 'utf-8'));
     const candidates = raw.candidates || raw;
@@ -267,7 +267,7 @@ async function main() {
     // 2. 按等级阈值过滤
     const threshold = TIER_THRESHOLDS[opts.level];
     if (threshold === undefined) {
-      fatal(`无效的等级: ${opts.level}，可用值: 5, 4, 3, 2, 0`);
+      fatal(`无效的等级： ${opts.level}，可用值： 5, 4, 3, 2, 0`);
     }
 
     const matched = candidates.filter(c => {
@@ -294,7 +294,7 @@ async function main() {
   // 3. 连接 CDP，找到对应 tab
   const targetId = await findTab(opts.source);
   const pageName = opts.source === 'search' ? '搜索页' : '推荐牛人页';
-  console.log(`已找到${pageName} tab: ${targetId}\n`);
+  console.log(`已找到${pageName}标签页： ${targetId}\n`);
 
   // 4. 逐人打招呼（每人 30 秒超时，防止单个人卡死整个流程）
   const PER_CANDIDATE_TIMEOUT = 30000;
@@ -320,7 +320,7 @@ async function main() {
       continue;
     }
 
-    console.log(`[${i + 1}/${targets.length}] ${name} (${score}分) ...`);
+    console.log(`[${i + 1}/${targets.length}] ${name} （${score}分）…`);
 
     // 单个候选人超时保护（30s），防止单个人卡死整个流程；停止指令也参与竞争，
     // 这样单个候选人卡住时点停止也能立刻收手，不必干等 30 秒
@@ -335,7 +335,7 @@ async function main() {
         stopSignal.then(() => 'cancelled'),
       ]);
     } catch (err) {
-      console.log(`[greet] ${name} 异常: ${err.message}`);
+      console.log(`[greet] ${name} 异常： ${err.message}`);
       result = 'error';
     }
 
@@ -358,7 +358,7 @@ async function main() {
       case 'error':
         // 可重试失败：点过但没确认成功（多为太频繁/风控挡下）。收进失败名单，
         // 界面「重试」只补这批人；已打过/已成功的经上面前置判断不会进来，不会重复发
-        if (result === 'timeout') console.log(`GREET_STATUS:${name}|${geekId}|timeout|操作超时(30s)`);
+        if (result === 'timeout') console.log(`GREET_STATUS:${name}|${geekId}|timeout|操作超时（30s）`);
         else if (result === 'error') console.log(`GREET_STATUS:${name}|${geekId}|error|处理异常`);
         retryableCount++;
         retryList.push({ geekId, name, matchScore: score });

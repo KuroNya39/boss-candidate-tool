@@ -18,16 +18,16 @@ export function loadApiConfig() {
       if (saved.url && saved.key && saved.model) {
         // 合并保存的字段，保留默认值补全缺失字段（setApiConfig 即 merge 语义）
         setApiConfig(saved);
-        termLog(`[config] 已加载持久化配置: url=${saved.url}, model=${saved.model}`);
+        termLog(`[config] 已加载持久化配置： url=${saved.url}, model=${saved.model}`);
       }
       // outputDir 独立于 API 配置加载
       if (saved.outputDir) {
         setOutputDir(resolve(saved.outputDir, 'output'));
-        termLog(`[config] 输出目录: ${resolve(saved.outputDir, 'output')}`);
+        termLog(`[config] 输出目录： ${resolve(saved.outputDir, 'output')}`);
       }
     }
   } catch (err) {
-    termLog(`[config] 加载持久化配置失败: ${err.message}`, 'stderr');
+    termLog(`[config] 加载持久化配置失败： ${err.message}`, 'stderr');
   }
 }
 
@@ -37,7 +37,7 @@ export function saveApiConfig(config) {
     writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
     termLog(`[config] 配置已保存到 ${CONFIG_PATH}`);
   } catch (err) {
-    termLog(`[config] 保存配置失败: ${err.message}`, 'stderr');
+    termLog(`[config] 保存配置失败： ${err.message}`, 'stderr');
   }
 }
 
@@ -70,9 +70,9 @@ export function addRecommendJob(jobName, jobDesc) {
   const dir = JD_DIR;
   mkdirSync(dir, { recursive: true });
   const filePath = resolve(dir, safeName + '.txt');
-  if (existsSync(filePath)) throw new Error(`岗位"${jobName}"已存在`);
+  if (existsSync(filePath)) throw new Error(`岗位「${jobName}」已存在`);
   writeFileSync(filePath, jobDesc || '', 'utf-8');
-  termLog(`[config] 已添加新岗位: ${jobName}`);
+  termLog(`[config] 已添加新岗位： ${jobName}`);
   return { ok: true };
 }
 
@@ -90,9 +90,9 @@ export function updateRecommendJob(jobName, jobDesc) {
   if (!jobName || typeof jobName !== 'string') throw new Error('岗位名不能为空');
   const safeName = safeJdName(jobName);
   const filePath = resolve(JD_DIR, safeName + '.txt');
-  if (!existsSync(filePath)) throw new Error(`岗位"${jobName}"不存在`);
+  if (!existsSync(filePath)) throw new Error(`岗位「${jobName}」不存在`);
   writeFileSync(filePath, jobDesc || '', 'utf-8');
-  termLog(`[config] 已更新岗位描述: ${jobName}`);
+  termLog(`[config] 已更新岗位描述： ${jobName}`);
   return { ok: true };
 }
 
@@ -105,11 +105,11 @@ export function renameRecommendJob(oldName, newName) {
   const newSafe = safeJdName(newName);
   const oldPath = resolve(JD_DIR, oldSafe + '.txt');
   const newPath = resolve(JD_DIR, newSafe + '.txt');
-  if (!existsSync(oldPath)) throw new Error(`岗位"${oldName}"不存在`);
-  if (existsSync(newPath)) throw new Error(`岗位"${newName}"已存在`);
+  if (!existsSync(oldPath)) throw new Error(`岗位「${oldName}」不存在`);
+  if (existsSync(newPath)) throw new Error(`岗位「${newName}」已存在`);
   mkdirSync(JD_DIR, { recursive: true });
   renameSync(oldPath, newPath);
-  termLog(`[config] 已重命名岗位: ${oldName} → ${newName}`);
+  termLog(`[config] 已重命名岗位： ${oldName} → ${newName}`);
   return { ok: true };
 }
 
@@ -118,8 +118,8 @@ export function deleteRecommendJob(jobName) {
   if (!jobName) throw new Error('岗位名不能为空');
   const safeName = safeJdName(jobName);
   const filePath = resolve(JD_DIR, safeName + '.txt');
-  if (!existsSync(filePath)) throw new Error(`岗位"${jobName}"不存在`);
+  if (!existsSync(filePath)) throw new Error(`岗位「${jobName}」不存在`);
   unlinkSync(filePath);
-  termLog(`[config] 已删除岗位: ${jobName}`);
+  termLog(`[config] 已删除岗位： ${jobName}`);
   return { ok: true };
 }

@@ -60,7 +60,7 @@ const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 export function buildRecipient(prefix) {
   const input = String(prefix || '');
   if (!input.includes('@')) {
-    fail('Invalid --to-prefix: 请填写完整邮箱（含 @），例如 hr@example.com');
+    fail('Invalid --to-prefix： 请填写完整邮箱（含 @），例如 hr@example.com');
   }
   if (!EMAIL_PATTERN.test(input)) {
     fail('Invalid --to-prefix: email address format is wrong');
@@ -168,7 +168,7 @@ export async function sendCandidateEmail({
     } catch (err) {
       lastErr = err;
       if (!shouldRetryMail(err) || attempt >= MAX_MAIL_ATTEMPTS) break;
-      console.log(`邮件连接被服务器断开(第 ${attempt} 次)，自动重试…`);
+      console.log(`邮件连接被服务器断开（第 ${attempt} 次），自动重试…`);
       await sleep(attempt * 1500);
     }
   }
@@ -178,15 +178,15 @@ export async function sendCandidateEmail({
 async function main() {
   const opts = parseArgs();
   const result = await sendCandidateEmail(opts);
-  console.log(`邮件发送成功: ${result.to}`);
-  console.log(`附件: ${result.attachmentPath}`);
+  console.log(`邮件发送成功： ${result.to}`);
+  console.log(`附件： ${result.attachmentPath}`);
 }
 
 const currentFile = fileURLToPath(import.meta.url);
 const invokedFile = process.argv[1] ? resolve(process.argv[1]) : '';
 if (invokedFile === currentFile) {
   main().catch(error => {
-    console.error(`邮件发送失败: ${error.message}`);
+    console.error(`邮件发送失败： ${error.message}`);
     process.exit(1);
   });
 }

@@ -61,7 +61,7 @@ async function findExistingSearchTab() {
       '并设置好搜索关键词、岗位和筛选条件，然后重试。'
     );
   }
-  console.log(`已附着到用户打开的搜索页: ${tab.url}`);
+  console.log(`已附着到用户打开的搜索页： ${tab.url}`);
   return tab.targetId;
 }
 
@@ -84,7 +84,7 @@ async function iframeEval(targetId, expr) {
   })()`;
   const raw = await cdpEval(targetId, wrapped);
   const parsed = JSON.parse(raw);
-  if (parsed.error) throw new Error(`iframe 操作失败: ${parsed.error}`);
+  if (parsed.error) throw new Error(`iframe 操作失败： ${parsed.error}`);
   return parsed.value;
 }
 
@@ -295,7 +295,7 @@ async function confirmScanEnd(targetId, pushCard) {
         console.log('   ⌛ 底部「正在加载中…」，等待新候选人加载出来…');
       }
       if (Date.now() - startMs > 12000) {
-        console.log('   ⚠️ 底部「正在加载中…」超过 12 秒仍未出人，按已到底处理');
+        console.log('   ⚠️ 底部「正在加载中…」超过 12 秒仍无新候选人，按已到底部处理');
         return true;
       }
       continue;
@@ -338,7 +338,7 @@ async function scanAllCards(targetId, opts = {}) {
     try {
       visibleCards = await iframeEval(targetId, EXTRACT_CARD_INFO_SCRIPT);
     } catch (e) {
-      console.warn(`  读取卡片失败: ${e.message}`);
+      console.warn(`  读取卡片失败： ${e.message}`);
       await sleep(2000);
       continue;
     }
@@ -444,7 +444,7 @@ async function scanUpToCards(targetId, count, opts = {}) {
     try {
       visibleCards = await iframeEval(targetId, EXTRACT_CARD_INFO_SCRIPT);
     } catch (e) {
-      console.warn(`  读取卡片失败: ${e.message}`);
+      console.warn(`  读取卡片失败： ${e.message}`);
       await sleep(2000);
       continue;
     }
@@ -550,7 +550,7 @@ async function clickCardToOpenResume(targetId, expectId, cardIndex) {
 
   // 搜索页简历弹窗在主页面层级打开，用 cdpEval 在主页面检测
   // 仅用数字/字符串表达式，避免对象序列化
-  console.log('  → 等待弹窗 (15s)...');
+  console.log('  → 等待弹窗（15s）…');
   const maxWait = 15000;
   const start = Date.now();
   let lastW = 0, lastH = 0;
@@ -563,11 +563,11 @@ async function clickCardToOpenResume(targetId, expectId, cardIndex) {
 
       if (n > 0 && s !== 'no') {
         const [w, h] = s.split('x').map(Number);
-        if (stable === 0) console.log(`    弹窗存在: ${s}`);
+        if (stable === 0) console.log(`    弹窗存在： ${s}`);
         if (w === lastW && h === lastH) { stable++; if (stable>=1) { await sleep(250); return true; } }
         else { stable=0; lastW=w; lastH=h; }
       }
-    } catch(e) { if (Date.now()-start > 2000) console.log(`    弹窗检测异常: ${e.message}`); }
+    } catch(e) { if (Date.now()-start > 2000) console.log(`    弹窗检测异常： ${e.message}`); }
     await sleep(200);
   }
   console.log('    ⚠ 等待弹窗超时');
@@ -685,9 +685,9 @@ async function tryExtractSearchResumeTextFromDOM(targetId) {
           try {
             const iw = await proxyGet(`/isolated-world?target=${targetId}&frame=${encodeURIComponent(targetFrame.id)}`);
             if (iw && iw.executionContextId) ctx = { id: iw.executionContextId };
-            else console.warn(`  🔍 DOM提取诊断(搜索): createIsolatedWorld 未返回 contextId: ${JSON.stringify(iw)}`);
+            else console.warn(`  🔍 DOM提取诊断（搜索）： createIsolatedWorld 未返回 contextId： ${JSON.stringify(iw)}`);
           } catch (e) {
-            console.warn(`  🔍 DOM提取诊断(搜索): createIsolatedWorld 异常: ${e.message}`);
+            console.warn(`  🔍 DOM提取诊断（搜索）： createIsolatedWorld 异常： ${e.message}`);
           }
         }
         if (ctx) {
@@ -724,7 +724,7 @@ async function tryExtractSearchResumeTextFromDOM(targetId) {
                 console.log('  → 简历为 canvas 图片渲染（真实复制也未命中），跳过 DOM 提取直接截图');
                 return null;
               }
-              console.log(`  ✓ DOM提取简历文本 (搜索 iframe内, ${result.value.length} 字)`);
+              console.log(`  ✓ DOM提取简历文本（搜索 iframe内，${result.value.length} 字）`);
               return result.value;
             }
             await sleep(500);
@@ -776,13 +776,13 @@ async function tryExtractSearchResumeTextFromDOM(targetId) {
               return null;
             }
             if (sameOriginText) {
-              console.log(`  ✓ DOM提取简历文本 (搜索同域iframe, ${sameOriginText.length} 字)`);
+              console.log(`  ✓ DOM提取简历文本（搜索同域iframe, ${sameOriginText.length} 字）`);
               return sameOriginText;
             }
             await sleep(500);
           }
         } catch (e) {
-          console.warn(`  🔍 DOM提取诊断(搜索): 方式一B 同域iframe读取异常: ${e.message}`);
+          console.warn(`  🔍 DOM提取诊断（搜索）： 方式一B 同域iframe读取异常： ${e.message}`);
         }
         // 兜底：简历可能在更深一层的 iframe 里（frame 树逐个轮询，最多约 6s）
         const deepText = await probeFramesForResumeText(targetId, nestedSrc, '搜索');
@@ -795,15 +795,15 @@ async function tryExtractSearchResumeTextFromDOM(targetId) {
           const targetsResp = await proxyGet(`/targets?all=1`);
           const iframeTargets = (targetsResp || []).filter(t => t.type === 'iframe')
             .map(t => ({ type: t.type, url: (t.url || '').slice(0, 120) }));
-          console.warn(`  🔍 DOM提取诊断(搜索): 简历iframe在主session无上下文, nestedSrc=${(nestedSrc || '').slice(0, 80)}, OOPIF iframe targets=${iframeTargets.length}`);
+          console.warn(`  🔍 DOM提取诊断（搜索）： 简历iframe在主session无上下文，nestedSrc=${(nestedSrc || '').slice(0, 80)}, OOPIF iframe targets=${iframeTargets.length}`);
           for (const it of iframeTargets) console.warn(`      iframe target: ${it.url}`);
         } catch (e) {
-          console.warn(`  🔍 DOM提取诊断(搜索)失败: ${e.message}`);
+          console.warn(`  🔍 DOM提取诊断（搜索）失败： ${e.message}`);
         }
       }
     }
   } catch (e) {
-    console.warn(`  🔍 DOM提取诊断(搜索): 方式一异常: ${e.message}`);
+    console.warn(`  🔍 DOM提取诊断（搜索）： 方式一异常： ${e.message}`);
   }
 
   // ===== 方式二：直接在弹窗容器提取文本（无嵌套 iframe 时兜底，与推荐页一致，v1.3.28） =====
@@ -825,13 +825,13 @@ async function tryExtractSearchResumeTextFromDOM(targetId) {
       return null;
     })()`);
     if (direct) {
-      console.log(`  ✓ DOM提取简历文本 (搜索弹窗直接读取, ${direct.length} 字)`);
+      console.log(`  ✓ DOM提取简历文本（搜索弹窗直接读取，${direct.length} 字）`);
       return direct;
     }
   } catch {}
 
   // 全部方法失败：输出一次弹窗结构诊断（wrapper/content/detailWrap/iframe 是否存在的关键信息）
-  console.warn(`  🔍 DOM提取诊断(搜索): 全部方法未读到简历, 弹窗结构=${JSON.stringify(diag)}`);
+  console.warn(`  🔍 DOM提取诊断（搜索）： 全部方法未读到简历，弹窗结构=${JSON.stringify(diag)}`);
   return null;
 }
 
@@ -985,17 +985,17 @@ async function doCleanup() {
     try {
       await Promise.race([prevOcr, sleep(3000).then(() => 'timeout')]);
       saveProgress(processedExpectIds, candidates, outputPath);
-      console.log(`  💾 取消前已保存进度 (${processedExpectIds.size} 人)`);
+      console.log(`  💾 取消前已保存进度（${processedExpectIds.size} 人）`);
     } catch (e) {
-      console.warn(`  ⚠ 取消前保存进度失败: ${e.message}`);
+      console.warn(`  ⚠ 取消前保存进度失败： ${e.message}`);
     }
   }
 
   if (!_cleanupTargetId && !_cleanupWorker) return;
-  console.log('\n收到取消指令，清理资源...');
+  console.log('\n收到取消指令，清理资源…');
   if (_cleanupTargetId) {
     // 搜索页始终 attach 模式，不关闭用户 tab
-    console.log('  [attach 模式] 保留用户打开的 tab');
+    console.log('  [attach 模式] 保留用户打开的标签页');
     _cleanupTargetId = null;
   }
   if (_cleanupWorker) {
@@ -1016,11 +1016,11 @@ async function main() {
   archiveOldOutput(outputDir, opts.resume);
 
   const modeLabel = opts.extractAll ? '全部' : `前 ${opts.count} 个`;
-  console.log(`\n========== BOSS直聘候选人全量提取 (搜索页) ==========`);
-  console.log(`模式: attach（附着到用户打开的搜索页）`);
-  console.log(`提取模式: ${modeLabel}`);
-  if (opts.resume) console.log('恢复模式: 从上次进度继续');
-  console.log(`输出文件: ${outputPath}\n`);
+  console.log(`\n========== BOSS直聘候选人全量提取（搜索页） ==========`);
+  console.log(`模式： attach（附着到用户打开的搜索页）`);
+  console.log(`提取模式： ${modeLabel}`);
+  if (opts.resume) console.log('恢复模式： 从上次进度继续');
+  console.log(`输出文件： ${outputPath}\n`);
 
   mkdirSync(dirname(outputPath), { recursive: true });
   const tempDir = resolve(dirname(outputPath), '.temp-screenshots');
@@ -1038,20 +1038,20 @@ async function main() {
 
   if (scanCache) {
     cardInfos = scanCache.candidates;
-    console.log(`跳过扫描阶段，使用缓存: ${cardInfos.length} 人\n`);
+    console.log(`跳过扫描阶段，使用缓存： ${cardInfos.length} 人\n`);
   } else {
     // 搜索页只支持 attach 模式
-    console.log('查找用户已打开的搜索页...');
+    console.log('查找用户已打开的搜索页…');
     targetId = await findExistingSearchTab();
-    console.log(`已附着到 Tab: ${targetId}\n`);
+    console.log(`已附着到标签页： ${targetId}\n`);
 
     // 按实际窗口尺寸设置视口（DPR=2 提升 OCR 清晰度），避免布局塌缩、网页变形
     await prepareTab(targetId);
 
     // 等待页面加载
-    console.log('等待页面加载...');
+    console.log('等待页面加载…');
     const cardCount = await waitForPageLoad(targetId, 20000);
-    console.log(`页面已加载，卡片列表: ${cardCount} 项\n`);
+    console.log(`页面已加载，卡片列表： ${cardCount} 项\n`);
 
     // 获取页面当前搜索的岗位名（如果有）
     try {
@@ -1061,35 +1061,35 @@ async function main() {
         return '';
       })()`);
       if (pageJob) {
-        console.log(`当前搜索岗位: ${pageJob}`);
+        console.log(`当前搜索岗位： ${pageJob}`);
         effectiveJobName = pageJob;
       }
     } catch {}
 
     // 如果用户指定了目标岗位（--job），覆盖页面自动检测的岗位名
     if (opts.job) {
-      console.log(`使用指定的目标岗位: ${opts.job}`);
+      console.log(`使用指定的目标岗位： ${opts.job}`);
       effectiveJobName = opts.job;
     }
 
     // 扫描阶段
     if (opts.extractAll) {
-      console.log('扫描全部候选人卡片...');
+      console.log('扫描全部候选人卡片…');
       cardInfos = await scanAllCards(targetId, {
         onProgress: (total, attempt, newCount) => {
-          console.log(`  扫描进度: ${total} 人 (第 ${attempt + 1} 次滚动, 新增 ${newCount})`);
+          console.log(`  扫描进度： ${total} 人（第 ${attempt + 1} 次滚动，新增 ${newCount}）`);
         },
       });
     } else {
-      console.log(`扫描前 ${opts.count} 个候选人卡片...`);
+      console.log(`扫描前 ${opts.count} 个候选人卡片…`);
       cardInfos = await scanUpToCards(targetId, opts.count, {
         onProgress: (total, attempt, newCount) => {
-          console.log(`  扫描进度: ${total}/${opts.count} 人 (第 ${attempt + 1} 次滚动, 新增 ${newCount})`);
+          console.log(`  扫描进度： ${total}/${opts.count} 人（第 ${attempt + 1} 次滚动，新增 ${newCount}）`);
         },
       });
     }
 
-    console.log(`扫描完成: 发现 ${cardInfos.length} 个候选人\n`);
+    console.log(`扫描完成： 发现 ${cardInfos.length} 个候选人\n`);
 
     if (cardInfos.length === 0) {
       console.error('未扫描到候选人，退出');
@@ -1135,7 +1135,7 @@ async function main() {
   }
 
   // 初始化 OCR
-  console.log('初始化 OCR 引擎...');
+  console.log('初始化 OCR 引擎…');
   const { createWorker } = await import('tesseract.js');
   const localLangDir = resolve(__dirname, '..', 'ocr-lang');
   const workerOpts = {};
@@ -1143,7 +1143,7 @@ async function main() {
     workerOpts.langPath = localLangDir;
     workerOpts.gzip = false;        // 本地为未压缩文件；gzip 仅控制文件名后缀，读取后按 magic bytes 判断解压
     workerOpts.cacheMethod = 'none'; // 固定读本地文件，行为确定
-    console.log(`  使用本地语言包: ${localLangDir}/chi_sim.traineddata`);
+    console.log(`  使用本地语言包： ${localLangDir}/chi_sim.traineddata`);
   } else {
     console.log('  本地未找到语言包，将从 CDN 下载');
   }
@@ -1153,20 +1153,20 @@ async function main() {
 
   // 如果 resume 时没有 targetId（从缓存恢复），需要重新 attach 到搜索页
   if (!targetId) {
-    console.log('附着到已打开的搜索页...');
+    console.log('附着到已打开的搜索页…');
     targetId = await findExistingSearchTab();
     _cleanupTargetId = targetId;
-    console.log(`已附着到 Tab: ${targetId}`);
+    console.log(`已附着到标签页： ${targetId}`);
 
     // 按实际窗口尺寸设置视口（DPR=2 提升 OCR 清晰度），避免布局塌缩、网页变形
     await prepareTab(targetId);
 
-    console.log('等待页面加载...');
+    console.log('等待页面加载…');
     const cardCount = await waitForPageLoad(targetId, 20000);
-    console.log(`页面已加载，卡片列表: ${cardCount} 项\n`);
+    console.log(`页面已加载，卡片列表： ${cardCount} 项\n`);
   } else {
     _cleanupTargetId = targetId;
-    console.log('复用扫描 tab，无需重新打开\n');
+    console.log('复用扫描标签页，无需重新打开\n');
     // 滚动回列表顶部
     await iframeEval(targetId, `(function(){
       var containers = [
@@ -1188,7 +1188,7 @@ async function main() {
   const totalCount = cardInfos.length;
   const alreadyDone = processedExpectIds.size;
 
-  console.log(`待提取: ${toProcess.length} 人 (已完成 ${alreadyDone}，总计 ${totalCount})\n`);
+  console.log(`待提取： ${toProcess.length} 人（已完成 ${alreadyDone}，总计 ${totalCount}）\n`);
 
   if (toProcess.length === 0) {
     console.log('所有候选人已提取完成');
@@ -1238,7 +1238,7 @@ async function main() {
         // 出错时会抛 "clip is not defined" 把真实截图失败原因覆盖掉（v1.3.16/1.3.42 实测）。
         let clip = null;
         // 1. 点击卡片打开简历弹窗
-        console.log('  → 点击卡片打开简历...');
+        console.log('  → 点击卡片打开简历…');
         const dialogOpened = await clickCardToOpenResume(targetId, expectId, globalIndex - 1);
         if (!dialogOpened) {
           console.log('  ℹ 简历弹窗未打开，使用卡片基础数据（无教育时间、仅一段学历）');
@@ -1263,7 +1263,7 @@ async function main() {
             const txtPath = resolve(resumeDir, `${sname}-${expectId}.txt`);
             writeFileSync(txtPath, domText, 'utf8');
           } else {
-            console.log('  → 截图...');
+            console.log('  → 截图…');
 
             // 弹窗刚打开时简历 iframe 可能尚未加载：clip 尺寸和滚动信息会拿到空值
             // （0x0 / 高度=可视高度），直接截图会报 "Cannot take screenshot with 0 width"，
@@ -1275,7 +1275,7 @@ async function main() {
               const clipOk = clip && clip.width > 50 && clip.height > 50;
               const scrollOk = info && !info.error && info.scrollHeight > info.clientHeight + 50;
               if (attempt === 0) {
-                console.log(`    弹窗内容: clip=${clipOk ? `${clip.width}x${clip.height}` : '空'}, 可滚动=${scrollOk ? `${info.scrollHeight}px` : '无'}`);
+                console.log(`    弹窗内容： clip=${clipOk ? `${clip.width}x${clip.height}` : '空'}，可滚动=${scrollOk ? `${info.scrollHeight}px` : '无'}`);
               }
               if (clipOk || scrollOk) break;
               // v1.3.31: 内容就绪等待 1200-1800 → 800-1100ms（仅内容未就绪时才等，多数情况第一轮就 break）
@@ -1289,11 +1289,11 @@ async function main() {
             const screenshots = [];
 
             if (clip) {
-              console.log(`    弹窗区域: x=${clip.x}, y=${clip.y}, ${clip.width}x${clip.height}`);
+              console.log(`    弹窗区域： x=${clip.x}, y=${clip.y}, ${clip.width}x${clip.height}`);
             } else {
-              console.log('    弹窗区域: null（走全屏截图兜底）');
+              console.log('    弹窗区域： null（走全屏截图兜底）');
             }
-            console.log(`    简历高度: ${scrollHeight}px, 可视: ${clientHeight}px, 步进: ${step}px, 需截 ${pages} 页`);
+            console.log(`    简历高度： ${scrollHeight}px，可视： ${clientHeight}px，步进： ${step}px，需截 ${pages} 页`);
 
             let prevActualTop = -1;
             for (let page = 0; page < pages; page++) {
@@ -1315,10 +1315,10 @@ async function main() {
                 }
                 return bestTop;
               })()`);
-              console.log(`    第${page + 1}页: 目标=${Math.round(scrollTop)}, 实际=${Math.round(actualScrollTop)}`);
+              console.log(`    第${page + 1}页： 目标=${Math.round(scrollTop)}，实际=${Math.round(actualScrollTop)}`);
 
               if (page > 0 && actualScrollTop <= prevActualTop) {
-                console.log(`    ⚡ 已到达底部 (滚动停滞在 ${actualScrollTop})`);
+                console.log(`    ⚡ 已到达底部（滚动停滞在 ${actualScrollTop}）`);
                 break;
               }
               prevActualTop = actualScrollTop;
@@ -1337,7 +1337,7 @@ async function main() {
                   success = true;
                   break;
                 } catch (e) {
-                  console.warn(`    ⚠ 截图第 ${page + 1}/${pages} 页失败 (${retry + 1}/3): ${e.message}`);
+                  console.warn(`    ⚠ 截图第 ${page + 1}/${pages} 页失败（${retry + 1}/3）： ${e.message}`);
                   if (retry < 2) {
                     // 失败多半是内容未渲染完：等待更久 + 重新获取弹窗区域 + 重新滚动定位，再重试
                     // v1.3.31: 重试等待 1200-2000 → 800-1200ms（截图提速，重试不频繁触发）
@@ -1356,7 +1356,7 @@ async function main() {
               if (page < pages - 1) await randomDelay(100, 300);
             }
 
-            console.log('  → OCR 识别（后台进行，与关闭弹窗重叠）...');
+            console.log('  → OCR 识别（后台进行，与关闭弹窗重叠）…');
 
             // 等上一个人的 OCR 完成（最多等 3 秒，避免简历内容少的人被阻塞）
             // 上一人多页 canvas 简历的 OCR 可达 30-40s，若无限等会把「上一人残余 OCR」的时间
@@ -1368,25 +1368,25 @@ async function main() {
 
             prevOcr = ocrScreenshots(screenshots, worker).then(resumeText => {
               candidateData.resumeText = resumeText;
-              console.log(`  ✓ 简历提取完成 (${resumeText.length} 字)`);
+              console.log(`  ✓ 简历提取完成（${resumeText.length} 字）`);
               mergeEducationData(candidateData, resumeText);
               const resumeDir = resolve(dirname(outputPath), 'resumes');
               mkdirSync(resumeDir, { recursive: true });
               const txtPath = resolve(resumeDir, `${sname}-${expectId}.txt`);
               writeFileSync(txtPath, resumeText, 'utf8');
             }).catch(e => {
-              console.warn(`  ⚠ OCR 识别失败: ${e.message}`);
+              console.warn(`  ⚠ OCR 识别失败： ${e.message}`);
             });
           }
         } catch (e) {
-          let clipDiag = clip ? `clip=${clip.x},${clip.y},${clip.width}x${clip.height}` : 'clip=null(全屏)';
+          let clipDiag = clip ? `clip=${clip.x},${clip.y},${clip.width}x${clip.height}` : 'clip=null（全屏）';
           let filesDiag = '';
           try {
             const { readdirSync } = await import('node:fs');
             const ssFiles = readdirSync(tempDir).filter(f => f.startsWith(sname)).map(f => `${f}(${readFileSync(resolve(tempDir, f)).length}B)`).join(',');
-            filesDiag = ssFiles ? ` 已落盘: ${ssFiles}` : ' 无已落盘截图';
+            filesDiag = ssFiles ? ` 已落盘： ${ssFiles}` : ' 无已落盘截图';
           } catch {}
-          console.warn(`  ⚠ 简历截图失败: ${e.message} | ${clipDiag}${filesDiag}`);
+          console.warn(`  ⚠ 简历截图失败： ${e.message} | ${clipDiag}${filesDiag}`);
         }
 
         // 3. 关闭弹窗
@@ -1394,11 +1394,11 @@ async function main() {
           const closed = await closeSearchDialog(targetId);
           if (!closed) console.warn('  ⚠ 简历弹窗关闭异常');
         } catch (e) {
-          console.warn(`  ⚠ 简历弹窗关闭失败: ${e.message}`);
+          console.warn(`  ⚠ 简历弹窗关闭失败： ${e.message}`);
         }
 
       } catch (err) {
-        console.error(`  ✗ 处理失败: ${err.message}`);
+        console.error(`  ✗ 处理失败： ${err.message}`);
         try {
           await closeSearchDialog(targetId);
         } catch {}
@@ -1411,13 +1411,13 @@ async function main() {
       if ((i + 1) % 5 === 0) {
         await prevOcr;
         saveProgress(processedExpectIds, candidates, outputPath);
-        console.log(`  💾 进度已保存 (${processedExpectIds.size}/${totalCount})`);
+        console.log(`  💾 进度已保存（${processedExpectIds.size}/${totalCount}）`);
       }
 
       // v1.9.10: 去掉每 50 人防风控暂停；候选人间隙 300-800ms（三页统一）
       if (i < toProcess.length - 1) {
         const delayMs = 300 + Math.random() * 500;
-        console.log(`  ⏳ 等待 ${(delayMs / 1000).toFixed(1)}s...\n`);
+        console.log(`  ⏳ 等待 ${(delayMs / 1000).toFixed(1)}s…\n`);
         await sleep(delayMs);
       }
     }
@@ -1425,7 +1425,7 @@ async function main() {
     await prevOcr;
   }
 
-  console.log('\n保留页面 tab，供后续操作使用');
+  console.log('\n保留标签页，供后续操作使用');
   await worker.terminate();
   _cleanupTargetId = null;
   _cleanupWorker = null;
@@ -1447,12 +1447,12 @@ async function main() {
   const withResume = candidates.filter(c => c.resumeText).length;
   const withBasic = candidates.filter(c => c.basicInfo).length;
   console.log(`\n========== 提取结果摘要 ==========`);
-  console.log(`总计: ${candidates.length} 人`);
-  console.log(`有基础信息: ${withBasic} 人`);
-  console.log(`有在线简历: ${withResume} 人`);
-  console.log(`输出文件: ${outputPath}`);
+  console.log(`总计： ${candidates.length} 人`);
+  console.log(`有基础信息： ${withBasic} 人`);
+  console.log(`有在线简历： ${withResume} 人`);
+  console.log(`输出文件： ${outputPath}`);
   if (withResume > 0) {
-    console.log(`简历目录: ${resolve(dirname(outputPath), 'resumes')}`);
+    console.log(`简历目录： ${resolve(dirname(outputPath), 'resumes')}`);
   }
 
   await reportStats({
@@ -1463,7 +1463,7 @@ async function main() {
 }
 
 main().catch(async (err) => {
-  console.error('致命错误:', err.message);
+  console.error('致命错误：', err.message);
   await reportStats({
     resume_count: 0,
     start_time: startTime,

@@ -117,17 +117,17 @@ async function startCdpProxy() {
     const health = await httpGet('http://127.0.0.1:3456/health');
     if (health?.status === 'ok' && health.version !== CDP_PROXY_VERSION) {
       // 旧版本代理（可能缺少截图守卫等新代码）→ 不复用，请求它退出后重新 spawn
-      termLog(`[cdp] 检测到旧版 CDP 代理 (version=${health.version})，请求退出以加载新代码...`);
+      termLog(`[cdp] 检测到旧版 CDP 代理（version=${health.version}），请求退出以加载新代码…`);
       try { await httpGet('http://127.0.0.1:3456/shutdown'); } catch {}
       await sleep(1500);
     } else if (health?.status === 'ok') {
       setCdpProxyProcess(null);
       if (health.connected) {
         setCdpStatus({ state: 'connected', message: '' });
-        termLog(`[cdp] 发现已有 CDP 代理, Chrome 已连接`);
+        termLog(`[cdp] 发现已有 CDP 代理，Chrome 已连接`);
       } else {
         // 尝试触发重连（旧代理可能只是没触发 connect）
-        termLog(`[cdp] 发现已有 CDP 代理但 Chrome 未连接，尝试触发重连...`);
+        termLog(`[cdp] 发现已有 CDP 代理但 Chrome 未连接，尝试触发重连…`);
         try { await httpGet('http://127.0.0.1:3456/targets'); } catch {}
         await sleep(3000);
         const retry = await httpGet('http://127.0.0.1:3456/health');
@@ -142,12 +142,12 @@ async function startCdpProxy() {
       return;
     }
   } catch (e) {
-    termLog(`[cdp] 端口 3456 无响应，将启动新代理 (${e.message})`);
+    termLog(`[cdp] 端口 3456 无响应，将启动新代理（${e.message}）`);
   }
 
   // 2. Fork CDP proxy
-  termLog('[cdp] 启动 CDP 代理...');
-  setCdpStatus({ state: 'connecting', message: '正在启动 CDP 代理...' });
+  termLog('[cdp] 启动 CDP 代理…');
+  setCdpStatus({ state: 'connecting', message: '正在启动 CDP 代理…' });
 
   const proxyPath = resolve(UNPACKED_ROOT, 'scripts', 'cdp-proxy.mjs');
   const proxy = spawn(process.execPath, [proxyPath], {
@@ -168,10 +168,10 @@ async function startCdpProxy() {
     }
   });
   proxy.on('error', (err) => {
-    termLog(`[cdp] 代理进程错误: ${err.message}`, 'stderr');
+    termLog(`[cdp] 代理进程错误： ${err.message}`, 'stderr');
   });
   proxy.on('exit', (code) => {
-    termLog(`[cdp] 代理进程退出 (code=${code})`);
+    termLog(`[cdp] 代理进程退出（code=${code}）`);
     setCdpProxyProcess(null);
     if (cdpStatus.state !== 'connected') {
       setCdpStatus({ state: 'error', message: 'CDP 代理意外退出' });
