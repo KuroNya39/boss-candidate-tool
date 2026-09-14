@@ -72,13 +72,16 @@ btnStart.addEventListener('click', async () => {
   // 推荐牛人页 / 搜索页必须先选岗位，AI 才知道按什么岗位要求评分。
   const sourceNeedsJob = selectedSource === 'recommend-attach' || selectedSource === 'search';
   if (sourceNeedsJob && !selectedJob) {
-    const goPick = await confirmDialog({
+    // 点「去选择岗位」后由 swapTo 直接把「目标岗位」弹窗互切出来（与弹窗内「编辑」按钮那一跳同一套过渡），
+    // 不再是「本弹窗消失 → 目标弹窗的遮罩从透明淡入」——中间那一帧空遮罩就是用户看到的「闪一下」。
+    // 两条路径（点确定 / 点取消）这里都是回初始态等用户自己操作，不需要确认结果
+    await confirmDialog({
       title: '请选择目标岗位',
       message: '选择已有岗位，或点击「+ 添加新岗位」新建岗位。',
       okText: '去选择岗位',
       cancelText: '取消',
+      swapTo: { overlay: jobPickerOverlay, open: showJobPicker },
     });
-    if (goPick) showJobPicker();
     return;
   }
 

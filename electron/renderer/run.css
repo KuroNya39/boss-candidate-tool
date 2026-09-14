@@ -2,7 +2,7 @@
 .step-item {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .step-item-header {
   display: flex;
@@ -12,19 +12,22 @@
 .step-item-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .step-number {
   width: 24px;
   height: 24px;
   border-radius: var(--radius-sm); /* 步骤编号 = 内嵌小组件，radius-sm(4) 收敛历史 6px */
-  background: var(--bg-page);
+  background: var(--bg-neutral-tint);
   color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: var(--text-sm);
   font-weight: 600;
+  /* 步骤号是「数字数据」（§3）：等宽后 1/2/3/4 在 24px 方框里才逐个居中——
+     比例数字里「1」比「0」窄，不设的话每个步骤的编号看着都偏一点 */
+  font-variant-numeric: tabular-nums;
   flex-shrink: 0;
   transition: background-color var(--transition-normal), color var(--transition-normal);
 }
@@ -61,7 +64,7 @@
 .step-progress {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .progress-track {
   flex: 1;
@@ -90,7 +93,7 @@
 .step-msg {
   font-size: var(--text-sm);
   color: var(--text-secondary);
-  line-height: 1.4;
+  line-height: var(--leading-compact);
   min-height: 16px;
 }
 
@@ -99,8 +102,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding-top: 4px;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
 }
 
 /* ===== Result Header ===== */
@@ -108,8 +111,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0 0; /* 下侧不再自带留白，让「结果摘要」到标题、到按钮的间距一致（都由 flex gap 决定） */
+  gap: var(--space-2);
+  padding: var(--space-2) 0 0; /* 下侧不再自带留白，让「结果摘要」到标题、到按钮的间距一致（都由 flex gap 决定） */
 }
 .result-icon-circle {
   width: 56px;
@@ -142,8 +145,8 @@
   font-size: var(--text-md);
   color: var(--text-secondary);
   text-align: center;
-  line-height: 1.8;
-  padding: 4px 0;
+  line-height: var(--leading-loose);
+  padding: var(--space-1) 0;
   white-space: pre-line;
   word-break: break-word;
 }
@@ -154,13 +157,23 @@
   color: var(--text-secondary);
   border-radius: var(--radius-md);
   background: var(--bg-warning);
-  padding: 8px 16px;
-  line-height: 1.6;
+  padding: var(--space-2) var(--space-4);
+  line-height: var(--leading-normal);
 }
 .mail-error-details summary {
   cursor: pointer;
   color: var(--color-warning-strong); /* 靠琥珀色字区分，展开项不加粗 */
   user-select: none;
+  /* 这一条**刻意不设 hover / active 底色**（§8 五态底线的具名例外，不是漏写）。
+     它坐在琥珀浅底上，字是 --color-warning-strong —— 两处色值已经贴得很紧：静置 4.76:1，
+     而四族里就这族最紧（success 6.34 / error 4.92 / info 4.86）。§8 的悬停总则要求「浅底加深一档」，
+     但把这层琥珀每加深一步，这行字就往下掉：加深到 rgba(--color-warning-rgb, .20) 只剩 4.57、
+     .24 掉到 4.46 —— 一步就破 §9 的 4.5。
+     所以这里不是「忘了给反馈」，是**这层底没有可用的加深余量**：给出的反馈会先弄坏可读性。
+     可点性改由 cursor:pointer + 展开时旋转的箭头承担（箭头转动是状态反馈，见上）。
+     将来若要给它悬停底色，得先把这行字挪出琥珀族（换 --text-secondary 一类有余量的色），
+     那会改动静置观感，不要顺手加一条 :hover 了事。 */
+
   /* 收起/展开用精灵图箭头，不用浏览器默认的 ▸ 三角形（§7：Unicode 字形不当图标）。
      默认三角先关掉：Firefox 用 list-style，Chromium 用 ::-webkit-details-marker */
   display: flex;
@@ -176,7 +189,7 @@
 }
 .mail-error-details[open] .mail-error-arrow { transform: rotate(90deg); }
 .mail-error-detail {
-  margin-top: 8px;
+  margin-top: var(--space-2);
   white-space: pre-line;
   color: var(--text-secondary);
 }
@@ -184,7 +197,7 @@
 /* ===== Result Actions ===== */
 .result-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   justify-content: center;
 }
 
@@ -192,10 +205,10 @@
 .error-message {
   background: var(--bg-error);
   border-radius: var(--radius-md); /* 结果错误提示条，radius-md 档 */
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   font-size: var(--text-md);
   color: var(--color-error-strong);
-  line-height: 1.5;
+  line-height: var(--leading-normal);
   word-break: break-all;
 }
 
@@ -204,25 +217,28 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding-top: 4px;
+  padding-top: var(--space-1);
 }
 .greet-title-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .greet-title {
   font-size: var(--text-md);
   font-weight: 600;
-  color: var(--text-primary);
+  /* 卡片内的模块标题走次级字色（§3 层级公式：卡片标题用 --text-secondary，
+     只有浮起层的弹窗标题才用 --text-primary）。原先这里是 primary（近黑），
+     同一页的 .results-title 却已经是 secondary —— 两处同名角色两个色，统一到后者 */
+  color: var(--text-secondary);
 }
 /* 等级下拉 + 「开始打招呼」并排一行、各占一半；取消按钮运行时顶替按钮位，不跳动。
    用 grid 而不用 flex，保证两列严格同宽（flex 会被下拉触发器的 min-width 撑偏）。 */
 .greet-controls {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 8px;
+  column-gap: var(--space-2);
 }
 .greet-controls .custom-select {
   min-width: 0;
@@ -241,7 +257,7 @@
 .greet-progress {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .greet-progress-text {
   font-size: var(--text-sm);
@@ -252,7 +268,7 @@
   font-size: var(--text-md);
   color: var(--color-success-strong);
   text-align: center;
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   background: var(--bg-success);
   border-radius: var(--radius-md); /* 打招呼结果提示条，radius-md 档收敛历史 6px */
 }

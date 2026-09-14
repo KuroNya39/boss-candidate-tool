@@ -9,7 +9,7 @@ header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  margin: 4px 0 16px;
+  margin: var(--space-1) 0 var(--space-4);
 }
 header h1 {
   grid-column: 2;
@@ -50,19 +50,21 @@ header h1 {
   border: none;
   border-radius: var(--radius-md);
   background: transparent;
-  /* 静置色走 --icon-muted（§7「需调淡的次要图标统一走 --icon-muted」），与同为
-     无底色图标钮的 .count-arrow 同档；--text-secondary 是正文档，做图标明显偏重 */
+  /* 四态色取值见 tokens.css 的 --icon-* 四行（这是跨文件的图标控件，不在 .field-icon-btn 一族里） */
   color: var(--icon-muted);
   cursor: pointer;
   transition: background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 .menu-btn:hover {
-  background: var(--bg-page);
-  color: var(--text-secondary);
+  /* 菜单钮挂在页面底上（header 无底色），底色不能取 --bg-page / --bg-neutral-tint——
+     前者现在就是页面白，后者白页上也几乎看不出，悬停会「没反应」。用下陷面那一档才看得出 */
+  background: var(--bg-subtle);
+  color: var(--icon-hover);
 }
 .menu-btn:active {
   transform: scale(0.98); /* 纯图标按钮按下：整块收缩（无文字可压缩，用缩放给反馈）。
                              幅度取 §8 的 .97–.98 档——0.94 收缩过狠，按下去像被「捏了一下」 */
+  color: var(--icon-active); /* 按下再深一档（--icon-* 阶梯，见 tokens.css） */
 }
 /* 展开态：与来源分段/下拉的「选中」同色（10% 浅蓝底 + 蓝字），一眼看出菜单开着 */
 .menu-btn[aria-expanded="true"] {
@@ -84,7 +86,7 @@ header h1 {
   display: flex;
   flex-direction: column;
   gap: 2px; /* 选项胶囊间的白缝：同 .custom-select-menu，刻意收紧到 2px（仅此微缝用） */
-  padding: 4px;
+  padding: var(--space-1);
   background: var(--bg-card);
   border: 1px solid var(--border-card); /* 与 .custom-select-menu 同档：浮层描边取最浅，靠阴影分层（用户反馈描边太重） */
   border-radius: var(--radius-input);
@@ -127,7 +129,7 @@ header h1 {
   background: var(--bg-accent-tint); /* 悬停 = 5% 淡底（同下拉选项），字色与图标都不变 */
 }
 .menu-item:active {
-  background: var(--bg-accent-tint-active); /* 按下比悬停再深一档，整行反馈 */
+  background: var(--bg-accent-tint-selected); /* 按下 = 选中档（10%），与列表行/选项行统一：按下即预览选中态 */
 }
 
 /* ===== State ===== */
@@ -135,7 +137,7 @@ header h1 {
   display: none;
   flex-direction: column;
   align-items: stretch;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .state.active {
   display: flex;
@@ -166,15 +168,15 @@ header h1 {
   gap: 0;
 }
 #state-running.active > .card {
-  gap: 8px; /* 标题→步骤1、步骤1→2、2→3、3→按钮 等距 8px（原 12px 旧档收敛） */
+  gap: var(--space-2); /* 标题→步骤1、步骤1→2、2→3、3→按钮 等距 8px（原 12px 旧档收敛） */
 }
 
 /* ===== Chrome Status Bar ===== */
 .status-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
   font-size: var(--text-sm);
   color: var(--text-muted);
 }
@@ -191,7 +193,9 @@ header h1 {
 .status-dot.dot-yellow {
   background: var(--color-warning);
   box-shadow: 0 0 6px rgba(var(--color-warning-rgb),0.4);
-  animation: status-pulse 1.5s infinite;
+  /* 周期不入档位（§5：循环动画的周期按观感定），但**缓动仍要取 token**——
+     原先没写缓动，浏览器默认落到 ease，与全站 --ease-in-out 差一档 */
+  animation: status-pulse 1.5s var(--ease-in-out) infinite;
 }
 .status-dot.dot-red {
   background: var(--color-error);

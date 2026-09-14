@@ -21,9 +21,20 @@ function trapFocus(overlay) {
 let activeDialogTrap = null;
 let dialogPrevFocus = null;
 
-function openDialog(overlay, firstFocusEl) {
+// 浮层显隐的唯一入口。inert 与 --closing 属于「浮层生命周期」，不是某个弹窗的私事：
+// 上一次互切退场时挂上的 inert 没摘干净，这个弹窗下次打开就点不动（hideSwappedOutOverlay 那段历史）。
+// 确认弹窗是直接改 display 打开的旁路，最记不住这类规矩——收进这里，调用方谁都不用再管。
+function showOverlay(overlay) {
   overlay.removeAttribute('inert');
   overlay.classList.remove('dialog-overlay--closing'); // 正在淡出时又被重新打开，则取消关闭
+  overlay.style.display = 'flex';
+}
+function hideOverlay(overlay) {
+  overlay.removeAttribute('inert'); // display:none 后本就不在 Tab 序里，留着只会坑下次打开
+  overlay.style.display = 'none';
+}
+
+function openDialog(overlay, firstFocusEl) {
   // 弹窗互切入场（见 swapJobDialogs 与 overlays.css）：
   //  data-swap-over —— 交叉过渡：新弹窗以「透明遮罩 + 快速 box-in」浮到旧弹窗之上、与旧卡同屏对淡，
   //                    收尾帧由 swapJobDialogs 把它的 class 换成常驻态 swap-in
@@ -42,7 +53,7 @@ function openDialog(overlay, firstFocusEl) {
     overlay.classList.remove('dialog-overlay--swap-in', 'dialog-overlay--swap-over');
   }
   dialogPrevFocus = document.activeElement;
-  overlay.style.display = 'flex';
+  showOverlay(overlay);
   if (activeDialogTrap) activeDialogTrap();
   activeDialogTrap = trapFocus(overlay);
   (firstFocusEl || overlay.querySelector('button, input, textarea, select')).focus();
@@ -63,8 +74,7 @@ function closeDialog(overlay, { animate = false } = {}) {
     setTimeout(() => {
       // 淡出期间这个弹窗若被重新打开（closing 类被摘、动画被取消），就不再隐藏它
       if (!overlay.classList.contains('dialog-overlay--closing')) return;
-      overlay.removeAttribute('inert');
-      overlay.style.display = 'none';
+      hideOverlay(overlay);
       overlay.classList.remove('dialog-overlay--closing');
       // 已有其他弹窗开着（比如编辑弹窗）时不抢焦点
       const anotherOpen = [...document.querySelectorAll('.dialog-overlay')]
@@ -72,17 +82,17 @@ function closeDialog(overlay, { animate = false } = {}) {
       if (!anotherOpen && dialogPrevFocus && typeof dialogPrevFocus.focus === 'function') dialogPrevFocus.focus();
     }, exitMs);
   } else {
-    overlay.style.display = 'none';
+    hideOverlay(overlay);
     if (dialogPrevFocus && typeof dialogPrevFocus.focus === 'function') dialogPrevFocus.focus();
   }
 }
 
 // 互切收尾用的直接隐藏：旧弹窗此时已淡到透明，只是把它的遮罩撤掉、交给新弹窗接管。
 // 不能走 closeDialog——那会拆掉正在为「新弹窗」服务的共享 activeDialogTrap，还会把焦点抢到已隐藏的旧弹窗里。
-// inert 保留即可（display:none 后本就不在 Tab 序里），下次 openDialog 会先 removeAttribute('inert')
+// inert 必须一起摘：互切退场时挂上的，留着会让这个弹窗**下次打开时点不动**
 function hideSwappedOutOverlay(overlay) {
   overlay.classList.remove('dialog-overlay--swap-in', 'dialog-overlay--swap-out', 'dialog-overlay--swap-over');
-  overlay.style.display = 'none';
+  hideOverlay(overlay);
 }
 
 // ===== 左上角菜单（「设置」「历史记录」的唯一入口）=====
@@ -309,8 +319,16 @@ function sourceBtnAt(clientX, base, w) {
   return sourceBtns[Math.min(sourceBtns.length - 1, Math.max(0, i))];
 }
 
+// 「指针此刻压在哪一格」——按住与拖动期间把 .is-pressed 挪到那一格（观感见 config.css 那两条规则）。
+// 这件事只能由类来记：分段条一进入拖动就捕获了指针，而 Chromium 在捕获期间把 :hover 归给捕获元素，
+// 按钮自己的悬停高亮会整个失效 —— 真机按住几乎都会抖过 4px 阈值、算成拖动，
+// 于是「按住时那层颜色」就没了（用户两次反馈：先是不见 5% 淡底，后是「按住颜色变深没了」）
+function setPressedSourceBtn(btn) {
+  sourceBtns.forEach(b => b.classList.toggle('is-pressed', b === btn));
+}
+
 // 点一下换来源 —— 唯一入口，委托在组上，不给每个按钮各挂一个 click。
-// 原因：拖拽起手时组会 setPointerCapture，而指针捕获会把随后的兼容鼠标事件（含 click）
+// 原因：拖动越过阈值后组会 setPointerCapture（见 pointermove），而指针捕获会把随后的兼容鼠标事件（含 click）
 // 一并重定向到捕获元素。capture 一旦落在组上，按钮上的 click 根本不会发生，
 // 「点一下换来源」就整个失效了（只剩拖动还能用）。委托到组上则两条路径都能收到。
 sourceGroup.addEventListener('click', (e) => {
@@ -326,7 +344,9 @@ sourceGroup.addEventListener('click', (e) => {
 
 sourceGroup.addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'mouse' && e.button !== 0) return; // 只响应鼠标左键
-  if (!e.target.closest('.toggle-btn') || !sourcePill) return;
+  const pressedBtn = e.target.closest('.toggle-btn');
+  if (!pressedBtn || !sourcePill) return;
+  setPressedSourceBtn(pressedBtn); // 压住的那一格自己带高亮，不靠 :hover（见本函数上方说明）
   suppressSourceClick = false;
   const firstBtn = sourceBtns[0];
   sourceDrag = {
@@ -339,8 +359,7 @@ sourceGroup.addEventListener('pointerdown', (e) => {
     base: sourceGroup.getBoundingClientRect().left + firstBtn.offsetLeft,
     w: firstBtn.offsetWidth || 1,
   };
-  // 捕获指针：拖出组外（甚至拖到窗口外）也不断线
-  try { sourceGroup.setPointerCapture(e.pointerId); } catch {}
+  // 注意：这里**不**捕获指针，要等真的开始拖动才捕获（见 pointermove 里的说明）
 });
 
 sourceGroup.addEventListener('pointermove', (e) => {
@@ -349,10 +368,20 @@ sourceGroup.addEventListener('pointermove', (e) => {
     if (Math.abs(e.clientX - sourceDrag.startX) < SOURCE_DRAG_THRESHOLD) return; // 还没过阈值，先当手抖
     sourceDrag.moved = true;
     document.body.classList.add('is-dragging-source'); // 整窗换成抓握光标（见 config.css）
+    // **到这一刻才捕获指针**（原先是 pointerdown 一按就捕获，见上一段的注释）。
+    // 为什么非挪不可：Chromium 在指针被捕获期间，会把 :hover 与 :active 一并归给捕获元素
+    // ——这里是 .toggle-group，按钮上两条状态双双失效。实测按住不放时：
+    //   按钮的 :hover 变 false → 5% 的悬停底色凭空消失（用户反馈的「长按后底色会消失」）；
+    //   按钮的 :active 变 false → 当时的 .toggle-btn:active（scale 0.97）按压反馈也从来没生效过
+    //                             （该规则后来按用户要求删了，这里留作「捕获会一并吃掉 :active」的实证）。
+    // 捕获只为「按住拖出组外（甚至拖到窗口外）也不断线」，而这只有真开始拖动才有意义：
+    // 没过 4px 阈值的按住仍按点击处理，完全不需要捕获。
+    try { sourceGroup.setPointerCapture(sourceDrag.pointerId); } catch {}
   }
   const hovered = sourceBtnAt(e.clientX, sourceDrag.base, sourceDrag.w);
   if (!hovered || hovered === sourceDrag.lastBtn) return; // 还在同一格：指示条原地不动，等跨格
   sourceDrag.lastBtn = hovered;
+  setPressedSourceBtn(hovered); // 高亮跟着指针跨格（捕获期间 :hover 已失效，只能自己带）
   // 交给 selectSource 把指示条滑到这一格（走 .toggle-pill 的 CSS 过渡，不是瞬移），
   // 下方岗位/数量行同步换掉 —— 滑到哪一格就选到哪一格，不用等松手
   selectSource(hovered.dataset.source, hovered);
@@ -362,13 +391,16 @@ function endSourceDrag(e) {
   if (!sourceDrag || e.pointerId !== sourceDrag.pointerId) return;
   const wasDrag = sourceDrag.moved;
   sourceDrag = null;
+  setPressedSourceBtn(null); // 松手：压住那一格的高亮交还给 :hover（鼠标还在上面就自然续上）
   document.body.classList.remove('is-dragging-source'); // 光标还原
   try { sourceGroup.releasePointerCapture(e.pointerId); } catch {}
   if (!wasDrag) return; // 没进入拖动，随后那次 click 正常生效
   suppressSourceClick = true; // 吞掉浏览器随后补发的 click
 }
-sourceGroup.addEventListener('pointerup', endSourceDrag);
-sourceGroup.addEventListener('pointercancel', endSourceDrag);
+// 挂 document 而不是分段条自己：没过 4px 阈值的按住不捕获指针，指针若竖着移出组外再松手，
+// pointerup 落在组外——挂组上就收不到，.is-pressed 与 sourceDrag 会一直留着（高亮卡住不动）
+document.addEventListener('pointerup', endSourceDrag);
+document.addEventListener('pointercancel', endSourceDrag);
 
 // 把指示条贴到当前选中的档（找 active 再 slide）。首帧与 resize 共用——
 // 首帧加载时无上一次样式可比，transition 不会开场滑动；resize 改变 flex 均分宽度，需重量贴合
@@ -382,8 +414,7 @@ window.addEventListener('resize', repinSourcePill);
 function showAddJobDialog() {
   editJobName = '';
   dialogJobName.value = '';
-  dialogJobName.readOnly = false;
-  dialogJobName.classList.remove('input-readonly');
+  // 名称框不再是只读态（v1.10.2 起可改），原先这里复位 readOnly / input-readonly 的两行已删
   dialogJobDesc.value = '';
   document.getElementById('job-dialog-title').textContent = '添加新岗位';
   openDialog(jobDialogOverlay, dialogJobName);
@@ -403,21 +434,19 @@ async function showEditJobDialog(jobName) {
   if (editJobName !== jobName) return;
   // v1.10.2：岗位名称与描述一样可改（改名 = 重命名岗位文件，见保存分支）；名称框不再只读
   dialogJobName.value = jobName;
-  dialogJobName.readOnly = false;
-  dialogJobName.classList.remove('input-readonly');
   dialogJobDesc.value = desc;
   document.getElementById('job-dialog-title').textContent = '编辑岗位';
   openDialog(jobDialogOverlay, dialogJobDesc);
 }
 
-// 弹窗互切（目标岗位 ⇄ 添加/编辑岗位）：
+// 弹窗互切（任意两个弹窗，原地对淡）：
 // 交叉过渡——同一帧让「旧卡淡出(swap-out)」与「新卡淡入(swap-over)」同时开播，两卡同屏对淡；
 // 遮罩由旧弹窗从头到尾撑住（旧弹窗 swap-out 时遮罩 animation:none 留在原地），新弹窗以透明遮罩
 // 叠在其上（不叠暗、不另起遮罩淡入）。全程没有任何「只剩空遮罩」的帧 → 不再闪。
 // 两段都走 --dur-normal(250ms)，收尾帧(≈280ms)旧弹窗已淡尽，直接隐藏并把遮罩交接给新弹窗。
-function swapJobDialogs(openFn) {
-  const fromOpen = jobPickerOverlay.style.display === 'flex' ? jobPickerOverlay : jobDialogOverlay;
-  const toOpen = fromOpen === jobPickerOverlay ? jobDialogOverlay : jobPickerOverlay;
+// 两处调用者：① 目标岗位 ⇄ 添加/编辑岗位（swapJobDialogs）② 「请选择目标岗位」提示 →「目标岗位」
+// （renderer-widgets.js 的 confirmDialog，调用方传 swapTo 交棒过来）
+function swapDialogs(fromOpen, toOpen, openFn) {
   // 以下情况不演交叉过渡，同帧瞬切兜底（display 切换与后续打开在同一个 JS 任务内完成，浏览器只画一帧）：
   //  - 旧弹窗本身还在互切退场中（避免嵌套互切）
   //  - 旧面板还在入场（box-in 未播完）：此刻硬插 box-out 会从 opacity 中途翻转，那一下就是「闪」
@@ -463,6 +492,12 @@ function swapJobDialogs(openFn) {
     toOpen.classList.remove('dialog-overlay--swap-over');
     toOpen.classList.add('dialog-overlay--swap-in');
   }, outMs);
+}
+
+// 目标岗位 ⇄ 添加/编辑岗位：这一对是谁开着就推谁（from 与 to 互为对方），其余交给 swapDialogs
+function swapJobDialogs(openFn) {
+  const fromOpen = jobPickerOverlay.style.display === 'flex' ? jobPickerOverlay : jobDialogOverlay;
+  swapDialogs(fromOpen, fromOpen === jobPickerOverlay ? jobDialogOverlay : jobPickerOverlay, openFn);
 }
 
 // 从添加/编辑弹窗回到「目标岗位」列表（取消 / 保存后）：同一帧内互切，不闪不动

@@ -70,13 +70,13 @@
   font-size: var(--text-md);
   font-weight: 400; /* 同 .field-label：标签不加粗，靠次级色区分 */
   color: var(--text-secondary);
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 }
 .dialog-field input,
 .dialog-field textarea,
 .job-picker-search-input {
   width: 100%;
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   border: 1px solid var(--border-input);
   border-radius: var(--radius-input);
   font-size: var(--text-md);
@@ -111,39 +111,48 @@
 .dialog-field textarea {
   font-family: inherit;
   resize: none; /* 隐藏原生 resize 手柄，改用右下角自定义拖拽手柄（更大、更好看） */
-  line-height: 1.5;
+  line-height: var(--leading-normal);
   display: block; /* 消除行内元素基线空隙：否则容器底部比文本域高约 4px，右下角拖拽手柄会掉到文本域下边、贴底不均 */
+  text-align: justify; /* 岗位描述是整段长文：两端对齐，左右边缘整齐（同「评分理由」那条） */
 }
-/* 岗位描述文本域滚动条底部缩进：让滚动条拖到底时与手柄留 1px 空隙。
-   与手柄几何同源（bottom --space-1 4px + 高 --space-4 16px + 1px），改手柄几何不必再手动重算 */
+/* 岗位描述文本域滚动条底部缩进：让滚动条拖到底时不压住右下角手柄的墨迹。
+   取值锚在**手柄图标的墨迹**上，不锚手柄盒子的外框：图标 12px 居中于 24px 盒、盒底贴角，
+   墨迹占离角 6–18px 那一段，再加 3px 空隙 = 21px。
+   （别按盒高去重算这个数——盒子撑到 24 只是把可点区做大，墨迹位置一个像素没动。） */
 .dialog-field textarea::-webkit-scrollbar-track {
-  margin-bottom: calc(var(--space-1) + var(--space-4) + 1px);
+  margin-bottom: 21px;
 }
 .textarea-resize-handle {
   position: absolute;
-  right: var(--space-1);
-  bottom: var(--space-1);
-  width: var(--space-4);
-  height: var(--space-4);
+  /* 可点区 24×24（§9 最小点击区），但**视觉不动**：原来盒子 16×16、离角 4px，
+     图标居中后墨迹落在离角 6–18px 一段。现在盒子撑到 24×24 并改贴角（偏移 4-4=0），
+     图标 12px 在 24 里居中 → 墨迹仍是离角 6–18px，与改前逐像素重合。
+     代价：可点区多占了贴着角的那 4px 边条和 20–24px 那圈——前一圈原是文本域内距（本来就没内容），
+     后一圈会压到最后一行的右端，点那里会变成拖高度而不是落光标。评估后接受：
+     改前 16×16 就已盖住 16–20px 那段了，这里只是把同一类重叠加宽 4px，
+     而手柄是拖高低的唯一入口，够不着才是真问题 */
+  right: 0;
+  bottom: 0;
+  width: var(--space-6);
+  height: var(--space-6);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted);
-  opacity: .75;
+  /* 四态色取值见 tokens.css 的 --icon-* 四行（这是唯一跨文件的图标控件，
+     不在 .field-icon-btn 一族里，故自己引用那组 token）。
+     原先静置是「--text-muted + opacity:.75」——与别处用色值表达同一件事的第二套机制，已并掉 */
+  color: var(--icon-muted);
   cursor: ns-resize; /* 只调高度，用上下箭头 */
   z-index: 1;
-  transition: color var(--transition-fast), opacity var(--transition-fast);
+  transition: color var(--transition-fast);
 }
-.textarea-resize-handle:hover,
-.textarea-resize-handle:active {
-  color: var(--text-secondary);
-  opacity: 1;
-}
+.textarea-resize-handle:hover { color: var(--icon-hover); }
+.textarea-resize-handle:active { color: var(--icon-active); }
 .dialog-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   justify-content: flex-end;
-  margin-top: 16px;
+  margin-top: var(--space-4);
 }
 
 /* 通用确认弹窗（替代原生 confirm/alert） */
@@ -168,15 +177,15 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   pointer-events: none;
 }
 .toast {
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-md);
   font-size: var(--text-md);
   font-weight: 400; /* 提示条是阅读性正文，常规档 */
-  line-height: 1.4;
+  line-height: var(--leading-compact);
   box-shadow: var(--shadow-elevated);
   pointer-events: auto;
   animation: toast-in var(--dur-normal) var(--ease-out);
@@ -305,9 +314,12 @@
 .stat-value {
   font-size: var(--text-xl);
   font-weight: 600; /* 700 与 600 在雅黑下渲染相同，统一归并到 600 */
-  color: var(--text-primary);
+  /* 字色取次级（--text-secondary），不用主文字近黑：用户反馈这四个数字「有点深」。
+     这里只降字色一档、字号与字重都不动 —— 层级本就由字色阶梯承担（§0 原则 3 / §8），
+     而它们是一组「读数」，不是标题。白底 7.5:1，远超 §9 门槛，浅下去也读得清 */
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
-  line-height: 1.2;
+  line-height: var(--leading-tight);
 }
 .stat-label {
   font-size: var(--text-xs);
@@ -374,6 +386,7 @@
   font-size: var(--text-sm);
   font-weight: 400;
   color: var(--text-muted);
+  font-variant-numeric: tabular-nums; /* 人数属「数字数据」（§3），与右侧 40px 宽的 .progress-pct 同理 */
 }
 .results-list {
   /* 一页正好 10 名候选人：每行高固定 40px（见 .result-item-head），
@@ -413,7 +426,18 @@
   background: var(--bg-accent-tint);
 }
 .result-item-head:active {
-  background: var(--bg-accent-tint-active);
+  /* 按下 = 选中档（10%），与列表行/选项行/菜单项同一档，见 tokens.css 的 accent 洗涤三档 */
+  background: var(--bg-accent-tint-selected);
+}
+/* 候选人行的键盘焦点环**向内**画 —— 它是整行通栏按钮（width:100%），外扩的环会被
+   .results-list 的裁切线切掉左右两边：裁切线在内距盒，而本容器 padding:0、只有 1px 描边，
+   内距盒 ≈ 行的边框盒，环一画出去就没。
+   为什么不套 §4 那条「内距 + 等量负外边距」：那条是给**无描边**容器用的（.settings-body）。
+   本容器有 1px 描边，撑大边框盒会把列表自己的边框一起往外推 8px，肉眼可见。
+   为什么不改成给行内缩 3px：那样悬停底色就贴不到列表左右边缘了，也是肉眼可见。
+   向内画的环不碰裁切线，悬停底色照旧通栏，静置态一个像素不动 —— 只换这一处，别处仍向外画 */
+.results-list .result-item-head:focus-visible {
+  box-shadow: inset 0 0 0 var(--ring-width) var(--ring-color);
 }
 .result-item-name {
   flex: 1;
@@ -523,40 +547,76 @@
   border-radius: var(--radius-lg);
   padding: var(--space-4);
   background: var(--bg-card);
-}
-.history-item-summary {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  /* 2×2 网格：左列「时间 / 胶囊」，右列「人数 / 按钮」；行距列距都是 8。
+     用网格（而不是原来的两行 flex）是为了让右列两格**共用同一个列宽**——
+     右列宽度 = max(人数, 按钮组)，通常就是按钮组宽度，于是人数在该列内靠右
+     即自然与按钮组**右缘**齐（换成两行 flex 时，两行各自撑宽，人数只会按自己的宽度贴右，
+     与按钮组对不齐）。四格（时间 / 人数 / 胶囊 / 按钮）就是网格的**直接孩子**——
+     原先中间还夹着 head / foot 两层包装 div，靠 display:contents 把自己拆掉才不挡网格；
+     那两层已随 renderer-history.js 一并删除，此处不再需要 display:contents。 */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto; /* 左列弹性可收缩、右列按内容 */
+  align-items: baseline; /* 第一行：时间 14/600 与人数 12/400 字号不同，按基线对才不歪 */
   gap: var(--space-2);
-  margin-bottom: var(--space-2);
 }
-.history-item-title {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
+/* 这里原有 .history-item-head / .history-item-foot 的 display:contents（把两层包装 div 拆掉，
+   好让四个格子成为网格直接项）。包装层已在 renderer-history.js 里删掉，这条规则随之作废 */
+/* 时间：本行唯一的文字标签，但原来是 14/600 + --text-primary（近黑），
+   比同行的彩色胶囊和按钮都重，一眼先看到它（用户反馈「太突出」）。
+   降法选「减淡颜色、保字重」：层级在这个设计系统里由字色阶梯（primary/secondary/muted）承担，
+   与 .card-title 同一套做法（§8「模块标题用次级字色，与下方说明拉开一档但不过黑」），
+   而 600 留着，它仍是这一行的标签、不是附属说明。 */
 .history-item-time {
+  grid-area: 1 / 1;
   font-size: var(--text-md);
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 .history-item-chips {
+  grid-area: 2 / 1;
+  align-self: center;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
+  min-width: 0; /* 允许胶囊区被按钮挤窄后自身换行，而不是把按钮顶出行外 */
 }
 .history-item-count {
-  flex: 0 0 auto;
+  grid-area: 1 / 2;
+  justify-self: end; /* 右列内靠右 → 右缘与按钮组（也就是「评分」）的右缘齐 */
+  margin-right: var(--space-1); /* 再往左让一档：与按钮右缘严格齐平时看着贴死，留 4px 呼吸 */
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
 }
+/* 间距取 --space-1(4)：这一排控件本身够少，4px 排得紧凑、不散（曾试过 8px，用户嫌松又调回） */
 .history-item-actions {
+  grid-area: 2 / 2;
+  align-self: center;
+  justify-self: end; /* 贴右列右缘 */
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
+  justify-content: flex-end; /* 按钮换行后每行同样贴右 */
+  min-width: 0;
+}
+/* 图标钮与相邻钮的「视觉间距」校正 —— 纯光学补偿，不是为了留白。
+   图标钮的可点区是 27 见方的方框，视觉边界却只有中间那枚图标；而实心钮 / 描边钮 /
+   文字钮的**盒子边缘就是它的视觉边缘**。两枚图标在 27 框里横向各剩多少空白，实测：
+     删除     18px svg × 墨迹宽 16/24 = 12.0 宽 → 左右各空 7.5
+     打开目录 20px svg × 墨迹宽 20/24 = 16.7 宽 → 左右各空 5.2
+   （**横向空档不能用墨迹「高」代**：垃圾桶墨迹 16/24 宽、18/24 高，宽高并不相等）
+   于是同为 4px 框距，落到视觉上：
+     「图标 → 实心钮」（打开目录 → 评分）只剩 4 + 5.2 ≈ 9.2px → 偏挤（用户反馈：文件夹离「评分」太近）
+     「图标 → 图标」（删除 | 打开目录）  却有 7.5 + 4 + 5.2 ≈ 16.7px → 偏松（用户反馈：图标钮之间再缩一档）
+   两条各补 / 收一档（--space-1），补完是 13.2 / 12.7，与「继续提取(文字) → 删除(图标)」那条
+   天然的 4 + 7.5 = 11.5px 一起，三种交界都落在 12±0.7px 内。
+   :not(.btn--icon) 不能省 —— 图标钮自己也带 .btn 类，不排除的话两个图标钮之间也会被撑开 */
+.history-item-actions .btn--icon + .btn:not(.btn--icon) {
+  margin-left: var(--space-1);
+}
+/* 两个图标钮：框距收到 0（4 - 4），墨迹之间正好留出与上面那条相等的空隙 */
+.history-item-actions .btn--icon + .btn--icon {
+  margin-left: calc(-1 * var(--space-1));
 }
 /* 底部「清空历史记录」区：不再有上分割线（用户要求删掉）。
    与列表的分隔改由留白承担——列表自带 8px 底部内距，这里补 16px，

@@ -53,6 +53,14 @@ async function runGreeting(level, source = 'recommend', opts = {}) {
   let lastStderr = ''; // 脚本最近一行 stderr，供 close 无 GREET_ERROR 时兜底诊断
   let greetTimer = null; // 超时定时器，close/error 时清理，避免进程退出后仍被持有
 
+  // 放掉「当前任务」+ 超时定时器 + 休眠锁。正常结束、报错、被系统杀死、超时四处出口都要做，
+  // 顺序只在这里写一遍——漏一处就会复活「结果出来了界面还被挡」（见 GREET_DONE 分支注释）
+  const releaseGreetTask = () => {
+    clearTimeout(greetTimer);
+    setCurrentProcess(null);
+    stopGreetKeepAwake();
+  };
+
   try {
     const greetPath = resolve(UNPACKED_ROOT, 'scripts', 'greet-candidates.mjs');
     const procCwd = app.isPackaged ? OUTPUT_DIR : APP_ROOT;
@@ -90,6 +98,11 @@ async function runGreeting(level, source = 'recommend', opts = {}) {
         // GREET_DONE: 最终统计（第 5 段 = 可重试失败数，供界面把按钮变成「重试」）
         const doneMatch = line.match(/^GREET_DONE:(\d+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)/);
         if (doneMatch) {
+          // 到这一刻任务真的干完了：失败名单已写盘，GREET_DONE 是脚本的最后一行（三处出口都紧跟 return）。
+          // 当场放掉「当前任务」与休眠锁，不再等进程 close —— 子进程收尾还要几秒
+          // （undici 的 keep-alive 连接、残留定时器等，脚本侧已顺手清了一个 30s 的），
+          // 这几秒里界面点什么都回「已有任务运行中」（用户反馈：「结果出来了还被挡」）。
+          releaseGreetTask();
           sendGreetDone({
             success: parseInt(doneMatch[1]),
             already: parseInt(doneMatch[2]),
@@ -118,19 +131,23 @@ async function runGreeting(level, source = 'recommend', opts = {}) {
       }
     });
 
+    // 收摊前先确认「自己还在这轮任务里」。GREET_DONE 已提前放掉一次（见上），用户随后可能已经开了
+    // 新任务；旧进程这几秒后 close/error 若无条件再放一次，清掉的是**新任务**的 currentProcess
+    // ——界面从此不再拦「已有任务运行中」，能开出第二个打招呼进程；报错也会挂到新任务头上
+    // （cancelled / greetFatalSent 都是新一轮里被重置过的）
+    const isCurrentTask = () => currentProcess === proc;
+
     proc.on('error', (err) => {
-      clearTimeout(greetTimer);
-      setCurrentProcess(null);
-      stopGreetKeepAwake();
+      if (!isCurrentTask()) return;
+      releaseGreetTask();
       if (!cancelled) {
         sendGreetError({ message: err.message });
       }
     });
 
     proc.on('close', (code) => {
-      clearTimeout(greetTimer);
-      setCurrentProcess(null);
-      stopGreetKeepAwake();
+      if (!isCurrentTask()) return;
+      releaseGreetTask();
       // 超时或用户取消时 cancelled=true，不再重复报错
       if (cancelled) return;
       // 已通过 GREET_ERROR 上报过真实原因，跳过泛化退出码，避免覆盖真实错误
@@ -150,7 +167,7 @@ async function runGreeting(level, source = 'recommend', opts = {}) {
     greetTimer = setTimeout(() => {
       if (currentProcess === proc) {
         setCancelled(true); // 也标记全局取消，close 处理时不再报退出码错误
-        setCurrentProcess(null);
+        releaseGreetTask();
         proc.kill();
         sendGreetError({ message: '打招呼超时' });
       }

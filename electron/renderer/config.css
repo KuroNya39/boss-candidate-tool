@@ -2,7 +2,7 @@
 .job-selector {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   flex: 1;
 }
 .job-display {
@@ -10,7 +10,7 @@
   font-size: var(--text-md);
   color: var(--text-primary);
   font-weight: 400; /* 控件当前值：与输入框/下拉等值显示一致，走正文常规 */
-  padding: 0 16px;
+  padding: 0 var(--space-4);
   height: 40px; /* 与「提取数量」输入框同高（40px，落在 8px 网格），行内并排时顶底对齐 */
   background: var(--bg-card);
   border: 1px solid var(--border-input); /* 选中岗位后也是普通灰框，同其它输入/下拉控件 */
@@ -26,7 +26,10 @@
     background-color var(--transition-fast), transform var(--transition-fast);
 }
 .job-display:hover {
-  background: var(--bg-page);
+  /* 只改描边，与同族的 .custom-select-trigger:hover 一字不差地一致——它和它一样是「选择框触发器」，
+     底子是灰描边（见上方 border 注释「选中岗位后也是普通灰框，同其它输入/下拉控件」）。
+     原先这里铺了一层 --bg-neutral-tint(#f8fafc)：白卡上和白底只差一点点，等于悬停没反应；
+     改铺 --bg-subtle 又能看出「框里填了一块灰」，与同族控件不一致。悬停的回应交给描边变蓝 */
   border-color: var(--color-accent);
 }
 /* 下拉式触发器按下收缩一档，与 .custom-select-trigger 同一套反馈（§8 可缩放控件） */
@@ -41,15 +44,15 @@
   cursor: pointer;
 }
 .job-display.placeholder:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  border-color: var(--color-accent); /* 描边按非文本门槛 3:1，accent 在 5% 淡底上是 4.23，够用 */
+  color: var(--color-accent-strong); /* 但字是文本门槛 4.5：accent 在 5% 淡底上只有 4.23，深一档后 5.23（§9） */
   background: var(--bg-accent-tint);
 }
 
 /* ===== Job picker search ===== */
 .job-picker-search {
   position: relative;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 }
 /* 搜索框复用弹窗输入框的基础样式（见 .dialog-field input）；清空按钮右侧留位统一在 overlays.css 声明 */
 .job-picker-search-input {
@@ -58,19 +61,20 @@
 .job-picker-list {
   max-height: 400px;
   overflow-y: auto;
-  margin-bottom: 4px;
+  margin-bottom: var(--space-1);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-input); /* 岗位列表同下拉菜单档位 8px */
 }
 .job-picker-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
   font-size: var(--text-md);
   color: var(--text-primary);
   border-bottom: 1px solid var(--border-card);
-  transition: background var(--dur-fast); /* 0.1s 非档位 → dur-fast(.15s) */
+  transition: background var(--transition-fast); /* 用组合 token，别只写 --dur-*：那样 duration 有了、缓动落回 CSS 默认的 ease，
+                                                    与全站 --ease-in-out 差一档（§5：缓动一律取 token） */
   -webkit-app-region: no-drag;
 }
 .job-picker-item:last-child {
@@ -79,15 +83,22 @@
 .job-picker-item:hover {
   background: var(--bg-accent-tint); /* 悬停未选中行 = 5% 淡底（同来源分段按钮），字色不变 */
 }
+/* 按下 = 选中档（10%），全站按下底色统一取这一档：按下即预览「松手后会变成的样子」（§8）。
+   放在 :hover 之后，同权重靠源顺序取胜。
+   选中行按下时本行打不过 .job-picker-item.selected:hover(0,3,0)，走的仍是 15%——
+   那是「悬停 + 选中」，本就比单纯按下深一档，无差 */
+.job-picker-item:active {
+  background: var(--bg-accent-tint-selected);
+}
 .job-picker-item-name {
   flex: 1;
   min-width: 0;
   cursor: pointer;
-  padding: 4px 0;
+  padding: var(--space-1) 0;
   white-space: normal;
   word-break: break-word;
   overflow-wrap: break-word;
-  line-height: 1.4;
+  line-height: var(--leading-compact);
   font-family: inherit;
   font-size: inherit;
   font-weight: inherit;
@@ -103,11 +114,17 @@
   border-bottom: 1px dashed var(--border-card);
 }
 .job-picker-add .job-picker-item-name {
-  color: var(--color-accent);
+  /* 字色同选中态取 --color-accent-strong：这一行也是 .job-picker-item，悬停照样铺 5% 淡蓝底，
+     base 在那层底上只有 4.23:1（§9 的文本门槛是 4.5），深一档后 5.23 */
+  color: var(--color-accent-strong);
+  /* 600 —— 曾因「同一张列表里和『已选中』撞信号」降到 400，**用户定稿改回 600**，别再降：
+     这一行是列表里的动作入口（不是一条可选的数据），读起来该与被选中的岗位同一量级，
+     降下去反倒像「次要的一条」。两者仍然分得清——它没有 10% 浅蓝底、底边是虚线，
+     选中行有浅蓝底、底边是实线，底色与边型两条通道都在 */
   font-weight: 600;
 }
 .job-picker-item.selected .job-picker-item-name {
-  color: var(--color-accent);
+  color: var(--color-accent-strong); /* 选中态的字坐在 10% 浅蓝底上：base 只有 3.95:1，深一档后 4.89（§9） */
   font-weight: 600;
 }
 /* 这里原有 ::before { content: '✓ ' } 的勾号前缀，已删：
@@ -122,13 +139,13 @@
 }
 .job-picker-item-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   flex-shrink: 0;
 }
 /* 列表内小操作按钮：编辑、删除同为灰色描边（.btn--ghost），都收成小号，不抢弹窗底部的大按钮。
    删除曾经走红描边（.btn--danger-ghost），与旁边的编辑并排显得「更重一级」，已统一（用户要求） */
 .job-picker-item-actions .btn {
-  padding: 4px 8px;
+  padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
 }
 .job-picker-item-actions .btn--ghost {
@@ -145,13 +162,14 @@
 /* ===== Card ===== */
 .card {
   background: var(--bg-card);
-  border: none;                       /* 去描边：白块靠加深后的页面底色衬出（Google 平面卡片） */
+  border: none;                       /* 去描边：原先靠页面底色衬出白块；页面改纯白后卡与页同色，
+                                         轮廓只剩 --shadow-card。嫌发平就在此补一条 --border-card 描边 */
   border-radius: var(--radius-card);
   padding: var(--space-4); /* 卡片内距 16，同 v1.9.11 的舒适观感 */
   box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 /* 运行配置卡：卡片标题已去掉，上、下内距 16 → 24（8 网格一档）补足呼吸；左右仍 16。
    行间距从默认的 8 一路提到 24（两档）：卡里是「来源 / 岗位 / 数量 / 复选 / 按钮」几组功能各异的控件，
@@ -168,15 +186,15 @@
   letter-spacing: 0.5px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .step-indicator {
   font-size: var(--text-sm);
   font-weight: 400; /* 辅助灰字：走正文常规，不作强调 */
   color: var(--text-muted);
-  background: var(--bg-page);
+  background: var(--bg-neutral-tint);
   padding: var(--space-1) var(--space-2);
-  line-height: 1.2;
+  line-height: var(--leading-tight);
   border-radius: var(--radius-sm); /* 内嵌徽标，radius-sm 档 */
   font-variant-numeric: tabular-nums;
 }
@@ -185,7 +203,7 @@
 .field-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .field-label {
   font-size: var(--text-md); /* 字段标签档：与正文同档 14px */
@@ -203,7 +221,7 @@ button.is-loading::before {
   display: inline-block;
   width: 12px;
   height: 12px;
-  margin-right: 8px;
+  margin-right: var(--space-2);
   border: 2px solid currentColor;
   border-top-color: transparent;
   border-radius: var(--radius-full);
@@ -219,23 +237,23 @@ button.is-loading::before {
    选中      = 10% 浅蓝底 + 蓝字（底色由滑动指示条承载）
    悬停未选中 = 5% 淡底（只提示可点，字色不变）
    悬停选中   = 底色加深到 15%（指示条在悬停态加深）
-   按下      = 整格缩放 0.97
+   按下      = 不额外加反馈（原来整格缩放 0.97，用户定稿去掉：按下时看到的仍是那层悬停底）
    三档浅底的具体值集中在 tokens.css（--bg-accent-tint / -selected / -active），这里只引用 */
 .toggle-group {
   position: relative; /* 定位基准：让 .toggle-pill 相对组内贴位（JS 用 offset 落位） */
   display: flex;
   gap: 0;
-  /* 槽底用次级底（--bg-subtle #f1f5f9），不用页面底（--bg-page #f8fafc）：
-     这一条在白色卡片里，页面底色和卡片只差一点点，槽的轮廓几乎看不见；
+  /* 槽底用次级底（--bg-subtle #f1f5f9），不用页面底（--bg-page 纯白）也不用最浅中性底
+     （--bg-neutral-tint #f8fafc）：这一条在白色卡片里，后两者和卡片几乎同色，槽的轮廓看不见；
      次级底是「下陷面」那一档（同只读框、进度条轨道），才读得出「三个格子嵌在一个槽里」 */
   background: var(--bg-subtle);
   border-radius: var(--radius-btn);
-  padding: 4px;
+  padding: var(--space-1);
   width: 100%;
 }
 .toggle-btn {
   flex: 1;
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   font-size: var(--text-md);
   font-weight: 600; /* 500 在微软雅黑下无字形会被降成 400，与正文拉不开；600 才真正显粗 */
   border: none;
@@ -246,19 +264,37 @@ button.is-loading::before {
   text-align: center;
   position: relative;
   z-index: 1; /* 文字叠在滑动的指示条之上 */
-  transition: color var(--transition-fast), background-color var(--transition-fast), transform var(--transition-fast);
+  /* 不再过渡 transform：按下缩放那条已删，没有任何规则会改它的 transform */
+  transition: color var(--transition-fast), background-color var(--transition-fast);
   -webkit-app-region: no-drag;
 }
 .toggle-btn.active {
-  color: var(--color-accent);
+  color: var(--color-accent-strong); /* 选中的字坐在 10% 浅蓝底上：base 只有 3.95:1，深一档后 4.89（§9） */
 }
 .toggle-btn:hover:not(.active) {
   /* 悬停只加 5% 淡底、字色不变（用户要求：悬停别让字变深，浅底已足够提示） */
   background: var(--bg-accent-tint); /* 5% 淡悬停底，与「选中 10%」明显分层 */
 }
-.toggle-btn:active {
-  transform: scale(0.97); /* 按下收缩一档：非 .btn 的可点控件补按压反馈 */
+/* 「指针此刻正压在这一格」的观感 —— 由 JS 在按下时挂 .is-pressed、松手摘掉，拖动跨格时跟着指针走
+   （见 renderer-dialogs.js）。
+   为什么不直接靠 :hover：分段条一旦开始拖动就会捕获指针，而 Chromium 在指针被捕获期间把 :hover
+   归给捕获元素（.toggle-group），按钮自己的悬停随之失效。真机按住几乎都会抖过 4px 阈值、算成拖动，
+   于是按住时那层颜色凭空消失（用户两次反馈：先是不见 5% 淡底，后是「按住颜色变深没了」）。
+   按压/拖动期间的观感必须自己承担，不能再搭 :hover 的便车。
+   **按下 ≠ 悬停**：取值同全站按下档「按下 = 选中档 10%」（用户定稿：按下底色一律取「和选中一样的」）。
+   悬停那 5% 按下去不变，看着就像没反应 —— 用户报的「点击按住颜色还是没变化，还是 5%」就是这条。
+   按下未选中的格子 = 预览「松手后它会变成的样子」 */
+.toggle-btn.is-pressed:not(.active) {
+  background: var(--bg-accent-tint-selected);
 }
+.toggle-btn.active.is-pressed ~ .toggle-pill {
+  background: var(--bg-accent-tint-active);
+}
+/* 这里原有 `.toggle-btn:active { transform: scale(0.97) }`（按下整格收缩一档）——已删（用户定稿不要）。
+   注：它此前从未真正生效过 —— 分段条在 pointerdown 就捕获了指针，而 Chromium 在指针被捕获期间
+   会把 :active 归给捕获元素，按钮根本匹配不到 :active（详见 renderer-dialogs.js 里
+   「到这一刻才捕获指针」那段）。捕获挪到越过拖动阈值之后，它才第一次真正生效，
+   用户看了实际效果后决定不要。想加回按压反馈，先读上面那段注释，别再让人误以为「以前一直好好的」 */
 /* 滑动指示条：绝对定位贴住当前档按钮（top/bottom 4 = 组内边距），JS 按按钮几何落位。
    只用 transform 位移（合成层动画），不逐帧动布局 */
 .toggle-pill {
@@ -308,7 +344,7 @@ body.is-dragging-source * {
   text-align: center;
   color: var(--text-muted);
   font-size: var(--text-sm);
-  line-height: 1.6;
+  line-height: var(--leading-normal);
 }
 .job-picker-item.empty-state {
   cursor: default;
@@ -324,7 +360,15 @@ body.is-dragging-source * {
 .count-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
+  /* 本列右端留一档呼吸（用户反馈：「人」与卡片内容右缘齐平顶死，像溢出去了，要左移一档）。
+     与历史记录行「X 人」的修法同源（那里的 `margin-right: var(--space-1)`），差别是这 4px
+     写在**容器**上而不是末项上 —— 本列末项随模式变（沟通页是「提取全部」勾选框，其余模式是「人」），
+     挂在末项上就只有一半状态生效。
+     为什么整行别的都不动：`run-grid` 第二列是 `auto`（按内容撑），容器多 4px 内距 → 该列宽 4px、
+     第一列（目标岗位）作为 `1fr` 就自动少 4px，两者相加不变，故行的右缘与 `column-gap` 16px 一个像素不动。
+     于是「人」连同数字框整体左移 4px，而数字框 ↔「人」那 8px 间距不变（内距在内容之外）。 */
+  padding-right: var(--space-1);
 }
 .count-field {
   position: relative; /* 箭头以输入框为基准定位 */
@@ -388,6 +432,8 @@ body.is-dragging-source * {
   opacity: 1;
   pointer-events: auto;
 }
+/* 图标控件的四态色：取值全部来自 tokens.css 的 --icon-* 四行（阶梯定义在那里，
+   本文件不再出现任何一个灰色字面量）。各控件自己的底色反馈另写，不混进这条 */
 .count-arrow {
   flex: 1;
   display: flex;
@@ -400,11 +446,11 @@ body.is-dragging-source * {
   cursor: pointer;
   transition: color var(--transition-fast); /* 悬停/按下只加深图标色，不铺底色块 */
 }
-.count-arrow:hover { color: var(--text-secondary); }
-.count-arrow:active { color: var(--text-primary); }
+.count-arrow:hover { color: var(--icon-hover); }
+.count-arrow:active { color: var(--icon-active); }
 .count-arrow:disabled {
   background: transparent;
-  color: var(--color-disabled-text);
+  color: var(--icon-disabled);
   cursor: not-allowed;
 }
 /* 整体禁用态（勾「提取全部」）：输入框变灰，箭头不再出现 */
@@ -422,12 +468,12 @@ body.is-dragging-source * {
    （实测 592 vs 600）。挪到复选框那侧后：隐藏时右边缘对齐 600，
    显示时「人」→勾选框仍是 8(gap)+8 = 16px，排布不变 */
 #extract-all-section {
-  margin-left: 8px;
+  margin-left: var(--space-2);
 }
 .checkbox-label {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   font-size: var(--text-md);
   color: var(--text-secondary);
   cursor: pointer;
@@ -450,15 +496,27 @@ body.is-dragging-source * {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  /* 盒子 24×24 = 无障碍建议的最小点击目标（原来跟着图标做 16×16，偏小），
+     图标本身仍是 16（§7）。配 margin:-4px 把盒子「缩回」16 的占位，
+     于是视觉位置与间距跟从前一模一样，只是四周各多出 4px 的可点区
+     —— 与 §7 里 .menu-btn 用负外边距把 32 的悬停底框对回字形中心是同一手法。
+     注意：伪元素绝对定位是相对「内边距盒」算的，盒子一高 8px，
+     气泡与尖角就得各减 4px 才停在原处（见下方两条 bottom） */
+  width: 24px;
+  height: 24px;
+  margin: -4px;
   border: none;
-  color: var(--color-disabled-text);
+  color: var(--icon-muted);
   background: transparent;
   padding: 0;
   cursor: help;
   user-select: none;
+  transition: color var(--transition-fast); /* 与其余图标控件同一时长，悬停变色不跳变（原缺） */
 }
+/* 图标控件的悬停色：取值见 tokens.css 的 --icon-* 四行 */
+.tip-icon:hover,
+.tip-icon:focus-visible { color: var(--icon-hover); }
+.tip-icon:active { color: var(--icon-active); }
 /* 气泡本体（::after）与尖角（::before）的共用属性：显隐、上浮、底色写一次，
    两边同步（尖角必须与气泡同色，否则接缝会显出一道边；显隐也必须同步，否则只亮一半）。
    出现/消失带 2px 上浮——用独立的 translate 属性做，不动负责水平居中的 transform。
@@ -477,29 +535,33 @@ body.is-dragging-source * {
 .tip-icon::after {
   content: attr(data-tip);
   left: 50%;
-  bottom: calc(100% + 8px);
+  /* 锚在**盒子中线**、不是盒子边缘：图标在盒内居中，中线与盒子尺寸无关，
+     于是盒子以后改成 20 / 28 / 32 都不用重算这两个偏移。
+     数值 = 中线往上「图标半高 8 + 间距 8」= 16；气泡下缘正好距图标上沿 8px */
+  bottom: calc(50% + 16px);
   transform: translateX(-50%);
   width: max-content;
   max-width: 240px;
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   color: var(--bg-card);
   border-radius: var(--radius-md); /* 收敛历史 6px */
   font-size: var(--text-sm);
-  line-height: 1.5;
+  line-height: var(--leading-normal);
   text-align: center;
   white-space: normal;
   z-index: var(--z-tooltip);
   box-shadow: var(--shadow-elevated);
 }
 /* 气泡尖角：8×8 方块自转 45° 成菱形，中心咬在气泡下缘，正指着 ℹ️。
-   几何：方块底边在图标上方 4px、高 8px → 中心在图标上方 8px，正是气泡下缘；
-   旋转后最下端顶点落在图标上方约 2px（尖锋几乎触到图标），上半截被气泡盖住（见下）。
+   几何：中线往上 12px（= 气泡的 16 减去菱形半高 4）就是菱形中心，
+   即气泡下缘所在处；旋转后最下端顶点落在图标上沿上方约 2px（尖锋几乎触到图标），
+   上半截被气泡盖住（见下）。同样锚中线，与盒子尺寸无关。
    水平居中用 left 算而不是 translateX(-50%)：旋转后的外接盒是 11.3px 不是 8px，
    用 -50% 会偏 1.7px；left: calc(50% - 4px) 让「方块中心」落在中线上，旋转不改变中心。 */
 .tip-icon::before {
   content: '';
   left: calc(50% - 4px);
-  bottom: calc(100% + 4px);
+  bottom: calc(50% + 12px);
   width: 8px;
   height: 8px;
   transform: rotate(45deg);
@@ -521,8 +583,8 @@ body.is-dragging-source * {
 .run-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 16px;
-  row-gap: 8px;
+  column-gap: var(--space-4);
+  row-gap: var(--space-2);
   align-items: end; /* 两格标签行高不同时，控件贴底对齐 */
 }
 .run-grid > .field-group { min-width: 0; }
@@ -537,7 +599,7 @@ body.is-dragging-source * {
   align-items: center;
   justify-content: flex-start;
   flex-wrap: wrap;
-  gap: 8px 16px;
+  gap: var(--space-2) var(--space-4);
   min-height: 40px;
 }
 
@@ -576,9 +638,9 @@ body.is-dragging-source * {
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
   min-width: 200px;
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   border: 1px solid var(--border-input);
   border-radius: var(--radius-input);
   font-size: var(--text-md);
@@ -615,7 +677,7 @@ body.is-dragging-source * {
   display: flex;
   flex-direction: column;
   gap: 2px; /* 选项胶囊间的白缝：刻意收紧到 2px（小于 space-1 半拍，仅此微缝用），相邻选中/悬停块仍不粘连 */
-  padding: 4px;
+  padding: var(--space-1);
   -webkit-app-region: no-drag;
   transform-origin: top; /* 展开方向（向下/向上）在 JS 里按需改；入/出场同一原点才能互相倒放 */
   animation: menu-in var(--dur-fast) var(--ease-out);
@@ -627,7 +689,7 @@ body.is-dragging-source * {
   pointer-events: none; /* 退场期间不可再点，避免选到正淡出的项 */
 }
 .custom-select-option {
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   font-size: var(--text-md);
   text-align: left;
   background: none;
@@ -641,11 +703,12 @@ body.is-dragging-source * {
   background: var(--bg-accent-tint); /* 悬停未选中 = 5% 淡底（同来源分段按钮），只提示可点，字色不变 */
 }
 .custom-select-option:active {
-  background: var(--bg-accent-tint-active); /* 按下比悬停再深一档，整行反馈（选项行不宜整体缩放） */
+  background: var(--bg-accent-tint-selected); /* 按下 = 选中档（10%），与列表行/菜单项统一：按下即预览选中态。
+                                                 整行反馈仍用底色，不整体缩放（选项行不宜缩放，§8） */
 }
 .custom-select-option.selected {
   background: var(--bg-accent-tint-selected); /* 选中 = 10% 浅蓝底（同来源分段按钮），靠 accent 蓝字 + 600 区分 */
-  color: var(--color-accent);
+  color: var(--color-accent-strong); /* 字坐在浅蓝底上：base 只有 3.95:1，深一档后 4.89（§9） */
   font-weight: 600;
 }
 .custom-select-option.selected:hover {
@@ -657,11 +720,11 @@ body.is-dragging-source * {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 8px 16px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
   font-size: var(--text-md);
-  font-weight: 400; /* 普通按钮不加粗（靠边框/底色识别），加粗只留给主 CTA .btn--lg */
-  line-height: 1.4;
+  font-weight: 400; /* 普通按钮不加粗（靠边框/底色识别），加粗只留给主 CTA .btn--cta */
+  line-height: var(--leading-compact);
   border: 1px solid transparent;
   border-radius: var(--radius-btn);
   cursor: pointer;
@@ -670,11 +733,12 @@ body.is-dragging-source * {
   transition: background var(--transition-fast), border-color var(--transition-fast),
     color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
 }
-.btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
+/* 悬停总则（§8）：**浅底加深、深底变浅**，只改底色，不上浮。
+   原先每个按钮悬停都 translateY(-1px) 上浮，与「有的变色、有的上浮」的观感混杂，
+   统一去掉；唯一例外是主 CTA「开始提取分析」（旧写法 .btn--primary.btn--lg，现为 .btn--cta），见下方。
+   按下仍是整块 scale(.98)（§8 按压反馈），不再叠 translateY */
 .btn:active:not(:disabled) {
-  transform: scale(0.98) translateY(0);
+  transform: scale(0.98);
 }
 .btn:disabled {
   background: var(--color-disabled-bg);
@@ -685,18 +749,20 @@ body.is-dragging-source * {
   transform: none;
 }
 
-/* 变体 */
+/* 变体。悬停一律遵守上面那条总则（浅底加深 / 深底变浅），只改底色、不上浮、不加悬停影；
+   按下不再单独给色，统一交给 .btn:active 的 scale(.98)（少了按下的深色，但按压反馈由缩放承担，
+   避免了「悬停变浅、按下又变深」的方向来回） */
 .btn--primary { background: var(--color-accent); color: var(--text-on-accent); }
-.btn--primary:hover:not(:disabled) { background: var(--color-accent-hover); box-shadow: 0 4px 15px rgba(var(--color-accent-rgb),0.3); }
-.btn--primary:active:not(:disabled) { background: var(--color-accent-active); }
+.btn--primary:hover:not(:disabled) { background: var(--color-accent-light); } /* 深底 → 变浅 */
 .btn--secondary { background: var(--bg-card); color: var(--color-accent); border-color: var(--color-accent); }
-.btn--secondary:hover:not(:disabled) { background: var(--bg-accent-tint); box-shadow: 0 2px 8px rgba(var(--color-accent-rgb),0.15); }
+.btn--secondary:hover:not(:disabled) { background: var(--bg-accent-tint); } /* 白底 → 加深（5% 淡底） */
 .btn--ghost { background: transparent; color: var(--text-secondary); border-color: var(--border-input); }
-.btn--ghost:hover:not(:disabled) { background: var(--bg-page); color: var(--text-primary); }
+/* 白底 → 加深一档。原先取 --bg-neutral-tint(#f8fafc)，在白卡上几乎看不出，
+   等于「悬停没反应」；改用下陷面那一档 --bg-subtle(#f1f5f9)，轮廓才读得出来 */
+.btn--ghost:hover:not(:disabled) { background: var(--bg-subtle); color: var(--text-primary); }
 /* 破坏性操作（删除岗位/清空历史）用红底白字，重操作一眼可辨；不用红描边以免和次要红字链接混淆 */
 .btn--danger { background: var(--color-error); color: var(--text-on-accent); border-color: var(--color-error); }
-.btn--danger:hover:not(:disabled) { background: var(--color-error-strong); border-color: var(--color-error-strong); color: var(--text-on-accent); }
-.btn--danger:active:not(:disabled) { background: var(--color-error-strong); color: var(--text-on-accent); }
+.btn--danger:hover:not(:disabled) { background: var(--color-error-light); border-color: var(--color-error-light); color: var(--text-on-accent); }
 /* 警示档：琥珀浅底 + warning 描边。两个类同款，合并成一条选择器列表——
    .btn--warning 给「跳过本次」这类警示动作，.btn--paused 给「暂停已生效」的状态标记，
    语义不同、外观一致（琥珀浅底 + warning 描边），分别维护会在改色时漏掉一个 */
@@ -713,10 +779,62 @@ body.is-dragging-source * {
 
 /* 尺寸 */
 .btn--sm { padding: 4px 8px; font-size: var(--text-sm); }
-.btn--lg { padding: 8px 24px; font-size: var(--text-lg); font-weight: 600; letter-spacing: 0.5px; }
+/* 纯图标按钮：把 .btn--sm 的横向内距换成正方形，边长取「同一行文字按钮的高度」——
+   文字按钮高 = 12(字) × 1.4(行高) + 4×2(内距) + 1×2(描边) ≈ 27px。
+   这是由几何反推的值（同 §3 的「反推内距」一类）：改了 .btn--sm 的内距 / 行高 / 字号，
+   这 27 必须同步算一遍，否则图标钮会比旁边的文字钮矮一截、上下不齐。
+   图标尺寸不在这里定，由调用方写在 svg 上，走 currentColor 随字色；
+   定多大按**墨迹等高**（§7「墨迹微调」），不要照抄某个数字——现存的调用方取的是 18 / 20
+   而不是 16，因为这两个字形的墨迹本身偏窄。纯图标钮没有文字兜底，必须带 aria-label（§9） */
+.btn--icon {
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  gap: 0;
+}
+/* 无框无底：图标钮「就一枚图标」，不要外圈底色 / 描边（用户要求）。
+   这里写死 transparent 与 `.btn` 底子重复，是防着将来有人给它叠一个带描边的变体冒出方框；
+   反馈全靠图标变色 + 按下缩放，五态齐全（§8），不搭配任何变体（下方四态色规则即为此） */
+.btn--icon,
+.btn--icon:hover:not(:disabled) {
+  border-color: transparent;
+  background: transparent;
+}
+/* 禁用态用双类提权（0,3,0）：要压住 .btn:disabled 的灰底（0,2,0）。
+   字色取 --icon-disabled（比静置**更浅**），不叠 opacity —— 禁用是「退到后面去」 */
+.btn.btn--icon:disabled {
+  background: transparent;
+  border-color: transparent;
+  color: var(--icon-disabled);
+}
 .btn--block { display: flex; width: 100%; }
 
-/* 「开始提取分析」是站内唯一 .btn--lg：lg(16) 字号 + 8px 垂直内距 → 高约 40px（前导播放图标已去掉，纯文字） */
+/* 主 CTA「开始提取分析」——**自成一档，不叠 .btn--primary / .btn--lg**。
+   它是悬停总则的唯一例外（§8）：保留「上浮 + 加深 + 悬停影」，与常规实心钮的「平稳变色」区分开。
+   曾经的做法是叠 `.btn--primary.btn--lg` 再用**双类提权（0,5,0）**去压 `.btn--primary:hover`（0,4,0）——
+   压是压住了，但那是一场权重战争：变体一挪位、或者将来谁再给它加一个类，就会悄没声地失效。
+   现在把 accent 实心底 + 大号尺寸 + 自己的三态全写在同一个类里（都是 0,3,0），不压任何人。
+   尺寸：lg(16) 字号 + 8px 垂直内距 → 高约 40px（前导播放图标已去掉，纯文字）。
+   **除它以外不要再有第二枚按钮用这个类**：这些值（尤其是那个悬停影和上浮）是全站专属的例外，
+   多一枚就变成「有的按钮上浮有的不浮」的老问题——那正是当初统一掉 translateY 的原因 */
+.btn--cta {
+  background: var(--color-accent);
+  color: var(--text-on-accent);
+  border-color: transparent;
+  padding: var(--space-2) var(--space-6);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.btn--cta:hover:not(:disabled) {
+  background: var(--color-accent-hover); /* 这里要「加深」，方向与常规实心钮相反 */
+  box-shadow: 0 4px 15px rgba(var(--color-accent-rgb), 0.3);
+  transform: translateY(-1px);
+}
+.btn--cta:active:not(:disabled) {
+  background: var(--color-accent-active);
+  transform: scale(0.98);
+}
 
 /* 链接式小按钮：轻动作的紧凑档（白底 + 12px 字 + 更小的内距）。
    蓝字本体现在已无任何在用按钮（最后一只「历史记录」已转 btn--secondary），
@@ -725,12 +843,14 @@ body.is-dragging-source * {
   background: var(--bg-card);
   color: var(--color-accent);
   border-color: var(--border-input);
-  padding: 4px 8px;
+  padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
 }
 .btn--link:hover:not(:disabled) { border-color: var(--color-accent); background: var(--bg-accent-tint); }
 
-/* 幽灵危险钮：行内删除 / 清空历史这类「轻量破坏性动作」。
+/* 幽灵危险钮：清空历史这类「轻量破坏性动作」。
+   （历史记录行内的删除钮不走这一档：它是无框图标钮，与「打开目录」同为灰色，
+     破坏性语义由垃圾桶字形 + 确认弹窗承担，见 renderer-history.js 的说明）
    描边钮一律「描边与文字同色」——secondary 蓝描边蓝字、ghost 灰描边灰字、本档红描边红字。
    （历史遗留：删除与清空曾是「灰描边 + 红字」，与蓝描边蓝字并存两套「这个不一样」的表达，
      同一层级的差异却用了边框和字色两种机制，读起来像没做完；用户要求统一）
@@ -741,10 +861,16 @@ body.is-dragging-source * {
   border-color: var(--color-error);
 }
 .btn--danger-ghost:hover:not(:disabled) {
-  background: rgba(var(--color-error-rgb),0.06);
+  background: rgba(var(--color-error-rgb),0.10); /* 浅底加深：0.06 → 0.10（0.06 在白卡上几乎看不出） */
   border-color: var(--color-error-strong);
   color: var(--color-error-strong);
 }
+/* 无框图标钮自带四态色（不搭配任何变体，见上）。
+   历史记录行的两个图标钮（删除 / 打开目录）都是它：删除原先是红色，
+   用户要求与打开目录统一成灰——破坏性语义改由「垃圾桶字形 + 删除确认弹窗」承担 */
+.btn--icon { color: var(--icon-muted); }
+.btn--icon:hover:not(:disabled) { color: var(--icon-hover); }
+.btn--icon:active:not(:disabled) { color: var(--icon-active); }
 
 /* ===== 设置弹窗（原首页折叠卡，v1.12.0 搬进弹窗） =====
    高度封顶 90vh、表单区自己滚，标题与底部按钮固定不动 —— 窗口拉矮时用户看到的永远是
@@ -767,12 +893,25 @@ body.is-dragging-source * {
   overscroll-behavior: contain; /* 表单区滚到顶/底后不再把滚动链传给遮罩背后的主界面（同 .history-list） */
   min-height: 0; /* 允许被压到内容高度以下，flex 子项的滚动才会真正生效 */
   padding-bottom: var(--space-1); /* 滚到底时最后一行不贴死底部按钮 */
+  /* 左右各留一档，给输入框的聚焦环（--ring-input，向外 3px）腾出可画的地方。
+     根因：本元素是滚动容器（overflow-y:auto），按规范 overflow-x 会从 visible **自动变成 auto**，
+     而**裁切线是内距盒（padding box）**——无边框时它就等于边框盒外缘；输入框又是 width:100%
+     正好顶满内容盒，环的左右两边就落在裁切线外，看着像被白边抹掉（用户反馈「聚焦环左右没显示全」）。
+     注意：**只加 padding 是没用的**，内距盒不会因为 padding 而向外长；管用的是给容器自己挂
+     等量负外边距 —— 边框盒连同内距盒一起向两侧各撑出 4px，裁切线随之退到环外 1px，
+     而内容盒被 padding 推回原位，于是输入框的位置与宽度一个像素都不动（实测 100.34 / 456 改前改后一致）。
+     顺带：竖向滚动条(5px)吃掉的宽度与改动前完全相同（撑大 8 再让出 8），不会多缩。
+     内距与负外边距是一对、必须同值：只改一个就会出现横向溢出 → 多出一条横向滚动条 */
+  padding-left: var(--space-1);
+  padding-right: var(--space-1);
+  margin-left: calc(-1 * var(--space-1));
+  margin-right: calc(-1 * var(--space-1));
 }
 
 /* ===== Input Text ===== */
 .input-text {
   width: 100%;
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   border: 1px solid var(--border-input);
   border-radius: var(--radius-input);
   font-size: var(--text-md);
@@ -798,19 +937,10 @@ body.is-dragging-source * {
 .input-wrap .input-text {
   padding-right: 40px;
 }
-/* 编辑岗位弹窗：名称只读态（岗位名称编辑不了，用浅灰底 + 灰字区分；
-   底色已较深，按「深底少描边」原则去掉描边） */
-/* 用高特异性写法，确保盖过 .dialog-field input 的默认白底/深色字 */
-.dialog-field input.input-readonly {
-  background: var(--bg-subtle);
-  border: none;
-  color: var(--text-muted);
-  cursor: default;
-}
-.dialog-field input.input-readonly:focus {
-  border: none;
-  box-shadow: none;
-}
+/* 这里原有「编辑岗位：名称只读态」的 .input-readonly 两条规则，已删——
+   v1.10.2 起岗位名称与描述一样可改，那个类**全站再没有任何地方用过**（add/remove 都已清干净）。
+   要恢复只读态别把这两条抄回来：先看 §8 的 `.input-number:disabled` 那套禁用样式，
+   只读与禁用在这个系统里是两件事（只读仍可聚焦复制），别混用 */
 /* 密码框显示/隐藏眼睛按钮 */
 .input-wrap {
   position: relative;
@@ -835,38 +965,37 @@ body.is-dragging-source * {
   padding: 0;
   border: none;
   background: none;
-  color: var(--text-muted);
+  color: var(--icon-muted); /* 整族的静置色在这里定一次，各变体不再各写一份 */
   cursor: pointer;
   user-select: none;
   -webkit-app-region: no-drag;
+  transition: color var(--transition-fast); /* 与其余图标控件同一时长，悬停变色不跳变（原缺，这两族是瞬间跳变的） */
 }
-/* 禁用态：整族一条（同 .btn:disabled 的做法），谁被禁用都吃它 —— 眼睛 / 清空 × / 文件夹
-   三个按钮共用这个底座，不必每个变体各写一份。图标钮没有底色可加，禁用靠
-   「更淡 + 禁用字色 + 禁止光标」表达。
-   连 :hover / :active 一起列上：禁用元素照样会被鼠标划过命中 :hover，不写死就会「灰着还
-   亮起来」，看着像能点。这里用显式选择器而不是给各变体的悬停补 :not(:disabled)——那要把
-   守卫补在每个变体上，漏一个就复发；`.btn` 那族要守卫是因为 `.btn:disabled` 换的是底色/
-   字色另一组属性，本就压不住悬停的 background */
-.field-icon-btn:disabled,
-.field-icon-btn:disabled:hover,
-.field-icon-btn:disabled:active {
-  opacity: 0.4;
-  color: var(--color-disabled-text);
+/* 悬停 / 按下也整族一条：眼睛 / 清空 × / 文件夹三个按钮共用这个底座，各自的底色反馈
+   （清空 × 的浅灰圆底）留在各变体里，颜色不重复写 —— 取值见 tokens.css 的 --icon-* 四行 */
+.field-icon-btn:hover:not(:disabled) { color: var(--icon-hover); }
+.field-icon-btn:active:not(:disabled) { color: var(--icon-active); }
+/* 禁用态：整族一条，谁被禁用都吃它。
+   取 --icon-disabled（比静置**更浅**）并配禁止光标 —— 图标钮没有底色可加，
+   「不能点」全靠这一档更浅的灰 + 光标表达，不叠 opacity。
+   无需再补 :hover / :active 分支：上面两条悬停/按下本身就带 `:not(:disabled)` 守卫，
+   禁用元素根本命中不到它们（原先这里列了 :disabled:hover / :disabled:active 两条，
+   在守卫补上之后就再也赢不到任何东西了）。
+   反过来，`.btn--icon` 那族必须在禁用态**重写底色**：`.btn:disabled` 换的是底色/字色另一组
+   属性，压不住 `.btn--ghost:hover` 一类给悬停铺的 background */
+.field-icon-btn:disabled {
+  color: var(--icon-disabled);
   cursor: not-allowed;
 }
-/* 密码框眼睛按钮：静置淡一些，悬停加深并完全显示 */
-.input-toggle {
-  opacity: 0.65;
-  transition: opacity var(--dur-fast);
-}
-.input-toggle:hover {
-  opacity: 1;
-  color: var(--text-secondary);
-}
-.input-toggle:active {
-  opacity: 1;
-  color: var(--text-primary); /* 按下再深一档（§8 五态底线：图标钮没有底色可加，靠字色给反馈） */
-}
+/* 输入框的悬停面**就是它自己的框**，不外扩到包装层。
+   曾试过「框 + 框内控件 = 一个悬停面」（按 .input-wrap 等包装层判悬停），
+   理由是内嵌的图标钮压在框里却不点亮框的描边；但用户两次反馈悬停范围过大，
+   且实测包装层与输入框同尺寸、几何上本就等价 —— 那点收益不值这个风险，已撤。 */
+/* 密码框眼睛按钮：静置色由 .field-icon-btn 给，这里不重复写（原来它用 opacity:.65
+   表达「静置淡」，与别处用色值表达是两套机制，已并入整族） */
+/* .input-toggle 现在**只是 JS 钩子**（renderer-widgets.js 用它选眼睛按钮、renderer-dom.js 按
+   data-target 取元素），四态色与几何全部由 .field-icon-btn 一族承担，这里不再写任何样式。
+   它自己原先的 `opacity:.65` 静置淡 + 悬停补色，已并入整族（见上）。 */
 
 /* ===== 输入框一键清空（学 Google） =====
    平时只有细 ×（浅灰），鼠标悬停时外圈浮出浅灰圆底、× 变深。无内容时不显示。
@@ -874,7 +1003,6 @@ body.is-dragging-source * {
 .input-clear {
   display: none;
   border-radius: var(--radius-full);
-  color: var(--icon-muted);
   transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 .input-clear.show {
@@ -885,13 +1013,12 @@ body.is-dragging-source * {
   width: 16px;
   height: 16px;
 }
+/* 只写它自己独有的「浅灰圆底」，字色由 .field-icon-btn 一族给，不重复 */
 .input-clear:hover {
   background: rgba(var(--text-muted-rgb), 0.18);
-  color: var(--text-secondary);
 }
 .input-clear:active {
   background: rgba(var(--text-muted-rgb), 0.3); /* 按下圆底再深一档（§8 五态底线） */
-  color: var(--text-primary);
 }
 
 /* ===== Output Row ===== */
@@ -904,7 +1031,7 @@ body.is-dragging-source * {
 }
 .output-label {
   flex-shrink: 0;
-  line-height: 1.5;
+  line-height: var(--leading-normal);
 }
 /* 输出路径框按「只读展示」处理（同「已添加的岗位名」的只读区分法）：
    值不能就地改，就不许长得像能输入的框 —— 底色加深为 --bg-subtle、去掉描边、
@@ -935,18 +1062,12 @@ body.is-dragging-source * {
   white-space: nowrap;
   font-family: inherit;
 }
+/* 只写它自己的圆角；四态色由 .field-icon-btn 一族给。
+   这一处原先悬停**把灰色变成蓝色**（--color-accent），是全站唯一会变色相的图标控件，
+   已并入 --icon-* 阶梯，不再变蓝。
+   依旧不出浅蓝圆底：保持轻量，不抢框内路径文字 */
 .output-dir-btn {
   border-radius: var(--radius-md);
-  opacity: 0.65; /* 与眼睛按钮一致的浅灰静置态 */
-  transition: color var(--transition-fast), opacity var(--transition-fast);
-}
-/* 悬停只把图标变蓝、回到全不透明，不出浅蓝圆底 —— 保持轻量，不抢框内路径文字 */
-.output-dir-btn:hover {
-  opacity: 1;
-  color: var(--color-accent);
-}
-.output-dir-btn:active {
-  color: var(--color-accent-hover);
 }
 .output-dir-btn svg {
   display: block;

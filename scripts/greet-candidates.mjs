@@ -325,10 +325,16 @@ async function main() {
     // 单个候选人超时保护（30s），防止单个人卡死整个流程；停止指令也参与竞争，
     // 这样单个候选人卡住时点停止也能立刻收手，不必干等 30 秒
     let result = 'timeout';
+    // 这个 30s 超时定时器的句柄必须留着：竞速一分出胜负就得清掉。
+    // 不清的后果不是「超时失灵」，而是**进程退不掉** —— 定时器挂在事件循环上，
+    // 最后一名候选人的那个定时器会让进程多活最长 30 秒；而主进程的「当前任务」
+    // 是靠进程退出（close）才清空的，于是结果早就显示出来了，界面点什么都还回
+    // 「已有任务运行中」（用户反馈：「打招呼结果出来了还被挡」）
+    let perCandidateTimer = null;
     try {
-      const timer = new Promise(resolve =>
-        setTimeout(() => resolve('timeout'), PER_CANDIDATE_TIMEOUT)
-      );
+      const timer = new Promise(resolve => {
+        perCandidateTimer = setTimeout(() => resolve('timeout'), PER_CANDIDATE_TIMEOUT);
+      });
       result = await Promise.race([
         greetCandidate(targetId, geekId, name, opts.source),
         timer,
@@ -337,6 +343,8 @@ async function main() {
     } catch (err) {
       console.log(`[greet] ${name} 异常： ${err.message}`);
       result = 'error';
+    } finally {
+      clearTimeout(perCandidateTimer); // 胜负已分：超时定时器作废，别留它吊着进程
     }
 
     if (result === 'cancelled') break; // 用户点了停止，直接收手

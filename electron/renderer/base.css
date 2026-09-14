@@ -42,7 +42,9 @@ html { scrollbar-width: none; }
 html::-webkit-scrollbar { width: 0; height: 0; }
 
 /* 内容列表框：悬停到框上才显示细条（滑块悬停再加深）。
-   设置弹窗的表单区在列（窗口矮时才滚，但一旦要滚就得看得见） */
+   设置弹窗的表单区在列（窗口矮时才滚，但一旦要滚就得看得见）。
+   注意：光有这几条规则不生效——容器 :hover 变化时 Chromium 不重画它的自定义滚动条，
+   得由 renderer-widgets.js 那段「进/出框重建一次滚动条」来触发重画，两处是一套，别删单独的哪一半 */
 .job-picker-list:hover::-webkit-scrollbar-thumb,
 .results-list:hover::-webkit-scrollbar-thumb,
 .settings-body:hover::-webkit-scrollbar-thumb,
@@ -72,14 +74,43 @@ button {
   -webkit-app-region: no-drag;
 }
 
+/* 纯视觉标签（带 for 的 <label>）不吃鼠标事件 —— 修「鼠标离输入框还很远，输入框就亮了」。
+   根因：Chromium 会把 <label for> 的 hover 转发给它关联的控件，鼠标停在标签上时输入框
+   自己也 matches(':hover')、描边跟着变蓝（实测设置弹窗里标签那 21px 整段都在点亮输入框，
+   而输入框自身只有 35px 高）。标签不再是命中目标，转发随之消失，悬停范围回到控件自身。
+   写成元素选择器而不是按类名挂：标签的 class 五花八门（.field-label、.dialog-field 里那两个
+   连 class 都没有），按类名挂就得一处一处补、漏一处就复发。而 [for] 恰好就等于
+   「控件在别处、标签自己不承载交互」——包着复选框写的那种（.checkbox-label）没有 for，
+   天然不受影响，不必写 :not()。
+   代价：点标签不再聚焦输入框（那本来靠的就是命中测试）。for 保留，读屏软件仍能关联字段。 */
+label[for] {
+  pointer-events: none;
+}
+
 /* 键盘导航焦点环（鼠标点按时不显示；输入框已有各自 :focus 样式，不重复叠加）。
    只给「正 Tab 序」的元素画环：切换页面时程序聚焦的标题/弹窗（tabindex=-1）
    只是给键盘与读屏一个落点、并非可交互控件，不画环，避免非按钮文字块误亮 */
 button:focus-visible,
 [tabindex]:not([tabindex="-1"]):focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+/* 光有 button 不够：<summary>（邮件失败的展开行）和原生 checkbox 都**没有 tabindex**，
+   也不是 button/textarea，Tab 到它们时够不到这条规则 → 退回 Chromium 的 UA 环（上面说的橙黄）。
+   补这两条即可，别改成 `:focus-visible` 通配——那会把 tabindex=-1 的程序落点也圈进来，
+   下面那条专门摘掉它们 outline 的规则就得再拆一遍 */
+summary:focus-visible,
+input[type="checkbox"]:focus-visible {
   outline: none;
   box-shadow: 0 0 0 var(--ring-width) var(--ring-color);
+}
+/* 上面那条只管得住「我们自己用 box-shadow 画的环」，管不到 Chromium 的 UA 默认环
+   （outline:auto，Windows 上渲染成橙黄色 #E59700 一带）。
+   焦点落在弹窗容器 / 页面标题这类 tabindex=-1 的落点上时，用户只要按下任意一个键
+   ——包括 Shift 这种纯修饰键，截图快捷键（Win+Shift+S 之类）正好会按到——
+   该元素的 :focus-visible 就会被翻成 true，UA 环随即冒出来，表现为「弹窗一圈黄环」。
+   这些落点按上面的约定本来就不画环，所以这里把 outline 也显式摘掉。
+   只写 :focus 一条即可——:focus-visible 必然同时匹配 :focus，再列一遍是死重量。 */
+[tabindex="-1"]:focus {
+  outline: none;
 }
 
 #app {

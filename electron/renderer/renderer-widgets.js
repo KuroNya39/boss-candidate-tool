@@ -156,8 +156,8 @@ initCustomSelect(autoGreetLevel);
 // 放在通用 widget 里（原先挂在 renderer-greet.js 的 init 内）是为了让「复位」能跨文件被调：
 // 设置弹窗每次打开都把密码框复位成隐藏态（renderer-dialogs.js 的 openSettingsDialog），
 // 上次点开看过的明文不该关了弹窗还留在屏幕上
-const EYE_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-on"/></svg>';
-const EYE_OFF_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-off"/></svg>';
+const EYE_SVG = iconSvg('icon-eye-on', 16);
+const EYE_OFF_SVG = iconSvg('icon-eye-off', 16);
 
 // 单个密码框复位成隐藏（闭眼）。renderer-ipc.js 禁用一个密码框时也走它，
 // 免得「灰框里晾着明文密码」
@@ -273,7 +273,11 @@ function bindBackdropDismiss(overlay, dismiss) {
 
 // ===== 通用确认弹窗（替代原生 confirm/alert）=====
 // 返回 Promise<boolean>。danger 时确定按钮变红色；showCancel:false 时只保留确定按钮。
-function confirmDialog({ title, message, okText = '确定', cancelText = '取消', danger = false, showCancel = true }) {
+// swapTo（可选，目前只有「请选择目标岗位」在用）：形如 { overlay, open }，
+// 点「确定」后本弹窗不整屏淡出，而是与那个弹窗做交叉过渡（见 renderer-dialogs.js 的 swapDialogs）——
+// 两个弹窗同屏对淡、遮罩一路撑住，中间不留「只剩空遮罩」的帧。
+// 原来的写法是「确定 → 本弹窗啪地消失 → 目标弹窗的遮罩从透明淡入」，中间那一帧就是用户看到的「闪一下」。
+function confirmDialog({ title, message, okText = '确定', cancelText = '取消', danger = false, showCancel = true, swapTo = null }) {
   return new Promise((resolve) => {
     const overlay = document.getElementById('confirm-overlay');
     const titleEl = document.getElementById('confirm-title');
@@ -302,15 +306,24 @@ function confirmDialog({ title, message, okText = '确定', cancelText = '取消
 
     // 记录弹窗前的焦点，关闭后还原
     const prevFocus = document.activeElement;
-    overlay.style.display = 'flex';
+    // 本弹窗不走 openDialog，开/关只借 showOverlay/hideOverlay 这一对——
+    // inert 与 --closing 由它们负责（互切退场留下的 inert 就是我方的坑，见 renderer-dialogs.js）
+    showOverlay(overlay);
     okBtn.focus();
 
     const done = (val) => {
-      overlay.style.display = 'none';
       okBtn.removeEventListener('click', onOk);
       cancelBtn.removeEventListener('click', onCancel);
       unbindBackdrop();
       document.removeEventListener('keydown', onKey);
+      // 点「确定」且调用方指定了 swapTo：本弹窗不在这里消失，交给 swapDialogs 交叉过渡，
+      // 由它的收尾帧负责隐藏本弹窗 —— 中途不摘遮罩，是为了让遮罩一路撑住明暗
+      if (val === true && swapTo) {
+        swapDialogs(overlay, swapTo.overlay, swapTo.open);
+        resolve(true);
+        return;
+      }
+      hideOverlay(overlay);
       if (prevFocus && typeof prevFocus.focus === 'function') prevFocus.focus();
       resolve(val);
     };
@@ -367,6 +380,32 @@ function exitMsOf(el, fallback) {
   if (!Number.isFinite(n) || n <= 0) return fallback;
   return (durStr.endsWith('ms') ? n : n * 1000) + 30;
 }
+
+// ===== 滚动条：鼠标进框才出现 =====
+// 颜色/粗细那些在 base.css（:hover::-webkit-scrollbar-thumb 几条），这里只管「让它重画一次」：
+// 容器 :hover 变化时 Chromium 不会去重画**它自己那条**滚动条——滚动条绘在独立图层里，悬停失效
+// 传不过去。样式算出来是对的（matches(':hover') 为真），屏幕上却还是旧的，条就时有时无
+// （用户报的「一会儿出现一会儿消失」）。表单控件的滚动条画在元素自己的绘制里，没这毛病——
+// 岗位描述 textarea 天然就对，别在它身上白费劲。
+// 办法：进/出框时把 overflow 关掉再装回，滚动条被拆掉重建，遂按当前样式重画。
+// 放 rAF 里是因为鼠标刚离开的那一刻 :hover 还没更新完，同步重画会又画成悬停态（条不消失）。
+document.querySelectorAll('.job-picker-list, .results-list, .settings-body').forEach((box) => {
+  let queued = false;
+  const repaint = () => {
+    queued = false;
+    box.style.overflowY = 'hidden';
+    void box.offsetHeight; // 逼一次同步布局，滚动条才真的被拆掉
+    box.style.overflowY = ''; // 这三个盒子都没有内联 overflow，还原成 CSS 里的 auto
+    void box.offsetHeight;
+  };
+  const queue = () => {
+    if (queued) return; // 同一帧里进了又出，重画一次就够——重画时读的是当时的状态
+    queued = true;
+    requestAnimationFrame(repaint);
+  };
+  box.addEventListener('pointerenter', queue);
+  box.addEventListener('pointerleave', queue);
+});
 
 // ===== 清理函数 =====
 let cleanupFns = [];

@@ -11,10 +11,19 @@ const btnStart = document.getElementById('btn-start');
 const btnCancel = document.getElementById('btn-cancel');
 const btnSkipExtract = document.getElementById('btn-skip-extract');
 const btnPauseExtract = document.getElementById('btn-pause-extract');
-// 暂停/继续 统一引用 sprite 里的 Material 图标（path 数据只在 index.html 维护一份；跳过的图标是静态 HTML，无需 JS 重建）
-const SVG_PAUSE = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-pause"/></svg>';
-const SVG_PLAY = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-play"/></svg>';
-const SVG_CHEVRON_RIGHT = '<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-chevron-right"/></svg>';
+// 图标 SVG 的统一工厂：sprite 的 path 数据只在 index.html 维护一份，各处按「id + 尺寸」生成引用。
+// 放在 renderer-dom.js 而不是 renderer-widgets.js —— 它必须最先定义：index.html 的 <script> 里
+// renderer-dom.js 排第一，本文件与后面的 renderer-widgets.js 都在**脚本求值时**就要调它建常量，
+// 定义晚一个文件就会拿不到（函数声明有提升，同文件内前后无所谓）。
+// 图标尺寸取 §7 的六档（12/14/16/18/20/28），由调用方按角色给。
+// 20 那一档只给「墨迹占比偏小的图标」做等高微调（见 §7 墨迹微调），别按「这块地方大一点」去用。
+function iconSvg(id, size) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true"><use href="#${id}"/></svg>`;
+}
+// 暂停/继续 统一引用 sprite 里的 Material 图标（跳过的图标是静态 HTML，无需 JS 重建）
+const SVG_PAUSE = iconSvg('icon-pause', 14);
+const SVG_PLAY = iconSvg('icon-play', 14);
+const SVG_CHEVRON_RIGHT = iconSvg('icon-chevron-right', 12);
 const btnRestart = document.getElementById('btn-restart');
 const btnRetry = document.getElementById('btn-retry');
 const btnErrorBack = document.getElementById('btn-error-back');

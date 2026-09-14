@@ -152,7 +152,7 @@ async function loadApiConfig() {
 
 // 邮箱密码框跟着邮箱地址走：没填地址就禁用（没地址 = 没发件人，密码填了也发不出去），
 // 填了地址才恢复可填。用原生 disabled —— config.css 里 .input-text:disabled /
-// .input-toggle:disabled 已备好禁用那一档；placeholder 顺便换一句话，免得灰框看着像坏了
+// 图标钮的禁用档由 .field-icon-btn:disabled 统一备好；placeholder 顺便换一句话，免得灰框看着像坏了
 // （§9「状态不只靠颜色」）。禁用不清空已存的密码：把地址填回来，之前的密码还在。
 const SMTP_PASS_PLACEHOLDER = smtpPassInput.placeholder; // 原文写在 index.html 的 placeholder 属性上，不在这里抄第二份
 function updateSmtpPassState() {

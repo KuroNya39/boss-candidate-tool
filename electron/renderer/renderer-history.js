@@ -73,15 +73,16 @@ function renderHistoryItem(item, index) {
   const meta = item.meta || {};
   const sourceLabel = historySourceLabel(meta);
 
-  // 摘要行：时间 + 来源/状态标签 + 人数
-  const summary = document.createElement('div');
-  summary.className = 'history-item-summary';
-
-  const titleEl = document.createElement('div');
-  titleEl.className = 'history-item-title';
+  // 第一行：时间（左） + 人数（右）
+  // （原先 head / foot 两层包装 div 已删：它们只为把四个格子分成两行，而四格各自有
+  //  显式的 grid-area，包装层反而是多余的——还得靠 display:contents 把自己拆掉才不挡网格。
+  //   现在四项直接挂到 .history-item 上，见下方 row.append）
   const timeEl = document.createElement('span');
   timeEl.className = 'history-item-time';
   timeEl.textContent = item.time || '时间未知';
+
+  // 第二行：状态/来源胶囊（左） + 操作按钮（右，右对齐）—— 按钮从原来独立的第三行上移到这里，
+  // 与「已完成」药丸同行，条目由 3 行压到 2 行。
   const chipWrap = document.createElement('span');
   chipWrap.className = 'history-item-chips';
 
@@ -122,30 +123,50 @@ function renderHistoryItem(item, index) {
   srcChip.className = 'meta-chip';
   srcChip.textContent = sourceLabel;
   chipWrap.appendChild(srcChip);
-  titleEl.append(timeEl, chipWrap);
-
   const countEl = document.createElement('div');
   countEl.className = 'history-item-count';
   countEl.textContent = `${item.candidateCount} 人`;
 
-  summary.append(titleEl, countEl);
-
-  // 操作行
+  // 操作按钮：停在第二行右端（见 .history-item-actions 的 justify-self/justify-content，宽度富余时贴右，
+  // 挤不下时本行内换行仍贴右）
+  // 顺序固定为 继续提取 → 删除 → 打开目录 → 评分（用户指定）：
+  //   中间两个是纯图标钮（删除 / 打开目录），两端是文字钮，视觉上「文字-图标-图标-文字」对称；
+  //   评分靠最右且唯一实心，是这一行的主 CTA（§8「主 CTA 靠右」）；危险动作留在偏左，避开惯用点击区。
   const actions = document.createElement('div');
   actions.className = 'history-item-actions';
 
-  const makeBtn = (text, variant, onClick) => {
+  // 造按钮的骨架只留一份：文字钮与纯图标钮只差内容形态，别的（类型/类名/点击）都一样
+  const newBtn = (className, onClick) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = `btn btn--sm ${variant}`;
-    b.textContent = text;
+    b.className = className;
     b.addEventListener('click', onClick);
     return b;
   };
+  const makeBtn = (text, variant, onClick) => {
+    const b = newBtn(`btn btn--sm ${variant}`, onClick);
+    b.textContent = text;
+    return b;
+  };
 
-  // 继续提取：该批次还有未完成的提取进度，且位于最近 CONTINUE_EXTRACT_LIMIT 条之内
+  // 纯图标钮：没有文字兜底，只给 aria-label（读屏用）。**不给 title**——
+  // 原生 title 会在悬停时弹出系统提示气泡，用户不要那个；语义已由 aria-label 承担。
+  // size 由调用方按「墨迹等高」给，不是所有图标都给同一个 svg 尺寸：
+  // Material 的 24 画布自带约 2 单位留白、各图标的墨迹占比还不一样（垃圾桶 18/24 高、文件夹只 16/24 高），
+  // 同一个 svg 尺寸下垃圾桶会比文件夹明显大一圈。要让两枚图标看起来一样大，得按墨迹高度反推：
+  //   垃圾桶 18px × 18/24 = 13.5px 墨迹
+  //   文件夹 20px × 16/24 = 13.3px 墨迹  ← 两枚墨迹等高（用户要求：比原来 16/18 各放大一档）
+  const makeIconBtn = (iconId, label, size, onClick) => {
+    const b = newBtn('btn btn--icon', onClick);
+    b.setAttribute('aria-label', label);
+    b.innerHTML = iconSvg(iconId, size); // 图标模板统一走 renderer-dom.js 的 iconSvg()
+    return b;
+  };
+
+  // 继续提取：该批次还有未完成的提取进度，且位于最近 CONTINUE_EXTRACT_LIMIT 条之内。
+  // 空心（secondary，蓝描边蓝字）：本轮把实心让给了「评分」，它降为次要动作
   if (item.hasProgress && index < CONTINUE_EXTRACT_LIMIT) {
-    actions.appendChild(makeBtn('继续提取', 'btn--primary', async () => {
+    actions.appendChild(makeBtn('继续提取', 'btn--secondary', async () => {
       const res = await window.electronAPI.resumeExtraction(item.path);
       if (res?.error) { showToast(res.error, 'warning', 4000); return; }
       closeHistoryDrawer();
@@ -156,23 +177,16 @@ function renderHistoryItem(item, index) {
     }));
   }
 
-  // 评分：该批次有简历数据就能评（完整提取 / 提了一半 / 已评分均可，换模型后重评）
-  if (item.hasScorable) {
-    actions.appendChild(makeBtn('评分', 'btn--secondary', async () => {
-      closeHistoryDrawer();
-      resetSteps();
-      showState('state-running'); // 先切界面再发请求，避免留在弹窗里等结果
-      const res = await window.electronAPI.rescoreFromHistory(item.path);
-      if (res?.error) { showToast(res.error, 'warning', 4000); showState('state-initial'); }
-    }));
-  }
-
-  actions.appendChild(makeBtn('打开目录', 'btn--ghost', async () => {
-    await window.electronAPI.openHistory(item.path);
-  }));
-  // 当前输出目录不能删除（软件正在用的目录），不显示删除按钮
-  if (!item.isCurrent) {
-    actions.appendChild(makeBtn('删除', 'btn--danger-ghost', async () => {
+  // 删除：当前输出目录不能删（软件正在用的目录），但按钮照常占位、走禁用态——
+  // 只删按钮会让每行末端结构不一致、图标位置跳来跳去；禁用理由写进 aria-label，
+  // 不让「为什么这行没有删除」只靠用户猜（§0 原则 10 状态双通道：不只靠变灰）。
+  // 底色走 btn--ghost（灰）而非 btn--danger-ghost（红）：用户要求与「打开目录」统一成灰，
+  // 破坏性语义改由「垃圾桶字形 + 删除确认弹窗」承担，不再靠颜色预警
+  const delBtn = makeIconBtn(
+    'icon-delete',
+    item.isCurrent ? '当前批次正在使用，不能删除' : '删除',
+    18, // 垃圾桶墨迹占 18/24，18px 出来约 13.5px（与文件夹 20px 的 13.3px 墨迹等高）
+    async () => {
       const ok = await confirmDialog({
         title: '删除该记录？',
         message: `将删除「${item.name}」这一条记录，删除后不可恢复。`,
@@ -187,10 +201,31 @@ function renderHistoryItem(item, index) {
         showToast('已删除', 'success', 2000);
         loadHistory();
       }
+    },
+  );
+  if (item.isCurrent) delBtn.disabled = true; // 禁用态样式见 .btn.btn--icon:disabled（它会盖掉 .btn:disabled 的灰底）；disabled 本身已拦截点击
+  actions.appendChild(delBtn);
+
+  // 文件夹墨迹只占 16/24，要 20px 才和垃圾桶 18px 的 13.5px 墨迹等高
+  actions.appendChild(makeIconBtn('icon-folder', '打开目录', 20, async () => {
+    await window.electronAPI.openHistory(item.path);
+  }));
+
+  // 评分：该批次有简历数据就能评（完整提取 / 提了一半 / 已评分均可，换模型后重评）。
+  // 实心（primary）：本行唯一主 CTA，放在最右
+  if (item.hasScorable) {
+    actions.appendChild(makeBtn('评分', 'btn--primary', async () => {
+      closeHistoryDrawer();
+      resetSteps();
+      showState('state-running'); // 先切界面再发请求，避免留在弹窗里等结果
+      const res = await window.electronAPI.rescoreFromHistory(item.path);
+      if (res?.error) { showToast(res.error, 'warning', 4000); showState('state-initial'); }
     }));
   }
 
-  row.append(summary, actions);
+  // 四格直接挂到网格容器上。**顺序按视觉阅读顺序**（时间 → 人数 → 胶囊 → 按钮）：
+  // 四格的 grid-area 都已显式指定，摆放不看 DOM 顺序，但 Tab 顺序看 —— 顺序错了键盘会跳着走
+  row.append(timeEl, countEl, chipWrap, actions);
   return row;
 }
 

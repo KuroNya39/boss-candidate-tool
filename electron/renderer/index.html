@@ -15,28 +15,36 @@
   <link rel="stylesheet" href="overlays.css">
 </head>
 <body spellcheck="false">
-  <!-- 图标库（Material outlined 同套）：字形统一为 outline 空心，在此一处定义，各处用 <use href="#..."> 引用；
-       icon-skip（跳过提取）与 icon-play（暂停后的「继续」）两个动作键按强调需要做实心，为全站仅有的实心功能图标 -->
+  <!-- 图标库（Material Symbols & Icons，当前版）。
+       每个 symbol 的 viewBox 是官方原样保留的 0 -960 960 960，路径数据直接来自 Google 的
+       material-design-icons/symbols/web/<name>/materialsymbolsoutlined/，**不要手改路径**——
+       <use> 会把 symbol 自己的坐标系缩放到宿主 svg 的视口，所以调用处仍写 width/height="16"
+       这种像素值、外框 viewBox="0 0 24 24"，与旧版 24 格路径在几何上等价，不必按 960 换算尺寸。
+       字形统一为 outline 空心；icon-skip / icon-play / icon-pause 三个动作键按强调需要做实心，
+       取的是同一目录下的 *_fill1_24px.svg（Material Symbols 的 fill 轴），为全站仅有的实心功能图标。
+       换图标 = 换墨迹占比：新路径的实心范围与旧版不同，凡是「按墨迹对齐」定过尺寸的地方
+       （历史记录行的删除/文件夹，见 docs/design-system.md §7「墨迹微调」）要重新实测 getBBox 再定尺寸 -->
 
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
-      <symbol id="icon-settings" viewBox="0 0 24 24"><path fill="currentColor" d="M19.43 12.98c.04-.32.07-.64.07-.98 0-.34-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46a.5.5 0 0 0-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65A.488.488 0 0 0 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1a.566.566 0 0 0-.18-.03c-.17 0-.34.09-.43.25l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98 0 .33.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46a.5.5 0 0 0 .61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.06.02.12.03.18.03.17 0 .34-.09.43-.25l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zm-1.98-1.71c.04.31.05.52.05.73 0 .21-.02.43-.05.73l-.14 1.13.89.7 1.08.84-.7 1.21-1.27-.51-1.04-.42-.9.68c-.43.32-.84.56-1.25.73l-1.06.43-.16 1.13-.2 1.35h-1.4l-.19-1.35-.16-1.13-1.06-.43c-.43-.18-.83-.41-1.23-.71l-.91-.7-1.06.43-1.27.51-.7-1.21 1.08-.84.89-.7-.14-1.13c-.03-.31-.05-.54-.05-.74s.02-.43.05-.73l.14-1.13-.89-.7-1.08-.84.7-1.21 1.27.51 1.04.42.9-.68c.43-.32.84-.56 1.25-.73l1.06-.43.16-1.13.2-1.35h1.39l.19 1.35.16 1.13 1.06.43c.43.18.83.41 1.23.71l.91.7 1.06-.43 1.27-.51.7 1.21-1.07.85-.89.7.14 1.13zM12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></symbol>
-      <symbol id="icon-eye-on" viewBox="0 0 24 24"><path fill="currentColor" d="M12 6a9.77 9.77 0 0 1 8.82 5.5C19.17 14.87 15.79 17 12 17s-7.17-2.13-8.82-5.5A9.77 9.77 0 0 1 12 6m0-2C7 4 2.73 7.11 1 11.5 2.73 15.89 7 19 12 19s9.27-3.11 11-7.5C21.27 7.11 17 4 12 4zm0 5a2.5 2.5 0 0 1 0 5 2.5 2.5 0 0 1 0-5m0-2c-2.48 0-4.5 2.02-4.5 4.5S9.52 16 12 16s4.5-2.02 4.5-4.5S14.48 7 12 7z"/></symbol>
-      <symbol id="icon-eye-off" viewBox="0 0 24 24"><path fill="currentColor" d="M12 6a9.77 9.77 0 0 1 8.82 5.5 9.647 9.647 0 0 1-2.41 3.12l1.41 1.41c1.39-1.23 2.49-2.77 3.18-4.53C21.27 7.11 17 4 12 4c-1.27 0-2.49.2-3.64.57l1.65 1.65C10.66 6.09 11.32 6 12 6zm-1.07 1.14L13 9.21c.57.25 1.03.71 1.28 1.28l2.07 2.07c.08-.34.14-.7.14-1.07C16.5 9.01 14.48 7 12 7c-.37 0-.72.05-1.07.14zM2.01 3.87l2.68 2.68A11.738 11.738 0 0 0 1 11.5C2.73 15.89 7 19 12 19c1.52 0 2.98-.29 4.32-.82l3.42 3.42 1.41-1.41L3.42 2.45 2.01 3.87zm7.5 7.5 2.61 2.61c-.04.01-.08.02-.12.02a2.5 2.5 0 0 1-2.5-2.5c0-.05.01-.08.01-.13zm-3.4-3.4 1.75 1.75a4.6 4.6 0 0 0-.36 1.78 4.507 4.507 0 0 0 6.27 4.14l.98.98c-.88.24-1.8.38-2.75.38a9.77 9.77 0 0 1-8.82-5.5c.7-1.43 1.72-2.61 2.93-3.53z"/></symbol>
-      <symbol id="icon-info" viewBox="0 0 24 24"><path fill="currentColor" d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></symbol>
-      <symbol id="icon-check" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></symbol>
-      <symbol id="icon-close" viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
-      <symbol id="icon-play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></symbol>
-      <symbol id="icon-pause" viewBox="0 0 24 24"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></symbol>
-      <symbol id="icon-skip" viewBox="0 0 24 24"><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></symbol>
-      <symbol id="icon-folder" viewBox="0 0 24 24"><path fill="currentColor" d="m9.17 6 2 2H20v10H4V6h5.17M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></symbol>
-      <symbol id="icon-refresh" viewBox="0 0 24 24"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></symbol>
-      <symbol id="icon-chevron-right" viewBox="0 0 24 24"><path fill="currentColor" d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></symbol>
-      <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path fill="currentColor" d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></symbol>
-      <symbol id="icon-chevron-up" viewBox="0 0 24 24"><path fill="currentColor" d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></symbol>
-      <!-- 顶栏菜单按钮（Material more_vert：竖三点）与菜单项图标 -->
-      <symbol id="icon-more-vert" viewBox="0 0 24 24"><path fill="currentColor" d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></symbol>
-      <symbol id="icon-history" viewBox="0 0 24 24"><path fill="currentColor" d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></symbol>
+      <symbol id="icon-settings" viewBox="0 -960 960 960"><path fill="currentColor" d="m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z"/></symbol>
+      <symbol id="icon-eye-on" viewBox="0 -960 960 960"><path fill="currentColor" d="M480-320q75 0 127.5-52.5T660-500q0-75-52.5-127.5T480-680q-75 0-127.5 52.5T300-500q0 75 52.5 127.5T480-320Zm0-72q-45 0-76.5-31.5T372-500q0-45 31.5-76.5T480-608q45 0 76.5 31.5T588-500q0 45-31.5 76.5T480-392Zm0 192q-146 0-266-81.5T40-500q54-137 174-218.5T480-800q146 0 266 81.5T920-500q-54 137-174 218.5T480-200Zm0-300Zm0 220q113 0 207.5-59.5T832-500q-50-101-144.5-160.5T480-720q-113 0-207.5 59.5T128-500q50 101 144.5 160.5T480-280Z"/></symbol>
+      <symbol id="icon-eye-off" viewBox="0 -960 960 960"><path fill="currentColor" d="m644-428-58-58q9-47-27-88t-93-32l-58-58q17-8 34.5-12t37.5-4q75 0 127.5 52.5T660-500q0 20-4 37.5T644-428Zm128 126-58-56q38-29 67.5-63.5T832-500q-50-101-143.5-160.5T480-720q-29 0-57 4t-55 12l-62-62q41-17 84-25.5t90-8.5q151 0 269 83.5T920-500q-23 59-60.5 109.5T772-302Zm20 246L624-222q-35 11-70.5 16.5T480-200q-151 0-269-83.5T40-500q21-53 53-98.5t73-81.5L56-792l56-56 736 736-56 56ZM222-624q-29 26-53 57t-41 67q50 101 143.5 160.5T480-280q20 0 39-2.5t39-5.5l-36-38q-11 3-21 4.5t-21 1.5q-75 0-127.5-52.5T300-500q0-11 1.5-21t4.5-21l-84-82Zm319 93Zm-151 75Z"/></symbol>
+      <symbol id="icon-info" viewBox="0 -960 960 960"><path fill="currentColor" d="M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></symbol>
+      <symbol id="icon-check" viewBox="0 -960 960 960"><path fill="currentColor" d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></symbol>
+      <symbol id="icon-close" viewBox="0 -960 960 960"><path fill="currentColor" d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></symbol>
+      <symbol id="icon-play" viewBox="0 -960 960 960"><path fill="currentColor" d="M320-200v-560l440 280-440 280Z"/></symbol>
+      <symbol id="icon-pause" viewBox="0 -960 960 960"><path fill="currentColor" d="M560-200v-560h160v560H560Zm-320 0v-560h160v560H240Z"/></symbol>
+      <symbol id="icon-skip" viewBox="0 -960 960 960"><path fill="currentColor" d="M660-240v-480h80v480h-80Zm-440 0v-480l360 240-360 240Z"/></symbol>
+      <symbol id="icon-folder" viewBox="0 -960 960 960"><path fill="currentColor" d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h240l80 80h320q33 0 56.5 23.5T880-640v400q0 33-23.5 56.5T800-160H160Zm0-80h640v-400H447l-80-80H160v480Zm0 0v-480 480Z"/></symbol>
+      <symbol id="icon-delete" viewBox="0 -960 960 960"><path fill="currentColor" d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/></symbol>
+      <symbol id="icon-refresh" viewBox="0 -960 960 960"><path fill="currentColor" d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/></symbol>
+      <symbol id="icon-chevron-right" viewBox="0 -960 960 960"><path fill="currentColor" d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z"/></symbol>
+      <symbol id="icon-chevron-down" viewBox="0 -960 960 960"><path fill="currentColor" d="M480-344 240-584l56-56 184 184 184-184 56 56-240 240Z"/></symbol>
+      <symbol id="icon-chevron-up" viewBox="0 -960 960 960"><path fill="currentColor" d="M480-528 296-344l-56-56 240-240 240 240-56 56-184-184Z"/></symbol>
+      <!-- 顶栏菜单按钮（more_vert：竖三点）与菜单项图标 -->
+      <symbol id="icon-more-vert" viewBox="0 -960 960 960"><path fill="currentColor" d="M480-160q-33 0-56.5-23.5T400-240q0-33 23.5-56.5T480-320q33 0 56.5 23.5T560-240q0 33-23.5 56.5T480-160Zm0-240q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm0-240q-33 0-56.5-23.5T400-720q0-33 23.5-56.5T480-800q33 0 56.5 23.5T560-720q0 33-23.5 56.5T480-640Z"/></symbol>
+      <symbol id="icon-history" viewBox="0 -960 960 960"><path fill="currentColor" d="M480-120q-138 0-240.5-91.5T122-440h82q14 104 92.5 172T480-200q117 0 198.5-81.5T760-480q0-117-81.5-198.5T480-760q-69 0-129 32t-101 88h110v80H120v-240h80v94q51-64 124.5-99T480-840q75 0 140.5 28.5t114 77q48.5 48.5 77 114T840-480q0 75-28.5 140.5t-77 114q-48.5 48.5-114 77T480-120Zm112-192L440-464v-216h80v184l128 128-56 56Z"/></symbol>
       <!-- icon-resize：右下角抓握标（岗位描述输入框可拖拽调高）。两线 45° 严格平行；
            短线是长线右下方的缩短回声、中点落在长线的公垂线上（相对居中）。几何：长线 (7,19)→(18,8)、
            短线 (14.5,19.5)→(18.5,15.5)——两线中心距 ≈2.8px（紧贴但扫一眼仍能分清是两条线）。改它时保持此几何 -->
@@ -53,10 +61,10 @@
         </button>
         <div class="menu-panel" id="menu-panel" role="menu" style="display:none;">
           <button type="button" class="menu-item" id="btn-open-settings" role="menuitem">
-            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-settings"/></svg><span>设置</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-settings"/></svg><span>设置</span>
           </button>
           <button type="button" class="menu-item" id="btn-history" role="menuitem">
-            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-history"/></svg><span>历史记录</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-history"/></svg><span>历史记录</span>
           </button>
         </div>
       </div>
@@ -123,7 +131,7 @@
               <input type="checkbox" id="enable-copy">
               <span>开启模拟复制提取</span>
             </label>
-            <button type="button" class="tip-icon" data-tip="建议在电脑闲置时开启，提取更快更准" aria-label="建议在电脑闲置时开启，提取更快更准"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-info"/></svg></button>
+            <button type="button" class="tip-icon" data-tip="建议在电脑闲置时开启，提取更快更准" aria-label="建议在电脑闲置时开启，提取更快更准"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-info"/></svg></button>
           </div>
           <div class="auto-greet-section" id="auto-greet-section">
             <label class="checkbox-label">
@@ -149,7 +157,7 @@
         </div>
 
         <!-- Start button：设置没填全时按钮置灰（updateConfigStatus），按钮下方不加说明文字 -->
-        <button id="btn-start" class="btn btn--primary btn--lg btn--block">开始提取分析</button>
+        <button id="btn-start" class="btn btn--cta btn--block">开始提取分析</button>
       </div>
     </div>
 
@@ -231,7 +239,7 @@
         </div>
         <div class="result-summary" id="done-summary"></div>
         <details id="mail-error-details" class="mail-error-details" style="display:none;">
-          <summary><svg class="mail-error-arrow" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-chevron-right"/></svg>邮件发送失败的原因</summary>
+          <summary><svg class="mail-error-arrow" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-chevron-right"/></svg>邮件发送失败的原因</summary>
           <div id="mail-error-detail" class="mail-error-detail"></div>
         </details>
         <div class="result-actions">
@@ -301,7 +309,11 @@
             <div class="progress-track">
               <div class="progress-fill" id="greet-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
             </div>
-            <div class="greet-progress-text" id="greet-progress-text"></div>
+            <!-- aria-live：进度文字是这一屏唯一的「跑起来了没有」信号，加之前读屏用户全程听不到任何反馈。
+                 与下面的 #greet-result 同一档（polite），也和进度条的 role="progressbar" 分工明确：
+                 条给程序化取值，这行字负责播报。不加 aria-atomic —— 只想让它报变化的那截「3/20」，
+                 每来一个人把整句「正在打招呼… 3/20」念一遍太吵 -->
+            <div class="greet-progress-text" id="greet-progress-text" aria-live="polite"></div>
           </div>
           <div id="greet-result" class="greet-result" style="display:none;" aria-live="polite"></div>
         </div>
@@ -381,7 +393,7 @@
           <div class="input-wrap">
             <input type="password" id="api-key" class="input-text" placeholder="sk-...">
             <button type="button" class="field-icon-btn input-toggle" data-target="api-key" aria-label="显示 API Key" aria-pressed="false">
-              <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-off"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-off"/></svg>
             </button>
           </div>
         </div>
@@ -398,7 +410,7 @@
           <div class="input-wrap">
             <input type="password" id="smtp-pass" class="input-text" placeholder="邮箱登录密码，或三方客户端安全密码">
             <button type="button" class="field-icon-btn input-toggle" data-target="smtp-pass" aria-label="显示邮箱密码" aria-pressed="false">
-              <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-off"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-eye-off"/></svg>
             </button>
           </div>
         </div>
@@ -407,7 +419,7 @@
           <span class="output-dir-field">
             <span id="output-dir" class="output-path">output/</span>
             <button id="btn-select-dir" class="field-icon-btn output-dir-btn" aria-label="更改输出目录">
-              <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-folder"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-folder"/></svg>
             </button>
           </span>
         </div>
