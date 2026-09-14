@@ -86,21 +86,20 @@ function renderHistoryItem(item, index) {
   const chipWrap = document.createElement('span');
   chipWrap.className = 'history-item-chips';
 
-  // 状态胶囊放前面（已完成=绿/未完成=黄/提取中=蓝），来源标签放后面 —— v1.9.10 顺序调整。
+  // 状态胶囊放前面（进行中=蓝/已完成=绿/未完成=黄），来源标签放后面 —— v1.9.10 顺序调整。
   // 状态文案与颜色在当前批、历史批保持一致；「未完成」不写具体是哪一步。
   const batchDone = item.hasScored || item.hasExcel; // 有评分结果或 Excel = 这批已经跑完
   let stateText = null;
   let stateClass = 'meta-chip--pass';
-  if (item.isCurrent) {
-    if (item.hasProgress) {
-      stateText = '未完成';
-      stateClass = 'meta-chip--warn';
-    } else if (batchDone) {
-      stateText = '已完成';
-    } else {
-      stateText = '提取中';
-      stateClass = 'meta-chip--info';
-    }
+  // 蓝胶囊只认「这一批此刻真在跑」（isRunning 由主进程查任务状态给，见 ipc.mjs 的 list-history）。
+  // 以前是按文件状态猜的（当前批次 + 没进度文件 + 没评分结果 = 蓝「提取中」），结果是两头都错：
+  // 提取**真在跑**时进度文件一直在（每提一人写一次），显示的反而是黄「未完成」，蓝从没亮过；
+  // 蓝真正会亮的只有「提取已结束（进度文件被删）到评分结果落盘」这段收尾窗口——而这段里要是
+  // 用户点了停止或评分报错，这一批就永久卡在蓝「提取中」，明明什么都没在跑。改按任务状态判后：
+  // 真在跑=蓝「进行中」，没在跑又没结果=下面的黄「未完成」（与归档批次同一条路），卡蓝随之消失。
+  if (item.isRunning) {
+    stateText = '进行中';
+    stateClass = 'meta-chip--info';
   } else if (item.hasProgress) {
     stateText = '未完成';
     stateClass = 'meta-chip--warn';

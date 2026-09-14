@@ -6,7 +6,7 @@ import { TIER_THRESHOLDS, scoreToTier, scoreToRecommendation, isPassed } from '.
 import { formatComment } from '../scripts/format-comment.mjs';
 import { termLog, sleep } from './util.mjs';
 import {
-  hasRunningTask, sendStdinSignal, scheduleForceKill,
+  hasRunningTask, isRunActive, sendStdinSignal, scheduleForceKill,
   cancelled, setCancelled,
   currentProcess,
   skipToScoring, setSkipToScoring,
@@ -308,6 +308,11 @@ function registerIPC() {
           hasProgress,
           hasExcel: existsSync(resolve(dir, 'candidates.xlsx')),
           hasScorable: hasCandidates || hasScored || hasProgress, // 有简历数据就能评分（完整/进度/已评分均可），用已算好的存在性判断，避免再解析候选人大文件
+          // 这一批此刻是否真的在跑（只有当前批次可能）。历史记录里「进行中」蓝胶囊只认这个标记，
+          // 不靠文件状态猜：提取中进度文件在、提取收尾时进度文件已被删而评分还没落盘，
+          // 两种阶段的文件状态完全不同，靠文件猜「在不在跑」必然猜错（详见 renderer-history.js 那段注释）。
+          // 用 isRunActive() 而非 hasRunningTask()：评分是在主进程内跑的，不占子进程（见 state.mjs）
+          isRunning: isCurrent && isRunActive(),
         };
         const meta = readRunMeta(dir);
         // 来源标签：meta 明确写的页面优先，其次数据文件写明的页面（meta 丢失/被盖成 chat 也能还原），

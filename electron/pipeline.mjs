@@ -4,7 +4,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 
 import { powerSaveBlocker } from 'electron';
 import { archiveOldOutput, cleanupCacheFiles } from '../scripts/extract-common.mjs';
 import { termLog } from './util.mjs';
-import { OUTPUT_DIR, apiConfig, cancelled, setCancelled, skipRecovered, setSkipRecovered, skipToScoring, setSkipToScoring, setExportMailResult, exportMailResult, actualExportPath } from './state.mjs';
+import { OUTPUT_DIR, apiConfig, cancelled, setCancelled, skipRecovered, setSkipRecovered, skipToScoring, setSkipToScoring, setExportMailResult, exportMailResult, actualExportPath, setRunActive } from './state.mjs';
 import { sendProgress, sendDone, sendError } from './window.mjs';
 import { readRunMeta, resolveBatchSource } from './archive.mjs';
 import { hasScorableCandidates, restoreScorableCandidates } from './scoring.mjs';
@@ -43,6 +43,10 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
   // 注意：公司 IT 强制锁屏策略（域策略/屏保锁定）压不住，那种需联系 IT 或运行前手动设置。
   const keepAwakeId = powerSaveBlocker.start('prevent-display-sleep');
   try {
+    // 这一轮开始了：历史记录的「进行中」胶囊据此判断（见 state.mjs 的 isRunActive）。
+    // 放在 try 里而不是函数头，是为了让下面的 finally 兜住所有出口——否则中途抛错会把
+    // 标记留在 true，那一批就永远显示成「进行中」
+    setRunActive(true);
     // 归档旧输出目录（在主进程做，避免子进程 rename 时 EBUSY）。
     // resume 模式：历史目录已还原为 OUTPUT_DIR，续跑要保留进度文件，不再归档。
     // 只有旧目录里有真实数据才归档；只有 .run-meta.json 等残留时不归档，避免产生空批次文件夹。
@@ -300,8 +304,9 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       if (!apiConfig.smtpPass) {
         throw new Error('未配置邮箱密码：请在「设置」填写邮箱密码后再发送邮件（若邮箱开启了「三方客户端安全密码」功能，须填写该密码，而非邮箱登录密码）');
       }
-      let emailSubject = '候选人评分结果';
-      if (isRecommendMode) emailSubject = '推荐牛人评分结果';
+      // 邮件主题统一成「来源页 + 评分结果」，收件人一眼看出这批候选人是从哪个页面抓的
+      let emailSubject = '沟通页评分结果';
+      if (isRecommendMode) emailSubject = '推荐牛人页评分结果';
       else if (isSearchMode) emailSubject = '搜索页评分结果';
       // 发件邮箱 = 收件邮箱 = 填的邮箱（必须填完整邮箱，含 @；工具会分享给不同公司使用，不再自动补域名）
       const emailUser = apiConfig.emailPrefix.trim();
@@ -354,6 +359,9 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       sendError({ message: err.message });
     }
   } finally {
+    // 无论成功/取消/报错，这一轮都结束了：历史记录的「进行中」胶囊要立刻熄灭，
+    // 不能等到下一次运行——否则被停止/报错的批次会一直显示成还在跑
+    setRunActive(false);
     // 无论成功/取消/报错，结束运行都要恢复系统原有电源行为
     try {
       if (powerSaveBlocker.isStarted(keepAwakeId)) powerSaveBlocker.stop(keepAwakeId);

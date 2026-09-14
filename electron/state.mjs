@@ -32,6 +32,7 @@ export let tailFlushRequested = false; // v1.8.3：用户点「暂停」时置�
 export let aiAbortController = null; // 用于中断 AI 评分的正在请求
 export let actualExportPath = ''; // 导出脚本实际输出的文件路径（可能被另存）
 export let exportMailResult = { status: 'none', to: '', error: '' }; // 导出步骤的邮件发送结果（由 MAIL_OK/MAIL_FAIL 标记更新）
+export let runActive = false; // 一整轮流水线（提取→评分→导出）是否在跑：由 runPipeline 进出时置位。见 isRunActive()
 
 // ===== CDP proxy & Chrome 状态 =====
 export let cdpProxyProcess = null;
@@ -50,6 +51,7 @@ export function setTailFlushRequested(b) { tailFlushRequested = b; }
 export function setAiAbortController(c) { aiAbortController = c; }
 export function setActualExportPath(s) { actualExportPath = s; }
 export function setExportMailResult(o) { exportMailResult = o; }
+export function setRunActive(b) { runActive = b; }
 export function setCdpProxyProcess(p) { cdpProxyProcess = p; }
 export function setCdpStatus(o) { cdpStatus = o; }
 
@@ -58,6 +60,14 @@ export function setCdpStatus(o) { cdpStatus = o; }
 // 误报「已有任务运行中」，导致一轮跑完/取消后回首页点开始偶尔被拦。
 export function hasRunningTask() {
   return !!(currentProcess && currentProcess.exitCode === null && !currentProcess.killed);
+}
+
+// 「这一轮流水线还在跑吗」——历史记录里标「进行中」用它，别用 hasRunningTask()。
+// 一轮里评分是在主进程内跑的（不占子进程），只有提取/导出才是子进程；拿 hasRunningTask()
+// 判断的话，提取子进程一退出（评分收尾那段）就会从「进行中」掉回「未完成」，
+// 而那时活其实还在干。runPipeline 进出一趟才是这一轮真正的起止。
+export function isRunActive() {
+  return runActive;
 }
 
 // 向当前子进程 stdin 写一行控制信号（CANCEL/PAUSE/RESUME）。Windows 下 SIGTERM 不可靠，
