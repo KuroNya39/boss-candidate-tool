@@ -17,9 +17,15 @@ function historySourceLabel(meta) {
   return (s && HISTORY_SOURCE_LABELS[s]) || '未知来源';
 }
 
-function openHistoryDrawer() {
-  loadHistory();
+async function openHistoryDrawer() {
+  // **先把数据取回来，再开窗**。弹窗高度是由条目撑出来的（没有固定高，只封顶 78vh）：
+  // 先开窗后取数的话，弹窗会先以「标题 + 底部按钮」的空壳出现（实测 133px），等 IPC 回来
+  // （实测约 140ms）才撑到真实高度（十几条时 500px 以上）——盒子垂直居中，于是一瞬间上下
+  // 同时往外弹开，这就是打开时看到的那一「闪」。
+  // 这点等待用户看不见：点菜单项时菜单正在播 150ms 的收起动画（menu-out = --dur-fast），
+  // 数据回来时它恰好退场，遮罩接上，观感是「菜单收起 → 弹窗就在了」。
   // 无右上角关闭按钮；焦点先落在弹窗容器（aria-dialog 惯例），Esc / 点空白均可关闭
+  await loadHistory();
   openDialog(historyOverlay, historyDrawer);
 }
 
@@ -28,38 +34,40 @@ function closeHistoryDrawer() {
   closeDialog(historyOverlay, { animate: true });
 }
 
+// 空态（无记录 / 读取出错）统一走这里：藏列表、亮空态文字。
+// 空态时隐藏列表容器，空态文字才能在整个中间区域垂直居中（否则被空的列表占一半高度）
+function showHistoryEmpty(text) {
+  historyList.style.display = 'none';
+  historyEmpty.style.display = '';
+  historyEmpty.textContent = text;
+}
+
 async function loadHistory() {
-  historyList.innerHTML = '';
-  historyList.style.display = '';
-  historyEmpty.style.display = 'none';
   let data;
   try {
     data = await window.electronAPI.listHistory();
   } catch (err) {
-    historyList.style.display = 'none';
-    historyEmpty.style.display = '';
-    historyEmpty.textContent = '读取历史记录失败：' + err.message;
+    showHistoryEmpty('读取历史记录失败：' + err.message);
     return;
   }
   if (data?.error) {
-    historyList.style.display = 'none';
-    historyEmpty.style.display = '';
-    historyEmpty.textContent = data.error;
+    showHistoryEmpty(data.error);
     return;
   }
   const items = data?.list || [];
   if (items.length === 0) {
-    // 空态时隐藏列表容器，空态文字才能在整个中间区域垂直居中（否则被空的列表占一半高度）
-    historyList.style.display = 'none';
-    historyEmpty.style.display = '';
-    historyEmpty.textContent = '暂无历史记录。';
+    showHistoryEmpty('暂无历史记录。');
     return;
   }
-  // 列表按时间倒序（当前批次置顶）。只给最近 CONTINUE_EXTRACT_LIMIT 条展示「继续提取」——
-  // 太旧的批次聊天/页面早已变化，续跑意义不大，且按钮会挤满整个列表
-  items.forEach((item, index) => {
-    historyList.appendChild(renderHistoryItem(item, index));
-  });
+  // **数据到手才动 DOM**：原来是一进来就清空列表再等 IPC，中间那 100 多毫秒弹窗是空的，
+  // 高度先塌到最矮再撑回来（打开时那一「闪」的另一半；删记录 / 清空后刷新同理，
+  // 列表会当场塌一下）。清空与填充合到一次 replaceChildren 里，中间不存在
+  // 「列表已空、还没填」的那一帧——原子换内容这个保证写在 API 上，不靠调用顺序维持。
+  // 列表按主进程给的顺序（时间倒序，当前批次置顶）渲染；只给最近 CONTINUE_EXTRACT_LIMIT 条
+  // 展示「继续提取」——太旧的批次聊天/页面早已变化，续跑意义不大，且按钮会挤满整个列表
+  historyList.replaceChildren(...items.map(renderHistoryItem));
+  historyList.style.display = '';
+  historyEmpty.style.display = 'none';
 }
 
 // 只给最近多少条历史记录保留「继续提取」入口（旧的只能评分/打开/删除）

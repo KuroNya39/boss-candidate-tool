@@ -182,6 +182,7 @@
 .card-title {
   font-size: var(--text-lg); /* 模块标题档：比 field-label(14) 大一号，靠字号分层（字色保持次级不过黑） */
   font-weight: 600;
+  line-height: var(--leading-tight); /* 16px 属标题档，行高 = 字号 ×1.2（§3，字号越大倍数越小），不跟正文的 ×1.5 */
   color: var(--text-secondary); /* 模块标题用次级字色：与下方说明文字拉开一档但不过黑（用户反馈 #0f172a 太深） */
   letter-spacing: 0.5px;
   display: flex;
@@ -585,7 +586,7 @@ body.is-dragging-source * {
   grid-template-columns: minmax(0, 1fr) auto;
   column-gap: var(--space-4);
   row-gap: var(--space-2);
-  align-items: end; /* 两格标签行高不同时，控件贴底对齐 */
+  align-items: end; /* 两格标签高度不同时，控件贴底对齐 */
 }
 .run-grid > .field-group { min-width: 0; }
 .run-grid:not(.has-job) { grid-template-columns: minmax(0, 1fr); }

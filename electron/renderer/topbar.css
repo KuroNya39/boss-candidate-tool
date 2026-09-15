@@ -15,6 +15,7 @@ header h1 {
   grid-column: 2;
   font-size: var(--text-xl);
   font-weight: 600;
+  line-height: var(--leading-tight); /* 18px 属标题档，行高 = 字号 ×1.2（§3，字号越大倍数越小）；顶栏高度由自身内距定，这一行不会把它压矮 */
   text-align: center;
   color: var(--text-primary);
   letter-spacing: 0.5px;

@@ -59,6 +59,7 @@
 .dialog-title {
   font-size: var(--text-lg); /* 弹窗标题档：lg(16)，与模块标题同档 */
   font-weight: 600;
+  line-height: var(--leading-tight); /* 16px 属标题档，行高 = 字号 ×1.2（§3，字号越大倍数越小），不跟正文的 ×1.5 */
   margin-bottom: var(--space-4);
 }
 .dialog-field {
@@ -389,9 +390,9 @@
   font-variant-numeric: tabular-nums; /* 人数属「数字数据」（§3），与右侧 40px 宽的 .progress-pct 同理 */
 }
 .results-list {
-  /* 一页正好 10 名候选人：每行高固定 40px（见 .result-item-head），
-     10×40 + 9 条分隔线(1px) + 容器上下边框(2px) = 411px，第 11 名起滚动。
-     改行高时同步改这里，公式：行高×10 + 11px */
+  /* 一页正好 10 名候选人：每个列表行固定 40px 高（见 .result-item-head；此为「行的高度」，
+     与 §3 排版意义的行高无关），10×40 + 9 条分隔线(1px) + 容器上下边框(2px) = 411px，
+     第 11 名起滚动。改每行高度时同步改这里，公式：行高×10 + 11px */
   max-height: calc(40px * 10 + 11px);
   overflow-y: auto;
   border: 1px solid var(--border-card);
@@ -409,7 +410,7 @@
   align-items: center;
   gap: var(--space-4);
   width: 100%;
-  height: 40px; /* 行高固定，保证「一页正好 10 人」的可计算性（见 .results-list 注释） */
+  height: 40px; /* 每行高度固定，保证「一页正好 10 人」的可计算性（见 .results-list 注释） */
   padding: var(--space-2) var(--space-4);
   background: none;
   border: none;
@@ -547,7 +548,7 @@
   border-radius: var(--radius-lg);
   padding: var(--space-4);
   background: var(--bg-card);
-  /* 2×2 网格：左列「时间 / 胶囊」，右列「人数 / 按钮」；行距列距都是 8。
+  /* 2×2 网格：左列「时间 / 胶囊」，右列「人数 / 按钮」；行间距列间距都是 8。
      用网格（而不是原来的两行 flex）是为了让右列两格**共用同一个列宽**——
      右列宽度 = max(人数, 按钮组)，通常就是按钮组宽度，于是人数在该列内靠右
      即自然与按钮组**右缘**齐（换成两行 flex 时，两行各自撑宽，人数只会按自己的宽度贴右，

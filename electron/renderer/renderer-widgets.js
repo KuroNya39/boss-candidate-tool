@@ -41,6 +41,9 @@ function initCustomSelect(container) {
     menu.classList.remove('custom-select-menu--closing');
     // 窗口底部空间不足时向上展开（原生 select 会自动翻转，自定义组件需手动处理）
     const rect = container.getBoundingClientRect();
+    // 每项约 36px（字号 14 × 行高 1.4 + 上下内距 8；那一档行高由 base.css 的 button 重置兜底，
+    // 见 §3），12 是菜单容器自己的内距与项间隙余量。改 .custom-select-option 的内距或那档行高，
+    // 这里的估值要跟着改——它只用来判「上面放不放得下」，估小了会在贴底时把菜单顶出窗口
     const menuH = options.length * 36 + 12;
     const openUp = rect.bottom + menuH + 8 > window.innerHeight;
     if (openUp) {

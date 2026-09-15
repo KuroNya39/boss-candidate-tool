@@ -137,6 +137,7 @@
 .result-title {
   font-size: var(--text-xl); /* 完成页标题档：xl(18)，与页头标题同档 */
   font-weight: 600;
+  line-height: var(--leading-tight); /* 18px 属标题档，行高 = 字号 ×1.2（§3，字号越大倍数越小），不跟正文的 ×1.5 */
   color: var(--text-primary);
 }
 

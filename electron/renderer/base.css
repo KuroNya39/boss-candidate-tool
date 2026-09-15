@@ -65,10 +65,16 @@ html::-webkit-scrollbar { width: 0; height: 0; }
 .history-list::-webkit-scrollbar { width: 0; height: 0; }
 
 /* 原生 <button> 自带浏览器样式，统一重置为继承视觉体系；
-   交互元素保留 user-select:none 防止点按时误选中文字。 */
+   交互元素保留 user-select:none 防止点按时误选中文字。
+   **行高也在这里兜底**：UA 的 `font` 简写会把行高一并重置成 normal（微软雅黑下约 1.3），
+   漏兜的话按钮高度就由字体度量说了算、脱离 token——换字体时它们集体变高矮，而旁边写了
+   行高的控件不动。单行控件的行高在 §3 里是一档固定值，所以兜在元素选择器上、不逐个类去补：
+   `.btn` / `.job-picker-item-name` 那类想另给值（同样是 compact）照样盖得住，
+   将来新加的按钮也不会漏（历史上分段钮、下拉项、顶栏菜单项、结果行标题就这么漏过）。 */
 button {
   font-family: inherit;
   color: inherit;
+  line-height: var(--leading-compact);
   user-select: none;
   -webkit-user-select: none;
   -webkit-app-region: no-drag;
