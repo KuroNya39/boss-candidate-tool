@@ -518,14 +518,16 @@ body.is-dragging-source * {
 .tip-icon:hover,
 .tip-icon:focus-visible { color: var(--icon-hover); }
 .tip-icon:active { color: var(--icon-active); }
-/* 气泡本体（::after）与尖角（::before）的共用属性：显隐、上浮、底色写一次，
-   两边同步（尖角必须与气泡同色，否则接缝会显出一道边；显隐也必须同步，否则只亮一半）。
+/* 气泡本体（::after）与尖角（.tip-arrow 图标）的共用属性：显隐、上浮、填充色写一次，两边同步
+   （显隐必须同步，否则只亮一半）。
    出现/消失带 2px 上浮——用独立的 translate 属性做，不动负责水平居中的 transform。
-   底色不透明：半透明色叠两层必然在重叠处显出更深的方块。 */
-.tip-icon::before,
-.tip-icon::after {
+   填充色走 --tip-fill 这个局部变量（气泡取 background、尖角取 color，图标 fill=currentColor），
+   「两边同色」就由这一个取值点保证，改色不会漏掉半边、接缝也不会显出一道边；
+   且颜色不透明：半透明色叠两层必然在重叠处显出更深的方块。 */
+.tip-icon::after,
+.tip-icon .tip-arrow {
+  --tip-fill: var(--text-secondary); /* 不透明深灰 #475569（原 0.86 半透明 + 模糊；--text-primary 又太黑，取次级字色） */
   position: absolute;
-  background: var(--text-secondary); /* 不透明深灰 #475569（原 0.86 半透明 + 模糊；--text-primary 又太黑，取次级字色） */
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -535,6 +537,7 @@ body.is-dragging-source * {
 /* 气泡本体 */
 .tip-icon::after {
   content: attr(data-tip);
+  background: var(--tip-fill);
   left: 50%;
   /* 锚在**盒子中线**、不是盒子边缘：图标在盒内居中，中线与盒子尺寸无关，
      于是盒子以后改成 20 / 28 / 32 都不用重算这两个偏移。
@@ -553,27 +556,29 @@ body.is-dragging-source * {
   z-index: var(--z-tooltip);
   box-shadow: var(--shadow-elevated);
 }
-/* 气泡尖角：8×8 方块自转 45° 成菱形，中心咬在气泡下缘，正指着 ℹ️。
-   几何：中线往上 12px（= 气泡的 16 减去菱形半高 4）就是菱形中心，
-   即气泡下缘所在处；旋转后最下端顶点落在图标上沿上方约 2px（尖锋几乎触到图标），
-   上半截被气泡盖住（见下）。同样锚中线，与盒子尺寸无关。
-   水平居中用 left 算而不是 translateX(-50%)：旋转后的外接盒是 11.3px 不是 8px，
-   用 -50% 会偏 1.7px；left: calc(50% - 4px) 让「方块中心」落在中线上，旋转不改变中心。 */
-.tip-icon::before {
-  content: '';
-  left: calc(50% - 4px);
-  bottom: calc(50% + 12px);
-  width: 8px;
-  height: 8px;
-  transform: rotate(45deg);
+/* 气泡尖角：朝下的实心三角，用图标库那枚 `arrow_drop_down`（§7；字形几何、以及盒子为什么是 28.8
+   而非档位值，见 docs/design-system.md §7「两处不在表里」）。
+   与气泡**底边严丝合缝地上下相接、零重叠**——为什么不用早先那套「8×8 方块转 45°、上半截被气泡
+   盖住」：两块叠着的时候，淡入过程中重叠处的 alpha 会叠出更深的一块，气泡还没亮到位、菱形那半截
+   先深了，看着就像尖角比气泡「快一步」，两个图层分得开（实测截图能看到菱形整个浮在气泡里）。
+   改成零重叠后，两层叠的始终是同一片底色，淡入淡出完全同步，看着就是一枚连体的气泡。
+   盒子锚中线（§7「浮层锚中线」）：墨迹底尖在盒内距盒底 10.8px，故 bottom = 50% - 0.8px。
+   这条 45° 斜边**别自己画**、以及左右偏差随定位零头变化的实测数据，见 docs/design-system.md §7。 */
+.tip-icon .tip-arrow {
+  left: 50%;
+  /* 与气泡同款居中；上浮走独立的 translate 属性，此处的 transform 空着。
+     这个居中写法（= 偏移 -14.397px）是量过的：两条腰的相位正好互为镜像，左右差 0.00；
+     换成手写 calc(50% - 14.4px) 会差 0.17px。改这里就照 §7 的量法复测。 */
+  transform: translateX(-50%);
+  bottom: calc(50% - 0.8px);
+  color: var(--tip-fill);
+  z-index: calc(var(--z-tooltip) + 1); /* 压过气泡：不压的话气泡的 box-shadow 会罩在尖角上，把它压深一档，接缝处两截颜色对不上 */
 }
-/* ::before 在 ::after 之前绘制，且 ::after 带 z-index —— 菱形的上半截自动被气泡盖住，
-   露在外面的正好是一个指着图标的小三角，不需要额外裁剪。
-   悬停 / 键盘聚焦（焦点落在 ℹ️ 上）同时点亮两个伪元素 */
-.tip-icon:hover::before,
+/* 悬停 / 键盘聚焦（焦点落在 ℹ️ 上）同时点亮气泡与尖角 */
 .tip-icon:hover::after,
-.tip-icon:focus-visible::before,
-.tip-icon:focus-visible::after {
+.tip-icon:hover .tip-arrow,
+.tip-icon:focus-visible::after,
+.tip-icon:focus-visible .tip-arrow {
   opacity: 1;
   visibility: visible;
   translate: 0 0;
