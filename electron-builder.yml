@@ -48,5 +48,8 @@ nsis:
   createDesktopShortcut: true
   shortcutName: BOSS直聘候选人AI评分助手
   deleteAppDataOnUninstall: false
+  # 给安装程序加 DPI 感知（清单里的 dpiAware）。不挂这个文件，安装界面在非 100% 缩放的屏幕上
+  # 会被 Windows 当图片拉伸放大而发糊。内容与代价见 build/installer.nsh 顶部注释
+  include: build/installer.nsh
 extraMetadata:
   main: electron/main.mjs
