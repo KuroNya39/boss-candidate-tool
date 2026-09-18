@@ -72,6 +72,10 @@ Child process cancellation works by writing `CANCEL\n` to stdin, waiting 2s, the
   1. **剥思考块**：公司代理会把模型的「思考」包成 `<antml-thinking>` **text 块**放在 content 最前（即使请求 `thinking:disabled`），真正的回答在后续块——只取第一个 text 块会拿到思考、丢掉回答 → 系统性「解析失败(无有效JSON)」。现在拼所有块再剥掉 antml-thinking/thinking 块，让解析器在剩余文本找 JSON。
   2. **换/选模型**：`deepseek-v4-flash_DeepSeek` 已变更为思考型模型，思考**无上限**（实测输出 16000 token 全是 `<antml-thinking>`、一个字答案都没有；`budget_tokens`/提示词禁止思考都不可靠，有随机性），3 人一批评分不可用（单候选人实测可出分，但慢）。用户当前选用 **`qwen3.5-35b-a3b_Local`**（2026-08-21 用户实测可用，README 第 4 步推荐它）；备选实测可用：`GLM-5_SLB`（3 人一批 16s 出分）、`kimi-k2.5-SLB`（21s）。注意部分模型有月度配额，超额会报 `API 429 insufficient_quota`（如 qwen3.7-plus_Aliyun）。max_tokens 8000→16000 保留（防长批输出被截断）。
 - **Multi-position support**: Candidates grouped by `positionInfo.appliedJob`. Each position's JD loaded from userData `%AppData%\web-access\web-access\jd-descriptions\{position}.txt` (unified for dev/packaged since v1.3.15).
+- **目标岗位搜索支持拼音首字母**（输入 `xsqd` 匹配「显示驱动工程师」）：`electron/pinyin.mjs` 用 **pinyin-pro** 取首字母（按词判多音字：重庆→cq、长沙→cs；覆盖次常用字：深圳→sz、东莞→dg）。渲染进程拿不到 Node 模块，故由主进程的 `get-recommend-jobs` 通道**随岗位列表一起**返回每条的「可搜索文本」（岗位名原文 + 首字母串，已转小写），渲染进程只按同一下标做一句 `includes`——原文匹配与拼音匹配合成一条路，不另开通道、不另存平行结构。
+  - pinyin-pro 默认用空格分隔每个字的首字母（`x s q d`），必须传 `separator: ''`，否则连起来搜不到。
+  - `pinyinInitials()` 是纯函数，结果按岗位名 memo（岗位列表每次刷新都会重算，但其中最多只有一个名字变了）。
+  - 试过但**不能用**的两个无依赖方案（都实测过，别再走一遍）：① GB2312 边界法（23 个边界字 + iconv 编码比大小）只覆盖一级字库 3755 字，「圳」在二级字库、按部首笔画排，取不到首字母 → `sz` 搜不到深圳；② `Intl.Collator('zh-Hans-u-co-pinyin')` 覆盖面全，但多音字读音与 GB2312 不一致（把「曾」读成 céng、「长」读成 zhǎng），边界字错位，「西安」会被判成 ZA。
 - **Auto-archiving**: Old output directories renamed to `output-YYYYMMDD-HHMM` before each new run (done in main process to avoid Windows EBUSY).
 - **Windows GBK encoding**: `termLog()` and `decodeBuffer()` handle GBK encoding for stdout/stderr display on Windows terminals.
 

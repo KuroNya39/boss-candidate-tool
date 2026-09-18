@@ -72,6 +72,7 @@ const errorMessage = document.getElementById('error-message');
 // 岗位选择状态
 let selectedJob = '';
 let jobList = [];
+let jobSearchText = []; // 与 jobList 同序的「可搜索文本」（岗位名原文 + 拼音首字母），随列表一起刷新
 let jobSearchQuery = ''; // 目标岗位搜索词（实时过滤岗位列表）
 let selectedSource = 'chat'; // 当前选中的提取来源
 // 打招呼只在推荐牛人页的名单上点按钮；recommend 系来源统一归 recommend

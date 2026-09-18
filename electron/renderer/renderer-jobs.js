@@ -13,7 +13,8 @@ function updateJobDisplay() {
 // 加载岗位列表
 async function loadJobList() {
   try {
-    jobList = await window.electronAPI.getRecommendJobs();
+    // 主进程连「可搜索文本」一起送回来（岗位名 + 拼音首字母，见 electron/pinyin.mjs），两者同序
+    ({ jobs: jobList, searchText: jobSearchText } = await window.electronAPI.getRecommendJobs());
     // 如果已选岗位不在新列表中，清空选中
     if (selectedJob && !jobList.includes(selectedJob)) {
       selectedJob = '';
@@ -51,8 +52,10 @@ function renderJobPicker() {
     jobPickerList.appendChild(empty);
     return;
   }
+  // 「可搜索文本」里既有岗位名原文、也有拼音首字母串，故一句 includes 就够：
+  // xsqd → 显示驱动…、sz → 深圳、zh → 珠海、35k → 薪资段（原文里本来就有分隔，所以能按单个词搜）
   const query = jobSearchQuery.trim().toLowerCase();
-  const filtered = query ? jobList.filter(job => job.toLowerCase().includes(query)) : jobList;
+  const filtered = query ? jobList.filter((job, i) => jobSearchText[i].includes(query)) : jobList;
   if (filtered.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'job-picker-item empty-state';

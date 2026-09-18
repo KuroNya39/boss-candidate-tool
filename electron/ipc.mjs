@@ -5,6 +5,7 @@ import { mkdirSync, existsSync, readFileSync, readdirSync, rmSync, statSync } fr
 import { TIER_THRESHOLDS, scoreToTier, scoreToRecommendation, isPassed } from '../scripts/score-tiers.mjs';
 import { formatComment } from '../scripts/format-comment.mjs';
 import { termLog, sleep } from './util.mjs';
+import { pinyinInitials } from './pinyin.mjs';
 import {
   hasRunningTask, isRunActive, sendStdinSignal, scheduleForceKill,
   cancelled, setCancelled,
@@ -515,7 +516,13 @@ function registerIPC() {
   ipcMain.handle('get-app-version', () => app.getVersion());
 
   // —— 岗位增删改查（推荐牛人页岗位列表，存 jd-descriptions/*.txt，实现统一在 config.mjs） ——
-  ipcMain.handle('get-recommend-jobs', () => listRecommendJobs());
+  // 岗位列表，外加每条的「可搜索文本」（岗位名原文 + 拼音首字母，一次算好并统一转小写）：
+  // 渲染进程搜索时只需一句 includes，原文匹配与拼音匹配合成一条路（输入 xsqd 能搜到「显示驱动工程师」）。
+  // 拼音算不了 Node 模块，故在主进程算（见 pinyin.mjs）；随列表同一次返回，渲染进程不必再取一趟
+  ipcMain.handle('get-recommend-jobs', () => {
+    const jobs = listRecommendJobs();
+    return { jobs, searchText: jobs.map(job => `${job} ${pinyinInitials(job)}`.toLowerCase()) };
+  });
 
   ipcMain.handle('add-recommend-job', (_event, jobName, jobDesc) => addRecommendJob(jobName, jobDesc));
 

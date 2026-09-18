@@ -28,7 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resumeExtraction: (archiveDir) => ipcRenderer.invoke('resume-extraction', { archiveDir }),
   rescoreFromHistory: (archiveDir) => ipcRenderer.invoke('rescore-from-history', { archiveDir }),
 
-  // 推荐牛人页岗位列表
+  // 推荐牛人页岗位列表（含每条的「可搜索文本」，供搜索匹配拼音首字母）
   getRecommendJobs: () => ipcRenderer.invoke('get-recommend-jobs'),
   getRecommendJobDesc: (jobName) => ipcRenderer.invoke('get-recommend-job-desc', jobName),
   addRecommendJob: (jobName, jobDesc) => ipcRenderer.invoke('add-recommend-job', jobName, jobDesc),
