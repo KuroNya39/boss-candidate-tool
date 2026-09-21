@@ -102,7 +102,30 @@ function renderResultsList(candidates) {
 
     body.append(metaEl, commentEl);
 
-    head.addEventListener('click', () => {
+    // 姓名可拖拽选中复制，但整行又是展开/收起按钮，两种操作共用一次点击。
+    // 判定分两种：拖选（按下与松开不在同一处）不切换；双击选词（第二次点击时选区已在姓名里）也不切换。
+    // 位置判定不能省：从姓名里按下、拖到分数或星星上松开时，click 的 target 是整行按钮本身、
+    // 不在姓名里，只靠下面那道选区判定会误当成点击。
+    // 阈值沿用 renderer-dialogs.js 的 SOURCE_DRAG_THRESHOLD（同一个「位移没过阈值算手抖」的概念）——
+    // 它定义在后面的文件里，但这里只在 click 回调里读，页面加载完才会执行，不存在暂时性死区。
+    // 键盘回车/空格触发的 click 没有 mousedown，clientX/Y 为 0，pressX 为 null → 照常切换
+    let pressX = null;
+    let pressY = null;
+    head.addEventListener('mousedown', (e) => {
+      pressX = e.clientX;
+      pressY = e.clientY;
+    });
+    head.addEventListener('click', (e) => {
+      const dragged = pressX !== null
+        && (Math.abs(e.clientX - pressX) >= SOURCE_DRAG_THRESHOLD || Math.abs(e.clientY - pressY) >= SOURCE_DRAG_THRESHOLD);
+      pressX = null;
+      pressY = null;
+      if (dragged) return;
+
+      // 只在「点在姓名上、且选区也在姓名里」时让路，点分数/箭头仍可正常展开收起
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && e.target && nameEl.contains(e.target) && nameEl.contains(sel.anchorNode)) return;
+
       const expanded = head.getAttribute('aria-expanded') === 'true';
       head.setAttribute('aria-expanded', String(!expanded));
       body.style.display = expanded ? 'none' : '';

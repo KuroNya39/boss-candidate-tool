@@ -39,6 +39,117 @@ function toAiRating(candidate) {
   return '★'.repeat(scoreToTier(score));
 }
 
+// ===== 卡片文字兜底识别 =====
+// 活跃度、求职状态这两项只有部分页面有独立的 DOM 元素（沟通页的活跃度、搜索页的求职状态），
+// 其余情况靠整张卡片的文字兜底：提取时卡片全文都存进了 rawVisibleText，
+// 而 BOSS 的措辞就那么几种固定说法——按固定说法精确匹配即可，认不到就留空，不会认错。
+const ACTIVE_STATUS_RE = /(刚刚|今日|昨日|本周|本月|半年内|近\s*\d+\s*天|\d+\s*(?:日|天|周|月)内)\s*活跃/;
+
+// 求职状态：「在职-考虑机会」这种带前缀的全称在哪儿都可信；
+// 不带前缀的短说法（随时到岗、考虑机会…）只认卡片文字，不认简历正文，避免正文里恰好出现这几个字被误判
+const JOB_STATUS_FULL_RE = /(?:在职|离职)\s*[-－—]\s*[^\s，,。;；、|/]{1,8}/;
+const JOB_STATUS_BARE = ['随时到岗', '月内到岗', '考虑机会', '暂不考虑', '应届生', '在校生'];
+
+// 期望信息：卡片 DOM 上只有「期望城市 / 期望岗位 / 期望薪资」三项，没有期望行业 ——
+// 期望行业只存在于简历里。简历正文里那一块是无标签的（标题下面依次排 城市 / 岗位 / 行业 / 薪资），
+// 且小节标题有「期望职位」「求职期望」「最近关注」几种写法（实测同一批 10 份简历里三种都出现过）。
+// 注意：下面按「一行一项」来切，所以只对**带换行**的简历文本有效 —— 拖拽复制与截图 OCR
+// 出来的文本都保留换行（实测 output 里的简历正文 70~110 个换行）；万一某条路径把整份简历
+// 压成了一行，这里会认不到、留空，不会认错。
+const EXPECT_SECTION_HEADS = ['最近关注', '期望职位', '求职期望', '求职意向', '期望岗位'];
+// 简历里其它小节标题，用来判断「期望」块到哪儿结束
+const RESUME_SECTION_HEADS = [
+  '工作经历', '教育经历', '项目经历', '实习经历', '专业技能', '自我评价', '社团经历',
+  '证书', '语言能力', '牛人分析器', '牛人最近7天沟通过的职位', '查看全部', '经历描述',
+];
+const SALARY_LINE_RE = /^(?:\d+\s*[-~－—至]\s*\d+\s*[Kk千万Ww]|\d+\s*[Kk千万Ww]|面议|薪资面议)$/;
+
+// 每人只算一次。下面几个字段是「一次导出里每人各取一次」的（四个期望字段共用一份解析结果，
+// 活跃度/求职状态/期望字段共用一份拼接文本），不缓存就是同一份简历反复切行、反复拼接。
+// 缓存以候选人为键：transformCandidates 对每人只做一次浅拷贝，整行字段拿到的都是同一个对象，
+// 所以命中正常，且拷贝在本次导出结束后即成垃圾、WeakMap 条目随之回收。
+const memoByCandidate = (fn) => {
+  const cache = new WeakMap();
+  return (c) => {
+    if (!cache.has(c)) cache.set(c, fn(c));
+    return cache.get(c);
+  };
+};
+
+const parseExpectBlock = memoByCandidate((c) => {
+  const text = c.resumeText || '';
+  if (!text) return null;
+  const lines = text.split(/\r?\n/).map(s => s.trim());
+  const headIdx = lines.findIndex(l => EXPECT_SECTION_HEADS.includes(l));
+  if (headIdx < 0) return null;
+
+  const block = [];
+  for (let i = headIdx + 1; i < lines.length && block.length < 6; i++) {
+    const l = lines[i];
+    if (!l) continue;
+    if (RESUME_SECTION_HEADS.includes(l)) break;
+    if (l.length > 40) break;              // 长句 = 已经进正文了
+    if (/^\d{4}\s*[.\-/年]/.test(l)) break; // 日期行 = 已经进经历区了
+    block.push(l);
+  }
+  if (block.length < 2) return null;
+
+  // 前两行固定是城市、岗位；剩下的行里，像薪资的当薪资，其余第一个当行业
+  const out = { expectCity: block[0], expectPosition: block[1] };
+  for (const l of block.slice(2)) {
+    if (SALARY_LINE_RE.test(l)) { if (!out.expectSalary) out.expectSalary = l; continue; }
+    if (!out.expectIndustry) out.expectIndustry = l;
+  }
+  return out;
+});
+
+// 期望信息：卡片上没有「期望行业」这一项，只能从简历正文里认（带标签的写法也一并兜住）
+const EXPECT_LABEL_RES = {
+  expectCity: /期望(?:城市|地点|工作城市|工作地点)\s*[：:]\s*([^\n\r，,。;；]{1,20})/,
+  expectPosition: /期望(?:职位|岗位|职业)\s*[：:]\s*([^\n\r，,。;；]{1,30})/,
+  expectIndustry: /期望行业\s*[：:]\s*([^\n\r，,。;；]{1,30})/,
+  expectSalary: /期望(?:薪资|薪水|月薪|待遇)\s*[：:]\s*([^\n\r，,。;；]{1,20})/,
+};
+
+// 卡片全文 + 简历正文
+const textOf = memoByCandidate((c) => [c.rawVisibleText, c.resumeText].filter(Boolean).join('\n'));
+
+function findLabeled(text, re) {
+  if (!text) return '';
+  const m = text.match(re);
+  return m ? m[1].trim() : '';
+}
+
+function activeStatusOf(c) {
+  // 沟通页有独立元素（basicInfo.activeStatus），最准
+  if (c.basicInfo?.activeStatus) return c.basicInfo.activeStatus;
+  const m = textOf(c).match(ACTIVE_STATUS_RE);
+  return m ? m[0] : '';
+}
+
+function jobStatusOf(c) {
+  // 搜索页有独立的 DOM 元素，优先用它
+  if (c.basicInfo?.jobStatus) return c.basicInfo.jobStatus;
+  // 带前缀的全称（在职-考虑机会）在卡片和简历正文里都可信：在合并文本上认一次即可，
+  // 不必先在卡片上认、认不到再在合并文本（包含卡片）上认第二遍
+  const full = textOf(c).match(JOB_STATUS_FULL_RE);
+  if (full) return full[0];
+  // 不带前缀的短说法只认卡片文字，避免正文里恰好出现这几个字被误判
+  const card = c.rawVisibleText || '';
+  for (const w of JOB_STATUS_BARE) if (card.includes(w)) return w;
+  return '';
+}
+
+// 顺序：卡片 DOM 里直接读到的结构化字段 → 简历正文的「期望」区块 → 简历正文里带标签的写法
+// （期望薪资在搜索页是 basicInfo.expectSalary，其余页面是 positionInfo.expectSalary，两个都认）
+function expectOf(c, key) {
+  const structured = c.positionInfo?.[key] || c.basicInfo?.[key];
+  if (structured) return structured;
+  const block = parseExpectBlock(c);
+  if (block && block[key]) return block[key];
+  return findLabeled(textOf(c), EXPECT_LABEL_RES[key]);
+}
+
 // AI 评语排版统一收口到 ./format-comment.mjs（软件内完成页与 Excel 共用同一份），此处只导入使用
 const FIELD_CONFIG = {
   name: {
@@ -46,8 +157,12 @@ const FIELD_CONFIG = {
     extract: (c) => c.basicInfo?.name || '',
   },
   aiRating: {
-    header: 'AI评级',
+    header: 'AI评分',
     extract: (c) => toAiRating(c),
+  },
+  activeStatus: {
+    header: '活跃度',
+    extract: (c) => activeStatusOf(c),
   },
   age: {
     header: '年龄',
@@ -56,6 +171,10 @@ const FIELD_CONFIG = {
   workYears: {
     header: '工作年限',
     extract: (c) => c.basicInfo?.workYears || '',
+  },
+  jobStatus: {
+    header: '求职状态',
+    extract: (c) => jobStatusOf(c),
   },
   // 教育经历展开为4列，extract 第二个参数 rowIdx 表示该候选人的第几段教育
   eduTime: {
@@ -95,7 +214,7 @@ const FIELD_CONFIG = {
     extract: (c) => c.jobRelevanceScore ?? '',
   },
   jobRelevanceComment: {
-    header: 'AI评级理由',
+    header: 'AI评语',
     extract: (c) => formatComment(c.jobRelevanceComment || ''),
   },
   jobDescription: {
@@ -122,21 +241,34 @@ const FIELD_CONFIG = {
     header: '推荐等级',
     extract: (c) => c.recommendationLevel || '',
   },
+  // 「在职」三项取自工作经历第一段（最近一段）；已离职的候选人这里显示的是他最近一份工作
+  currentCompany: {
+    header: '在职企业',
+    extract: (c) => c.workExperience?.[0]?.company || '',
+  },
   currentPosition: {
-    header: '当前职位',
+    header: '在职岗位',
     extract: (c) => c.workExperience?.[0]?.position || '',
   },
-  currentCompany: {
-    header: '当前公司',
-    extract: (c) => c.workExperience?.[0]?.company || '',
+  currentTenure: {
+    header: '在职时间',
+    extract: (c) => c.workExperience?.[0]?.time || '',
   },
   expectCity: {
     header: '期望城市',
-    extract: (c) => c.positionInfo?.expectCity || '',
+    extract: (c) => expectOf(c, 'expectCity'),
+  },
+  expectPosition: {
+    header: '期望岗位',
+    extract: (c) => expectOf(c, 'expectPosition'),
+  },
+  expectIndustry: {
+    header: '期望行业',
+    extract: (c) => expectOf(c, 'expectIndustry'),
   },
   expectSalary: {
     header: '期望薪资',
-    extract: (c) => c.positionInfo?.expectSalary || '',
+    extract: (c) => expectOf(c, 'expectSalary'),
   },
   recommendationReasons: {
     header: '推荐理由',
@@ -154,60 +286,104 @@ const FIELD_CONFIG = {
   },
 };
 
-// 默认导出字段顺序
+// 默认导出字段顺序。
+// 注意：教育经历四个子字段必须相邻（合并表头按「起始列 +4 列」算），中间别插别的字段
 const DEFAULT_FIELDS = [
   'name',
   'aiRating',
   'jobRelevanceComment',
+  'activeStatus',
   'age',
+  'workYears',
   'eduTime',
   'eduSchool',
   'eduMajor',
   'eduDegree',
-  'workYears',
+  'jobStatus',
+  'currentCompany',
+  'currentPosition',
+  'currentTenure',
+  'expectCity',
+  'expectPosition',
+  'expectIndustry',
+  'expectSalary',
   'resumeText',
 ];
 
-// ===== 分组配置 =====
+// ===== 分组配置（区间是 DEFAULT_FIELDS 的下标；不在任何区间里的列不显示分组标题）=====
+// headerFill 是分组标题条（表头第 1 行）的底色，白字压在它上面。三组必须各不相同：
+// 相邻两组同色时，两条标题条会连成一整条，分组边界就看不出来了。
+// 取值与各组数据格的浅色（见 FIELD_STYLES）同色系，深一档以便承白字。
 const FIELD_GROUPS = [
-  { label: 'AI分析', start: 0, end: 2 },
-  { label: '附加信息', start: 3, end: 9 },
+  { label: 'AI分析', start: 1, end: 2, headerFill: 'FF4472C4' },    // 蓝
+  { label: '基本信息', start: 3, end: 13, headerFill: 'FF70AD47' },  // 绿
+  { label: '求职期望', start: 14, end: 17, headerFill: 'FF7E57C2' }, // 紫（对应数据格的柔紫）
 ];
 // 教育经历子字段列表（在列标题行合并为"教育经历"，子标题行显示具体字段名）
 const EDU_SUB_FIELDS = ['eduTime', 'eduSchool', 'eduMajor', 'eduDegree'];
 
 // ===== 字段样式配置 =====
+// exceljs 的纯色填充写法很啰嗦，而同色的字段又成组出现，收一个工厂函数（颜色值不变）
+const solidFill = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+
 const FIELD_STYLES = {
   name: {
-    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD6E8F0' } },   // 柔蓝
+    fill: solidFill('FFD6E8F0'),   // 柔蓝
   },
   aiRating: {
-    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } },   // 柔黄
+    fill: solidFill('FFFFF2CC'),   // 柔黄
   },
   jobRelevanceComment: {
-    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } },   // 柔绿
+    fill: solidFill('FFE2EFDA'),   // 柔绿
     alignment: { horizontal: 'left', vertical: 'top', wrapText: true },
   },
   age: {
-    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCE4EC' } },   // 柔粉
+    fill: solidFill('FFFCE4EC'),   // 柔粉
+  },
+  activeStatus: {
+    fill: solidFill('FFFCE4EC'),   // 柔粉
+  },
+  jobStatus: {
+    fill: solidFill('FFFCE4EC'),   // 柔粉
   },
   eduTime: {
-    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } },   // 柔橙
+    fill: solidFill('FFFFF3E0'),   // 柔橙
   },
   eduSchool: {
-    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } },   // 柔橙
+    fill: solidFill('FFFFF3E0'),   // 柔橙
   },
   eduMajor: {
-    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } },   // 柔橙
+    fill: solidFill('FFFFF3E0'),   // 柔橙
   },
   eduDegree: {
-    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } },   // 柔橙
+    fill: solidFill('FFFFF3E0'),   // 柔橙
   },
   workYears: {
-    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F7FA' } },   // 柔青
+    fill: solidFill('FFE0F7FA'),   // 柔青
+  },
+  currentCompany: {
+    fill: solidFill('FFE0F7FA'),   // 柔青
+  },
+  currentPosition: {
+    fill: solidFill('FFE0F7FA'),   // 柔青
+  },
+  currentTenure: {
+    fill: solidFill('FFE0F7FA'),   // 柔青
+  },
+  expectCity: {
+    fill: solidFill('FFEDE7F6'),   // 柔紫
+  },
+  expectPosition: {
+    fill: solidFill('FFEDE7F6'),   // 柔紫
+  },
+  expectIndustry: {
+    fill: solidFill('FFEDE7F6'),   // 柔紫
+  },
+  expectSalary: {
+    fill: solidFill('FFEDE7F6'),   // 柔紫
   },
   resumeText: {
-    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } },   // 柔灰
+    fill: solidFill('FFF5F5F5'),   // 柔灰
     alignment: { horizontal: 'left', vertical: 'top', wrapText: true },
   },
 };
@@ -259,7 +435,6 @@ function transformCandidates(candidates, fields, mode = 'filter') {
 
 function buildGroupedExportData(candidates, fields, mode = 'filter') {
   const data = transformCandidates(candidates, fields, mode);
-  const colHeaders = data[0];   // 字段原始 header: 姓名, AI评级, ..., 时间, 学校, 专业, 学历, ...
   const rows = data.slice(1);
 
   // 分组标题行 (Row 1)
@@ -290,10 +465,6 @@ function buildGroupedExportData(candidates, fields, mode = 'filter') {
 }
 
 // ===== 样式化导出 =====
-function applyGroupHeaderStyle(ws, lastCol, groupLabel, fillColor) {
-  // groupHeaderRowIndex 是 exceljs 中的行号，在第 1 行处理时传入
-}
-
 /**
  * 创建带样式的 worksheet
  * 表头结构 3 行：分组标题 / 主标题（教育经历合并）/ 子标题（时间·学校·专业·学历）
@@ -327,6 +498,9 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
   // 教育经历列范围
   const eduColRange = { start: eduFirstIdx >= 0 ? eduFirstIdx : 0, end: eduFirstIdx >= 0 ? eduFirstIdx + 3 : -1 };
 
+  // 每列所属的分组（null = 没有分组标题，如姓名、在线简历）。只算一次，下面合并 / 补值 / Row 1 样式共用
+  const colGroups = fields.map((_, i) => FIELD_GROUPS.find(g => i >= g.start && i <= g.end) || null);
+
   // 3a. 分组标题行合并（Row 1）
   const merges = [];
   for (const g of FIELD_GROUPS) {
@@ -340,10 +514,15 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
     merges.push({ s: { r: 2, c: eduFirstIdx + 1 }, e: { r: 2, c: eduFirstIdx + 4 } });
   }
 
-  // 3c. 非教育列 Row 2~Row 3 合并（去掉中间的分隔线）
+  // 3c. 非教育列合并表头：有分组标题的合并 Row 2~3（去掉中间分隔线）；
+  //     没有分组标题的（姓名、在线简历）直接合并 Row 1~3，标题占满三行表头高度，上方不留空档
   for (let c = 0; c < colCount; c++) {
     if (c >= eduColRange.start && c <= eduColRange.end) continue;
-    merges.push({ s: { r: 2, c: c + 1 }, e: { r: 3, c: c + 1 } });
+    if (colGroups[c]) {
+      merges.push({ s: { r: 2, c: c + 1 }, e: { r: 3, c: c + 1 } });
+    } else {
+      merges.push({ s: { r: 1, c: c + 1 }, e: { r: 3, c: c + 1 } });
+    }
   }
 
   // 3d. 数据行垂直合并（同一候选人的非教育列）
@@ -374,10 +553,12 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
   }
 
   // 部分 exceljs 版本合并后清空了左上单元格的值，此处补回
+  // （无分组列的左上角在 Row 1，不是 Row 2 —— 合并的是 1~3 行）
   for (let c = 0; c < colCount; c++) {
     if (c >= eduColRange.start && c <= eduColRange.end) continue;
     const v = groupData[1]?.[c];
-    if (v) ws.getCell(2, c + 1).value = v;
+    if (!v) continue;
+    ws.getCell(colGroups[c] ? 2 : 1, c + 1).value = v;
   }
 
   // 4. 设置列宽
@@ -413,29 +594,33 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
   // 6. 应用样式
 
   // --- 分组标题行样式 (Row 1) ---
-  const groupRowRef = ws.getRow(1);
-  groupRowRef.eachCell((cell, colNum) => {
-    const colIdx = colNum - 1;
-    const group = FIELD_GROUPS.find(g => colIdx >= g.start && colIdx <= g.end);
+  // 逐列取格（不用 eachCell）：这趟要按列判断有没有所属分组，有分组的才上底色和白色粗体字，
+  // 无分组列（姓名、在线简历）留给下面 Row 2 那趟 —— 它们的表头是 1~3 行合并的整块
+  for (let colIdx = 0; colIdx < colCount; colIdx++) {
+    const cell = ws.getCell(1, colIdx + 1);
+    const group = colGroups[colIdx];
     if (group) {
-      cell.fill = group.label === 'AI分析'
-        ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } }
-        : { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF70AD47' } };
+      cell.fill = solidFill(group.headerFill);
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+      cell.alignment = { ...DEFAULT_ALIGNMENT };
+      cell.border = THIN_BORDER;
     }
-    cell.alignment = { ...DEFAULT_ALIGNMENT };
-    cell.border = THIN_BORDER;
-  });
+  }
 
   // --- 主标题行样式 (Row 2) ---
   const mainRowRef = ws.getRow(2);
   mainRowRef.eachCell((cell, colNum) => {
     const colIdx = colNum - 1;
-    const fieldKey = fields[colIdx];
-    const fieldStyle = FIELD_STYLES[fieldKey];
-    cell.font = { bold: true, size: 11, color: { argb: 'FF000000' } };
+    // 非教育列跟 Row 3 纵向合并成一格，字体/底色/边框全由 Row 3 那趟决定 —— 这里直接跳过，
+    // 免得写了又被覆盖（那样「表头不加粗」就成了循环顺序的副产物，谁调换两趟顺序谁就把加粗放回来）
+    const isEduHeader = colIdx >= eduColRange.start && colIdx <= eduColRange.end;
+    if (!isEduHeader) return;
+    // 只有「教育经历」这一格（横向合并 4 列、Row 3 够不着）的字体在这里定：不加粗 ——
+    // 它是子标题「时间/学校/专业/学历」的总帽子，加粗会和下面真正的列名抢注意力
+    cell.font = { size: 11, color: { argb: 'FF000000' } };
     cell.alignment = { ...DEFAULT_ALIGNMENT };
     cell.border = THIN_BORDER;
+    const fieldStyle = FIELD_STYLES[fields[colIdx]];
     if (fieldStyle && fieldStyle.fill) {
       cell.fill = fieldStyle.fill;
     }
@@ -887,4 +1072,4 @@ if (isMainModule) {
   });
 }
 
-export { FIELD_CONFIG, DEFAULT_FIELDS, transformCandidates, buildGroupedExportData, safeSheetName, toAiRating, formatComment };
+export { FIELD_CONFIG, DEFAULT_FIELDS, FIELD_GROUPS, transformCandidates, buildGroupedExportData, safeSheetName, toAiRating, formatComment, activeStatusOf, jobStatusOf };

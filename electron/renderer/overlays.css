@@ -447,6 +447,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 400; /* 姓名不加粗：可点整行靠 hover 底色呈现 */
+  /* 姓名可拖拽选中复制（base.css 的 button{user-select:none} 会挡住，这里按类覆盖回来）。
+     光标给 text 而不是继承行的 pointer —— 悬停底色 + 右侧箭头已经表明整行可点，
+     名字上给 I 形光标才是「这里能选字」的正确提示。
+     拖选不会顺带展开/收起，靠 renderer-results.js 里的判定 */
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
 .result-item-score {
   font-variant-numeric: tabular-nums;

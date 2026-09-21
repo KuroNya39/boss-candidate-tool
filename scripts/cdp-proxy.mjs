@@ -855,7 +855,10 @@ const server = http.createServer(async (req, res) => {
 
       // 2) 拖拽选中：从简历顶部文字区按住，拖到当前屏底部（不超出视口）
       const X0 = canvasMain.x + Math.round(canvasMain.w * 0.4);
-      const Y0 = canvasMain.y + 60;                       // 顶部文字（跳过头部留白，尽量抓首行）
+      // 起点压到画布最上沿内侧：以前是 +60（想跳过头部留白抓首行），结果把姓名行和活跃度
+      // （「刚刚活跃」）那一条留在了选区上方、复制不到。从最上面按住，选区自然从首行开始，
+      // 姓名与活跃度一并进来（v1.15.0）
+      const Y0 = canvasMain.y + 8;
       let Y1 = canvasMain.y + canvasMain.h - 30;          // 当前屏底部
       if (info.winH) Y1 = Math.min(Y1, info.winH - 40);   // 视口钳制
       if (Y1 <= Y0 + 40) Y1 = Y0 + 40;

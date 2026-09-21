@@ -549,6 +549,11 @@ const EXTRACT_BASIC_INFO_SCRIPT = `(function() {
       if (divs.length >= 2) { var t = safeText(divs[1]); if (t) basicInfo.age = t; }
       if (divs.length >= 3) { var t = safeText(divs[2]); if (t) basicInfo.workYears = t; }
       if (divs.length >= 4) { var t = safeText(divs[3]); if (t) basicInfo.education = t; }
+      // 活跃度（「刚刚活跃」「今日活跃」等）：以前只把它从上面 age/年限/学历 的取值序列里排除掉，
+      // 从没读过它，导出时只能靠认卡片文字。这里直接按元素取，最准
+      var activeEl = basicDetail.querySelector('.active-time');
+      var activeText = safeText(activeEl);
+      if (activeText) basicInfo.activeStatus = activeText;
       if (Object.keys(basicInfo).length > 0) result.basicInfo = basicInfo;
     }
   } catch (e) {}
