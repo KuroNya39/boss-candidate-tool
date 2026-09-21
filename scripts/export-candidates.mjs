@@ -287,7 +287,7 @@ const FIELD_CONFIG = {
 };
 
 // 默认导出字段顺序。
-// 注意：教育经历四个子字段必须相邻（合并表头按「起始列 +4 列」算），中间别插别的字段
+// 注意：教育经历四个子字段必须相邻（合并表头按「最小下标 ~ 最大下标」算），中间别插别的字段
 const DEFAULT_FIELDS = [
   'name',
   'aiRating',
@@ -295,11 +295,11 @@ const DEFAULT_FIELDS = [
   'activeStatus',
   'age',
   'workYears',
-  'eduTime',
+  'jobStatus',
   'eduSchool',
   'eduMajor',
   'eduDegree',
-  'jobStatus',
+  'eduTime',
   'currentCompany',
   'currentPosition',
   'currentTenure',
@@ -310,83 +310,97 @@ const DEFAULT_FIELDS = [
   'resumeText',
 ];
 
-// ===== 分组配置（区间是 DEFAULT_FIELDS 的下标；不在任何区间里的列不显示分组标题）=====
-// headerFill 是分组标题条（表头第 1 行）的底色，白字压在它上面。三组必须各不相同：
-// 相邻两组同色时，两条标题条会连成一整条，分组边界就看不出来了。
-// 取值与各组数据格的浅色（见 FIELD_STYLES）同色系，深一档以便承白字。
+// 教育经历子字段列表（在列标题行合并为"教育经历"，子标题行显示具体字段名）。
+// 也是「哪些列属于教育经历」的唯一出处 —— 分组归属、合并区间、行高都按它判
+const EDU_SUB_FIELDS = ['eduSchool', 'eduMajor', 'eduDegree', 'eduTime'];
+
+// ===== 分组配置 =====
+// 用字段名列出成员，**不写列下标**：列区间由 createStyledSheet 按实际列序算。
+// 写死下标的话，DEFAULT_FIELDS 插一个字段、或 --fields 只导一部分，区间就整体错位；
+// 而且错了不报错 —— 区间落空那步直接跳过，只会静默少一条标题条。
+// 组内成员在 DEFAULT_FIELDS 里必须连续（标题条是一整条，合并要一个区间）。
+// headerFill / headerText 是分组标题条（表头第 1 行）的底色与字色。
+// 注意这三个底色是亮色（相对亮度 0.24~0.56），白字对比度只有 3.56 / 3.06 / 1.71 —— 都低于
+// 「正文级文字 4.5」那条线，黄色那条尤其浅。这是选定的配色，不是疏漏；真要压白字得把底色压深
+// （深一档的蓝/绿/黄），但那样就不是这三个色了。
+// 三组必须各不相同：相邻两组同色时，两条标题条会连成一整条，分组边界就看不出来了。
 const FIELD_GROUPS = [
-  { label: 'AI分析', start: 1, end: 2, headerFill: 'FF4472C4' },    // 蓝
-  { label: '基本信息', start: 3, end: 13, headerFill: 'FF70AD47' },  // 绿
-  { label: '求职期望', start: 14, end: 17, headerFill: 'FF7E57C2' }, // 紫（对应数据格的柔紫）
+  { label: 'AI分析', fields: ['aiRating', 'jobRelevanceComment'], headerFill: 'FF4285F4', headerText: 'FFFFFFFF' }, // 蓝
+  {
+    label: '基本信息',
+    fields: [
+      'activeStatus', 'age', 'workYears', 'jobStatus',
+      ...EDU_SUB_FIELDS,
+      'currentCompany', 'currentPosition', 'currentTenure',
+    ],
+    headerFill: 'FF34A853', headerText: 'FFFFFFFF', // 绿
+  },
+  { label: '求职期望', fields: ['expectCity', 'expectPosition', 'expectIndustry', 'expectSalary'], headerFill: 'FFFBBC05', headerText: 'FFFFFFFF' }, // 黄
 ];
-// 教育经历子字段列表（在列标题行合并为"教育经历"，子标题行显示具体字段名）
-const EDU_SUB_FIELDS = ['eduTime', 'eduSchool', 'eduMajor', 'eduDegree'];
 
 // ===== 字段样式配置 =====
-// exceljs 的纯色填充写法很啰嗦，而同色的字段又成组出现，收一个工厂函数（颜色值不变）
+// exceljs 的纯色填充写法很啰嗦，同色的字段又多，收一个工厂函数
 const solidFill = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
 
-const FIELD_STYLES = {
-  name: {
-    fill: solidFill('FFD6E8F0'),   // 柔蓝
-  },
-  aiRating: {
-    fill: solidFill('FFFFF2CC'),   // 柔黄
-  },
-  jobRelevanceComment: {
-    fill: solidFill('FFE2EFDA'),   // 柔绿
-    alignment: { horizontal: 'left', vertical: 'top', wrapText: true },
-  },
-  age: {
-    fill: solidFill('FFFCE4EC'),   // 柔粉
-  },
-  activeStatus: {
-    fill: solidFill('FFFCE4EC'),   // 柔粉
-  },
-  jobStatus: {
-    fill: solidFill('FFFCE4EC'),   // 柔粉
-  },
-  eduTime: {
-    fill: solidFill('FFFFF3E0'),   // 柔橙
-  },
-  eduSchool: {
-    fill: solidFill('FFFFF3E0'),   // 柔橙
-  },
-  eduMajor: {
-    fill: solidFill('FFFFF3E0'),   // 柔橙
-  },
-  eduDegree: {
-    fill: solidFill('FFFFF3E0'),   // 柔橙
-  },
-  workYears: {
-    fill: solidFill('FFE0F7FA'),   // 柔青
-  },
-  currentCompany: {
-    fill: solidFill('FFE0F7FA'),   // 柔青
-  },
-  currentPosition: {
-    fill: solidFill('FFE0F7FA'),   // 柔青
-  },
-  currentTenure: {
-    fill: solidFill('FFE0F7FA'),   // 柔青
-  },
-  expectCity: {
-    fill: solidFill('FFEDE7F6'),   // 柔紫
-  },
-  expectPosition: {
-    fill: solidFill('FFEDE7F6'),   // 柔紫
-  },
-  expectIndustry: {
-    fill: solidFill('FFEDE7F6'),   // 柔紫
-  },
-  expectSalary: {
-    fill: solidFill('FFEDE7F6'),   // 柔紫
-  },
-  resumeText: {
-    fill: solidFill('FFF5F5F5'),   // 柔灰
-    alignment: { horizontal: 'left', vertical: 'top', wrapText: true },
-  },
+// 列底色一个语义小分块一种色相，全部取浅色（明度 L* 都在 91 以上、彩度 C* 都不超过 16）。
+// 这里**不跟标题条的色相挂钩**：分组由标题条那条带子表达，列底色只管「把相邻的列分开」。
+// 所以配色唯一的硬约束是相邻两列要够开 —— 浅色之间色差本就小，不够就糊成一片
+// （实测相邻的异色列 ΔE 全部 ≥ 10.5，最紧的是 AI评分 → AI评语）。
+const FIELD_TINTS = {
+  name: 'FFDBEAF6',      // 淡蓝
+  aiScore: 'FFFCF3D5',   // 淡黄
+  aiComment: 'FFE1F0DC', // 淡绿
+  status: 'FFFBE3EA',    // 淡粉
+  tenure: 'FFDCF0F3',    // 淡青
+  edu: 'FFFCE9D6',       // 淡橙
+  expect: 'FFEBE4F7',    // 淡紫
+  plain: 'FFF2F2F2',     // 中性灰
 };
+
+// 字段 → 用哪个底色。同色的字段写在同一行：改色只动 FIELD_TINTS，改归属只动这里
+const FIELD_TINT_BY_FIELD = {
+  name: 'name',
+  aiRating: 'aiScore',
+  jobRelevanceComment: 'aiComment',
+  // 个人情况
+  activeStatus: 'status', age: 'status', workYears: 'status', jobStatus: 'status',
+  // 教育经历
+  eduSchool: 'edu', eduMajor: 'edu', eduDegree: 'edu', eduTime: 'edu',
+  // 在职情况
+  currentCompany: 'tenure', currentPosition: 'tenure', currentTenure: 'tenure',
+  // 求职期望
+  expectCity: 'expect', expectPosition: 'expect', expectIndustry: 'expect', expectSalary: 'expect',
+  resumeText: 'plain',
+};
+
+// 除底色外还要额外样式的字段：长文本左对齐 + 自动换行
+const FIELD_ALIGNMENTS = {
+  jobRelevanceComment: { horizontal: 'left', vertical: 'top', wrapText: true },
+  resumeText: { horizontal: 'left', vertical: 'top', wrapText: true },
+};
+
+// 由上面两张表拼出「字段 → 样式」。上面只写数据，这里只写拼法，加字段不必再抄一遍
+const FIELD_STYLES = Object.fromEntries(
+  Object.entries(FIELD_TINT_BY_FIELD).map(([field, tint]) => {
+    const style = { fill: solidFill(FIELD_TINTS[tint]) };
+    if (FIELD_ALIGNMENTS[field]) style.alignment = FIELD_ALIGNMENTS[field];
+    return [field, style];
+  })
+);
+
+// 列宽（Excel 的宽度单位约等于一个数字字符，一个汉字占 2 个单位）。不在表里的列用常规宽
+const COL_WIDTHS = {
+  jobRelevanceComment: 90, // 评语是长段落，要给够
+  resumeText: 60,          // 简历全文更长，但太宽会把整表撑得没法看，取 60 后靠自动撑高行
+  // 学校与专业同宽（两列内容同类，宽度不一致会显得参差）。取值按较长的一类定：
+  // 中文校名一般 4~10 字，专业名最长到 11 字左右（「机械设计制造及其自动化」）；
+  // 22 够放下 11 字，又只比常规列(18)宽一点，不会空出一大截
+  eduSchool: 22,
+  eduMajor: 22,
+  eduTime: 16,   // 「2020.09-2024.06」这类，比常规列窄一档
+  eduDegree: 8,  // 「本科」两个字，最窄
+};
+const DEFAULT_COL_WIDTH = 18;
 
 // 默认对齐方式：垂直居中、水平居中
 const DEFAULT_ALIGNMENT = { horizontal: 'center', vertical: 'middle' };
@@ -437,13 +451,11 @@ function buildGroupedExportData(candidates, fields, mode = 'filter') {
   const data = transformCandidates(candidates, fields, mode);
   const rows = data.slice(1);
 
-  // 分组标题行 (Row 1)
-  const groupHeaders = fields.map(() => undefined);
-  for (const g of FIELD_GROUPS) {
-    for (let i = g.start; i <= g.end; i++) {
-      if (i < groupHeaders.length) groupHeaders[i] = g.label;
-    }
-  }
+  // 分组标题行 (Row 1)：按字段名的分组归属填标签（与 createStyledSheet 里的 colGroups 同一判据）
+  const groupHeaders = fields.map(f => {
+    const g = FIELD_GROUPS.find(g => g.fields.includes(f));
+    return g ? g.label : undefined;
+  });
 
   // 主标题行 (Row 2)：教育经历子字段显示"教育经历"，其他用原始 header
   const mainHeaders = fields.map(f => {
@@ -467,7 +479,7 @@ function buildGroupedExportData(candidates, fields, mode = 'filter') {
 // ===== 样式化导出 =====
 /**
  * 创建带样式的 worksheet
- * 表头结构 3 行：分组标题 / 主标题（教育经历合并）/ 子标题（时间·学校·专业·学历）
+ * 表头结构 3 行：分组标题 / 主标题（教育经历合并）/ 子标题（学校·专业·学历·时间）
  */
 async function createStyledSheet(wb, sheetName, groupData, fields) {
   const ws = wb.addWorksheet(sheetName);
@@ -478,7 +490,6 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
   const dataRows     = groupData.slice(3); // 数据行
 
   const colCount = fields.length;
-  const eduFirstIdx = fields.indexOf('eduTime'); // 教育经历起始列（0-based）
 
   // 1. 添加 3 行表头 (exceljs 行号从 1 开始)
   ws.addRow(groupHeaders.map(h => h || ''));
@@ -495,29 +506,39 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
 
   // 3. 合并单元格
 
-  // 教育经历列范围
-  const eduColRange = { start: eduFirstIdx >= 0 ? eduFirstIdx : 0, end: eduFirstIdx >= 0 ? eduFirstIdx + 3 : -1 };
+  // 教育经历列下标：EDU_SUB_FIELDS 里落在 fields 中的那些。
+  // 不写死某个字段名 —— 四个子列的先后顺序会调（现为 学校/专业/学历/时间），
+  // 写死字段名在调顺序后就会指错列。
+  const eduIdx = fields.flatMap((f, i) => (EDU_SUB_FIELDS.includes(f) ? [i] : []));
+  // 合并表头要横跨四列，所以还得有个区间（取最小/最大下标）；一列都没有时为 null
+  const eduColRange = eduIdx.length
+    ? { start: Math.min(...eduIdx), end: Math.max(...eduIdx) }
+    : null;
+  // 「这列是不是教育经历」按字段名判（EDU_SUB_FIELDS 是唯一出处），不按上面的区间判 ——
+  // 区间只在合并表头那一处才真的需要
+  const isEduCol = (i) => EDU_SUB_FIELDS.includes(fields[i]);
 
   // 每列所属的分组（null = 没有分组标题，如姓名、在线简历）。只算一次，下面合并 / 补值 / Row 1 样式共用
-  const colGroups = fields.map((_, i) => FIELD_GROUPS.find(g => i >= g.start && i <= g.end) || null);
+  const colGroups = fields.map(f => FIELD_GROUPS.find(g => g.fields.includes(f)) || null);
 
-  // 3a. 分组标题行合并（Row 1）
+  // 3a. 分组标题行合并（Row 1）。区间按字段名在**实际列序**里的位置算；
+  //     该组一个字段都没导出（--fields 只导了一部分）时跳过
   const merges = [];
   for (const g of FIELD_GROUPS) {
-    if (g.start < colCount && g.end < colCount) {
-      merges.push({ s: { r: 1, c: g.start + 1 }, e: { r: 1, c: g.end + 1 } });
-    }
+    const idx = g.fields.map(f => fields.indexOf(f)).filter(i => i >= 0);
+    if (!idx.length) continue;
+    merges.push({ s: { r: 1, c: Math.min(...idx) + 1 }, e: { r: 1, c: Math.max(...idx) + 1 } });
   }
 
-  // 3b. 主标题行"教育经历"合并（Row 2, cols eduFirstIdx+1 ~ eduFirstIdx+4）
-  if (eduFirstIdx >= 0) {
-    merges.push({ s: { r: 2, c: eduFirstIdx + 1 }, e: { r: 2, c: eduFirstIdx + 4 } });
+  // 3b. 主标题行"教育经历"合并（Row 2, 横跨四个子列）
+  if (eduColRange) {
+    merges.push({ s: { r: 2, c: eduColRange.start + 1 }, e: { r: 2, c: eduColRange.end + 1 } });
   }
 
   // 3c. 非教育列合并表头：有分组标题的合并 Row 2~3（去掉中间分隔线）；
   //     没有分组标题的（姓名、在线简历）直接合并 Row 1~3，标题占满三行表头高度，上方不留空档
   for (let c = 0; c < colCount; c++) {
-    if (c >= eduColRange.start && c <= eduColRange.end) continue;
+    if (isEduCol(c)) continue;
     if (colGroups[c]) {
       merges.push({ s: { r: 2, c: c + 1 }, e: { r: 3, c: c + 1 } });
     } else {
@@ -542,7 +563,7 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
   for (const block of mergeBlocks) {
     if (block.end - block.start < 1) continue;
     for (let c = 0; c < colCount; c++) {
-      if (c >= eduColRange.start && c <= eduColRange.end) continue;
+      if (isEduCol(c)) continue;
       merges.push({ s: { r: block.start, c: c + 1 }, e: { r: block.end, c: c + 1 } });
     }
   }
@@ -555,7 +576,7 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
   // 部分 exceljs 版本合并后清空了左上单元格的值，此处补回
   // （无分组列的左上角在 Row 1，不是 Row 2 —— 合并的是 1~3 行）
   for (let c = 0; c < colCount; c++) {
-    if (c >= eduColRange.start && c <= eduColRange.end) continue;
+    if (isEduCol(c)) continue;
     const v = groupData[1]?.[c];
     if (!v) continue;
     ws.getCell(colGroups[c] ? 2 : 1, c + 1).value = v;
@@ -563,24 +584,7 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
 
   // 4. 设置列宽
   for (let col = 0; col < colCount; col++) {
-    const fieldKey = fields[col];
-    const colIdx = col + 1;
-
-    if (fieldKey === 'jobRelevanceComment') {
-      ws.getColumn(colIdx).width = 90;
-    } else if (fieldKey === 'resumeText') {
-      ws.getColumn(colIdx).width = 60;
-    } else if (fieldKey === 'eduSchool') {
-      ws.getColumn(colIdx).width = 28;
-    } else if (fieldKey === 'eduTime') {
-      ws.getColumn(colIdx).width = 16;
-    } else if (fieldKey === 'eduMajor') {
-      ws.getColumn(colIdx).width = 16;
-    } else if (fieldKey === 'eduDegree') {
-      ws.getColumn(colIdx).width = 8;
-    } else {
-      ws.getColumn(colIdx).width = 18;
-    }
+    ws.getColumn(col + 1).width = COL_WIDTHS[fields[col]] ?? DEFAULT_COL_WIDTH;
   }
 
   // 5. 设置行高
@@ -601,7 +605,7 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
     const group = colGroups[colIdx];
     if (group) {
       cell.fill = solidFill(group.headerFill);
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+      cell.font = { bold: true, color: { argb: group.headerText }, size: 12 };
       cell.alignment = { ...DEFAULT_ALIGNMENT };
       cell.border = THIN_BORDER;
     }
@@ -613,8 +617,7 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
     const colIdx = colNum - 1;
     // 非教育列跟 Row 3 纵向合并成一格，字体/底色/边框全由 Row 3 那趟决定 —— 这里直接跳过，
     // 免得写了又被覆盖（那样「表头不加粗」就成了循环顺序的副产物，谁调换两趟顺序谁就把加粗放回来）
-    const isEduHeader = colIdx >= eduColRange.start && colIdx <= eduColRange.end;
-    if (!isEduHeader) return;
+    if (!isEduCol(colIdx)) return;
     // 只有「教育经历」这一格（横向合并 4 列、Row 3 够不着）的字体在这里定：不加粗 ——
     // 它是子标题「时间/学校/专业/学历」的总帽子，加粗会和下面真正的列名抢注意力
     cell.font = { size: 11, color: { argb: 'FF000000' } };
@@ -632,11 +635,7 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
     const colIdx = colNum - 1;
     const fieldKey = fields[colIdx];
     const fieldStyle = FIELD_STYLES[fieldKey];
-    // 仅教育经历子标题用灰色，非教育列（已合并到 Row 2）不设灰色
-    const isEdu = colIdx >= eduColRange.start && colIdx <= eduColRange.end;
-    cell.font = isEdu
-      ? { size: 10, color: { argb: 'FF666666' } }
-      : { size: 10, color: { argb: 'FF000000' } };
+    cell.font = { size: 10, color: { argb: 'FF000000' } };
     cell.alignment = { ...DEFAULT_ALIGNMENT };
     cell.border = THIN_BORDER;
     if (fieldStyle && fieldStyle.fill) {
@@ -692,11 +691,9 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
       }
     }
     // 教育经历行高
-    if (eduFirstIdx >= 0) {
-      for (let c = eduFirstIdx; c <= eduFirstIdx + 3; c++) {
-        const val = String(groupData[r - 1]?.[c] ?? '');
-        if (val) { rowRef.height = Math.max(rowRef.height || 22, 22); break; }
-      }
+    for (const c of eduIdx) {
+      const val = String(groupData[r - 1]?.[c] ?? '');
+      if (val) { rowRef.height = Math.max(rowRef.height || 22, 22); break; }
     }
   }
 

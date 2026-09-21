@@ -441,15 +441,19 @@
   box-shadow: inset 0 0 0 var(--ring-width) var(--ring-color);
 }
 .result-item-name {
-  flex: 1;
+  /* 不撑满整行：光标形状是按这个盒子的范围给的，盒子撑满整行就等于整行（除分数那几块）
+     都变 I 形。这里让它只占姓名本身的宽度 —— margin-right:auto 吃掉余量，后面的分数/星星/箭头
+     照旧贴右；姓名过长时仍按 flex-shrink 收缩、省略号截断。I 形光标于是只出现在名字那一小块上。
+     光标给 text 而不是继承行的 pointer：悬停底色 + 右侧箭头已经表明整行可点，
+     名字上给 I 形才是「这里能选字」的正确提示 */
+  flex: 0 1 auto;
+  margin-right: auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 400; /* 姓名不加粗：可点整行靠 hover 底色呈现 */
   /* 姓名可拖拽选中复制（base.css 的 button{user-select:none} 会挡住，这里按类覆盖回来）。
-     光标给 text 而不是继承行的 pointer —— 悬停底色 + 右侧箭头已经表明整行可点，
-     名字上给 I 形光标才是「这里能选字」的正确提示。
      拖选不会顺带展开/收起，靠 renderer-results.js 里的判定 */
   user-select: text;
   -webkit-user-select: text;
