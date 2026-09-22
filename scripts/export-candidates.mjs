@@ -311,7 +311,7 @@ const DEFAULT_FIELDS = [
 ];
 
 // 教育经历子字段列表（在列标题行合并为"教育经历"，子标题行显示具体字段名）。
-// 也是「哪些列属于教育经历」的唯一出处 —— 分组归属、合并区间、行高都按它判
+// 也是「哪些列属于教育经历」的唯一出处 —— 分组归属、合并区间都按它判
 const EDU_SUB_FIELDS = ['eduSchool', 'eduMajor', 'eduDegree', 'eduTime'];
 
 // ===== 分组配置 =====
@@ -391,7 +391,7 @@ const FIELD_STYLES = Object.fromEntries(
 // 列宽（Excel 的宽度单位约等于一个数字字符，一个汉字占 2 个单位）。不在表里的列用常规宽
 const COL_WIDTHS = {
   jobRelevanceComment: 90, // 评语是长段落，要给够
-  resumeText: 60,          // 简历全文更长，但太宽会把整表撑得没法看，取 60 后靠自动撑高行
+  resumeText: 60,          // 简历全文更长，但太宽会把整表撑得没法看，取 60 靠自动换行 + 固定行高截断
   // 学校与专业同宽（两列内容同类，宽度不一致会显得参差）。取值按较长的一类定：
   // 中文校名一般 4~10 字，专业名最长到 11 字左右（「机械设计制造及其自动化」）；
   // 22 够放下 11 字，又只比常规列(18)宽一点，不会空出一大截
@@ -401,6 +401,11 @@ const COL_WIDTHS = {
   eduDegree: 8,  // 「本科」两个字，最窄
 };
 const DEFAULT_COL_WIDTH = 18;
+
+// 行高（磅）。每个候选人统一占 ROW_BLOCK_HEIGHT，不再按内容撑高 —— 理由见 createStyledSheet 里的说明。
+// 与表头那三行（28/24/20，见「5. 设置行高」）无关：那两个是表头、这两个是数据行，别顺手合并
+const ROW_BLOCK_HEIGHT = 409; // 表格单行上限 409.5 磅，取 409 留一点余量
+const BASE_ROW_HEIGHT = 24;   // 数据行基础行高；候选人占多行时（多条教育经历）块内换行也用这个
 
 // 默认对齐方式：垂直居中、水平居中
 const DEFAULT_ALIGNMENT = { horizontal: 'center', vertical: 'middle' };
@@ -646,7 +651,7 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
   // --- 数据行样式 ---
   for (let r = dataStartRow; r <= totalRows; r++) {
     const rowRef = ws.getRow(r);
-    rowRef.height = 24; // 统一基础行高
+    rowRef.height = BASE_ROW_HEIGHT;
     rowRef.eachCell((cell, colNum) => {
       const colIdx = colNum - 1;
       const fieldKey = fields[colIdx];
@@ -664,37 +669,20 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
       }
       cell.border = THIN_BORDER;
     });
+  }
 
-    // AI评级理由 自动撑高行（按显式换行 + 每段字数估算，留足余量）
-    const commentIdx = fields.indexOf('jobRelevanceComment');
-    if (commentIdx >= 0) {
-      const commentText = String(groupData[r - 1]?.[commentIdx] ?? '');
-      if (commentText) {
-        // 列宽约90字符，中文字符占2个单位 → 每行约45个中文字。
-        // 先按显式换行拆分再逐段估行数，避免重排后行数变多导致被截断。
-        const commentLines = commentText.split('\n');
-        let lineCount = 0;
-        for (const ln of commentLines) {
-          lineCount += Math.max(1, Math.ceil(ln.length / 35)); // 保守估算每行35字
-        }
-        rowRef.height = Math.max(lineCount * 22, 60);
-      }
-    }
-    // 在线简历 自动撑高行
-    const resumeIdx = fields.indexOf('resumeText');
-    if (resumeIdx >= 0) {
-      const resumeText = String(groupData[r - 1]?.[resumeIdx] ?? '');
-      if (resumeText && resumeText.length > 50) {
-        // 在线简历通常很长，列宽60字符 → 每行约30个中文字
-        const lineCount = Math.ceil(resumeText.length / 25);
-        rowRef.height = Math.max(lineCount * 18, rowRef.height || 60);
-      }
-    }
-    // 教育经历行高
-    for (const c of eduIdx) {
-      const val = String(groupData[r - 1]?.[c] ?? '');
-      if (val) { rowRef.height = Math.max(rowRef.height || 22, 22); break; }
-    }
+  // --- 行高：每个候选人统一占 ROW_BLOCK_HEIGHT ---
+  // 曾经是按内容撑高：评语按每行 35 字、简历按每行 25 字估行数再乘行高。问题出在简历 ——
+  // 简历长度在 390~16390 字之间，估出来的行高就跟着在 1012~11808 磅之间跳（差 12 倍），
+  // 而表格单行上限只有 409.5 磅：写进去的值全部越界，等于白算，各家表格软件怎么处理还各不相同。
+  // 整份简历本来就塞不进一行，所以放弃撑高，一律取上限做统一高度，看全文靠点单元格。
+  // 用 mergeBlocks（同一份候选人分块）而不是直接按行设 —— 多条教育经历的候选人占好几行，
+  // 按行设会变成好几倍高，那就又不统一了。块内首行拿走剩余高度，其余行保持基础行高。
+  for (const block of mergeBlocks) {
+    const span = block.end - block.start + 1;
+    const firstRowHeight = ROW_BLOCK_HEIGHT - (span - 1) * BASE_ROW_HEIGHT;
+    // 兜底：块跨行数很多时（mergeBlocks 分块退化成一整块，或单个候选人教育经历异常多）上面会算出负数
+    ws.getRow(block.start).height = Math.max(BASE_ROW_HEIGHT, firstRowHeight);
   }
 
   return ws;
