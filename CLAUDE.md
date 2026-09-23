@@ -57,7 +57,7 @@ Child process cancellation works by writing `CANCEL\n` to stdin, waiting 2s, the
 ### Key Patterns
 
 - **Progress persistence**: `.scan-cache.json` (candidate list cache) + `.extract-progress.json` (per-candidate progress) in output dir. `--resume` flag reads these to skip already-processed candidates.
-- **Cleanup**: `doCleanup()` pattern in extraction scripts handles SIGTERM/stdin CANCEL. Main process sends `CANCEL\n` to child process stdin, waits 2s, then force-kills.
+- **Cleanup**: `doCleanup()` pattern in extraction scripts handles SIGTERM/stdin CANCEL. Main process sends `CANCEL\n` to child process stdin, then force-kills after `CLEANUP_OCR_GRACE_MS`（scripts/extract-common.mjs 导出，当前 20s）加 6s 余量——子进程要先等当前那位候选人的后台 OCR 收尾再落盘进度（`flushProgressOnCancel`，三个提取脚本共用）。
 - **OCR pipeline**: `captureResumeScreenshots()` scrolls the resume dialog page-by-page → `ocrScreenshots()` runs tesseract.js on each page → `dedupePages()` removes overlap between consecutive pages → `cleanOcrText()` normalizes whitespace, corrects OCR typos, strips boilerplate.
 - **截图拉前台是条件式的（v1.3.28）**: `cdpScreenshot()` 每次截图前会先查 `document.visibilityState`，只有标签页不可见（被切到后台/最小化）才调 `/activate`（`Target.activateTarget`）拉回最前；Boss 页本来就在最前（如「开两个 Chrome 窗口」）时不抢焦点，避免打断用户用别的窗口。拿不到可见状态（页面卡顿）时保守回退为照常 activate。`prepareTab()`（提取开始时）仍无条件 activate 一次。
 - **DOM extraction fallback**: `tryExtractResumeTextFromDOM()` — extracts resume text directly from iframe via CDP `Page.getFrameTree` + `Runtime.executionContexts` before falling back to screenshot+OCR. v1.3.27 起再加一道「同域 iframe 直接读取」兜底：execution context 拿不到（非 OOPIF 的简历小网页）时，直接从父页面读 `iframe.contentDocument` 的 `#resume` 文本，绕过 CDP context 查找。v1.3.28 起搜索页再加一道「弹窗直接读文本」兜底（`tryExtractSearchResumeTextFromDOM`）：简历直接渲染在弹窗 DOM（无 iframe / iframe 读不到）时，直接读 `.resume-detail-wrap`/`.boss-popup__content` 的 textContent；全部失败会输出一次弹窗结构诊断。推荐页一直有这个兜底（方式二），搜索页此前漏了。
@@ -158,3 +158,4 @@ The proxy (`scripts/cdp-proxy.mjs`) is a core dependency. It:
 - The AI scoring prompt template uses `{dimensions}`, `{screeningCriteria}`, `{resumeText}` placeholders
 - `output/` is gitignored; old runs auto-archived to `output-YYYYMMDD-HHMM/`
 - UI 设计规范见 `docs/design-system.md`：改界面先读它，颜色/间距/字号/圆角/动效一律用 `electron/renderer/tokens.css` 里 `:root` 的设计 token，别写死数值
+- README 文案规范见 `docs/readme-style.md`：改 README 前先读它，按里面的「改完自查」两条命令扫一遍（界面元素用「」不加粗、加粗只用于条目术语 / 粗体小标题 / 关键句、中英文之间加空格）

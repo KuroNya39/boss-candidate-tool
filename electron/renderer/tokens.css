@@ -162,6 +162,8 @@
   --transition-fast: var(--dur-fast) var(--ease-in-out);
   --transition-normal: var(--dur-normal) var(--ease-in-out);
   --transition-slow: var(--dur-slow) var(--ease-out);
-  --z-tooltip: 100; --z-dropdown: 300; --z-overlay: 1000; --z-toast: 9999;
+  /* --z-context-menu 要高于 --z-overlay：输入框右键菜单挂在 body 上，而设置/历史弹窗的遮罩是
+     --z-overlay，取 --z-dropdown 会让菜单被弹窗遮罩盖住（弹窗里的输入框也用它）。toast 仍在最上 */
+  --z-tooltip: 100; --z-dropdown: 300; --z-overlay: 1000; --z-context-menu: 2000; --z-toast: 9999;
 }
 

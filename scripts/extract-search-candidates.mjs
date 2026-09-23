@@ -29,11 +29,12 @@ import {
   tryExtractResumeTextByTrustedCopy,
   tryExtractCanvasResumeByDragCopy,
   getScanCachePath, getProgressPath,
-  saveScanCache, loadScanCache, saveProgress, loadProgress, cleanupCacheFiles,
+  saveScanCache, loadScanCache, saveProgress, loadProgress, flushProgressOnCancel, cleanupCacheFiles,
   archiveOldOutput,
   reportStats,
   parseArgs,
   parseEducationFromResume,
+  parseWorkExperienceFromResume,
 } from './extract-common.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -918,6 +919,13 @@ async function closeSearchDialog(targetId) {
   return false;
 }
 
+// 卡片里的学校名 / 公司名常是截断的（「德赛西威汽车电子」对简历的「德赛西威汽车电子有限公司」），
+// 要双向 includes 才算同一个。教育与工作两处合并共用这一条判定
+function nameMatches(cardName, resumeName) {
+  return !!cardName && !!resumeName &&
+    (cardName.includes(resumeName) || resumeName.includes(cardName));
+}
+
 /**
  * 合并卡片数据和OCR解析的教育经历
  *
@@ -938,9 +946,7 @@ function mergeEducationData(candidateData, resumeText) {
     if (!ocr.degree || noiseWords.some(w => ocr.school.includes(w))) continue;
 
     // 用卡片数据校正学校名
-    const cardMatch = cardEdu.find(c =>
-      c.school && (c.school.includes(ocr.school) || ocr.school.includes(c.school))
-    );
+    const cardMatch = cardEdu.find(c => nameMatches(c.school, ocr.school));
     const school = cardMatch ? cardMatch.school : ocr.school;
 
     // 同校+同degree去重
@@ -959,7 +965,7 @@ function mergeEducationData(candidateData, resumeText) {
   // 添加卡片中未被OCR覆盖的(以卡片学校名作为补充)
   for (const card of cardEdu) {
     if (!card.school) continue;
-    const inResult = result.some(r => r.school.includes(card.school) || card.school.includes(r.school));
+    const inResult = result.some(r => nameMatches(card.school, r.school));
     if (!inResult) result.push({ ...card });
   }
 
@@ -970,25 +976,50 @@ function mergeEducationData(candidateData, resumeText) {
   if (result.length > 0) candidateData.educationExperience = result;
 }
 
+/**
+ * 合并卡片数据和简历文本解析的工作经历
+ *
+ * 搜索页卡片只有公司+职位（没有在职时间），简历文本里有 —— Excel 的「在职时间」列取自
+ * workExperience[0].time，卡片不补就恒为空。策略：以卡片为骨架，按公司名匹配补 time
+ * （卡片缺职位时才用简历的职位）；公司名对不上时，最近一段（[0]）用简历的第一条兜底
+ * ——简历按时间倒序，[0] 即最近一段，与卡片 [0] 同义。
+ */
+function mergeWorkExperienceData(candidateData, resumeText) {
+  const cardWork = candidateData.workExperience || [];
+  const all = parseWorkExperienceFromResume(resumeText);
+  if (all.length === 0) return;
+  // 优先只用「条目头」的日期（描述正文里的日期区间带不出公司/职位，匹配时容易认错人）
+  const heads = all.filter(p => !p.embedded);
+  const parsed = heads.length > 0 ? heads : all;
+
+  if (cardWork.length === 0) {
+    candidateData.workExperience = parsed;
+    return;
+  }
+
+  cardWork.forEach((card, idx) => {
+    if (card.time) return;
+    const match = parsed.find(p => nameMatches(card.company, p.company));
+    const picked = match || (idx === 0 ? parsed[0] : null);
+    if (!picked) return;
+    card.time = picked.time;
+    if (!card.position && picked.position) card.position = picked.position;
+  });
+}
+
 // ===== 取消清理 =====
 
 let _cleanupTargetId = null;
 let _cleanupWorker = null;
-let _cleanupProgressVars = null; // { processedExpectIds, candidates, outputPath, prevOcr }
+let _cleanupProgressVars = null; // { processedExpectIds, candidates, outputPath, prevOcr, pendingCandidate }
 
 async function doCleanup() {
   if (_cleanupProgressVars) {
-    const { processedExpectIds, candidates, outputPath, prevOcr } = _cleanupProgressVars;
-    // v1.3.28：取消/跳过后先尽快保存当前进度。原来等 OCR 全部收尾才存，
-    // 会被主进程的强杀超时抢先，导致最近几人白干、恢复时丢数据。
-    // 这里最多等 3s 拿当前 OCR 结果，拿不到完整文本也先落盘，保住已完成人数。
-    try {
-      await Promise.race([prevOcr, sleep(3000).then(() => 'timeout')]);
-      saveProgress(processedExpectIds, candidates, outputPath);
-      console.log(`  💾 取消前已保存进度（${processedExpectIds.size} 人）`);
-    } catch (e) {
-      console.warn(`  ⚠ 取消前保存进度失败： ${e.message}`);
-    }
+    const { processedExpectIds, candidates, outputPath, prevOcr, pendingCandidate } = _cleanupProgressVars;
+    await flushProgressOnCancel({
+      processedIds: processedExpectIds, candidates, outputPath, prevOcr, pendingCandidate,
+      idOf: (c) => c.expectId || c.geekId,
+    });
   }
 
   if (!_cleanupTargetId && !_cleanupWorker) return;
@@ -1015,7 +1046,7 @@ async function main() {
 
   archiveOldOutput(outputDir, opts.resume);
 
-  const modeLabel = opts.extractAll ? '全部' : `前 ${opts.count} 个`;
+  const modeLabel = opts.extractAll ? '全部' : `前 ${opts.count} 人`;
   console.log(`\n========== BOSS直聘候选人全量提取（搜索页） ==========`);
   console.log(`模式： attach（附着到用户打开的搜索页）`);
   console.log(`提取模式： ${modeLabel}`);
@@ -1256,8 +1287,9 @@ async function main() {
           if (domText) {
             candidateData.resumeText = domText;
             // 来源日志在 tryExtractSearchResumeTextFromDOM 内部打，避免复制成功误标 DOM（v1.4.4）
-            // 从简历文本解析教育经历并与卡片数据合并
+            // 从简历文本解析教育经历/在职时间并与卡片数据合并
             mergeEducationData(candidateData, domText);
+            mergeWorkExperienceData(candidateData, domText);
             const resumeDir = resolve(dirname(outputPath), 'resumes');
             mkdirSync(resumeDir, { recursive: true });
             const txtPath = resolve(resumeDir, `${sname}-${expectId}.txt`);
@@ -1370,6 +1402,7 @@ async function main() {
               candidateData.resumeText = resumeText;
               console.log(`  ✓ 简历提取完成（${resumeText.length} 字）`);
               mergeEducationData(candidateData, resumeText);
+              mergeWorkExperienceData(candidateData, resumeText);
               const resumeDir = resolve(dirname(outputPath), 'resumes');
               mkdirSync(resumeDir, { recursive: true });
               const txtPath = resolve(resumeDir, `${sname}-${expectId}.txt`);
@@ -1406,7 +1439,9 @@ async function main() {
 
       processedExpectIds.add(expectId);
       candidates.push(candidateData);
-      _cleanupProgressVars = { processedExpectIds, candidates, outputPath, prevOcr };
+      // pendingCandidate：本轮 OCR 还在后台跑的那一位。取消/跳过时据此判断「谁的简历没落地」
+      // （见 doCleanup），所以要跟着 _cleanupProgressVars 一起交出去
+      _cleanupProgressVars = { processedExpectIds, candidates, outputPath, prevOcr, pendingCandidate: candidateData };
 
       if ((i + 1) % 5 === 0) {
         await prevOcr;

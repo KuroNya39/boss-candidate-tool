@@ -1,5 +1,8 @@
 appId: com.web-access.candidate-tool
 productName: BOSS直聘候选人AI评分助手
+# 版权信息：写进「程序」和「安装包」的文件属性里（右键 → 属性 → 详细信息 → 版权 / 公司），
+# 日常使用界面看不到，只有专门去查才看得到；改了界面文字也抹不掉，要抹得拿源码重新打包。
+copyright: "Copyright © 2026 KuroNya39 (https://github.com/KuroNya39)"
 # 只打包中英文语言包（省 ~44M），避免带 40+ 种 Chromium 语言
 electronLanguages:
   - zh-CN
@@ -27,6 +30,11 @@ files:
   - "!LICENSES.chromium.html"
   - build/app_icon_rounded.png
   - ocr-lang/**/*
+# 许可协议随程序一起分发（协议要求：向使用者提供协议文本）。落到安装目录根部，
+# 用户点进安装目录就能看到 LICENSE.md，不必解包 app.asar
+extraFiles:
+  - from: LICENSE.md
+    to: LICENSE.md
 asarUnpack:
   - "scripts/**"
   - "config/scoring-prompt-chat.txt"

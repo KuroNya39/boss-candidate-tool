@@ -4,6 +4,8 @@
 import { app } from 'electron';
 import { resolve } from 'node:path';
 import { APP_ROOT } from './util.mjs';
+// 取消/跳过时子进程等 OCR 收尾的上限，与提取脚本共用同一个常量（见 flushProgressOnCancel）
+import { CLEANUP_OCR_GRACE_MS } from '../scripts/extract-common.mjs';
 
 function getDefaultOutputDir() {
   return app.isPackaged
@@ -82,12 +84,15 @@ export function sendStdinSignal(signal) {
   }
 }
 
-// 延迟强杀当前子进程：等 6s 让子进程 doCleanup 先落盘进度再退出（v1.3.28 放宽到 6s）。
+// 延迟强杀当前子进程：给子进程的 doCleanup 留出落盘进度的时间。
+// v1.3.28 是 6s；v1.16.0 放宽到「等 OCR 的上限 + 6s」—— 取消/跳过时 doCleanup 会先等当前那位
+// 候选人的 OCR 收尾（flushProgressOnCancel，上限 CLEANUP_OCR_GRACE_MS），掐在半路会把他写成
+// 「已完成但没简历」。子进程正常收尾后自己就退出了，这个计时器只是兜底，绝大多数情况不会真跑到。
 // 只杀同一个进程：取消/跳过/停止后若用户已快速开始新任务，currentProcess 已换，
 // 不能再按旧引用强杀，否则会误杀新任务并残留一个空引用。
 export function scheduleForceKill() {
   const proc = currentProcess;
   setTimeout(() => {
     if (currentProcess === proc) { currentProcess.kill(); currentProcess = null; }
-  }, 6000);
+  }, CLEANUP_OCR_GRACE_MS + 6000);
 }

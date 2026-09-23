@@ -44,6 +44,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 应用版本号
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 
+  // 输入框右键菜单的编辑动作（剪切/复制/粘贴/删除/全选），见 renderer-widgets.js 的右键菜单
+  editAction: (action) => ipcRenderer.invoke('edit-action', action),
+
   // 批量打招呼（source/retry 一并透传：打招呼只针对推荐牛人页，但 source 不能丢）
   startGreeting: (opts) => ipcRenderer.invoke('start-greeting', opts),
   cancelGreeting: () => ipcRenderer.invoke('cancel-greeting'),

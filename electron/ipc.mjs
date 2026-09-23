@@ -34,6 +34,11 @@ function isoToDisplayTime(iso) {
   } catch { return null; }
 }
 
+// 输入框右键菜单允许的动作（edit-action 通道的白名单，见 registerIPC）。
+// 动作名与 webContents 上的编辑命令同名，故只存名字、不建映射表 —— 少一处要跟着改的重复。
+// 用 Set 而不是对象：既是「成员判断」的本来写法，也不会被 toString 这类原型键蒙混过关
+const EDIT_ACTIONS = new Set(['cut', 'copy', 'paste', 'delete', 'selectAll']);
+
 // ===== IPC 注册 =====
 function registerIPC() {
   ipcMain.handle('start-extraction', (_event, opts) => {
@@ -53,7 +58,7 @@ function registerIPC() {
     if (currentProcess) {
       // 写入 stdin 通知子进程自行清理（Windows 下 SIGTERM 不可靠）
       sendStdinSignal('CANCEL');
-      // 等 6s 让子进程 doCleanup 先落盘进度再退出，超时强制杀
+      // 给子进程 doCleanup 留出落盘进度的时间，超时强制杀（宽限值见 state.mjs）
       scheduleForceKill();
     }
     if (aiAbortController) { aiAbortController.abort(); setAiAbortController(null); }
@@ -533,6 +538,19 @@ function registerIPC() {
   ipcMain.handle('rename-recommend-job', (_event, oldName, newName) => renameRecommendJob(oldName, newName));
 
   ipcMain.handle('delete-recommend-job', (_event, jobName) => deleteRecommendJob(jobName));
+
+  // 输入框右键菜单的编辑动作（renderer-widgets.js 的自定义菜单调这里）。
+  // 走 webContents 自带的编辑命令，而不是页面里的 document.execCommand：后者对 paste 是禁用的
+  // （网页内容拿不到剪贴板读权限），cut/copy 又依赖用户手势，同一排菜单项行为会不一致；
+  // webContents 这一套五个动作走同一条路，也不受权限与安全上下文影响。
+  // 动作名过白名单，不接受渲染进程传任意方法名
+  ipcMain.handle('edit-action', (event, action) => {
+    if (!EDIT_ACTIONS.has(action)) return false;
+    const wc = event.sender;
+    if (!wc || wc.isDestroyed()) return false;
+    wc[action](); // 作用在「该 webContents 里当前聚焦的元素」上，菜单自己不吃焦点就是为了这一步
+    return true;
+  });
 }
 
 export { registerIPC };

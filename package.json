@@ -1,8 +1,14 @@
 {
   "name": "web-access",
-  "version": "1.15.2",
+  "version": "1.16.0",
   "type": "module",
   "description": "BOSS直聘候选人AI评分助手：从BOSS直聘提取候选人简历，AI匹配评分并导出Excel",
+  "author": {
+    "name": "KuroNya39",
+    "url": "https://github.com/KuroNya39"
+  },
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "homepage": "https://github.com/KuroNya39",
   "main": "electron/main.mjs",
   "scripts": {
     "test:email": "node --test scripts/send-candidates-email.test.mjs",

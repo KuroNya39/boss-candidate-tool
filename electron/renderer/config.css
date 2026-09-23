@@ -222,7 +222,8 @@ button.is-loading::before {
   display: inline-block;
   width: 12px;
   height: 12px;
-  margin-right: var(--space-2);
+  /* 与文字的间距交给按钮自己的 flex gap（.btn 是 inline-flex + gap: --space-2）。
+     这里别再写 margin-right：两者会叠加成 16px，转圈和文字之间空出一大截 */
   border: 2px solid currentColor;
   border-top-color: transparent;
   border-radius: var(--radius-full);

@@ -284,6 +284,75 @@
   }
 }
 
+/* ===== 输入框右键菜单 ===== */
+/* 页面内浮层，与下拉同一套观感：白底 + 最浅档描边 + 下拉专属浅阴影 + menu-in/menu-out 进出场。
+   挂在 body 上、position:fixed（不受祖先 transform 影响）；层级取 --z-context-menu，
+   要盖过设置/历史弹窗的遮罩，否则弹窗里的输入框右键菜单会被遮罩埋掉 */
+.context-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-context-menu);
+  min-width: 168px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-input);
+  box-shadow: var(--shadow-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: 2px; /* 选项胶囊间的白缝：与下拉一致，刻意收紧到 2px */
+  padding: var(--space-1);
+  transform-origin: top left; /* 展开方向（贴右/贴底时翻转）在 JS 里按需改 */
+  animation: menu-in var(--dur-fast) var(--ease-out);
+  -webkit-app-region: no-drag;
+  /* 菜单自己不吃文字选中：在正文里选中一段文字后点菜单项，这一下 mousedown 会落在文档上、
+     把刚选中的内容收掉，复制就落空了。设 none 后 Chromium 不把它当选区清除的目标
+     （菜单项是 button，本来就继承 base.css 的 none；这里补的是菜单的留白与缝隙） */
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* 收起退场：与入场同路径镜像（menu-out），forwards 停帧在透明态，播完由 JS 隐藏不会闪回 */
+.context-menu--closing {
+  animation: menu-out var(--dur-fast) var(--ease-out) forwards;
+  pointer-events: none; /* 退场期间不可再点，避免点到正淡出的项 */
+}
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6); /* 左字右键之间至少留这么宽，各行的快捷键才对齐成一列 */
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-md);
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius-input);
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.context-menu-item:hover:not(:disabled),
+.context-menu-item.is-active {
+  /* 悬停未选中 = 5% 淡底，只提示可点，字色不变；键盘上下键停住的那一项同观感。
+     禁用项的守卫写在悬停规则里（同 config.css 的约定），不另写 :disabled:hover 去盖 */
+  background: var(--bg-accent-tint);
+}
+.context-menu-item:active:not(:disabled) {
+  background: var(--bg-accent-tint-selected); /* 按下 = 选中档 10%（行级元素用底色，不整体缩放，§8） */
+}
+/* 禁用 = 灰字 + not-allowed，照常占位（原生右键菜单也这么做） */
+.context-menu-item:disabled {
+  color: var(--color-disabled-text);
+  cursor: not-allowed;
+}
+.context-menu-key {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.context-menu-item:disabled .context-menu-key {
+  color: var(--color-disabled-text);
+}
+
 /* ===== 完成页结果可视化（v1.5.0）===== */
 /* 不加 margin-top：本块是 .card 的 flex 子项，与上下间距统一由卡片 gap(8px) 决定，
    再叠 margin 会跟「结果 Excel 已发送至」上方/下方的间距不一致（历史 bug：上方 8、下方 16） */

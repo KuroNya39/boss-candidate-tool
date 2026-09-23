@@ -259,7 +259,8 @@
 
 ### 弹窗分层
 
-- 叠层按 z-index token：tooltip 100 → dropdown 300 → overlay 1000 → toast 9999。
+- 叠层按 z-index token：tooltip 100 → dropdown 300 → overlay 1000 → context-menu 2000 → toast 9999。
+  （context-menu 必须高于 overlay：右键菜单挂在 `body` 上，而弹窗遮罩是 overlay 档，低于它就会被遮罩埋掉。）
 - 弹窗内容多时只在自身高度内滚动，标题与底部按钮固定。
 
 ---
@@ -356,6 +357,7 @@
 | **纯图标钮** `.btn--icon` | 同 `.btn`，但配色自成一套 | 把 `btn--sm` 的横向内距换成边长 27 的正方形（= 同一行文字钮的高度，由 `.btn--sm` 的字号 12 × 行高 1.4 + 内距 4×2 + 描边 1×2 反推；改 `--sm` 这几个值要同步重算）。**自带四态色、不搭配任何变体**——底色与描边一律 transparent，所以不要给它叠 `btn--ghost` 之类带描边的变体（会冒出一个方框）。图标尺寸按墨迹等高定，见 §7「墨迹微调」。**必须带 `aria-label`**、**不要给 `title`**（原生 title 会弹系统气泡，是用户明确要去掉的）。 |
 | **输入框** `.input-text` | rest（hover 描边变 accent）/ focus（accent 边框 + 浅环）/ disabled / 错误态（error 边框 + 提示文字或图标） | 输入框的悬停面**就是它自己的框**，不外扩到包装层。（曾试过「框 + 框内控件 = 一个悬停面」——按 `.input-wrap` / `.job-picker-search` 等包装层判悬停，理由是内嵌图标钮压在框里却不点亮框的描边；但两次被反馈范围过大，且实测包装层与输入框本就同尺寸、几何上等价，那点收益不值，已撤。）`--radius-md` / `--border-input` / `--bg-input`。错误不只变红。字段之间有依赖时（「邮箱密码」依赖「邮箱地址」）用原生 `disabled` 整框禁用、框内图标钮一起禁用，并换一句 placeholder 说明为什么不能填——不只靠变灰；已存的值不清空，依赖满足后原样回来。密码框每次打开弹窗一律复位成隐藏态，不把上次点开过的明文留在屏幕上。有值时才出现的**一键清空 ×** 用 `.input-clear`（同一族图标钮，见 §8「图标控件的状态色」）。 |
 | **下拉 / 分段钮 / 开关** | 五态；选中态 accent | 原生 `<select>` 在 Electron 部分场景打不开 → 下拉统一用自研 `custom-select`，任何情况可展开。**菜单展开时箭头一律 `rotate(180°)`**（打开即翻转，不跟随菜单是朝上还是朝下——`renderer-widgets.js` 有注释说明为何不再跟随方向）。分段钮 `toggle-group`：槽底 = `--bg-subtle`（下陷面，**不用 `--bg-page`**——`--bg-page` 与 `--bg-card` 现在是同一个色 `#ffffff`，槽的轮廓在白卡里完全看不见）；选中 = 浅蓝底 `rgba(accent,.10)` + accent 蓝字（轻量选中态，不与主 CTA 实心蓝撞车）。勾选类开关（含「开启模拟复制提取」的 `.copy-opt-group`）用原生 checkbox + `.checkbox-label`，标签包着控件、不写 `for`。accent 洗涤固定三档 `5 / 10 / 15`（悬停未选中 / 选中·按下 / **悬停已选中**），档间恒差 5，取值只在 `tokens.css` 三行里改；其中选中档 `.10` 是本节定值，不随同批调整。**按下与选中同色**——下拉 / 列表行 / 菜单项 / 候选人行的按下底色一律取 `.10`，不取第三档：按下即预览「松手后会变成的样子」，而 `.05` 一步跨到 `.15` 是跨两级、跳得太狠（用户反馈偏深）。第三档 `.15` 只用于「悬停一个**已经选中**的项」（`.selected:hover` 一类）。**分段钮不走这条**：它按下不另加底色——「压住的那一格」自己承担观感（未选中按下 = 选中档 10%、已选中 = 15%，`.is-pressed`），见 §8「按压反馈两类」。 |
+| **输入框右键菜单** `.context-menu` | 同下拉：rest / hover / active / disabled（菜单项四态齐全，**没有 focus-visible**——见右栏） | 文本类 input 与 textarea 上右键弹出，页面内浮层（不用系统原生菜单）。**观感整套复用下拉**：白底 + `--border-card` + `--shadow-dropdown` + `menu-in`/`menu-out` + 悬停 5% / 按下 10%。挂在 `body` 上、`position:fixed`、`--z-context-menu`（要盖过弹窗遮罩）。无图标；右侧标真实快捷键组合（`Ctrl+X` 这类）。**焦点始终留在输入框里**（菜单自己不吃焦点）：动作走主进程 `webContents` 的编辑命令，作用在「当前聚焦元素」上，焦点一跑就打偏了——所以键盘导航挂在 document 上、用 `.is-active` 类（与悬停同观感）标当前项，也就不存在 focus-visible 这一态。禁用项照常占位只置灰（剪切/复制/删除在密码框、只读框、无选中时禁用；粘贴在只读框禁用）。 | 
 | **卡片** `.card` | 可点卡 hover 浅浮 / focus-visible 环 | 白底 + `--shadow-card`、无描边、内距 16、内部 gap 8。 |
 | **设置弹窗** `.settings-box` | 与 `.dialog-box` 同一套进出 | 高度封顶 90vh、表单区（`.settings-body`）自己滚，滚动的左右留环做法见 §4「焦点环」；标题与底部按钮固定不动；保存后不自动关闭，按钮旁弹提示。 |
 | **弹窗字段** `.dialog-field` | focus / 错误提示 | 标签同 `.field-label`；textarea 隐藏原生 resize、用右下角拖拽手柄 `.textarea-resize-handle`。 |

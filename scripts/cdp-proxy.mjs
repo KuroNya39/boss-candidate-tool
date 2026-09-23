@@ -853,6 +853,71 @@ const server = http.createServer(async (req, res) => {
       const { canvasMain, scrollMax, scope } = info;
       if (!canvasMain || canvasMain.h < 100) { res.end(JSON.stringify({ error: 'canvas 不在简历弹窗内' })); return; }
 
+      // 1.5) 复制链路探针：在「页面写剪贴板」这件事上挂钩子，Ctrl+C 之后读回来。
+      //      拖拽复制失败时日志只有「剪贴板是空的」，看不出是页面压根没写、还是写了但被浏览器拒了
+      //      （async Clipboard API 要求文档处于焦点，被切走时会抛 NotAllowedError）——这两种原因
+      //      的修法完全不同，先让页面自己说出来。只读不改行为：原函数照常调用。
+      const copyDiagJs = `(function(){
+        function hook(w, name){
+          if (!w || !w.document) return;
+          try {
+            // 顶层页面整轮不重载：挂过就只重置计数，别再叠一层监听器与包装链
+            // （否则监听器数随候选人数线性涨，500 人一轮就是 500 层）
+            var d = w.__copyDiag;
+            if (d) {
+              d.name = name; d.focus = w.document.hasFocus(); d.vis = w.document.visibilityState;
+              d.wt = 0; d.wtLen = -1; d.wtErr = ''; d.cev = 0; d.cevLen = -1; d.ec = 0;
+              return;
+            }
+            d = { name: name, focus: w.document.hasFocus(), vis: w.document.visibilityState, wt: 0, wtLen: -1, wtErr: '', cev: 0, cevLen: -1, ec: 0 };
+            w.__copyDiag = d;
+            var cb = w.navigator && w.navigator.clipboard;
+            if (cb && cb.writeText) {
+              var orig = cb.writeText.bind(cb);
+              cb.writeText = function(t){ d.wt++; return orig(t).then(function(){ d.wtLen = (t||'').length; }).catch(function(e){ d.wtErr = String(e && e.name ? e.name : e).slice(0, 60); }); };
+            }
+            w.document.addEventListener('copy', function(ev){ d.cev++; try { d.cevLen = ev.clipboardData ? String(ev.clipboardData.getData('text/plain')||'').length : -1; } catch(e){} }, true);
+            var oec = w.document.execCommand;
+            w.document.execCommand = function(c){ if (c === 'copy') d.ec++; return oec.apply(this, arguments); };
+          } catch(e) { try { w.__copyDiag = { name: name, hookErr: String(e).slice(0, 60) }; } catch(_){} }
+        }
+        hook(window, '外层');
+        // 简历挂在哪个 iframe 里各页不同（推荐页 recommendFrame、搜索页 searchFrame），同源的都挂上；
+        // 跨域的简历 iframe（c-resume OOPIF）拿不到 contentWindow，读不到就跳过
+        try {
+          var fs = document.querySelectorAll('iframe');
+          for (var i=0;i<fs.length;i++) {
+            var f = fs[i], n = f.name || f.id || ('iframe' + i), cw = null;
+            try { cw = f.contentWindow; } catch(e) { cw = null; }
+            if (cw) hook(cw, n);
+          }
+        } catch(e) {}
+        return 'hooked';
+      })()`;
+      try { await sendCDP('Runtime.evaluate', { expression: copyDiagJs, returnByValue: true }, sid); } catch {}
+      const readCopyDiag = async () => {
+        const readJs = `(function(){
+          var out = { top: window.__copyDiag || null, frames: [] };
+          try {
+            var fs = document.querySelectorAll('iframe');
+            for (var i=0;i<fs.length;i++) {
+              var cw = null;
+              try { cw = fs[i].contentWindow; } catch(e) { cw = null; }
+              var d = cw && cw.__copyDiag;
+              if (d) out.frames.push(d);
+            }
+          } catch(e) { out.frameErr = String(e).slice(0, 60); }
+          out.focusNow = document.hasFocus();
+          return JSON.stringify(out);
+        })()`;
+        try {
+          const r = await sendCDP('Runtime.evaluate', { expression: readJs, returnByValue: true }, sid);
+          const v = r && r.result && r.result.value;
+          if (!v) return { readErr: '页面未返回探针结果' };
+          return JSON.parse(v);
+        } catch (e) { return { readErr: `读探针失败:${String(e.message || e).slice(0, 50)}` }; }
+      };
+
       // 2) 拖拽选中：从简历顶部文字区按住，拖到当前屏底部（不超出视口）
       const X0 = canvasMain.x + Math.round(canvasMain.w * 0.4);
       // 起点压到画布最上沿内侧：以前是 +60（想跳过头部留白抓首行），结果把姓名行和活跃度
@@ -933,10 +998,11 @@ const server = http.createServer(async (req, res) => {
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyDown', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL }, sid);
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyUp', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL }, sid);
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17, modifiers: 0 }, sid);
-      // 等浏览器把 Ctrl+C 处理完、文本落到系统剪贴板再响应。200ms 足够：客户端收到响应后
-      // 还会 sleep 50ms 再起一次 PowerShell（Get-Clipboard），进程启动本身就有三四百毫秒的缓冲
+      // 等浏览器把 Ctrl+C 处理完再响应。这里只给一个起步的 200ms —— 页面把全文写进系统剪贴板
+      // 是异步的、快慢不定，收尾由客户端轮询剪贴板（CLIPBOARD_WRITE_WAIT_MS）负责
       await sleepMs(200);
-      res.end(JSON.stringify({ ok: true, canvasMain, scrollMax, scrolled, scope, winH: info.winH, yBottom: (info.winH || 900) - 2, scrollSel: info.scrollSel, diag: info.diag, elapsed: Date.now() - copyStart }));
+      const copyDiag = await readCopyDiag();
+      res.end(JSON.stringify({ ok: true, canvasMain, scrollMax, scrolled, scope, winH: info.winH, yBottom: (info.winH || 900) - 2, scrollSel: info.scrollSel, diag: info.diag, copyDiag, elapsed: Date.now() - copyStart }));
     }
 
     // POST /setFiles?target=xxx — 给 file input 设置本地文件（绕过文件对话框）

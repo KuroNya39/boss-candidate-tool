@@ -18,6 +18,9 @@ import { currentProcess, setCurrentProcess, cdpProxyProcess, setCdpProxyProcess 
 
 // ===== 应用生命周期 =====
 app.whenReady().then(() => {
+  // 启动版权 banner：只写终端与 app.log，界面上没有日志面板，日常使用看不到。
+  // 作用是留下署名痕迹（署名 + 仓库 + 许可协议），别指望它拦住想抄的人。
+  termLog(`[main] BOSS直聘候选人AI评分助手 v${app.getVersion()} · © 2026 KuroNya39 · github.com/KuroNya39 · PolyForm Noncommercial 1.0.0`);
   loadApiConfig();
   mkdirSync(JD_DIR, { recursive: true });
   registerIPC();

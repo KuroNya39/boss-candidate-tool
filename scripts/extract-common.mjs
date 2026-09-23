@@ -16,6 +16,11 @@ import http from 'node:http';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const PROXY_PORT = 3456;
 
+// 取消/跳过时等当前那位候选人 OCR 收尾的上限（见 flushProgressOnCancel）。
+// 主进程的强杀宽限必须比它大：electron/state.mjs 用这个常量加余量算强杀点，
+// 改这里就够，别再去主进程里改一个对不上的数字
+export const CLEANUP_OCR_GRACE_MS = 20000;
+
 // ===== CDP Proxy HTTP 调用 =====
 
 export function proxyGet(path) {
@@ -728,6 +733,34 @@ export function saveProgress(processedGeekIds, candidates, outputPath, source) {
   }, null, 2), 'utf8');
 }
 
+// 取消/跳过时把进度落盘，并收尾「当前这位候选人」还没跑完的后台 OCR（三个提取脚本共用）。
+// 参数：processedIds 已完成 id 的 Set；idOf(candidate) 取它在 Set 里的键（沟通页 geekId，
+// 搜索页 expectId || geekId）；其余是脚本里的本地变量。
+// v1.3.28：先落盘，别等 OCR 全部收尾——原来等完会被主进程的强杀超时抢先，最近几人白干。
+// v1.16.0：等 OCR 的上限 3s → 20s。截图模式下当前这位的 OCR 正在后台跑（与下一位点击重叠），
+// 3s 根本不够一份多页简历（实测约 1.5~2s/页，10 页要 15s+）：掐在半路的结果是他只落了半份简历、
+// 甚至 resumeText 还是空的，却被写进「已完成」——恢复后拿空简历去评分（分数无意义），
+// 下次 --resume 又会跳过他不重抓。主进程的强杀宽限按 CLEANUP_OCR_GRACE_MS 加余量（state.mjs）。
+export async function flushProgressOnCancel({ processedIds, candidates, outputPath, prevOcr, pendingCandidate, idOf }) {
+  try {
+    const raced = await Promise.race([prevOcr.then(() => 'done'), sleep(CLEANUP_OCR_GRACE_MS).then(() => 'timeout')]);
+    // 等不到头（超长简历）：把他从「已完成」里摘掉，本轮不评分，留给下次提取重新抓。
+    // 只摘「OCR 还在跑的那一位」——弹窗没打开等主动跳过的候选人同样没有 resumeText，
+    // 那种是有意跳过、要留在已完成里的，不能一起摘
+    if (raced === 'timeout' && pendingCandidate && !pendingCandidate.resumeText) {
+      processedIds.delete(idOf(pendingCandidate));
+      const idx = candidates.indexOf(pendingCandidate);
+      if (idx >= 0) candidates.splice(idx, 1);
+      const who = (pendingCandidate.basicInfo && pendingCandidate.basicInfo.name) || idOf(pendingCandidate) || '当前候选人';
+      console.log(`  ⏳ ${who} 的简历还没识别完，本轮不计入（下次提取会重新抓）`);
+    }
+    saveProgress(processedIds, candidates, outputPath);
+    console.log(`  💾 取消前已保存进度（${processedIds.size} 人）`);
+  } catch (e) {
+    console.warn(`  ⚠ 取消前保存进度失败： ${e.message}`);
+  }
+}
+
 export function loadProgress(outputPath) {
   const progressPath = getProgressPath(outputPath);
   if (!existsSync(progressPath)) return null;
@@ -1040,7 +1073,9 @@ const COPY_JUNK_RX = new RegExp(COPY_JUNK_RE, 'i');
 // 开启=DOM提取→模拟复制→截图OCR；关闭=DOM提取→截图OCR（不碰系统剪贴板）。
 // 默认开启（向后兼容）；三个提取脚本 main() 都调用 parseArgs()，由 --enable-copy 参数统一设置。
 let enableCopyFlag = true;
-export function setEnableCopyFlag(v) { enableCopyFlag = !!v; }
+export function setEnableCopyFlag(v) {
+  enableCopyFlag = !!v;
+}
 
 // 本子进程当前跑的来源（推荐/搜索/沟通）。由 parseArgs 从 --source 读入；
 // 供 saveScanCache / saveProgress 写进数据文件，作为批次的「真实来源」存档——
@@ -1050,34 +1085,55 @@ export function setRunSource(v) { currentRunSource = v; }
 export function getRunSource() { return currentRunSource; }
 export function getEnableCopyFlag() { return enableCopyFlag; }
 
-// 读系统剪贴板文本（PowerShell 兜底通道：页面复制处理器把全文写进 OS 剪贴板，直接读它最贴近手动复制）
+// ---- 系统剪贴板：一律「现起一个短命 PowerShell」 ----
+// 别再改回常驻助手。2026-09-23 实测踩过：把读写剪贴板换成常驻的 STA 控制台进程后，复制成功率
+// 从 ~99.9%（当天前 8 小时 900+ 次成功、失败个位数）掉到 1/6，日志报「Get-Clipboard : 所请求的
+// 剪贴板操作失败」——剪贴板被别的进程握着，Boss 页面自己也就写不进去，于是每次都读到空。
+// 机制：OLE 剪贴板调用会回调属主线程，而常驻助手正卡在 ReadLine 上、不泵消息，一旦吊死就一直
+// 握着剪贴板不放；短命进程卡住会自己退出、锁随之释放，所以老写法能自愈。
+// 代价：每次操作都要等 PowerShell 冷启动（本机约 0.3s，慢机器 1.5~2.5s），一次拖拽复制要 4 次。
+// 宁可慢，也不能把复制功能弄坏。
+
+// —— 读写剪贴板（每次现起一个短命 PowerShell；同步调用，没有 async 版本）——
 // 本文件每次 execSync 调 powershell 都必须显式写 stdio:'pipe'：Windows 上不写它，子进程的 stderr
 // 会直接被转写进本进程 stderr、被 app 收进日志面板（中文以 GBK 出来，看着就是一段乱码）；写了才被吞掉
-function readOsClipboard() {
+
+// 读系统剪贴板。返回 { text, err }：
+//   text 字符串 → 读到了（空串 = 剪贴板本来就是空的）
+//   text null   → 根本没读到（命令超时 / 剪贴板被别的进程占着），err 是原因
+// 这两种必须分开：空串是「页面没写」，null 是「整个剪贴板被锁住」——2026-09-23 那次复制全失败就是
+// 后者（Get-Clipboard 报「所请求的剪贴板操作失败」），日志里只留一句「剪贴板是空的」会把人引偏。
+// 所以这条命令不写 -ErrorAction SilentlyContinue：剪贴板打不开时要让它报错，才分得出来
+function readClipboard() {
   try {
-    const out = execSync(
-      'powershell -NoProfile -Command "$t = Get-Clipboard -Raw -ErrorAction SilentlyContinue; if ($t -ne $null) { [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($t)) }"',
-      { encoding: 'utf8', timeout: 8000, windowsHide: true, stdio: 'pipe' },
-    );
-    if (!out || !out.trim()) return ''; // PowerShell 正常返回空 = 剪贴板本来就是空的
-    return Buffer.from(out.trim(), 'base64').toString('utf8');
+    const ps = [
+      '[Console]::OutputEncoding=[Text.Encoding]::UTF8',
+      '$t = Get-Clipboard -Raw',
+      'if($t){ [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes([string]$t)) }',
+    ].join('; ');
+    const out = execSync(`powershell -NoProfile -Command "${ps}"`, { encoding: 'utf8', timeout: 15000, windowsHide: true, stdio: 'pipe' });
+    const b64 = (out || '').trim();
+    if (!b64) return { text: '', err: '' };
+    return { text: Buffer.from(b64, 'base64').toString('utf8'), err: '' };
   } catch (e) {
-    // 读失败（超时/被拦）返回 null，与上一行的空串区分开：空串是「读到了，内容是空」，
-    // null 是「根本没读到」。还原时若把「没读到」当空串写回去，等于借一条读不到内容的路径
-    // 把用户剪贴板顺手清空（restoreOsClipboard 只跳过 null/undefined）
-    return null;
+    console.warn(`  ⚠ 读取系统剪贴板失败： ${e.message}`);
+    return { text: null, err: briefErr(e.message) };
   }
 }
 
-// 清空系统剪贴板的那条 PowerShell。两处要用——「还原一份本来就为空的剪贴板」和「拖拽复制前清场」，
-// 只留一份：两处各自抄一遍，改了一处忘了另一处就成了两套行为
-const PS_CLIPBOARD_CLEAR = 'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Clipboard]::Clear()';
+// execSync 报错是多行（命令 + PowerShell 的报错），只留最后一行有用的
+function briefErr(m) {
+  const ls = String(m || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  return ls.length ? ls[ls.length - 1].slice(0, 60) : '未知错误';
+}
 
-// 写系统剪贴板；text 为空 = 清空剪贴板。内容用 base64 走 stdin（input）传，不拼进命令行：
+// 写系统剪贴板；text 为空 = 清空剪贴板（拖拽复制前清场也走这里，不再单写一条清空命令）。
+// 内容用 base64 走 stdin（input）传，不拼进命令行：
 // 拼命令行有两个坑——① 内容一长（用户复制过长文档）就超 Windows 命令行长度上限，spawn 直接
 // ENAMETOOLONG，还原悄悄失败；② 还得处理引号转义。走 stdin 这些都不存在，命令串是固定常量。
 // 空内容也不能直接交给 `Set-Clipboard -Value`：空串会被当成 null 抛 ArgumentNullException
 // （「值不能为 null」），而「原本的剪贴板就是空的」是最常见的一种情况——不判空就每位候选人报一次错
+const PS_CLIPBOARD_CLEAR = 'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Clipboard]::Clear()';
 function setOsClipboard(text) {
   try {
     const b64 = Buffer.from(text, 'utf8').toString('base64');
@@ -1086,15 +1142,18 @@ function setOsClipboard(text) {
       '$t = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b64))',
       `if ($t) { Set-Clipboard -Value $t } else { ${PS_CLIPBOARD_CLEAR} }`,
     ].join('; ');
-    execSync(`powershell -NoProfile -Command "${ps}"`, { encoding: 'utf8', timeout: 8000, windowsHide: true, stdio: 'pipe', input: b64 });
-  } catch (e) {}
+    execSync(`powershell -NoProfile -Command "${ps}"`, { encoding: 'utf8', timeout: 15000, windowsHide: true, stdio: 'pipe', input: b64 });
+  } catch (e) {
+    console.warn(`  ⚠ 写系统剪贴板失败： ${e.message}`);
+  }
 }
 
 // 保存原剪贴板，结束后恢复（尽量不打扰用户正在复制的文字）。
 // 保存的内容由调用方持有（saveOsClipboard 返回它、restoreOsClipboard 收回去），
 // 不放模块级变量：这样谁存的谁还，即使将来两条复制路径嵌套也不会把别人的内容还错。
+// 返回 null = 没读到（恢复时跳过：把「没读到」当空串写回去，等于顺手清空用户的剪贴板）
 function saveOsClipboard() {
-  return readOsClipboard();
+  return readClipboard().text;
 }
 function restoreOsClipboard(saved) {
   if (saved === null || saved === undefined) return;
@@ -1364,7 +1423,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
   picks.push(resC);
 
   // 2) 系统剪贴板兜底：哨兵还在 = 都没写入；变了 = 某次尝试真的生成了全文
-  const osClip = readOsClipboard();
+  const osClip = readClipboard().text;
   const osHit = !!osClip && osClip !== '__BCT_COPY_SENTINEL__';
   restoreOsClipboard(savedClipboard);
   await cleanupTrustedCopy(targetId, ctx);
@@ -1396,31 +1455,6 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
 // Boss 新版简历是 canvas 绘制（DOM 零文字），复制走 navigator.clipboard.writeText（直接写系统剪贴板），
 // 页面内截获 copy 事件永远读到 0 字（历史 iframe事件[BODY:0]）。等价用户手动操作的正确做法：
 //   清空系统剪贴板 → 真实鼠标按住拖选 → 滚动简历容器到最底（选中扩展） → 真实 Ctrl+C → powershell 读剪贴板全文。
-function clearSystemClipboard() {
-  try {
-    execSync(`powershell -NoProfile -Command "${PS_CLIPBOARD_CLEAR}"`, { timeout: 10000, encoding: 'utf8', stdio: 'pipe' });
-  } catch (e) {
-    console.warn(`  ⚠ 清空系统剪贴板失败： ${e.message}`);
-  }
-}
-
-function readSystemClipboard() {
-  try {
-    const ps = [
-      '[Console]::OutputEncoding=[Text.Encoding]::UTF8',
-      '$t = Get-Clipboard -Raw',
-      'if($t){ [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes([string]$t)) }',
-    ].join('; ');
-    const out = execSync(`powershell -NoProfile -Command "${ps}"`, { timeout: 15000, encoding: 'utf8', stdio: 'pipe' });
-    const b64 = (out || '').trim();
-    if (!b64) return '';
-    return Buffer.from(b64, 'base64').toString('utf8');
-  } catch (e) {
-    console.warn(`  ⚠ 读取系统剪贴板失败： ${e.message}`);
-    return '';
-  }
-}
-
 export async function tryExtractCanvasResumeByDragCopy(targetId, label = 'DOM') {
   if (!enableCopyFlag) { console.log(`  ${label}🔍 模拟复制已关闭（界面设置），跳过复制直接截图`); return null; }
 
@@ -1441,6 +1475,30 @@ export async function tryExtractCanvasResumeByDragCopy(targetId, label = 'DOM') 
 
 // 上一条的实体：单次复制尝试与那次重试的全部逻辑，语句原样保留（只搬出外层，
 // 好让剪贴板的 save/restore 用 try/finally 收口 —— 函数里 return 分支多，逐个手动还原迟早漏一个）
+// 把 /canvas-copy 带回来的「页面复制链路探针」压成一行日志：Ctrl+C 之后剪贴板却为空时，
+// 一眼看出是页面没写（写API=0/copy事件=0）还是写了但被浏览器拒了（写API=1(NotAllowedError)）。
+// 焦点字段同因：async Clipboard API 要求文档有焦点，被切走时写会直接抛错。
+function fmtCopyDiag(d) {
+  if (!d) return '页面无探针';
+  const one = (x) => {
+    if (!x) return '';
+    const name = x.name || '?';
+    if (x.hookErr) return `${name}{挂钩失败:${x.hookErr}}`;
+    const parts = [`焦点=${x.focus ? '有' : '无'}`, `写API=${x.wt}`];
+    if (x.wtLen >= 0) parts.push(`成功${x.wtLen}字`);
+    if (x.wtErr) parts.push(`抛错:${x.wtErr}`);
+    parts.push(`copy事件=${x.cev}`);
+    if (x.cevLen >= 0) parts.push(`选中${x.cevLen}字`);
+    if (x.ec) parts.push(`execCommand=${x.ec}`);
+    return `${name}{${parts.join(' ')}}`;
+  };
+  const out = [one(d.top), ...(d.frames || []).map(one)].filter(Boolean);
+  if (d.frameErr) out.push(`iframe探针异常:${d.frameErr}`);
+  if (d.readErr) out.push(d.readErr);
+  if (d.focusNow === false) out.push('结束时页面已失焦');
+  return out.join(' ') || '页面无记录';
+}
+
 async function runCanvasDragCopy(targetId, label) {
   // 单次 /canvas-copy 限时：正常复制端点最坏 ~15s（重载 iframe + 滚动 + Ctrl+C）。
   // 复制进行中若标签页被切走，页面冻结会让端点的 CDP 操作卡住。处理方式不是「干等满额超时、
@@ -1450,6 +1508,7 @@ async function runCanvasDragCopy(targetId, label) {
   // 实测被切走的场景 6~8 秒内自愈，不再干等 30s/60s。
   const COPY_ATTEMPT_TIMEOUT = 20000; // 单次请求安全上限
   const KICK_AFTER_MS = 6000;         // 超过此时长没返回 → 查一次是否被切走，是就切回
+  const CLIPBOARD_WRITE_WAIT_MS = 2000; // Ctrl+C 之后等页面把全文写进剪贴板的上限（见下）
 
   const goodText = (text) => text.length >= DOM_MIN_TEXT_LEN && !COPY_JUNK_RX.test(text);
 
@@ -1457,9 +1516,9 @@ async function runCanvasDragCopy(targetId, label) {
   // 返回 { text } 成功；{ timeout } 客户端等满超时；{ errCode, elapsed } 服务器明确报错；
   // { empty } 服务器说成功但剪贴板为空/文本不可用。外层据此决定要不要重试。
   const attempt = async () => {
-    clearSystemClipboard();
-    // clearSystemClipboard 是同步 PowerShell（进程退出即生效），不需要长等；120ms 只是让
-    // 剪贴板服务的写入落到系统里（原 250ms 是纯保险，占的也是用户剪贴板被清空的时间）
+    setOsClipboard('');
+    // 清空是同步语义（命令返回即已生效），不需要长等；120ms 只是让剪贴板服务的写入落到系统里
+    // （原 250ms 是纯保险，占的也是用户剪贴板被清空的时间）
     await sleep(120);
 
     // —— 自愈唤醒点：请求没按时回来，多半是标签页被切走了，把 Boss 页切回前台让它自己跑完 ——
@@ -1484,9 +1543,20 @@ async function runCanvasDragCopy(targetId, label) {
       console.log(`  ${label}🔍 canvas复制： 拖拽复制失败 ${errMsg}${elapsedTxt}`);
       return { errCode: r && r.error, elapsed: r && r.elapsed };
     }
-    await sleep(50); // 端点返回即剪贴板已写好，50ms 只够系统剪贴板服务提交；读剪贴板本身还要起 PowerShell（几百毫秒），余量足够
-    const raw = readSystemClipboard();
-    const text = (raw || '').replace(/^﻿/, '').replace(/\r\n/g, '\n').trim();
+    // 端点返回 = Ctrl+C 已发完，但「页面把全文写进系统剪贴板」是异步的：Boss 的复制处理器收到
+    // Ctrl+C 后还要跑自己的流程，简历 canvas 重时能拖到几百毫秒。剪贴板已在前一步清空，所以读到空
+    // 只说明「还没写完」，不等于失败 —— 短轮询等它出现（最多 CLIPBOARD_WRITE_WAIT_MS）。
+    // 注意每读一次都要现起一个 PowerShell（本机约 0.3s，慢机器 1.5~2.5s），这个预算实际只够读一两次，
+    // 这是「别再改回常驻助手」换来的代价（见本文件剪贴板那段注释）：宁可慢，也不能把复制弄坏
+    const waitUntil = Date.now() + CLIPBOARD_WRITE_WAIT_MS;
+    let text = '', readErr = '';
+    for (;;) {
+      await sleep(60);
+      const clip = readClipboard();
+      readErr = clip.err;
+      text = (clip.text || '').replace(/^﻿/, '').replace(/\r\n/g, '\n').trim();
+      if (text.length > 0 || Date.now() >= waitUntil) break;
+    }
     if (goodText(text)) {
       const diag = r.diag ? `，容器SH/CH=${r.diag.outerSH}/${r.diag.outerCH}, iframe内=${r.diag.innerSH}/${r.diag.innerVH}` : '';
       const el = r.elapsed ? `，用时 ${(r.elapsed / 1000).toFixed(1)}s` : '';
@@ -1494,6 +1564,12 @@ async function runCanvasDragCopy(targetId, label) {
       return { text };
     }
     if (text.length > 0) console.log(`  ${label}🔍 canvas复制： 剪贴板 ${text.length} 字不可用`);
+    else {
+      // 剪贴板为空 = 页面压根没写；读的时候报错 = 剪贴板被别的进程锁着（页面同样写不进去）。
+      // 再叠上页面探针，失败原因就写清楚了
+      const locked = readErr ? `，读剪贴板报错「${readErr}」` : '';
+      console.log(`  ${label}🔍 canvas复制： 剪贴板是空的（滚动 ${r.scrollMax}px${locked}，${fmtCopyDiag(r.copyDiag)}）`);
+    }
     return { empty: true };
   };
 
@@ -1730,6 +1806,68 @@ export function parseEducationFromResume(resumeText) {
   }
 
   return dedupeEduResults(results);
+}
+
+/**
+ * 从简历文本中解析工作经历条目（时间、公司、职位）
+ *
+ * BOSS直聘简历文本里每段工作经历是「公司名 / 职位 / 时间区间」三行打头，后面跟职责描述：
+ *   深圳市德明利技术股份有限公司
+ *   项目经理/主管
+ *   2026.06 - 至今
+ * 故以时间行为锚点、回看紧邻的两行取职位与公司（中间可能夹着技能标签等噪音行，
+ * 但紧邻时间行的两行始终是公司/职位）。搜索页卡片不带在职时间，Excel「在职时间」列靠这里补。
+ * 简历按时间倒序，返回结果的 [0] 即最近一段工作。
+ * 返回项带 embedded 标记：true 表示这个日期区间出现在描述正文里、不是条目头（公司/职位不可信）。
+ */
+export function parseWorkExperienceFromResume(resumeText) {
+  if (!resumeText || resumeText.length < 50) return [];
+
+  // 时间行：2026.06 - 2024.05 / 2022.6-至今 / 2022年6月—2024年5月（OCR 常把 - 认成 – — ~ 等）
+  // 起点也接受「1990年以前」这种简历原话（Boss 卡片会把它渲染成 1989.01）
+  const TIME_RE = /((?:19|20)\d{2}\s*(?:年\s*(?:以前|之前)|[.\-/年]\s*\d{1,2}\s*月?))\s*[-–—~～至]+\s*((?:19|20)\d{2}\s*[.\-/年]\s*\d{1,2}\s*月?|至今|今|现在)/;
+  // 条目头判定的余量：时间行后面最多还能跟这么几个字符（如句末标点）仍算「日期独占一行」
+  const EMBEDDED_SLACK = 3;
+  // 归一成推荐页卡片的写法（'2025.03' / '至今'）；认不出的原样保留
+  const fmt = (s) => {
+    const m = s.match(/((?:19|20)\d{2})\s*[.\-/年]\s*(\d{1,2})/);
+    return m ? `${m[1]}.${m[2].padStart(2, '0')}` : s.replace(/\s+/g, '');
+  };
+
+  // 定位「工作经历」段落（取最先出现的那个标题）
+  const header = ['工作经历', '工作经验', '工作履历'].find((h) => resumeText.includes(h));
+  if (!header) return [];
+  let section = resumeText.substring(resumeText.indexOf(header) + header.length);
+
+  // 截断到下一段落（只认行首标题，避免把描述里的词当标题）
+  const NEXT_HEADERS = [
+    '项目经验', '项目经历', '教育经历', '教育背景', '专业技能', '技能特长', '资格证书',
+    '证书', '自我评价', '个人评价', '获奖经历', '荣誉奖项', '在校经历',
+  ];
+  let cut = section.length;
+  for (const h of NEXT_HEADERS) {
+    const i = section.indexOf('\n' + h);
+    if (i >= 0 && i < cut) cut = i;
+  }
+  section = section.substring(0, cut);
+
+  const lines = section.replace(/\r/g, '').split('\n').map(l => l.trim());
+  const results = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(TIME_RE);
+    if (!m) continue;
+    // 与推荐页卡片保持同一种写法：'2025.03 - 至今'
+    const time = `${fmt(m[1])} - ${fmt(m[2])}`;
+    // 日期区间在描述正文里也会出现（如「跨部门专案支援（2025.06 - 2025.10） | 核心成果…」），
+    // 那种不是条目头、前面的两行也不是公司/职位。条目头的日期基本独占一行，据此标记 embedded。
+    const embedded = lines[i].length > m[0].length + EMBEDDED_SLACK;
+    const prev = [];
+    for (let j = i - 1; j >= 0 && prev.length < 2; j--) {
+      if (lines[j]) prev.push(lines[j]);
+    }
+    results.push({ time, position: prev[0] || '', company: prev[1] || '', embedded });
+  }
+  return results;
 }
 
 /**
@@ -2009,7 +2147,7 @@ export function parseArgs() {
 
   // v1.4.4：模拟复制开关（界面「开启模拟复制」传入 --enable-copy 1/0，默认开启）
   opts.enableCopy = opts['enable-copy'] !== '0';
-  enableCopyFlag = opts.enableCopy;
+  setEnableCopyFlag(opts.enableCopy);
 
   // 记录本子进程的真实来源（主进程传入 --source，如 recommend-attach / search / chat）
   if (opts.source) currentRunSource = opts.source;

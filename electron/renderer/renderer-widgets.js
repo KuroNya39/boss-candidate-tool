@@ -154,6 +154,266 @@ function initCustomSelect(container) {
 initCustomSelect(greetLevel);
 initCustomSelect(autoGreetLevel);
 
+// ===== 右键菜单（输入框 + 正文）=====
+// 此前输入框只能用快捷键复制粘贴。做成页面内浮层而不是系统原生菜单（Menu.popup）：原生菜单由
+// 操作系统绘制，配色 / 圆角 / 动效都跟本应用对不上；浮层则直接复用下拉那一套（--z-context-menu /
+// --shadow-dropdown / menu-in、menu-out / 悬停 5% 淡底 / 按下 10%），与「和其他类似的下拉保持一致」对得上。
+// 不带图标；右侧标真实的快捷键组合（与 Google 右键菜单同款排布）——只标单字母会跟真按下去的键对不上。
+// 动作全部走主进程的 webContents 编辑命令（preload 的 editAction）：页面里的 document.execCommand
+// 对 paste 是禁用的（网页内容拿不到剪贴板读权限），cut/copy 又依赖用户手势，五个动作统一走一条路更稳。
+//
+// 两套菜单项：输入框给全套五项；正文（候选人姓名、输出目录、错误信息这些能选中的文字）只给
+// 复制 / 全选 —— 剪切 / 粘贴 / 删除在只读文字上没有语义，摆一排灰项只是噪音。
+const CONTEXT_MENU_ITEMS = [
+  { action: 'cut', label: '剪切', key: 'Ctrl+X' },
+  { action: 'copy', label: '复制', key: 'Ctrl+C' },
+  { action: 'paste', label: '粘贴', key: 'Ctrl+V' },
+  { action: 'delete', label: '删除', key: 'Del' },
+  { action: 'selectAll', label: '全选', key: 'Ctrl+A' },
+];
+const CONTEXT_MENU_TEXT_ITEMS = [
+  { action: 'copy', label: '复制', key: 'Ctrl+C' },
+  { action: 'selectAll', label: '全选', key: 'Ctrl+A' },
+];
+
+// 能用右键菜单的控件：文本类 input 与 textarea。勾选框 / 单选框 / 文件选择这些没有文本编辑语义，
+// 不弹菜单（原生右键在那几个上也没有这些项）
+const CONTEXT_MENU_INPUT_TYPES = new Set(['text', 'search', 'url', 'tel', 'email', 'password', 'number']);
+function isTextEntry(el) {
+  if (!el) return false;
+  if (el.tagName === 'TEXTAREA') return true;
+  if (el.tagName !== 'INPUT') return false;
+  return CONTEXT_MENU_INPUT_TYPES.has((el.getAttribute('type') || 'text').toLowerCase());
+}
+
+// 落点是不是「能选中的正文」。交互控件（按钮 / 可点行 / 标签）都显式设了 user-select:none
+// （base.css 的 button 规则 + 各处可点行），所以沿祖先链走一遍、遇到第一个 none 就说明点在了
+// 控件里，不给菜单。逐个祖先查而不是只读落点自身的计算值：user-select 在 Chromium 里是继承的、
+// 按规范却不是，自己走链最稳，不受实现差异影响。
+// 控件本身（复选框 / 下拉 / 文件选择 / 禁用输入框）另外挡掉——它们没有「选中文字复制」的语义。
+function isSelectableText(el) {
+  const tag = el.tagName;
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return false;
+  for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
+    if (getComputedStyle(n).userSelect === 'none') return false;
+  }
+  return true;
+}
+
+let contextMenuEl = null;
+// 右键点中的字段；null 表示落在正文上（没有字段可作用，编辑命令走文档选区）——
+// 「是不是正文模式」全部由它判断，不再另设一个 mode 变量跟着同步
+let contextMenuTarget = null;
+let contextMenuSel = null;      // 输入框那一刻的选区，执行动作前还原（见 runContextMenuAction）
+let contextMenuRange = null;    // 正文那一刻的选区（Range），同理
+let contextMenuCloseTimer = null;
+
+// 菜单是不是正开着（收起时只是 display:none 留在 DOM 里等下次重建）
+function isContextMenuOpen() {
+  return !!contextMenuEl && contextMenuEl.style.display !== 'none';
+}
+
+function buildContextMenu(target) {
+  const items = target ? CONTEXT_MENU_ITEMS : CONTEXT_MENU_TEXT_ITEMS;
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.setAttribute('role', 'menu');
+  menu.setAttribute('aria-hidden', 'true');
+  menu.style.display = 'none';
+  items.forEach(({ action, label, key }) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'context-menu-item';
+    item.dataset.action = action;
+    item.setAttribute('role', 'menuitem');
+    const labelEl = document.createElement('span');
+    labelEl.textContent = label;
+    const keyEl = document.createElement('span');
+    keyEl.className = 'context-menu-key';
+    keyEl.textContent = key;
+    item.append(labelEl, keyEl);
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      runContextMenuAction(item.dataset.action);
+    });
+    menu.appendChild(item);
+  });
+  document.body.appendChild(menu);
+  return menu;
+}
+
+// target 为 null = 落在正文上（只有文档选区，没有字段）
+function openContextMenu(x, y, target) {
+  // 每次右键都重建菜单：项数按落点定（正文只有复制/全选），重建比「记住上次是哪种、不同才重建」
+  // 少一个状态变量，菜单也就两三个按钮，这点开销可以忽略。重建前清掉退场计时器，
+  // 免得它到点去动已经换掉的节点
+  if (contextMenuEl) {
+    clearTimeout(contextMenuCloseTimer);
+    contextMenuEl.remove();
+  }
+  const menu = buildContextMenu(target);
+  contextMenuEl = menu;
+  contextMenuTarget = target;
+  contextMenuSel = null;
+  contextMenuRange = null;
+  if (target) {
+    try {
+      contextMenuSel = { start: target.selectionStart, end: target.selectionEnd, dir: target.selectionDirection };
+    } catch { contextMenuSel = null; } // number 等读不到选区的类型
+  } else {
+    // 正文没有「字段」可还原，改捕获文档选区。点菜单项那一下会把它收掉，执行前放回去
+    const s = window.getSelection();
+    if (s && s.rangeCount > 0 && !s.isCollapsed) contextMenuRange = s.getRangeAt(0).cloneRange();
+  }
+
+  // 各项可用性按当前字段状态定（禁用项照常占位、只置灰，原生右键菜单也是这么做的）：
+  // 密码框不给剪切 / 复制 / 删除（明文不外流，与浏览器一致）；只读框不给改内容的动作；
+  // 没有选中文本时剪切 / 复制 / 删除无从下手。粘贴在密码框里是允许的（浏览器也允许）。
+  // 正文模式只有复制 / 全选：没选中文字时复制灰着、全选照常可用（与 Chrome 一致，右键总有反应）。
+  let enabled;
+  if (!target) {
+    // 正文模式没有字段可问，只按「有没有选中文字」定
+    enabled = { copy: !!contextMenuRange, selectAll: true };
+  } else {
+    const isPassword = target.type === 'password';
+    const readOnly = target.readOnly === true;
+    // 上面刚捕获的选区就是答案，不再回头问一遍字段
+    const hasSel = !!contextMenuSel && contextMenuSel.start !== contextMenuSel.end;
+    enabled = {
+      cut: !isPassword && !readOnly && hasSel,
+      copy: !isPassword && hasSel,
+      paste: !readOnly,
+      delete: !readOnly && hasSel,
+      selectAll: true,
+    };
+  }
+  menu.querySelectorAll('.context-menu-item').forEach((item) => {
+    item.disabled = enabled[item.dataset.action] !== true;
+    item.classList.remove('is-active');
+  });
+
+  // 先摆到光标处再量尺寸，量完按需翻转（贴右 / 贴底时改从光标左上侧展开）。
+  // 量之前先 visibility:hidden —— 同一个任务里设回可见不会多画一帧，但能避免「先按未翻转的
+  // 位置画出来、下一帧才跳到翻转位」那一跳；入场动画也从这一刻正常起播
+  menu.style.visibility = 'hidden';
+  menu.style.display = 'flex';
+  menu.style.left = '0px';
+  menu.style.top = '0px';
+  const rect = menu.getBoundingClientRect();
+  const gap = 4;
+  const flipX = x + rect.width + gap > window.innerWidth;
+  const flipY = y + rect.height + gap > window.innerHeight;
+  menu.style.left = `${flipX ? Math.max(gap, x - rect.width) : x}px`;
+  menu.style.top = `${flipY ? Math.max(gap, y - rect.height) : y}px`;
+  // 缩放轴心随展开方向（同下拉）：贴右 / 贴底时从光标那一侧起收
+  menu.style.transformOrigin = `${flipY ? 'bottom' : 'top'} ${flipX ? 'right' : 'left'}`;
+  menu.style.visibility = '';
+  menu.setAttribute('aria-hidden', 'false');
+}
+
+function closeContextMenu() {
+  if (!isContextMenuOpen()) return;
+  const menu = contextMenuEl;
+  contextMenuTarget = null;
+  contextMenuSel = null;
+  contextMenuRange = null;
+  menu.setAttribute('aria-hidden', 'true');
+  menu.querySelectorAll('.context-menu-item').forEach((i) => i.classList.remove('is-active'));
+  // 系统开了「减少动态效果」：全局动画已被压成 0.01ms，直接隐藏，别干等退场时长
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    menu.style.display = 'none';
+    return;
+  }
+  menu.classList.add('context-menu--closing');
+  clearTimeout(contextMenuCloseTimer);
+  // 退场时长直接读 CSS（menu-out = --dur-fast 150ms），改档位只需改 CSS
+  contextMenuCloseTimer = setTimeout(() => {
+    menu.classList.remove('context-menu--closing');
+    menu.style.display = 'none';
+  }, exitMsOf(menu, 170));
+}
+
+async function runContextMenuAction(action) {
+  const target = contextMenuTarget;
+  const sel = contextMenuSel;
+  const range = contextMenuRange;
+  closeContextMenu();
+  if (!target) {
+    // 正文没有焦点目标，编辑命令直接作用在文档选区上。点菜单项那一下把选区收掉了，先放回去
+    if (range) {
+      const s = window.getSelection();
+      s.removeAllRanges();
+      s.addRange(range);
+    }
+    await window.electronAPI.editAction(action);
+    return;
+  }
+  // 焦点交还字段再执行：编辑命令作用在「当前聚焦元素」上，而刚才点菜单项把焦点挪到了按钮上。
+  // 顺带还原选区 —— 失焦期间 Chromium 不画高亮，选中范围本身也未必原样留着
+  target.focus();
+  if (sel && sel.start !== null && sel.start !== undefined) {
+    try { target.setSelectionRange(sel.start, sel.end, sel.dir || undefined); } catch {}
+  }
+  await window.electronAPI.editAction(action);
+}
+
+// 键盘导航：焦点始终留在输入框里（菜单自己不吃焦点），所以导航键挂在 document 上。
+// 这也是「动作能作用到正确字段」的前提 —— 焦点一旦跑进菜单，编辑命令就打偏了
+function moveContextMenuActive(step) {
+  if (!isContextMenuOpen()) return;
+  const items = Array.from(contextMenuEl.querySelectorAll('.context-menu-item:not(:disabled)'));
+  if (!items.length) return;
+  const cur = items.findIndex((i) => i.classList.contains('is-active'));
+  const next = cur < 0 ? (step > 0 ? 0 : items.length - 1) : (cur + step + items.length) % items.length;
+  items.forEach((i) => i.classList.remove('is-active'));
+  items[next].classList.add('is-active');
+}
+
+document.addEventListener('contextmenu', (e) => {
+  const el = e.target;
+  if (isTextEntry(el)) {
+    if (el.disabled) { closeContextMenu(); return; } // 禁用框不给菜单（改不动也复制不了）
+    e.preventDefault(); // 挡掉系统原生菜单
+    openContextMenu(e.clientX, e.clientY, el);
+    return;
+  }
+  // 正文 / 空白处：只要不是交互控件就给菜单。与 Chrome 一致 —— 右键总有反应，
+  // 不然「这儿右键有菜单」这件事只能靠猜（用户不会先选中文字再右键）
+  if (el && el.nodeType === 1 && isSelectableText(el)) {
+    e.preventDefault();
+    openContextMenu(e.clientX, e.clientY, null);
+    return;
+  }
+  closeContextMenu();
+});
+
+// 键盘：捕获阶段处理，赶在输入框自己的按键处理之前
+document.addEventListener('keydown', (e) => {
+  if (!isContextMenuOpen()) return;
+  if (e.key === 'Escape') { e.preventDefault(); closeContextMenu(); return; }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    moveContextMenuActive(e.key === 'ArrowDown' ? 1 : -1);
+    return;
+  }
+  if (e.key === 'Enter' || e.key === ' ') {
+    const active = contextMenuEl.querySelector('.context-menu-item.is-active');
+    if (active) { e.preventDefault(); runContextMenuAction(active.dataset.action); }
+    return;
+  }
+  // 其它按键：按 Chrome 的做法直接收起，但**不拦按键**——Ctrl+C 这类快捷键照常生效
+  closeContextMenu();
+}, true);
+
+// 点在别处（含别的输入框：那次 contextmenu 会自己重开菜单）/ 窗口尺寸变化 / 页面滚动，都收起
+document.addEventListener('mousedown', (e) => {
+  if (contextMenuEl && contextMenuEl.contains(e.target)) return;
+  closeContextMenu();
+});
+window.addEventListener('resize', closeContextMenu);
+window.addEventListener('blur', closeContextMenu);
+document.addEventListener('scroll', closeContextMenu, true);
+
 // ===== 密码框的显示 / 隐藏（👁）=====
 // 引用 index.html 顶部图标库里的 #icon-eye-on / #icon-eye-off，切换时大小位置不跳。
 // 放在通用 widget 里（原先挂在 renderer-greet.js 的 init 内）是为了让「复位」能跨文件被调：

@@ -288,7 +288,7 @@ btnHistoryClearAll.addEventListener('click', async () => {
     } else {
       let parts = [];
       if (result.deleted > 0) parts.push('已删除 ' + result.deleted + ' 条历史记录');
-      if (result.errors > 0) parts.push(result.errors + ' 个删除失败');
+      if (result.errors > 0) parts.push(result.errors + ' 条删除失败');
       if (result.deleted === 0 && result.errors === 0) parts.push('没有找到历史归档数据');
       showToast(parts.join('，'), result.errors > 0 ? 'error' : 'info', 4000);
     }

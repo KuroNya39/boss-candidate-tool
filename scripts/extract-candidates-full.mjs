@@ -28,7 +28,7 @@ import {
   ocrScreenshots, tryExtractResumeTextFromDOM,
   safeName, cleanOcrText, FIND_LIST_CONTAINER_JS,
   getScanCachePath, getProgressPath,
-  saveScanCache, loadScanCache, saveProgress, loadProgress, cleanupCacheFiles,
+  saveScanCache, loadScanCache, saveProgress, loadProgress, flushProgressOnCancel, cleanupCacheFiles,
   archiveOldOutput,
   reportStats,
   parseArgs,
@@ -938,22 +938,16 @@ async function fetchCandidatesFromPage(targetId) {
 
 let _cleanupTargetId = null;
 let _cleanupWorker = null;
-let _cleanupProgressVars = null; // { processedGeekIds, candidates, outputPath, prevOcr }
+let _cleanupProgressVars = null; // { processedGeekIds, candidates, outputPath, prevOcr, pendingCandidate }
 
 async function doCleanup() {
   // 保存进度到磁盘（如果有未保存的数据）
   if (_cleanupProgressVars) {
-    const { processedGeekIds, candidates, outputPath, prevOcr } = _cleanupProgressVars;
-    // v1.3.28：取消/跳过后先尽快保存当前进度。原来等 OCR 全部收尾才存，
-    // 会被主进程的强杀超时抢先，导致最近几人白干、恢复时丢数据。
-    // 这里最多等 3s 拿当前 OCR 结果，拿不到完整文本也先落盘，保住已完成人数。
-    try {
-      await Promise.race([prevOcr, sleep(3000).then(() => 'timeout')]);
-      saveProgress(processedGeekIds, candidates, outputPath);
-      console.log(`  💾 取消前已保存进度（${processedGeekIds.size} 人）`);
-    } catch (e) {
-      console.warn(`  ⚠ 取消前保存进度失败： ${e.message}`);
-    }
+    const { processedGeekIds, candidates, outputPath, prevOcr, pendingCandidate } = _cleanupProgressVars;
+    await flushProgressOnCancel({
+      processedIds: processedGeekIds, candidates, outputPath, prevOcr, pendingCandidate,
+      idOf: (c) => c.geekId,
+    });
   }
 
   if (!_cleanupTargetId && !_cleanupWorker) return;
@@ -1220,7 +1214,7 @@ async function main() {
 
   archiveOldOutput(outputDir, opts.resume);
 
-  const modeLabel = opts.extractAll ? '全部' : `前 ${opts.count} 个`;
+  const modeLabel = opts.extractAll ? '全部' : `前 ${opts.count} 人`;
   console.log(`\n========== BOSS直聘候选人全量提取（沟通页） ==========`);
   console.log(`提取模式： ${modeLabel}`);
   if (opts.resume) console.log('恢复模式： 从上次进度继续');
@@ -1356,7 +1350,9 @@ async function main() {
       candidates.push(cd);
       processedGeekIds.add(geekId);
 
-      _cleanupProgressVars = { processedGeekIds, candidates, outputPath, prevOcr: prevOcrRef.current };
+      // pendingCandidate：本轮 OCR 还在后台跑的那一位。取消/跳过时据此判断「谁的简历没落地」
+      // （见 doCleanup），所以要跟着 _cleanupProgressVars 一起交出去
+      _cleanupProgressVars = { processedGeekIds, candidates, outputPath, prevOcr: prevOcrRef.current, pendingCandidate: cd };
 
       if ((i + 1) % 5 === 0) {
         await prevOcrRef.current;
