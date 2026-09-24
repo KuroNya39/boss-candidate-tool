@@ -3,8 +3,8 @@
  * build.mjs — 完整构建脚本
  * 1. 生成 ICO
  * 2. electron-builder 打包（signAndEditExecutable: false，无需 winCodeSign）
- * 3. 手动嵌入图标到 exe（绕开 electron-builder 的 rcedit 兼容问题）
- * 4. 重建 NSIS 安装包（含修复图标的 exe）
+ * 3. 手动嵌入图标与文件属性到 exe（绕开 electron-builder 的 rcedit 兼容问题）
+ * 4. 重建 NSIS 安装包（含已修好的 exe）
  */
 import { execSync, spawnSync } from 'node:child_process';
 import { existsSync, statSync, rmSync, readdirSync, readFileSync, writeFileSync, renameSync, copyFileSync } from 'node:fs';
@@ -254,15 +254,35 @@ async function main() {
   console.log('\n=== 2/4: electron-builder 打包 ===');
   run('npx electron-builder --win');
 
-  // 3. 手动嵌入图标
-  console.log('\n=== 3/4: 嵌入图标 ===');
+  // 3. 手动嵌入图标与文件属性
+  //    signAndEditExecutable: false 让 electron-builder 不改写 exe 的资源段（绕开 rcedit 兼容问题），
+  //    代价是绿色版 exe 的「产品名称/公司/版权/版本」会保持 Electron 自带的
+  //    （右键属性里显示「Copyright (C) 2015 GitHub, Inc.」、版本号是 Electron 的 42.x）。
+  //    这里用同一个 rcedit 补上，取值与安装包保持一致：版权读 electron-builder.yml（安装包的信息就由它生成，
+  //    不另写一份免得两处慢慢写岔），文件说明读 package.json，公司读 package.json 的 author。
+  console.log('\n=== 3/4: 嵌入图标与文件属性 ===');
   const exePath = resolve(ROOT, OUT, 'win-unpacked', EXE_NAME);
   const icoPath = resolve(ROOT, 'build', 'icon.ico');
   const rceditPath = findRcedit();
 
   if (!rceditPath) throw new Error('未找到 rcedit-x64.exe');
-  execSync(`"${rceditPath}" "${exePath}" --set-icon "${icoPath}"`, { stdio: 'inherit' });
-  console.log('图标嵌入完成');
+  const copyright = (readFileSync(resolve(ROOT, 'electron-builder.yml'), 'utf8')
+    .match(/^copyright:\s*["']?(.+?)["']?\s*$/m) || [])[1];
+  if (!copyright) throw new Error('electron-builder.yml 里没找到 copyright 字段');
+  // 用参数数组传值（不用 execSync 拼字符串），避开 shell 对中文和空格的转义问题
+  const rcedit = spawnSync(rceditPath, [
+    exePath,
+    '--set-icon', icoPath,
+    '--set-version-string', 'ProductName', APP_NAME,
+    '--set-version-string', 'FileDescription', pkg.description,
+    '--set-version-string', 'CompanyName', pkg.author.name,
+    '--set-version-string', 'LegalCopyright', copyright,
+    '--set-version-string', 'OriginalFilename', EXE_NAME,
+    '--set-file-version', VERSION,
+    '--set-product-version', VERSION,
+  ], { stdio: 'inherit' });
+  if (rcedit.status !== 0) throw new Error(`rcedit 改写 exe 失败（退出码 ${rcedit.status}）`);
+  console.log('图标与文件属性写入完成');
 
   // 4. 重建安装包（先清理旧安装包文件，避免 NSIS 输出文件被锁）
   console.log('\n=== 4/4: 重建安装包 ===');
