@@ -26,7 +26,7 @@ import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  proxyGet, proxyPost, sleep, cdpEval,
+  proxyGet, proxyPost, sleep, cdpEval, isMainModule,
 } from './extract-common.mjs';
 import { TIER_THRESHOLDS } from './score-tiers.mjs';
 
@@ -399,4 +399,6 @@ async function main() {
   console.log(`\nGREET_DONE:${successCount}|${alreadyCount}|${notFoundCount}|${skipCount}|${retryableCount}`);
 }
 
-main().catch(err => fatal(err.message));
+if (isMainModule(import.meta.url)) {
+  main().catch(err => fatal(err.message));
+}

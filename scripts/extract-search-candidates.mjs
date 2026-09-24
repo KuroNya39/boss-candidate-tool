@@ -35,10 +35,12 @@ import {
   parseArgs,
   parseEducationFromResume,
   parseWorkExperienceFromResume,
+  isMainModule,
 } from './extract-common.mjs';
+import { degreeRank } from './degree.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const startTime = new Date().toLocaleString('sv-SE', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }).replace(' ', 'T') + new Date().toISOString().slice(19, 23);
+const startTime =new Date().toLocaleString('sv-SE', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }).replace(' ', 'T') + new Date().toISOString().slice(19, 23);
 
 // 主页面 URL（嵌入 iframe 方式）
 const SEARCH_PAGE_URL = 'https://www.zhipin.com/web/chat/search';
@@ -969,9 +971,8 @@ function mergeEducationData(candidateData, resumeText) {
     if (!inResult) result.push({ ...card });
   }
 
-  // 按学历级别排序
-  const ORDER = {博士: 0, 硕士: 1, 本科: 2, 大专: 3, 中专: 4, 高中: 5};
-  result.sort((a, b) => (ORDER[a.degree] ?? 99) - (ORDER[b.degree] ?? 99));
+  // 按学历级别排序（高→低，层次分见 scripts/degree.mjs；认不出学历的排最后）
+  result.sort((a, b) => degreeRank(b.degree) - degreeRank(a.degree));
 
   if (result.length > 0) candidateData.educationExperience = result;
 }
@@ -1497,12 +1498,14 @@ async function main() {
   });
 }
 
-main().catch(async (err) => {
-  console.error('致命错误：', err.message);
-  await reportStats({
-    resume_count: 0,
-    start_time: startTime,
-    status: 'error',
+if (isMainModule(import.meta.url)) {
+  main().catch(async (err) => {
+    console.error('致命错误：', err.message);
+    await reportStats({
+      resume_count: 0,
+      start_time: startTime,
+      status: 'error',
+    });
+    process.exit(1);
   });
-  process.exit(1);
-});
+}

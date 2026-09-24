@@ -33,6 +33,7 @@ import {
   reportStats,
   parseArgs,
   parseEducationFromResume,
+  isMainModule,
 } from './extract-common.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -964,85 +965,6 @@ async function doCleanup() {
 
 installStdinControls(doCleanup);
 
-// ===== 教育经历解析（从 OCR 后的简历文本中提取） =====
-/**
- * 从 resumeText 中解析教育经历段落（后备方案）
- * 在线简历弹窗中包含完整教育经历，可补充右侧面板时间线提取的不足
- */
-function _old_parseEducationFromResumeText(resumeText) {
-  if (!resumeText) return null;
-
-  const lines = resumeText.split('\n').map(l => l.trim()).filter(Boolean);
-  // 找"教育经历"或"教育背景"节点头
-  let eduStart = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (/^教育/.test(lines[i])) { eduStart = i + 1; break; }
-  }
-  if (eduStart < 0 || eduStart >= lines.length) return null;
-
-  // 收集教育节内容，遇到其他节点头停止
-  const eduLines = [];
-  for (let i = eduStart; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^(工作经历|项目经历|期望职位|技能|自我评价|证书|语言|培训经历)/.test(line)) break;
-    eduLines.push(line);
-  }
-  if (eduLines.length === 0) return null;
-
-  // 解析：两行为一组（时间行 + 学校·专业·学历 行），或三~四行为一组
-  const result = [];
-  let i = 0;
-  while (i < eduLines.length) {
-    const line = eduLines[i];
-    if (/\d{4}/.test(line)) {
-      const time = line;
-      const remaining = eduLines.slice(i + 1);
-      // 找下一个时间行或结尾
-      let nextTimeIdx = remaining.findIndex(l => /\d{4}/.test(l));
-      if (nextTimeIdx < 0) nextTimeIdx = remaining.length;
-
-      // 取时间行之后到下一个时间行之间的所有行作为详情
-      const detailLines = remaining.slice(0, nextTimeIdx);
-      let school = '', major = '', degree = '';
-
-      for (const dl of detailLines) {
-        // 按 · 或 • 分隔
-        if (dl.includes('·') || dl.includes('•')) {
-          const parts = dl.split(/[·•]/).map(p => p.trim()).filter(Boolean);
-          if (parts[0]) school = parts[0];
-          if (parts[1]) major = parts[1];
-          if (parts[2]) degree = parts[2];
-        } else {
-          // 单行文本：按"本科/硕士/博士/大专"等关键词分配
-          if (!school && !/^(本科|硕士|博士|大专)/.test(dl)) {
-            school = dl;
-          } else if (!major && !/^(本科|硕士|博士|大专)/.test(dl)) {
-            major = dl;
-          } else if (/^(本科|硕士|博士|大专|高中)/.test(dl)) {
-            degree = dl;
-          } else if (!school) {
-            school = dl;
-          } else if (!major) {
-            major = dl;
-          }
-        }
-      }
-
-      const entry = { time };
-      if (school) entry.school = school;
-      if (major) entry.major = major;
-      if (degree) entry.degree = degree;
-      result.push(entry);
-
-      i += 1 + detailLines.length;
-    } else {
-      i++;
-    }
-  }
-
-  return result.length > 0 ? result : null;
-}
-
 // ===== 单个候选人提取（供并发扫描+提取使用） =====
 
 /**
@@ -1409,12 +1331,14 @@ async function main() {
   });
 }
 
-main().catch(async (err) => {
-  console.error('致命错误：', err.message);
-  await reportStats({
-    resume_count: 0,
-    start_time: startTime,
-    status: 'error',
+if (isMainModule(import.meta.url)) {
+  main().catch(async (err) => {
+    console.error('致命错误：', err.message);
+    await reportStats({
+      resume_count: 0,
+      start_time: startTime,
+      status: 'error',
+    });
+    process.exit(1);
   });
-  process.exit(1);
-});
+}

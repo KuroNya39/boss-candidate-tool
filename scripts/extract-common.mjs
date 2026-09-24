@@ -12,6 +12,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import http from 'node:http';
+import { DEGREE_EXTRACT_KEYS, normalizeDegreeWord, degreeRank } from './degree.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const PROXY_PORT = 3456;
@@ -20,6 +21,16 @@ export const PROXY_PORT = 3456;
 // 主进程的强杀宽限必须比它大：electron/state.mjs 用这个常量加余量算强杀点，
 // 改这里就够，别再去主进程里改一个对不上的数字
 export const CLEANUP_OCR_GRACE_MS = 20000;
+
+/**
+ * 本脚本是不是「被直接执行」的那个（而不是被别的模块 import 进来）。
+ * 提取/打招呼/导出脚本都拿它守卫 main()：一旦被 import（哪怕只是加载），
+ * 绝不能自动开跑 —— 那些脚本会真的去点浏览器、开简历弹窗、占用系统剪贴板。
+ * 用法： if (isMainModule(import.meta.url)) { main().catch(...); }
+ */
+export function isMainModule(moduleUrl) {
+  return !!process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(moduleUrl));
+}
 
 // ===== CDP Proxy HTTP 调用 =====
 
@@ -1740,9 +1751,6 @@ export function parseEducationFromResume(resumeText) {
   if (!resumeText || resumeText.length < 50) return [];
   const results = [];
 
-  // OCR 常见学历关键词错字映射（本科→本秦、硕土→硕士等）
-  const DEGREE_KEYS = ['博士', '硕士', '硕土', '本科', '本秦', '本幸', '大专', '中专', '高中', '学士', '研究生', '双学位'];
-  const DEGREE_NORMALIZE = { '硕土': '硕士', '本秦': '本科', '本幸': '本科' };
   const TIME_RANGE_RE = /(\d{4})\s*[-–—~～]\s*(\d{4})/;
   const SCHOOL_RE = /([一-龥]{2,}(?:大学|学院|研究所|学校))/;
 
@@ -1759,7 +1767,7 @@ export function parseEducationFromResume(resumeText) {
   }
   if (!eduSection) {
     for (const line of text.split('\n')) {
-      const eduEntries = parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE);
+      const eduEntries = parseEduLine(line, TIME_RANGE_RE, SCHOOL_RE);
       if (eduEntries) { for (const e of eduEntries) { if (e.time) results.push(e); } }
     }
     return dedupeEduResults(results);
@@ -1783,10 +1791,10 @@ export function parseEducationFromResume(resumeText) {
     // 会连成一个超长行。parseEduLine 有 200 字上限，直接解析会整段被拒。
     // 这里先把超长行按「学校名」切成多个短窗口，每个窗口单独解析，避免漏掉多段教育。
     const linesToParse = line.length > 200
-      ? splitEduLongLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE)
+      ? splitEduLongLine(line, TIME_RANGE_RE, SCHOOL_RE)
       : [line];
     for (const subLine of linesToParse) {
-      const eduEntries = parseEduLine(subLine, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE);
+      const eduEntries = parseEduLine(subLine, TIME_RANGE_RE, SCHOOL_RE);
       if (eduEntries) { for (const e of eduEntries) results.push(e); }
     }
   }
@@ -1794,7 +1802,7 @@ export function parseEducationFromResume(resumeText) {
   // 全文本扫描补充
   const seenKeys = new Set(results.map(r => r.school.substring(0, 3) + '|' + r.degree));
   for (const extraLine of text.split('\n')) {
-    const extraEntries = parseEduLine(extraLine.trim(), DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE);
+    const extraEntries = parseEduLine(extraLine.trim(), TIME_RANGE_RE, SCHOOL_RE);
     if (!extraEntries) continue;
     for (const extraEntry of extraEntries) {
       if (!extraEntry.time) continue;
@@ -1875,7 +1883,7 @@ export function parseWorkExperienceFromResume(resumeText) {
  * DOM 提取文本形如：'XX大学工业工程硕士 2025-2027 211院校QS世界大学排名TOP500YY学院机械设计制造及其自动化本科 2017-2021'
  * 以每个学校名为起点，截取到下一个学校名（或段落尾）前，得到一个独立的候选教育条目。
  */
-function splitEduLongLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
+function splitEduLongLine(line, TIME_RANGE_RE, SCHOOL_RE) {
   const globalRE = new RegExp(SCHOOL_RE.source, 'g');
   const anchors = [];
   let m;
@@ -1890,7 +1898,7 @@ function splitEduLongLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
     if (/QS\s*(?:世界|亚洲|地区)?大学|世界大学排名|院校等级|院校级/.test(before + m[0])) continue;
     // 只保留「学校名后跟学历关键词 或 时间区间」的锚点
     const after = line.slice(m.index + m[0].length, m.index + m[0].length + 20);
-    const hasDegreeAfter = DEGREE_KEYS.some(d => after.includes(d));
+    const hasDegreeAfter = DEGREE_EXTRACT_KEYS.some(d => after.includes(d));
     const hasTimeAfter = TIME_RANGE_RE.test(after);
     if (!hasDegreeAfter && !hasTimeAfter) continue;
     // 贪婪匹配可能把校名前的主修课程/经历内容吞进来（如"文化活动与会展策划XX大学"），
@@ -1925,13 +1933,13 @@ function splitEduLongLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
   return windows;
 }
 
-function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
+function parseEduLine(line, TIME_RANGE_RE, SCHOOL_RE) {
   const t = line.trim();
   if (!t || t.length < 5 || t.length > 200) return null;
 
   // 行内须含学历关键词；或（学校名 + 4位年份区间）。
   // OCR 教育条目常见 '学校 | 专业 YYYY - YYYY'，行内未必带学历词（学历在卡片/正文其他位置）。
-  const hasDegree = DEGREE_KEYS.some(d => t.includes(d));
+  const hasDegree = DEGREE_EXTRACT_KEYS.some(d => t.includes(d));
   if (!hasDegree) {
     if (!t.match(SCHOOL_RE)) return null;
     if (!TIME_RANGE_RE.test(t)) return null;
@@ -1977,7 +1985,7 @@ function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
     // 学历词和时间都在学校名紧后；而'曾任学校招生办学生代表，支持学校本科...'里"本科"距学校名很远，
     // 不该构成教育条目。
     const afterSchool = searchArea.slice(schoolIdx + schoolName.length, schoolIdx + schoolName.length + 20);
-    const degree = DEGREE_KEYS.find(d => afterSchool.includes(d));
+    const degree = DEGREE_EXTRACT_KEYS.find(d => afterSchool.includes(d));
     // 时间区间可能在专业名之后较远处（如 '劳动与社会保障本科 2023 - 2027'），
     // 20字符截断会把年份尾部切掉（'2023 - 2'），导致 time 缺失。
     // 改为在 context（学校名后 60 字符）内找时间区间；degree 仍用紧邻 20 字符判断。
@@ -2061,7 +2069,7 @@ function parseEduLine(line, DEGREE_KEYS, TIME_RANGE_RE, SCHOOL_RE) {
       }
     }
 
-    const normalizedDegree = degree ? (({ '硕土': '硕士', '本秦': '本科', '本幸': '本科' })[degree] || degree) : '';
+    const normalizedDegree = degree ? normalizeDegreeWord(degree) : '';
     entries.push({ time: tm ? tm[0].trim() : '', school: schoolName, major, degree: normalizedDegree });
   }
 
@@ -2079,8 +2087,6 @@ function dedupeEduResults(results) {
     ['万程', '工程'], ['万喜理万', '万隆理工'],
     ['深圭', '深圳'], ['研完生', '研究生'],
     ['北京理工学院', '北京理工大学'],
-    ['万程', '工程'], ['万喜理万', '万隆理工'],
-    ['深圭', '深圳'], ['研完生', '研究生'],
   ];
   for (const entry of results) {
     for (const [wrong, right] of OCR_CORRECTIONS) {
@@ -2090,7 +2096,6 @@ function dedupeEduResults(results) {
     if (entry.school) entry.school = entry.school.replace(/^中国中国/, '中国科学院').trim();
   }
 
-  const ORDER = {博士: 0, 硕士: 1, 本科: 2, 大专: 3, 中专: 4, 高中: 5};
   const final = [];
   for (const r of results) {
     let isDup = false;
@@ -2108,7 +2113,8 @@ function dedupeEduResults(results) {
     }
     if (!isDup) final.push({ ...r });
   }
-  final.sort((a, b) => (ORDER[a.degree] ?? 99) - (ORDER[b.degree] ?? 99));
+  // 最高学历排最前（层次分见 scripts/degree.mjs；认不出学历的排最后）
+  final.sort((a, b) => degreeRank(b.degree) - degreeRank(a.degree));
   return final;
 }
 

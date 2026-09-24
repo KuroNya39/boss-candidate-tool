@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import ExcelJS from 'exceljs';
 import { scoreToTier } from './score-tiers.mjs';
 import { formatComment } from './format-comment.mjs';
+import { DEGREE_ANY_RE, degreeRank } from './degree.mjs';
 
 // ===== CLI 参数解析 =====
 function parseArgs() {
@@ -733,9 +734,9 @@ function makeUniqueSheetName(baseName, usedLower) {
 // ===== 教育经历修正：以 AI 评语中的「第一学历/最高学历」为准绳 =====
 // 正则从 OCR 简历文本里抠教育经历对噪音很脆弱：OCR 会把校名前的汉字吞进学校名
 // （'起东北财经大学'）、把校内二级学院误当学校（'通识学院 2022-2023'）。
-// 而 AI 评语模板强制含格式稳定的两行：
-//   第一学历：重庆工商大学，大数据管理与应用，本科，全日制。
-//   最高学历：重庆工商大学，大数据管理与应用，本科（在读），全日制。
+// 而 AI 评语模板强制含格式稳定的两行（提示词要求按竖线分隔；老评语是逗号分隔的，也照旧能解析）：
+//   第一学历：重庆工商大学 | 大数据管理与应用 | 本科 | 2016-2020 | 全日制
+//   最高学历：重庆工商大学 | 大数据管理与应用 | 本科（在读）| 2020-2023 | 全日制
 // 导出前用这两行修正 educationExperience：校名/专业/学历以 AI 为准，时间沿用原条目。
 
 // 校名像不像真学校：以大学/学院/学校/研究所结尾、不含 OCR 噪音词（证书/资格/收藏/英语等）。
@@ -753,7 +754,7 @@ function schoolLooksReal(name) {
 // （如'××大学××学院+电子科学与技术+本科+2011-2015，全日制'），统一按这些分隔符切段解析。
 function parseEducationFromComment(comment) {
   if (!comment) return [];
-  const DEGREE_RE = /(?:本科|硕士|博士|研究生|大专|专科|高职|专升本|高中|中专|初中)/;
+  // 学历词用 scripts/degree.mjs 的共用词汇表（DEGREE_ANY_RE）
   const SCHOOL_END_RE = /(?:大学|学院|学校|研究所)$/;
   const SEP_RE = /[+，,、|\s]+/;
   const results = [];
@@ -791,7 +792,7 @@ function parseEducationFromComment(comment) {
       // 学历 = 学校段之后第一个含学历词的段；专业 = 学校段与学历段之间的段
       let di = -1;
       for (let i = si + 1; i < segs.length; i++) {
-        if (DEGREE_RE.test(segs[i])) { di = i; break; }
+        if (DEGREE_ANY_RE.test(segs[i])) { di = i; break; }
       }
       if (di >= 0) {
         degree = segs[di];
@@ -799,7 +800,7 @@ function parseEducationFromComment(comment) {
       }
     } else {
       // 校名非完整段（粘连场景）：学历词取行内第一个，专业取校名与学历词之间
-      const dm = line.match(DEGREE_RE);
+      const dm = line.match(DEGREE_ANY_RE);
       if (dm) {
         degree = dm[0];
         const start = line.indexOf(school) + school.length;
@@ -869,6 +870,10 @@ function enrichEducationFromComment(c) {
 // 紧跟校名后，跨行的条目会被漏掉；AI 补进的条目时间/专业因此是空（如徐女士本科）。
 // 这里在校名前后窗口里找年份区间补时间；专业只在「校名后是干净文本」时才补，防把
 // "负责人/专业排名"这类 OCR 噪音当专业。
+// 专业字段的终止锚点：数字 / 常见栏目标题 / 学历词 / 「学历」。学历词走 scripts/degree.mjs
+// 共用词汇表，别再手写一份 —— 漏掉大专/中专/专升本，专业字段就会把学历词吞进去
+const MAJOR_END_RE = new RegExp(String.raw`^[,，、|\s:：·]*([^,，、|\s:：·\d][^,，、|\s:：·\n]{1,24}?)(?=\s*(?:\d{4}|专业排名|主修课程|排名|在校经历|荣誉|工作经历|经历概览|证书|` + DEGREE_ANY_RE.source + String.raw`|学历))`);
+
 function findSchoolContextFromText(resumeText, school) {
   if (!resumeText || !school) return { time: '', major: '' };
   const t = resumeText.replace(/[ \t]+/g, ' ').trim();
@@ -880,7 +885,7 @@ function findSchoolContextFromText(resumeText, school) {
   const tm = win.match(/(\d{4})\s*[-–—~～至]\s*(\d{4})/);
   const time = tm ? `${tm[1]} - ${tm[2]}` : '';
   // 专业：校名后到「时间/专业排名/主修课程」等锚点前的文本；含 OCR 噪音词则放弃
-  const mj = after.match(/^[,，、|\s:：·]*([^,，、|\s:：·\d][^,，、|\s:：·\n]{1,24}?)(?=\s*(?:\d{4}|专业排名|主修课程|排名|在校经历|荣誉|工作经历|经历概览|证书|本科|硕士|博士|学历))/);
+  const mj = after.match(MAJOR_END_RE);
   let major = '';
   // 必须含汉字（防 OCR 标点残片如 '.…' 当专业），且不含噪音词
   if (mj && /[一-龥]/.test(mj[1]) &&
@@ -904,13 +909,7 @@ function fillEducationGapsFromResumeText(c) {
 
 // ===== 教育经历排序：最高学历排最上面 =====
 // AI 评语按「第一学历 → 最高学历」顺序生成，直接照搬会让本科排硕士上面。
-// 导出前按学历层次从高到低重排（博士 > 硕士 > 本科 > 大专/专科 > 高中 > 中专/初中），同级别保持原顺序。
-const DEGREE_RANK = { '博士': 6, '研究生': 5, '硕士': 5, '本科': 4, '学士': 4, '专升本': 4, '大专': 3, '专科': 3, '高职': 3, '高专': 3, '高中': 2, '中专': 2, '职高': 2, '中技': 2, '初中': 1, '小学': 0 };
-function degreeRank(d) {
-  const s = String(d || '').trim();
-  for (const [k, v] of Object.entries(DEGREE_RANK)) if (s.includes(k)) return v;
-  return -1; // 未知学历 → 排最后
-}
+// 导出前按学历层次从高到低重排（层次分见 scripts/degree.mjs 的共用词汇表），同级别保持原顺序。
 function sortEducationByDegree(c) {
   const edu = Array.isArray(c.educationExperience) ? c.educationExperience : [];
   if (edu.length < 2) return;

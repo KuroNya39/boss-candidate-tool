@@ -34,10 +34,12 @@ import {
   reportStats,
   parseArgs,
   parseEducationFromResume,
+  isMainModule,
 } from './extract-common.mjs';
+import { DEGREE_ANY_RE, degreeRank } from './degree.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const startTime = new Date().toLocaleString('sv-SE', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }).replace(' ', 'T') + new Date().toISOString().slice(19, 23);
+const startTime =new Date().toLocaleString('sv-SE', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }).replace(' ', 'T') + new Date().toISOString().slice(19, 23);
 
 // 主页面 URL（嵌入 iframe 方式）
 const RECOMMEND_PAGE_URL = 'https://www.zhipin.com/web/chat/recommend';
@@ -1176,6 +1178,9 @@ async function doCleanup() {
 
 installStdinControls(doCleanup);
 
+// 卡片文本兜底："学历 广西财经学院 公共事业管理 本科"（学历词表见 scripts/degree.mjs）
+const CARD_DEGREE_LINE_RE = new RegExp('学历\\s+(\\S+)\\s+(\\S+)\\s+(' + DEGREE_ANY_RE.source + ')');
+
 /**
  * 从简历文本解析教育经历（推荐页卡片只显示最高学历，完整多段教育在简历文本里）
  * - 已解析出教育经历（如卡片选择器命中）则跳过
@@ -1193,7 +1198,7 @@ function fillEducationFromResumeText(candidateData) {
     // 兜底：卡片文本"学历 广西财经学院 公共事业管理 本科"
     if (cardList.length === 0) {
       const t = candidateData.rawVisibleText || '';
-      const m = t.match(/学历\s+(\S+)\s+(\S+)\s+(博士|硕士|本科|大专|中专|高中)/);
+      const m = t.match(CARD_DEGREE_LINE_RE);
       if (m) {
         candidateData.educationExperience = [{ time: '', school: m[1], major: m[2], degree: m[3] }];
       }
@@ -1212,15 +1217,14 @@ function fillEducationFromResumeText(candidateData) {
   }
 
   // 按时间倒序（最新在前），确保第一段对应最高学历，卡片学历补到第一段
-  // 无时间的段按学历等级（博士→高中）兜底排序
-  const DEGREE_ORDER = {博士: 0, 硕士: 1, 本科: 2, 大专: 3, 中专: 4, 高中: 5};
+  // 无时间的段按学历等级兜底排序（高→低，层次分见 scripts/degree.mjs）
   final.sort((a, b) => {
     const ta = (a.time || '').match(/(\d{4})/);
     const tb = (b.time || '').match(/(\d{4})/);
     if (ta && tb) return tb[1] - ta[1];
     if (ta) return -1;
     if (tb) return 1;
-    return (DEGREE_ORDER[a.degree] ?? 9) - (DEGREE_ORDER[b.degree] ?? 9);
+    return degreeRank(b.degree) - degreeRank(a.degree);
   });
   const cardDegree = candidateData.basicInfo && candidateData.basicInfo.education;
   if (cardDegree && final.length > 0 && !final[0].degree) final[0].degree = cardDegree;
@@ -1748,12 +1752,14 @@ async function main() {
   });
 }
 
-main().catch(async (err) => {
-  console.error('致命错误：', err.message);
-  await reportStats({
-    resume_count: 0,
-    start_time: startTime,
-    status: 'error',
+if (isMainModule(import.meta.url)) {
+  main().catch(async (err) => {
+    console.error('致命错误：', err.message);
+    await reportStats({
+      resume_count: 0,
+      start_time: startTime,
+      status: 'error',
+    });
+    process.exit(1);
   });
-  process.exit(1);
-});
+}

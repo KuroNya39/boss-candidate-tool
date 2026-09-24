@@ -6,6 +6,7 @@ import { termLog, sleep, UNPACKED_ROOT } from './util.mjs';
 import { apiConfig, OUTPUT_DIR, cancelled } from './state.mjs';
 import { JD_DIR } from './config.mjs';
 import { readRunMeta } from './archive.mjs';
+import { formatComment } from '../scripts/format-comment.mjs';
 
 // ===== AI 评分常量（user 确认的参数：并发批数从 6 降到 5 更保守防限流；默认开启并行，不加开关） =====
 export const BATCH_SIZE = 3;              // 每批候选人数（保持 3 人一批，用户决定）
@@ -141,12 +142,8 @@ function parseBatchScoreResponse(text) {
             const score = item?.score ?? item?.jobRelevanceScore ?? null;
             const comment = item?.comment ?? item?.jobRelevanceComment ?? item?.reason ?? null;
             if (typeof idx === 'number' && typeof score === 'number' && typeof comment === 'string') {
-              // 格式化评语：在章节标题前强制换行（与 export-candidates.mjs 的 formatComment 对齐当前模板）
-              const formatted = comment
-                .replace(/(匹配度评分|首句定性|任职资格的匹配情况|学历硬性门槛核查|综合结论|加权基础分计算|其他扣分合计)/g, '\n$1')
-                .replace(/\n{3,}/g, '\n\n')
-                .replace(/^\n+/, '')
-                .trim();
+              // 评语排版统一走 formatComment（唯一实现，与完成页/Excel 同一份；它幂等，后面再排一次也不会变形）
+              const formatted = formatComment(comment);
               results.push({ candidateIndex: idx, score, comment: formatted });
               valid = true;
             } else {
