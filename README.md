@@ -263,26 +263,29 @@ AI 会根据岗位描述里的 3 个核心评估维度（带权重）给候选�
 - **技术栈**：Electron + Node.js，通过 Chrome DevTools 协议（CDP）代理控制浏览器
 - **主要模块**：
   ```
-  electron/main.mjs                         主进程入口（应用生命周期、--score-only 无界面评分）
-  electron/score-comment.mjs                评语→评分的程序化计算 + 学历硬性门槛兜底扣分（共享模块）
-  electron/*.mjs                            主进程拆分模块：流程编排、IPC、CDP 代理、评分、打招呼、历史归档等
-  electron/renderer/                        界面（index.html + tokens/base/topbar/config/run/overlays.css + renderer-*.js，均按序引入）
+  electron/main.mjs                         主进程入口（生命周期、--score-only 无界面评分）
+  electron/score-comment.mjs                评语→评分计算与学历门槛兜底扣分（主进程/重算脚本共用）
+  electron/*.mjs                            其余主进程模块：流程编排、IPC、浏览器与代理管理、评分、打招呼、归档
+  electron/renderer/                        界面（index.html + 6 个 CSS + renderer-*.js，均按序引入）
   scripts/cdp-proxy.mjs                     HTTP → WebSocket 代理，控制 Chrome（端口 3456）
+  scripts/extract-common.mjs                提取脚本共用工具（CDP 调用、截图 OCR、进度续跑）
   scripts/extract-recommend-candidates.mjs  推荐牛人页提取
   scripts/extract-search-candidates.mjs     搜索页提取
   scripts/extract-candidates-full.mjs       沟通页提取
   scripts/greet-candidates.mjs              批量打招呼
-  scripts/export-candidates.mjs             Excel 导出 + 邮件
-  scripts/score-tiers.mjs                   档位阈值/推荐级别共享常量（打分/打招呼/导出/统计单一数据源）
+  scripts/export-candidates.mjs             Excel 导出（邮件见 send-candidates-email.mjs）
+  scripts/score-tiers.mjs                   档位阈值与推荐级别常量（打分/打招呼/导出/统计共用）
+  scripts/degree.mjs                        学历词汇表（提取/评分/导出共用）
+  scripts/format-comment.mjs                评语排版（界面与 Excel 共用）
   config/scoring-prompt-*.txt               AI 评分提示词模板
-  %AppData%\web-access\web-access\jd-descriptions\   岗位描述（存用户数据目录，重装/升级不丢）
+  %AppData%\web-access\web-access\jd-descriptions\   岗位描述（存用户数据目录，升级不丢）
   ```
 - **常用命令**：
   ```bash
-  npm install        # 安装依赖
-  npm start          # 开发模式运行
-  node scripts/cdp-proxy.mjs   # 单独运行 CDP 代理（调试用）
-  npm run pack       # 打包构建（icon → electron-builder → NSIS → release）
+  npm install                 # 安装依赖
+  npm start                   # 开发模式运行
+  node scripts/cdp-proxy.mjs  # 单独跑 CDP 代理（调试）
+  npm run pack                # 打包发布（icon → electron-builder → NSIS → release）
   ```
 - 详细开发文档见 [CLAUDE.md](CLAUDE.md)
 
