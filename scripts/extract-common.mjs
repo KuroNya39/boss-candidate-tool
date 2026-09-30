@@ -1743,6 +1743,57 @@ export async function tryExtractResumeTextFromDOM(targetId) {
   return null;
 }
 
+// ===== 分行简历文本的教育经历解析（模拟复制 / DOM 提取的文本） =====
+// 这类文本是按行排的，一段教育经历就是连续的「学校 / 专业 / 学历 / 时间」四行。
+// 校名整行判定比下面的 SCHOOL_RE 多认「分校 / 校区 / 研究生院 / 中学」：
+// 「东北大学秦皇岛分校」「哈尔滨工业大学深圳研究生院」「天峨县高级中学」都是整行一个校名，
+// 少这几个后缀就会被当普通行跳过，或把校名截成「东北大学」。
+const EDU_SCHOOL_LINE_RE = /^[一-龥]{2,}(?:大学|学院|研究所|学校|分校|校区|研究生院|中学)(?:[（(][^）)]*[）)])?$/;
+// 时间整行：简历里的写法几乎都是「2016 - 2019」（分隔符 OCR 常认成 – — ~ ～）
+const EDU_TIME_LINE_RE = /^(\d{4})\s*[-–—~～至]\s*(\d{4})$/;
+// 标签整行（院校等级 / 在校经历标题）：出现在专业位置说明这段没有专业
+const EDU_LABEL_LINE_RE = /院校$|QS|排名|在校经历|奖学金|荣誉|资格证书|技能|主修/;
+
+/**
+ * 该行命中的学历词（不是学历行则返回 ''）：含学历词、够短，且本身不是校名
+ * （「哈尔滨工业大学深圳研究生院」含「研究生」但不是学历行）。
+ * 直接返回命中的词，调用方拿去当 degree，不用再扫一遍词表
+ */
+function eduDegreeWordIn(line) {
+  if (!line || line.length > 16 || EDU_SCHOOL_LINE_RE.test(line)) return '';
+  return DEGREE_EXTRACT_KEYS.find(d => line.includes(d)) || '';
+}
+
+/**
+ * 按行解析教育经历：以「学历行 + 紧随其后的时间行」为锚点，往上取专业与学校。
+ * 专业可能没有（只有「学校 / 学历 / 时间」三行），这时学历行上一行就是学校。
+ * 返回空数组表示这段文本不是分行结构，交给调用方的正则路径。
+ */
+function parseEducationByLines(section) {
+  const lines = section.split('\n').map(l => l.trim());
+  const out = [];
+  for (let i = 1; i < lines.length; i++) {
+    const degreeWord = eduDegreeWordIn(lines[i]);
+    if (!degreeWord) continue;
+    const tm = (lines[i + 1] || '').match(EDU_TIME_LINE_RE);
+    if (!tm) continue;
+    const prev = lines[i - 1] || '';
+    let school, major;
+    if (EDU_SCHOOL_LINE_RE.test(prev)) { school = prev; major = ''; }
+    else { school = lines[i - 2] || ''; major = prev; }
+    if (!EDU_SCHOOL_LINE_RE.test(school)) continue;
+    if (EDU_TIME_LINE_RE.test(major) || EDU_LABEL_LINE_RE.test(major)) major = '';
+    // 学历行常带后缀（「硕士 · 非全日制」），取词表里那个词
+    out.push({
+      time: `${tm[1]} - ${tm[2]}`,
+      school,
+      major,
+      degree: normalizeDegreeWord(degreeWord),
+    });
+  }
+  return out;
+}
+
 /**
  * 从简历文本中解析教育经历条目（时间、学校、专业、学历）
  * BOSS直聘 OCR 简历文本典型格式：教育经历X大学X专业X学历 YYYY-YYYY
@@ -1777,6 +1828,26 @@ export function parseEducationFromResume(resumeText) {
   for (const m of ['工作经历', '工作经验']) {
     const i = eduSection.indexOf(m);
     if (i > 0) eduSection = eduSection.substring(0, i);
+  }
+
+  // 模拟复制 / DOM 提取的简历文本按行排，先走按行解析：一段教育经历就是连续的
+  // 「学校 / 专业 / 学历 / 时间」四行，按行取字段最准。下面的正则那套是给 OCR 那种
+  // 整段挤成一行、字段顺序还乱的文本准备的，用在分行文本上会误伤 ——
+  // 例如在校经历里的「…国家奖学金、XX大学优秀研究生、…」会被当成一条教育经历。
+  const byLines = parseEducationByLines(eduSection);
+  if (byLines.length > 0) {
+    // 去重只认「学校 + 专业 + 学历」全同（简历里同一段教育写了两遍）。
+    // 不能走 dedupeEduResults：它按「同校同学历」合并，会把双学位 / 第二专业
+    // （同校同层次、专业不同）并成一条丢掉。
+    const seen = new Set();
+    return byLines
+      .filter((e) => {
+        const key = `${e.school}|${e.major}|${e.degree}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => degreeRank(b.degree) - degreeRank(a.degree));
   }
 
   for (const rawLine of eduSection.split('\n')) {

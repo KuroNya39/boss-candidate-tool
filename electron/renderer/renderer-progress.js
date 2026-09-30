@@ -8,6 +8,9 @@ function showState(stateId) {
   });
   const panel = document.getElementById(stateId);
   panel.classList.add('active');
+  // 面板刚由隐藏变可见就补量一次来源指示条（隐藏时量不到布局，指示条没跟着 resize 重贴过）。
+  // 不用判断切的是哪个面板：其他面板激活时首页是 display:none，量到 0 宽，slideSourcePill 自己会跳过
+  repinSourcePill();
   // 状态切换后把焦点移入新面板标题（初始加载跳过，避免页面打开即有焦点环）
   if (firstStateShown) {
     const heading = panel.querySelector('.card-title, .result-title');

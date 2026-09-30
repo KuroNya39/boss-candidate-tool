@@ -262,6 +262,10 @@ const sourcePill = sourceGroup ? sourceGroup.querySelector('.toggle-pill') : nul
 // 与按钮同以 toggle-group 为 offsetParent，任何内边距/宽度下都对齐
 function slideSourcePill(btn) {
   if (!sourcePill || !btn) return;
+  // 量到 0 宽说明当前量不到布局（面板正被隐藏 / 窗口最小化时页面不排版），
+  // 这时别拿 0 去覆盖指示条——覆盖了就变成「指示条凭空消失，点一下才回来」。
+  // 保持原值，等下次能量到真实几何时再贴（见下面的 resize / visibilitychange）
+  if (!btn.offsetWidth) return;
   sourcePill.style.width = `${btn.offsetWidth}px`;
   sourcePill.style.transform = `translateX(${btn.offsetLeft}px)`;
 }
@@ -409,6 +413,10 @@ function repinSourcePill() {
 }
 repinSourcePill();
 window.addEventListener('resize', repinSourcePill);
+// 最小化/切后台期间布局几何量不准（slideSourcePill 会跳过），恢复可见时补量一次
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) repinSourcePill();
+});
 
 // 添加/编辑岗位弹窗
 function showAddJobDialog() {
