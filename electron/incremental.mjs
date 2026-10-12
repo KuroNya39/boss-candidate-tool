@@ -42,7 +42,7 @@ async function runIncrementalScoring(ctx) {
   const dispatchQueue = [];          // 待调度批次 [{cands, buildBatchPrompt}]
   const executing = new Set();       // 在飞批 promise（并发上限 SCORE_CONCURRENCY）
   const tailWait = new Map();        // 岗位 -> 尾巴首现时间（FLUSH 放行用）
-  let lastSentKey = '';              // 进度去重
+  let lastSent = '';                 // 步骤2 上次已发的进度帧（去重用，见 sendStep2Progress）
   let lastPollAt = 0;
 
   // 继续提取：把上次已评的分数播种进 scored 表，只补评新增候选人
@@ -92,7 +92,18 @@ async function runIncrementalScoring(ctx) {
     return added;
   }
 
-  // —— 进度上报（无变化不发，避免刷屏） ——
+  // —— 步骤2 进度唯一出口：百分比与文字永远一起发，同样的数字+同样的话不重复发 ——
+  // 「一起发」是硬要求：只发文字、不带百分比，进度条会冻在上一格，看着就像「没有进度了」
+  // （收尾阶段踩过这个坑）。增量轮询与收尾补评都从这里出，谁也不必自己记得这条规矩。
+  function sendStep2Progress(x, y, msg) {
+    if (y === 0) return; // 空列表时别算 0/0（NaN%）
+    const key = `${x}/${y}|${msg}`;
+    if (key === lastSent) return;
+    lastSent = key;
+    sendProgress(2, 'running', Math.round((x / y) * 100), msg);
+  }
+
+  // —— 增量期进度上报（读已评/已见人数） ——
   function reportProgress() {
     const y = seenRefs.size;
     const x = scoredRefs.size;
@@ -104,11 +115,7 @@ async function runIncrementalScoring(ctx) {
       : x === 0
         ? `已满 ${POOL_START_THRESHOLD} 人，正在评分…`
         : `${x}/${y} 人`;
-    const pct = Math.round((x / y) * 100);
-    const key = pct + '|' + msg;
-    if (key === lastSentKey) return;
-    lastSentKey = key;
-    sendProgress(2, 'running', pct, msg);
+    sendStep2Progress(x, y, msg);
   }
 
   // —— 某岗位当前所有已提取候选人（沟通页 JD 兜底用） ——
@@ -206,9 +213,13 @@ async function runIncrementalScoring(ctx) {
     const candidates = Array.isArray(raw.candidates) ? raw.candidates : raw;
     const extractSource = raw.source || source || 'chat';
 
-    // 步骤2 收尾总览：共 X 人，分布在 Y 个岗位（只改提示文字、不动进度条）
+    // 步骤2 收尾总览：共 X 人，分布在 Y 个岗位。
+    // 总览与「已评 x/y 人」合成一条提示：收尾阶段剩下的往往只有一两人（增量阶段已评掉绝大部分），
+    // 总览若单独占一条，它会在补评那次 API 调用期间一直挂着（十几秒到几十秒）、进度条也停在原地，
+    // 看着就像「只显示共X人X个岗位、后面没有进度了」（2026-10-10 实测：跳过提取 27 人只补评 2 人，
+    // 总览挂满整段补评，之后唯一一条 100% 立刻被「AI 评分完成」顶掉）。合起来后两者兼得。
     const jobCount = new Set(candidates.map(c => c.positionInfo?.appliedJob || '未知岗位')).size;
-    sendProgress(2, 'running', undefined, `共 ${candidates.length} 人，${jobCount} 个岗位`);
+    const overview = `共 ${candidates.length} 人，${jobCount} 个岗位`;
 
     // 1) 合并增量阶段已评的分数（快照对象 → 最终对象）
     let merged = 0;
@@ -223,21 +234,20 @@ async function runIncrementalScoring(ctx) {
     }
     termLog(`[AI评分] 收尾合并已评 ${merged}/${candidates.length} 人`);
 
+    // 收尾进度上报：合并后立刻报一次（进度条与人数马上反映真实状态，不必等第一批补评回来），
+    // 之后每完成一批补评再报一次。已全部评完时这里就是 100%，补评分支自然跳过。
+    const reportFinalProgress = () => {
+      if (cancelled) return;
+      const scoredCount = candidates.filter(c => typeof c.jobRelevanceScore === 'number').length;
+      sendStep2Progress(scoredCount, candidates.length, `${overview} · 已评 ${scoredCount}/${candidates.length} 人`);
+    };
+    reportFinalProgress();
+
     // 2) 补评差集（增量阶段没评到的，含提取结束时最后几个候选人）
     const unscored = candidates.filter(c => typeof c.jobRelevanceScore !== 'number');
     if (unscored.length > 0) {
       termLog(`[AI评分] 收尾补评 ${unscored.length} 人`);
-      const countScoredNow = () => candidates.reduce((n, c) => n + (typeof c.jobRelevanceScore === 'number' ? 1 : 0), 0);
-      await scoreCandidateList(unscored, extractSource, {
-        signal,
-        onBatchDone() {
-          const scoredCount = countScoredNow();
-          sendProgress(2, 'running', Math.round((scoredCount / candidates.length) * 100), `${scoredCount}/${candidates.length} 人`);
-        },
-      });
-    } else if (!cancelled) {
-      // 增量阶段已全部评完（无差集）：补一条人数提示，避免「总览 → 直接完成」没有人数
-      sendProgress(2, 'running', 100, `${candidates.length}/${candidates.length} 人`);
+      await scoreCandidateList(unscored, extractSource, { signal, onBatchDone: reportFinalProgress });
     }
     if (cancelled) return;
 
