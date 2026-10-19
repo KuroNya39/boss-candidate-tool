@@ -129,8 +129,13 @@ async function findTab(source) {
 }
 
 // ===== iframe 内 JS 执行 =====
+// 页面用的 iframe 名（推荐页 / 搜索页各一个）：定位与坐标换算都从这里取，别各写一份
+function frameNameFor(source) {
+  return source === 'search' ? 'searchFrame' : 'recommendFrame';
+}
+
 async function iframeEval(targetId, expr, source = 'recommend') {
-  const frameName = source === 'search' ? 'searchFrame' : 'recommendFrame';
+  const frameName = frameNameFor(source);
   const wrapped = `(function(){
     var iframe = document.querySelector('iframe[name=${frameName}]');
     if (!iframe) return JSON.stringify({error: 'no-${frameName}'});
@@ -149,73 +154,161 @@ async function iframeEval(targetId, expr, source = 'recommend') {
   return parsed.value;
 }
 
+// ===== 打招呼按钮：定位、换算坐标、真实鼠标点击 =====
+// 打招呼按钮在 iframe 里，而真实鼠标事件（Input.dispatchMouseEvent）收的是**顶层页面的
+// 视口坐标**。跨域 iframe 顶层查不到按钮，所以从顶层文档钻进同源 iframe 里量位置，再换算：
+//   顶层坐标 = iframe 在顶层的 rect + iframe 内容区原点（clientLeft/Top 扣掉边框）
+//              + 按钮在 iframe 内的 rect
+//
+// 为什么不用 el.click()（v1.19.0 改）：合成 click 的 event.isTrusted 恒为 false、
+// 事件坐标全是 0、也没有前置的 mousemove/mousedown 序列。打招呼是 BOSS直聘的付费动作，
+// 页面按这几条一查一个准——实测自动打第一个招呼就被风控识别、账号被限制登录。
+// 换成真实鼠标事件后 isTrusted 为 true、坐标真实、事件序列完整。
+// 注意：这只是在补上「点击方式」这一个特征，不代表账号层面的行为特征也一并解决了。
+
+// 选择器：推荐页与搜索页各一套（iframe 名、卡片、卡片容器、打招呼按钮）
+function selectorsFor(geekId, source) {
+  const isSearch = source === 'search';
+  return {
+    frameName: frameNameFor(source),
+    cardSel: isSearch
+      ? `a[data-jid="${geekId}"]`
+      : `.card-inner[data-geekid="${geekId}"], .card-inner[data-geek="${geekId}"]`,
+    // 兼容两种卡片结构：推荐/精选导航 li.card-item，最新导航 .candidate-card-wrap
+    liSel: isSearch ? 'li.geek-info-card' : 'li.card-item, .candidate-card-wrap',
+    // 搜索页的"联系Ta"按钮有 btn-getcontact 类，推荐页是 btn-greet
+    btnSel: isSearch ? 'button.btn-getcontact' : 'button.btn.btn-greet',
+  };
+}
+
+// 共享片段：在指定文档里定位这张卡（点击路径传 idoc，校验路径直接传 iframe 自己的 document）。
+// 结尾是半截函数——只声明 card 变量、不 return，由调用方接着写自己的判断。
+function cardJs(geekId, source, docVar) {
+  const { cardSel, liSel } = selectorsFor(geekId, source);
+  return `
+    var targetEl = ${docVar}.querySelector(${JSON.stringify(cardSel)});
+    var card = targetEl ? targetEl.closest(${JSON.stringify(liSel)}) : null;
+  `;
+}
+
+// 共享片段：从顶层文档钻进同源 iframe，取出这张卡和它的打招呼按钮
+function lookupJs(geekId, source) {
+  const { frameName, btnSel } = selectorsFor(geekId, source);
+  return `
+    var iframe = document.querySelector('iframe[name=${frameName}]');
+    if (!iframe) return JSON.stringify({ status: 'no-iframe' });
+    var idoc = null;
+    try { idoc = iframe.contentDocument; } catch (e) {}
+    if (!idoc) return JSON.stringify({ status: 'cross-origin' });
+    ${cardJs(geekId, source, 'idoc')}
+    var btn = card ? card.querySelector(${JSON.stringify(btnSel)}) : null;
+  `;
+}
+
+// 在顶层文档里跑一段 JS：调用方只写函数体（自己 return），返回值走 JSON 过一遍
+async function topEval(targetId, body) {
+  return JSON.parse(await cdpEval(targetId, `(function(){${body}})()`));
+}
+
+// 第 1 步：判定状态 + 把按钮滚进可视区（不点）。真人也是先看到卡片、再点。
+async function prepareGreetButton(targetId, geekId, source) {
+  return topEval(targetId, `${lookupJs(geekId, source)}
+    if (!card) return JSON.stringify({ status: 'not-found' });
+    if (!btn) {
+      var anyBtn = card.querySelector('button');
+      var t = anyBtn ? anyBtn.textContent.trim() : '';
+      if (t === '继续沟通' || t.indexOf('沟通过') >= 0 || t.indexOf('已联系') >= 0) {
+        return JSON.stringify({ status: 'already-greeted' });
+      }
+      return JSON.stringify({ status: 'no-greet-btn', text: t });
+    }
+    btn.scrollIntoView({ block: 'center' });
+    return JSON.stringify({ status: 'ready' });
+  `);
+}
+
+// 第 2 步：滚动落定后重新量一次，核验落点真的压在按钮上，返回顶层视口坐标。
+// 量早了位置是错的（scrollIntoView 可能是平滑滚动），所以必须和上一步分开、中间留时间。
+async function measureGreetButton(targetId, geekId, source) {
+  return topEval(targetId, `${lookupJs(geekId, source)}
+    if (!card || !btn) return JSON.stringify({ status: 'lost' });
+    var br = btn.getBoundingClientRect();
+    var lx = br.left + br.width / 2;
+    var ly = br.top + br.height / 2;
+    // 落点必须真的压在按钮上：被浮层盖住或滚出可视区时，elementFromPoint 会给出别人
+    var hit = idoc.elementFromPoint(lx, ly);
+    if (!hit || !(hit === btn || btn.contains(hit))) {
+      return JSON.stringify({ status: 'covered', hit: hit ? hit.tagName : 'null' });
+    }
+    var ir = iframe.getBoundingClientRect();
+    var x = ir.left + iframe.clientLeft + lx;
+    var y = ir.top + iframe.clientTop + ly;
+    if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) {
+      return JSON.stringify({ status: 'offscreen' });
+    }
+    // 顶层这边也确认这一点落在 iframe 上（elementFromPoint 不钻进 iframe，命中的就是 iframe 元素）
+    var topHit = document.elementFromPoint(x, y);
+    if (topHit && topHit !== iframe) {
+      return JSON.stringify({ status: 'covered-top', hit: topHit.tagName });
+    }
+    return JSON.stringify({ status: 'ready', x: Math.round(x), y: Math.round(y) });
+  `);
+}
+
 // ===== 核心：给单个候选人打招呼/联系Ta =====
 async function greetCandidate(targetId, geekId, name, source = 'recommend') {
-  const isSearch = source === 'search';
-  const cardSelector = isSearch
-    ? `a[data-jid="${geekId}"]`
-    : `.card-inner[data-geekid="${geekId}"], .card-inner[data-geek="${geekId}"]`;
-  // 兼容两种卡片结构：推荐/精选导航 li.card-item，最新导航 .candidate-card-wrap
-  const liSelector = isSearch ? 'li.geek-info-card' : 'li.card-item, .candidate-card-wrap';
-  const btnSelector = isSearch ? 'button.btn-getcontact' : 'button.btn.btn-greet';
+  // 1. 定位 + 状态判定 + 滚进可视区
+  const prep = await prepareGreetButton(targetId, geekId, source);
 
-  // 搜索页的"联系Ta"按钮有 btn-getcontact 类，推荐页是 btn-greet
-  const expr = `(function(){
-    var targetEl = document.querySelector('${cardSelector}');
-    if (!targetEl) return 'not-found';
-    var card = targetEl.closest('${liSelector}');
-    if (!card) return 'not-found';
-    var btn = card.querySelector('${btnSelector}');
-    if (!btn) {
-      // 检查是否是已联系/已打招呼状态
-      var anyBtn = card.querySelector('button');
-      var btnText = anyBtn ? anyBtn.textContent.trim() : '';
-      if (btnText === '继续沟通') return 'already-greeted';
-      if (btnText.includes('沟通过')) return 'already-greeted';
-      if (btnText.includes('已联系')) return 'already-greeted';
-      return 'no-greet-btn:' + btnText;
-    }
-    btn.click();
-    return 'clicked';
-  })()`;
-
-  const result = await iframeEval(targetId, expr, source);
-
-  if (result === 'not-found') {
+  if (prep.status === 'no-iframe' || prep.status === 'cross-origin') {
+    // 整个页面结构不对，不是这一个候选人的问题：抛出去让人看见，别静默算成 skip
+    throw new Error(`iframe 操作失败： ${prep.status}`);
+  }
+  if (prep.status === 'not-found') {
     console.log(`GREET_STATUS:${name}|${geekId}|not-found|页面中未找到该候选人`);
     return 'not-found';
   }
-  if (result === 'already-greeted') {
+  if (prep.status === 'already-greeted') {
     console.log(`GREET_STATUS:${name}|${geekId}|already-greeted|已打过招呼/已联系过`);
     return 'already-greeted';
   }
-  if (result === 'clicked') {
-    // 等待按钮状态变更，确认成功（停止指令可打断等待，尽快收手）
-    await cancellableSleep(1500);
-
-    // 验证按钮状态
-    const verify = `(function(){
-      var targetEl = document.querySelector('${cardSelector}');
-      if (!targetEl) return 'lost';
-      var card = targetEl.closest('${liSelector}');
-      if (!card) return 'lost';
-      var btn = card.querySelector('button');
-      return btn ? btn.textContent.trim() : 'no-btn';
-    })()`;
-    const verified = await iframeEval(targetId, verify, source);
-
-    if (verified === '继续沟通' || verified.includes('沟通过') || verified === '立即沟通' || verified.includes('已联系')) {
-      console.log(`GREET_STATUS:${name}|${geekId}|success|联系/打招呼成功`);
-      return 'success';
-    } else {
-      console.log(`GREET_STATUS:${name}|${geekId}|uncertain|点击后状态=${verified}`);
-      return 'uncertain';
-    }
+  if (prep.status === 'no-greet-btn') {
+    console.log(`GREET_STATUS:${name}|${geekId}|skip|no-greet-btn:${prep.text}`);
+    return 'skip';
   }
 
-  // no-greet-btn:xxx
-  console.log(`GREET_STATUS:${name}|${geekId}|skip|${result}`);
-  return 'skip';
+  // 2. 等滚动落定，再量坐标（停止指令可打断等待，尽快收手）
+  await cancellableSleep(450);
+  if (stopRequested) return 'cancelled';
+
+  const pos = await measureGreetButton(targetId, geekId, source);
+  if (pos.status !== 'ready') {
+    console.log(`GREET_STATUS:${name}|${geekId}|uncertain|落点不可用=${pos.status}${pos.hit ? ':' + pos.hit : ''}`);
+    return 'uncertain';
+  }
+
+  // 3. 真实鼠标点击（顶层视口坐标）。点击序列本身在代理里补齐
+  await proxyPost(`/clickAtXY?target=${targetId}`, JSON.stringify({ x: pos.x, y: pos.y }));
+
+  // 4. 等待按钮状态变更，确认成功
+  await cancellableSleep(1500);
+
+  // 校验跑在 iframe 内部（iframeEval 的求值上下文就是 iframe），所以这里用 document 定位；
+  // 按钮取「卡内任意 button」而不是打招呼选择器——点完按钮的类名会变，按类名找不到
+  const verify = `(function(){
+    ${cardJs(geekId, source, 'document')}
+    if (!card) return 'lost';
+    var btn = card.querySelector('button');
+    return btn ? btn.textContent.trim() : 'no-btn';
+  })()`;
+  const verified = await iframeEval(targetId, verify, source);
+
+  if (verified === '继续沟通' || verified.includes('沟通过') || verified === '立即沟通' || verified.includes('已联系')) {
+    console.log(`GREET_STATUS:${name}|${geekId}|success|联系/打招呼成功`);
+    return 'success';
+  }
+  console.log(`GREET_STATUS:${name}|${geekId}|uncertain|点击后状态=${verified}`);
+  return 'uncertain';
 }
 
 // ===== 主流程 =====

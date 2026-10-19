@@ -307,6 +307,9 @@ async function readBody(req) {
   return body;
 }
 
+// --- 延时 ---
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
 // --- HTTP API ---
 const server = http.createServer(async (req, res) => {
   const parsed = new URL(req.url, `http://localhost:${PORT}`);
@@ -577,6 +580,45 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ clicked: true, x: coord.x, y: coord.y, tag: coord.tag, text: coord.text }));
     }
 
+    // POST /clickAtXY?target=xxx — 在指定视口坐标上模拟一次「像人」的点击
+    // body: JSON { "x": 数字, "y": 数字 }（**顶层页面的视口坐标**）
+    // 与 /clickAt 的区别：/clickAt 收选择器、只发 press+release 两下；本端点收坐标，
+    // 补全「从旁边移过来 → 按下 → 停顿 → 松开」的完整序列，并带上 buttons 位掩码
+    // （真人 mousedown 时 event.buttons=1，原 /clickAt 漏了这个字段，一直是 0）。
+    // 用于页面会校验 event.isTrusted / 事件坐标 / 事件序列的敏感按钮——这类按钮上
+    // 合成 click（el.click()）会被风控认出来。元素在跨域 iframe 里时，坐标由调用方
+    // 换算成顶层视口坐标再传进来（本端点不做选择器查找）。
+    else if (pathname === '/clickAtXY') {
+      const sid = await ensureSession(q.target);
+      let pt;
+      try {
+        pt = JSON.parse(await readBody(req));
+      } catch {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'body 需要 JSON： {"x": 数字, "y": 数字}' }));
+        return;
+      }
+      const x = Math.round(pt.x);
+      const y = Math.round(pt.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'x / y 必须是数字' }));
+        return;
+      }
+      // 真人不会凭空出现在按钮上：从斜下方一点移过来，中途再落一次，
+      // 顺带让页面在移动过程中触发 hover（真人也先看到按钮再点）
+      const fromX = x - 18 - Math.round(Math.random() * 30);
+      const fromY = y + 12 + Math.round(Math.random() * 24);
+      await sendCDP('Input.dispatchMouseEvent', { type: 'mouseMoved', x: fromX, y: fromY, button: 'none', buttons: 0 }, sid);
+      await sleep(60 + Math.round(Math.random() * 90));
+      await sendCDP('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none', buttons: 0 }, sid);
+      await sleep(40 + Math.round(Math.random() * 80));
+      await sendCDP('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 }, sid);
+      await sleep(60 + Math.round(Math.random() * 70)); // 按下到松开的停顿，真人约 60–120ms
+      await sendCDP('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', buttons: 0, clickCount: 1 }, sid);
+      res.end(JSON.stringify({ clicked: true, x, y }));
+    }
+
     // POST /keyseq?target=xxx — 发送真实（trusted）按键序列，用于触发页面 copy 处理器
     // body: JSON { "keys": "ctrl+c" }；CDP Input 事件被浏览器视为真人按键，
     // 能通过 event.isTrusted 校验（合成 ClipboardEvent 做不到）。modifiers: Alt=1 Ctrl=2 Meta=4 Shift=8
@@ -624,7 +666,6 @@ const server = http.createServer(async (req, res) => {
     // 端点封装完整流程：计算 canvas 主视口坐标 → mousedown 顶部 → 拖到屏底 → 滚动容器到底 → mouseup → Ctrl+C。
     else if (pathname === '/canvas-copy') {
       const sid = await ensureSession(q.target);
-      const sleepMs = ms => new Promise(r => setTimeout(r, ms));
       // v1.8.4: 单次拖拽复制硬上限。超过说明这份简历渲染太重或页面卡住——若继续硬跑，客户端会在
       // 自己的 20s 超时处放弃请求，而服务器的拖拽还停在这个页面上，下一位/OCR 的鼠标指令就会和它
       // 在同一页面打架（重叠拖拽，两份复制互相污染）。到点干净收尾返回错误，由客户端直接走截图。
@@ -825,7 +866,7 @@ const server = http.createServer(async (req, res) => {
             last.canvasY = last.info.canvasMain.y;
             if (last.canvasY < 120) break;
           }
-          await sleepMs(gapMs);
+          await sleep(gapMs);
         }
         return last;
       };
@@ -840,7 +881,7 @@ const server = http.createServer(async (req, res) => {
       if (info && !info.error && canvasY !== null && canvasY >= 120) {
         console.log(`[canvas-copy] canvas 未回顶（y=${canvasY}），重载 c-resume iframe 重建渲染状态`);
         await sendCDP('Runtime.evaluate', { expression: reloadJs, returnByValue: true }, sid);
-        await sleepMs(500);
+        await sleep(500);
         await sendCDP('Runtime.evaluate', { expression: resetJs, returnByValue: true }, sid);
         ({ info, canvasY } = await pollInfo(16, 500));
         logCands(info);
@@ -929,15 +970,15 @@ const server = http.createServer(async (req, res) => {
       if (Y1 <= Y0 + 40) Y1 = Y0 + 40;
       dragX = X0 + 30; dragY = Y1; // 记录按住位置，供超时收尾时松开
       await sendCDP('Input.dispatchMouseEvent', { type: 'mouseMoved', x: X0, y: Y0 }, sid);
-      await sleepMs(100);
+      await sleep(100);
       await sendCDP('Input.dispatchMouseEvent', { type: 'mousePressed', x: X0, y: Y0, button: 'left', clickCount: 1, buttons: 1 }, sid);
-      await sleepMs(80);
+      await sleep(80);
       const dragSteps = 12;
       for (let i = 1; i <= dragSteps; i++) {
         await sendCDP('Input.dispatchMouseEvent', { type: 'mouseMoved', x: X0, y: Y0 + Math.round((Y1 - Y0) * i / dragSteps), button: 'left', buttons: 1 }, sid);
-        await sleepMs(20);
+        await sleep(20);
       }
-      await sleepMs(100);
+      await sleep(100);
 
       // 3) 按住滚动容器到底（Boss 选中基于文档坐标，滚动后选区持续扩展）
       //    window.__resumeScrollEl 由 info 阶段缓存（各页面滚动容器不同，统一用它）
@@ -970,9 +1011,9 @@ const server = http.createServer(async (req, res) => {
           return out || 'no';
         })()`;
         await sendCDP('Runtime.evaluate', { expression: scrollJs, returnByValue: true }, sid);
-        await sleepMs(200);   // 等 Boss 平滑滚动 + 重绘（v1.4.5: 350→200，选区基于文档坐标，同步扩展）
+        await sleep(200);   // 等 Boss 平滑滚动 + 重绘（v1.4.5: 350→200，选区基于文档坐标，同步扩展）
         await sendCDP('Input.dispatchMouseEvent', { type: 'mouseMoved', x: X0 + 30, y: Y1, button: 'left', buttons: 1 }, sid);
-        await sleepMs(70);
+        await sleep(70);
       }
 
       // 3.5) 选区延伸到内容最底部：滚到底后最后一行（页脚「…任何第三方平台…存储」）贴近画布底边，
@@ -984,15 +1025,15 @@ const server = http.createServer(async (req, res) => {
         const extSteps = 8;
         for (let i = 1; i <= extSteps; i++) {
           await sendCDP('Input.dispatchMouseEvent', { type: 'mouseMoved', x: X0 + 30, y: Y1 + Math.round((YB - Y1) * i / extSteps), button: 'left', buttons: 1 }, sid);
-          await sleepMs(20);
+          await sleep(20);
         }
-        await sleepMs(150);
+        await sleep(150);
       }
 
       // 4) 松开 + 真实 Ctrl+C → 全文进入系统剪贴板
       if (copyOverdue()) { await bailCopy('copy-timeout'); return; }
       await sendCDP('Input.dispatchMouseEvent', { type: 'mouseReleased', x: X0 + 30, y: YB, button: 'left', clickCount: 1, buttons: 0 }, sid);
-      await sleepMs(300);
+      await sleep(300);
       const CTRL = 2;
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17, modifiers: 0 }, sid);
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyDown', key: 'c', code: 'KeyC', windowsVirtualKeyCode: 67, nativeVirtualKeyCode: 67, modifiers: CTRL }, sid);
@@ -1000,7 +1041,7 @@ const server = http.createServer(async (req, res) => {
       await sendCDP('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, nativeVirtualKeyCode: 17, modifiers: 0 }, sid);
       // 等浏览器把 Ctrl+C 处理完再响应。这里只给一个起步的 200ms —— 页面把全文写进系统剪贴板
       // 是异步的、快慢不定，收尾由客户端轮询剪贴板（CLIPBOARD_WRITE_WAIT_MS）负责
-      await sleepMs(200);
+      await sleep(200);
       const copyDiag = await readCopyDiag();
       res.end(JSON.stringify({ ok: true, canvasMain, scrollMax, scrolled, scope, winH: info.winH, yBottom: (info.winH || 900) - 2, scrollSel: info.scrollSel, diag: info.diag, copyDiag, elapsed: Date.now() - copyStart }));
     }
@@ -1055,7 +1096,7 @@ const server = http.createServer(async (req, res) => {
         returnByValue: true,
       }, sid);
       // 等待懒加载触发
-      await new Promise(r => setTimeout(r, 800));
+      await sleep(800);
       res.end(JSON.stringify({ value: resp.result?.result?.value }));
     }
 
@@ -1139,7 +1180,7 @@ const server = http.createServer(async (req, res) => {
       if (resp.error || !resp?.result?.data) {
         sessions.delete(q.target);
         // v1.3.12: OOPIF iframe 加载/销毁竞态时稍等再重试，给 iframe 完成渲染的时间
-        await new Promise(r => setTimeout(r, 200));
+        await sleep(200);
         try {
           const newSid = await ensureSession(q.target);
           resp = await sendCDP('Page.captureScreenshot', ssParams, newSid);
@@ -1247,7 +1288,9 @@ const server = http.createServer(async (req, res) => {
           '/frames?target=': 'GET - 获取 frame 树和所有执行上下文',
           '/isolated-world?target=&frame=': 'GET - 用 Page.createIsolatedWorld 为 frame 创建执行上下文（Chrome 151+）',
           '/eval-context?target=&context=': 'POST body=JS表达式 - 在指定执行上下文执行 JS',
-          '/click?target=': 'POST body=CSS选择器 - 点击元素',
+          '/click?target=': 'POST body=CSS选择器 - 点击元素（JS 合成 click）',
+          '/clickAt?target=': 'POST body=CSS选择器 - 真实鼠标点击（press+release，坐标为顶层视口；元素在 iframe 里时用不了）',
+          '/clickAtXY?target=': 'POST body=JSON{x,y} - 真实鼠标点击（含移动/按下/停顿/松开，坐标为顶层视口；敏感按钮优先用这个）',
           '/keyseq?target=': 'POST body=JSON - 发送真实按键序列（Ctrl+C 触发页面 copy 处理器）',
           '/scroll?target=&y=&direction=': 'GET - 滚动页面',
           '/wheel?target=': 'POST body=JSON - 真实鼠标滚轮事件',
@@ -1301,7 +1344,7 @@ async function main() {
       console.log(`[CDP Proxy] 检测到旧版本实例（version=${health.version}），请求退出以加载新代码…`);
       await httpGetJson(`http://127.0.0.1:${PORT}/shutdown`);
       for (let i = 0; i < 10; i++) {
-        await new Promise(r => setTimeout(r, 300));
+        await sleep(300);
         if (await checkPortAvailable(PORT)) break;
       }
       if (!(await checkPortAvailable(PORT))) {

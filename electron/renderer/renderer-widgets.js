@@ -164,6 +164,7 @@ initCustomSelect(autoGreetLevel);
 //
 // 两套菜单项：输入框给全套五项；正文（候选人姓名、输出目录、错误信息这些能选中的文字）只给
 // 复制 / 全选 —— 剪切 / 粘贴 / 删除在只读文字上没有语义，摆一排灰项只是噪音。
+// 正文菜单只在落点真的压着文字时才弹（判据见 textAtPoint）：空白处不弹。
 const CONTEXT_MENU_ITEMS = [
   { action: 'cut', label: '剪切', key: 'Ctrl+X' },
   { action: 'copy', label: '复制', key: 'Ctrl+C' },
@@ -186,18 +187,34 @@ function isTextEntry(el) {
   return CONTEXT_MENU_INPUT_TYPES.has((el.getAttribute('type') || 'text').toLowerCase());
 }
 
-// 落点是不是「能选中的正文」。交互控件（按钮 / 可点行 / 标签）都显式设了 user-select:none
-// （base.css 的 button 规则 + 各处可点行），所以沿祖先链走一遍、遇到第一个 none 就说明点在了
-// 控件里，不给菜单。逐个祖先查而不是只读落点自身的计算值：user-select 在 Chromium 里是继承的、
+// 一段文字是不是「能选中的」。交互控件（按钮 / 可点行 / 标签）都显式设了 user-select:none
+// （base.css 的 button 规则 + 各处可点行），所以沿祖先链走一遍、遇到第一个 none 就说明它在
+// 控件里，不给菜单。逐个祖先查而不是只读它自身的计算值：user-select 在 Chromium 里是继承的、
 // 按规范却不是，自己走链最稳，不受实现差异影响。
-// 控件本身（复选框 / 下拉 / 文件选择 / 禁用输入框）另外挡掉——它们没有「选中文字复制」的语义。
+// 传进来的是「光标下那段文字的父元素」，不是事件落点——输入框走 isTextEntry 那条路、下拉里的
+// 文字挂在 option 上，都到不了这儿，所以不必再按标签名挡一遍。
 function isSelectableText(el) {
-  const tag = el.tagName;
-  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return false;
   for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
     if (getComputedStyle(n).userSelect === 'none') return false;
   }
   return true;
+}
+
+// 落点下面真的压着一段可选中的文字吗。空白处（首页大片留白、卡片之间的缝隙、面板边缘、
+// 只有图标的地方）不该弹菜单——那儿没有可复制的东西，菜单只是噪音。
+// 先问浏览器「这一点最近的文字在哪」，但 caretRangeFromPoint 是**就近吸附**的：点在文字右侧的
+// 空白里也会返回那一行的末尾，所以再拿这段文字自己的每行矩形核一遍落点，吸附来的位置过不了。
+function textAtPoint(x, y) {
+  const node = document.caretRangeFromPoint(x, y)?.startContainer; // 渲染进程就是 Blink，这个方法一直在
+  if (!node || node.nodeType !== Node.TEXT_NODE || !node.data.trim()) return false;
+  if (!isSelectableText(node.parentElement)) return false;
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  const pad = 2; // 容一点误差，贴着字边缘点下去也算数
+  for (const rect of range.getClientRects()) {
+    if (x >= rect.left - pad && x <= rect.right + pad && y >= rect.top - pad && y <= rect.bottom + pad) return true;
+  }
+  return false;
 }
 
 let contextMenuEl = null;
@@ -269,7 +286,8 @@ function openContextMenu(x, y, target) {
   // 各项可用性按当前字段状态定（禁用项照常占位、只置灰，原生右键菜单也是这么做的）：
   // 密码框不给剪切 / 复制 / 删除（明文不外流，与浏览器一致）；只读框不给改内容的动作；
   // 没有选中文本时剪切 / 复制 / 删除无从下手。粘贴在密码框里是允许的（浏览器也允许）。
-  // 正文模式只有复制 / 全选：没选中文字时复制灰着、全选照常可用（与 Chrome 一致，右键总有反应）。
+  // 正文模式只有复制 / 全选：没选中文字时复制灰着，全选照常可用——菜单既然弹出来了，
+  // 就总得留一项能点的，不能整排灰着。
   let enabled;
   if (!target) {
     // 正文模式没有字段可问，只按「有没有选中文字」定
@@ -377,9 +395,9 @@ document.addEventListener('contextmenu', (e) => {
     openContextMenu(e.clientX, e.clientY, el);
     return;
   }
-  // 正文 / 空白处：只要不是交互控件就给菜单。与 Chrome 一致 —— 右键总有反应，
-  // 不然「这儿右键有菜单」这件事只能靠猜（用户不会先选中文字再右键）
-  if (el && el.nodeType === 1 && isSelectableText(el)) {
+  // 正文：只有落点真的压在一段可选中的文字上才弹菜单（候选人的姓名、输出目录、错误信息
+  // 这些）。空白处和交互控件不给——那儿没有可复制的东西，弹出来只是噪音
+  if (textAtPoint(e.clientX, e.clientY)) {
     e.preventDefault();
     openContextMenu(e.clientX, e.clientY, null);
     return;
