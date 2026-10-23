@@ -12,6 +12,7 @@ import { resolve } from 'node:path';
 import { existsSync, statSync, appendFileSync, createReadStream, mkdirSync, rmSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { pinyinSearchText } from './pinyin.mjs';
+import { compareNames } from './name-sort.mjs';
 import { summarizeScoredCandidate } from '../scripts/scored-candidate.mjs';
 
 // 索引文件放在 userData 配置目录（调用方传入 CONFIG_DIR，见 config.mjs）。
@@ -60,8 +61,8 @@ export function appendCandidateIndex(dir, candidates) {
 }
 
 // 按关键词查询（中文原文 / 拼音首字母 / 全拼都能命中），返回可直接交给
-// renderResultsList 的扁平候选人数组。按人分组：组内时间倒序、组间按最近一次评分倒序，
-// 同一个人的多条评价在列表里相邻。
+// renderResultsList 的扁平候选人数组。按人分组：组内时间倒序、组间按姓名拼音序
+// （与「目标岗位」列表同一套规则，见 name-sort.mjs），同一个人的多条评价在列表里相邻。
 export async function searchCandidateIndex(dir, query) {
   const q = String(query ?? '').trim().toLowerCase();
   const indexPath = indexPathIn(dir);
@@ -93,12 +94,11 @@ export async function searchCandidateIndex(dir, query) {
     rl.close();
   }
 
-  // 组内、组间都按评分时间倒序；组间用「该人最近一次评分」，最近更新过的人排在前面
+  // 组内时间倒序：同一个人最新的评价在上（组间顺序见上方函数说明）
   for (const group of groups.values()) {
     group.entries.sort((a, b) => String(b.scoredAt || '').localeCompare(String(a.scoredAt || '')));
   }
-  const ordered = [...groups.values()]
-    .sort((a, b) => String(b.entries[0]?.scoredAt || '').localeCompare(String(a.entries[0]?.scoredAt || '')));
+  const ordered = [...groups.values()].sort((a, b) => compareNames(a.name, b.name));
 
   const candidates = [];
   for (const group of ordered.slice(0, MAX_PEOPLE)) {

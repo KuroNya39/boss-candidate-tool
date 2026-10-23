@@ -9,7 +9,7 @@ Electron desktop app for extracting candidate profiles from BOSS直聘 (Boss Zhi
 ## Architecture
 
 ```
-electron/main.mjs        ← Electron main process 入口（应用生命周期 + --score-only）；其余 13 个业务模块 electron/{util,state,config,window,archive,scoring,runner,chrome,incremental,pipeline,greet,ipc,candidate-index}.mjs，各模块职责见 main.mjs 顶部注释
+electron/main.mjs        ← Electron main process 入口（应用生命周期 + --score-only）；其余 14 个业务模块 electron/{util,state,config,window,archive,scoring,runner,chrome,incremental,pipeline,greet,ipc,candidate-index,name-sort}.mjs，各模块职责见 main.mjs 顶部注释
 electron/score-comment.mjs ← Shared scoring helpers: compute match score from comment (weighted base − deductions, with 学历硬性门槛 programmatic backstop) + patch education-deduction comment text
 electron/preload.js      ← Context bridge (electronAPI exposed to renderer)
 electron/renderer/       ← UI (index.html + 6 个 CSS：tokens.css / base.css / topbar.css / config.css / run.css / overlays.css（按序 <link>，勿调换）+ renderer-*.js 11 个按序 <script src> 引入共享全局作用域；样式拆分与规范见 docs/design-system.md)
@@ -77,7 +77,8 @@ Child process cancellation works by writing `CANCEL\n` to stdin, waiting 2s, the
   - 两串之间用空格隔开（`${initials} ${full}`），所以短查询可能同时命中两串，属正常；全拼串会把匹配面放宽（`he` 也能搜到「内核」），拼音搜索本身如此，不额外加长度限制。
   - `pinyinSearchText()` 是纯函数，结果按岗位名 memo（岗位列表每次刷新都会重算，但其中最多只有一个名字变了）。
   - 试过但**不能用**的两个无依赖方案（都实测过，别再走一遍）：① GB2312 边界法（23 个边界字 + iconv 编码比大小）只覆盖一级字库 3755 字，「圳」在二级字库、按部首笔画排，取不到首字母 → `sz` 搜不到深圳；② `Intl.Collator('zh-Hans-u-co-pinyin')` 覆盖面全，但多音字读音与 GB2312 不一致（把「曾」读成 céng、「长」读成 zhǎng），边界字错位，「西安」会被判成 ZA。
-- **候选人查询索引（v1.20.0）**: 评分收尾时（`incremental.mjs` 的 `finalizeScoring`，写完 `scored-candidates.json` 的同一处）调用 `appendCandidateIndex(CONFIG_DIR, 本次评过的候选人数组)`——直接用内存里的数组，不重读结果文件；继续提取时播种进来的旧分不算本次，不重复记。把「一人一条评价」追加进 `%AppData%\web-access\web-access\candidate-index.jsonl`（JSONL，一行一条，只追加、不重写；流式 `readline` 查询）。索引与历史批次**刻意解耦**：删历史批次不影响它，索引「清空」也只删这一个文件。只存姓名/分数/等级/通过/岗位/评语/时间/姓名拼音串，**不存简历全文、不存 geekId**（三个页面的 ID 不是同一套编号，跨页面认不出同一个人，故按姓名归并）。写失败只记日志、不阻断导出。UI 入口：左上角 ⋮ 菜单第三项「候选人查询」，独立居中弹窗，按姓名（中文 / 拼音首字母 / 全拼）搜索。
+- **姓名 / 岗位名排序统一用 `compareNames`（`electron/name-sort.mjs`）**: 拼音序（`Intl.Collator('zh-Hans-CN', { numeric: true })`），字母 / 数字开头排最前、数字按数值比（`P7` < `P10`）。「目标岗位」列表与「候选人查询」结果共用；以后新增任何面向用户的姓名 / 岗位列表也走它，别再手写 `Intl.Collator`（`pinyin.mjs` 里那套只用于**搜索匹配**、取不出首字母，两件事别混）。
+- **候选人查询索引（v1.20.0）**: 评分收尾时（`incremental.mjs` 的 `finalizeScoring`，写完 `scored-candidates.json` 的同一处）调用 `appendCandidateIndex(CONFIG_DIR, 本次评过的候选人数组)`——直接用内存里的数组，不重读结果文件；继续提取时播种进来的旧分不算本次，不重复记。把「一人一条评价」追加进 `%AppData%\web-access\web-access\candidate-index.jsonl`（JSONL，一行一条，只追加、不重写；流式 `readline` 查询）。索引与历史批次**刻意解耦**：删历史批次不影响它，索引「清空」也只删这一个文件。只存姓名/分数/等级/通过/岗位/评语/时间/姓名拼音串，**不存简历全文、不存 geekId**（三个页面的 ID 不是同一套编号，跨页面认不出同一个人，故按姓名归并）。写失败只记日志、不阻断导出。UI 入口：左上角 ⋮ 菜单第三项「候选人查询」，独立居中弹窗，按姓名（中文 / 拼音首字母 / 全拼）搜索。查询结果按人分组：组间 `compareNames` 排序（规则见上一条），组内按评分时间倒序。
 - **历史批次详情（v1.20.0）**: 历史记录里 `hasScored` 的条目整卡可点（行内按钮除外），打开只读的「批次详情」，内容与完成页同一套渲染（`buildScoringResults(dir)` + `renderResultsInto`），别另写一份。它与历史记录**互切**而不叠层：用 `swapDialogs(historyOverlay, batchDetailOverlay, …)`（与目标岗位 ⇄ 编辑岗位同一套交叉过渡，用户要求），关掉退回历史记录、焦点回到刚才那条。Esc 链仍必须先判批次详情、再判历史记录——互切动画期间两者 `display` 都是 `flex`，否则一次 Esc 关两层。`openDialog`/`closeDialog` 的焦点按层栈（`dialogFocusStack`）管理保留，供确认弹窗这类真正的叠层使用。
 - **Auto-archiving**: Old output directories renamed to `output-YYYYMMDD-HHMM` before each new run (done in main process to avoid Windows EBUSY).
 - **Windows GBK encoding**: `termLog()` and `decodeBuffer()` handle GBK encoding for stdout/stderr display on Windows terminals.
