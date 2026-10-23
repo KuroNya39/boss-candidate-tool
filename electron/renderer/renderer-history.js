@@ -78,6 +78,26 @@ function renderHistoryItem(item, index) {
   row.className = 'history-item';
   row.setAttribute('role', 'listitem');
 
+  // v1.20.0：有评分结果的批次，整张卡可点开「批次详情」（只读，与历史弹窗互切）。
+  // 行内四个操作按钮各有各的动作 —— 点在按钮上时不弹详情。
+  // 键盘：焦点在卡本身上时回车 / 空格打开；焦点落到里面的按钮时交给按钮自己处理
+  if (item.hasScored) {
+    row.classList.add('history-item--openable');
+    row.tabIndex = 0;
+    row.setAttribute('aria-haspopup', 'dialog');
+    const openDetail = (e) => {
+      if (e?.target instanceof Element && e.target.closest('button')) return;
+      openBatchDetail(item, row);
+    };
+    row.addEventListener('click', openDetail);
+    row.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (e.target !== row) return; // 焦点在里面的操作按钮上：交给按钮自己
+      e.preventDefault();
+      openBatchDetail(item, row);
+    });
+  }
+
   const meta = item.meta || {};
   const sourceLabel = historySourceLabel(meta);
 
@@ -249,27 +269,9 @@ btnHistory.addEventListener('click', () => {
 // 在弹窗内拖动选字松手拖到窗外不会把它误关
 bindBackdropDismiss(historyOverlay, closeHistoryDrawer);
 
-// 历史弹窗打开时，滚轮只作用于弹窗里的历史列表，不带动背后的主界面滚动。
-// 指针在列表上时交给浏览器原生滚动（顺滑、跟手，适配不同鼠标/触控板的滚动增量）；
-// 只有滚到列表顶/底不能再滚、指针在标题/底部按钮等非列表区（转发给列表）、
-// 或点在遮罩空白上时，才 preventDefault，避免滚轮穿过遮罩带动背后的主界面。
-historyOverlay.addEventListener(
-  'wheel',
-  (e) => {
-    if (historyOverlay.style.display !== 'flex') return; // 弹窗没开时不拦截
-    if (historyList.contains(e.target)) {
-      // 列表还能继续滚 → 放行给原生滚动（不再手动 scrollTop，滚动手感才正常）
-      const atBottom = historyList.scrollTop + historyList.clientHeight >= historyList.scrollHeight - 1;
-      const atTop = historyList.scrollTop <= 0;
-      const blocked = (e.deltaY > 0 && atBottom) || (e.deltaY < 0 && atTop);
-      if (!blocked) return;
-    } else if (historyDrawer.contains(e.target)) {
-      historyList.scrollTop += e.deltaY; // 指针在标题/底部按钮等非列表区：转发给列表（滚到底自然停）
-    }
-    e.preventDefault(); // 已到边界 / 非列表区 / 遮罩空白：吞掉，不让页面跟着滚
-  },
-  { passive: false }
-);
+// 历史弹窗打开时，滚轮只作用于弹窗里的历史列表，不带动背后的主界面滚动
+// （通用滚轮守卫见 renderer-widgets.js，三个弹窗共用一份）
+bindDialogWheelGuard(historyOverlay, historyList);
 
 // 清空历史记录（弹窗底部）
 btnHistoryClearAll.addEventListener('click', async () => {
@@ -289,8 +291,11 @@ btnHistoryClearAll.addEventListener('click', async () => {
       let parts = [];
       if (result.deleted > 0) parts.push('已删除 ' + result.deleted + ' 条历史记录');
       if (result.errors > 0) parts.push(result.errors + ' 条删除失败');
-      if (result.deleted === 0 && result.errors === 0) parts.push('没有找到历史归档数据');
-      showToast(parts.join('，'), result.errors > 0 ? 'error' : 'info', 4000);
+      if (result.deleted === 0 && result.errors === 0) parts.push('没有找到历史记录');
+      // 真删掉了 → success（与「清空候选人数据」同一个绿底）；有批次删失败 → error；
+      // 压根没有可删的数据 → info（中性色，别把「没东西可删」说成完成）
+      const toastType = result.errors > 0 ? 'error' : result.deleted > 0 ? 'success' : 'info';
+      showToast(parts.join('，'), toastType, 4000);
     }
   } catch (err) {
     showToast('清理失败：' + err.message, 'error');

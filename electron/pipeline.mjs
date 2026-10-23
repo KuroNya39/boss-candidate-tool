@@ -9,6 +9,7 @@ import { sendProgress, sendDone, sendError } from './window.mjs';
 import { readRunMeta, resolveBatchSource } from './archive.mjs';
 import { hasScorableCandidates, restoreScorableCandidates } from './scoring.mjs';
 import { runIncrementalScoring, cleanupTempFiles } from './incremental.mjs';
+import { CONFIG_DIR } from './config.mjs';
 import { runScript, parseExtractProgress, parseExportProgress } from './runner.mjs';
 import { isChromeRunning, getSourcePageUrl, launchChrome, buildPageNotOpenMessage, openUrlInChrome } from './chrome.mjs';
 
@@ -141,6 +142,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       extractResult: null,          // 提取分支由下方设置；跳过提取分支预置 {ok:true}
       skipIncremental: skipExtract, // 跳过提取 → 不轮询进度文件，直接全量评分
       seedScores: resume,           // 继续提取 → 用上次评分播种，只补评新增候选人
+      indexDir: CONFIG_DIR,         // 候选人查询索引：收尾时记录本次评过的人
       scoringError: null,
     };
     const scoringPromise = runIncrementalScoring(scoreCtx).catch((err) => {

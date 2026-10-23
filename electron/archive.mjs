@@ -1,5 +1,5 @@
 // electron/archive.mjs — 历史归档目录的元数据读取与还原（叶模块，供评分/主流程/IPC 共用）。
-import { resolve, basename } from 'node:path';
+import { resolve, basename, dirname } from 'node:path';
 import { existsSync, readFileSync, readdirSync, renameSync } from 'node:fs';
 import { termLog } from './util.mjs';
 import { OUTPUT_DIR } from './state.mjs';
@@ -8,6 +8,17 @@ import { OUTPUT_DIR } from './state.mjs';
 export function archiveDirNameMatches(name) {
   const baseName = basename(OUTPUT_DIR);
   return new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-\\d{8}-\\d{4}$`).test(name);
+}
+
+// 路径校验：dirPath 是否指向「当前输出目录」或一个合法的历史归档目录（输出目录的同级、
+// 名字形如 output-YYYYMMDD-HHMM）。继续提取 / 重新评分 / 批次详情 / 删除批次都走这一条，
+// 免得每个 handler 各写一遍 basename + resolve(parent, name) 的比对。
+// allowCurrent=false 用于「必须拒绝当前目录」的操作（删除历史批次）。
+export function isHistoryDir(dirPath, { allowCurrent = true } = {}) {
+  const resolved = resolve(dirPath);
+  if (resolved === resolve(OUTPUT_DIR)) return allowCurrent;
+  const name = basename(dirPath);
+  return archiveDirNameMatches(name) && resolved === resolve(dirname(OUTPUT_DIR), name);
 }
 
 // 读取某目录里记录的运行元数据（来源/岗位/数量），供继续提取还原环境

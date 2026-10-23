@@ -8,6 +8,7 @@ import { termLog, sleep } from './util.mjs';
 import { tailFlushRequested, setTailFlushRequested, setAiAbortController, aiAbortController, cancelled, OUTPUT_DIR } from './state.mjs';
 import { sendProgress } from './window.mjs';
 import { candidateKeyOf, BATCH_SIZE, SCORE_CONCURRENCY, createPositionPromptBuilder, scoreOneBatch, scoreCandidateList } from './scoring.mjs';
+import { appendCandidateIndex } from './candidate-index.mjs';
 
 // 增量评分器内部轮询/启动/放行阈值（用户确认的参数）
 const POLL_MS = 1500;              // 提取过程中轮询进度文件的间隔
@@ -15,10 +16,11 @@ const POOL_START_THRESHOLD = 15;   // 提取到 15 人即开始边提取边评�
 const FLUSH_TIMEOUT = 30000;       // 不满一批的尾巴等待 30s 就放行，避免一直卡到提取结束
 
 // ===== 提取与评分并行：增量评分器 =====
-// ctx: { outputDir, source, extractResult, skipIncremental, seedScores, scoringError }
+// ctx: { outputDir, source, extractResult, skipIncremental, seedScores, indexDir, scoringError }
 //   - extractResult: 由 runPipeline 在提取子进程关闭/跳过恢复完成时设置 {ok:true}；失败设 {ok:false}
 //   - skipIncremental: 跳过提取直接评分时为 true（不轮询进度文件，等 extractResult 后直接收尾）
 //   - seedScores: 继续提取时为 true，用上次 scored-candidates.json 播种，只补评新增候选人
+//   - indexDir: 候选人查询索引目录（CONFIG_DIR）；收尾时只把本次真正评过的人记进去
 async function runIncrementalScoring(ctx) {
   const { outputDir, source } = ctx;
   const progressPath = resolve(outputDir, '.extract-progress.json');
@@ -46,6 +48,7 @@ async function runIncrementalScoring(ctx) {
   let lastPollAt = 0;
 
   // 继续提取：把上次已评的分数播种进 scored 表，只补评新增候选人
+  const seededKeys = new Set(); // 播种进来的旧分：收尾写索引时排除，免得旧评价被记成今天评的
   if (ctx.seedScores) {
     try {
       const prevPath = resolve(outputDir, 'scored-candidates.json');
@@ -54,7 +57,10 @@ async function runIncrementalScoring(ctx) {
         const list = prev.candidates || prev;
         for (let i = 0; i < list.length; i++) {
           const c = list[i];
-          if (typeof c.jobRelevanceScore === 'number') scoredRefs.set(candidateKeyOf(c, i), c);
+          if (typeof c.jobRelevanceScore === 'number') {
+            seededKeys.add(candidateKeyOf(c, i));
+            scoredRefs.set(candidateKeyOf(c, i), c);
+          }
         }
         termLog(`[AI评分] 已播种上次评分 ${scoredRefs.size} 人，只补评新增候选人`);
       }
@@ -267,6 +273,19 @@ async function runIncrementalScoring(ctx) {
     const output = raw.candidates ? raw : { candidates: raw };
     writeFileSync(resolve(outputDir, 'scored-candidates.json'), JSON.stringify(output, null, 2), 'utf-8');
     termLog(`[AI评分] 完成，已写入 scored-candidates.json`);
+
+    // 候选人查询索引：跟「结果已落盘」绑在一起（所有评分路径都汇到这），
+    // 只记本次真正评过的人 —— 继续提取时播种进来的旧分不能按今天重记一遍。
+    // 写失败只记日志：索引坏了也不能拖累导出。
+    if (ctx.indexDir) {
+      try {
+        const freshlyScored = candidates.filter((c, i) => !seededKeys.has(candidateKeyOf(c, i)));
+        const added = appendCandidateIndex(ctx.indexDir, freshlyScored);
+        if (added > 0) termLog(`[候选查询] 已记录 ${added} 条评分到索引`);
+      } catch (err) {
+        termLog(`[候选查询] 写入索引失败（不影响本次导出）：${err?.message || err}`);
+      }
+    }
     sendProgress(2, 'done', 100, 'AI 评分完成');
   }
 

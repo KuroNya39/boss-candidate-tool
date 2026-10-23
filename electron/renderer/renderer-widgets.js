@@ -552,6 +552,26 @@ function bindBackdropDismiss(overlay, dismiss) {
   };
 }
 
+// ===== 弹窗滚轮守卫 =====
+// 弹窗开着时滚轮不该带动背后的主界面：指针在可滚列表上时交给原生滚动（顺滑、跟手），
+// 滚到边界 / 指针在标题与按钮区时吞掉；指针在列表外的空白区也不放行。
+// 历史记录、候选人查询、批次详情三个弹窗共用这一份。
+function bindDialogWheelGuard(overlay, scrollEl) {
+  overlay.addEventListener('wheel', (e) => {
+    if (overlay.style.display !== 'flex') return; // 弹窗没开时不拦截
+    if (scrollEl.contains(e.target)) {
+      // 列表还能继续滚 → 放行给原生滚动（不再手动 scrollTop，滚动手感才正常）
+      const atBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 1;
+      const atTop = scrollEl.scrollTop <= 0;
+      const blocked = (e.deltaY > 0 && atBottom) || (e.deltaY < 0 && atTop);
+      if (!blocked) return;
+    } else if (overlay.querySelector('.dialog-box')?.contains(e.target)) {
+      scrollEl.scrollTop += e.deltaY; // 指针在标题/底部按钮等非列表区：转发给列表（滚到底自然停）
+    }
+    e.preventDefault(); // 已到边界 / 非列表区 / 遮罩空白：吞掉，不让页面跟着滚
+  }, { passive: false });
+}
+
 // ===== 通用确认弹窗（替代原生 confirm/alert）=====
 // 返回 Promise<boolean>。danger 时确定按钮变红色；showCancel:false 时只保留确定按钮。
 // swapTo（可选，目前只有「请选择目标岗位」在用）：形如 { overlay, open }，

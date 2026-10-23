@@ -61,7 +61,6 @@
 .job-picker-list {
   max-height: 400px;
   overflow-y: auto;
-  margin-bottom: var(--space-1);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-input); /* 岗位列表同下拉菜单档位 8px */
 }
@@ -345,12 +344,16 @@ body.is-dragging-source * {
   padding: var(--space-4);
   text-align: center;
   color: var(--text-muted);
-  font-size: var(--text-sm);
+  /* 与列表行（.job-picker-item，14px）及弹窗里的空态（历史记录 / 批次详情）同档；
+     12px 会让「未找到匹配的岗位」明显比上下岗位名小一号 */
+  font-size: var(--text-md);
   line-height: var(--leading-normal);
 }
-.job-picker-item.empty-state {
-  cursor: default;
-  justify-content: center;
+/* 目标岗位弹窗的空态不是可选项：它不在 .job-picker-list 里（那圈边框是给岗位行用的），
+   而是列表下面单独的一句居中灰字，与候选人查询的「未找到匹配的候选人」同一个样子。
+   只补一点与上方列表的间距 */
+.job-picker-empty {
+  margin-top: var(--space-2);
 }
 
 /* ===== Count Controls（提取数量）=====

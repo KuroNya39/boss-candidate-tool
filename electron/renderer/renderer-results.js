@@ -11,8 +11,8 @@ const TIER_BAR_META = [
   { tier: 1, label: '一星', className: 'tier-bar-fill--1' },
 ];
 
-function renderTierBars(tiers, total) {
-  const container = document.getElementById('tier-bars');
+// container 可指定：完成页与「历史批次详情」弹窗各有一组（v1.20.0），渲染逻辑同一份
+function renderTierBars(tiers, total, container) {
   if (!container) return;
   container.innerHTML = '';
   for (const meta of TIER_BAR_META) {
@@ -37,12 +37,11 @@ function renderTierBars(tiers, total) {
   }
 }
 
-function renderResultsList(candidates) {
-  const listEl = document.getElementById('results-list');
-  const countEl = document.getElementById('results-count');
+// els 可指定渲染到哪个列表（完成页 / 批次详情 / 候选人查询），传 { listEl }。
+// 候选人查询的历史评价带 c.date，会在姓名后面多一枚日期标记
+function renderResultsList(candidates, { listEl } = {}) {
   if (!listEl) return;
   listEl.innerHTML = '';
-  if (countEl) countEl.textContent = `共 ${candidates.length} 人`;
 
   for (const c of candidates) {
     const item = document.createElement('div');
@@ -58,6 +57,17 @@ function renderResultsList(candidates) {
     nameEl.className = 'result-item-name';
     nameEl.textContent = c.name;
 
+    // 有日期才包一层：同一个人在不同批次的多条评价，靠这枚日期区分先后（候选人查询用）
+    let nameBlock = nameEl;
+    if (c.date) {
+      nameBlock = document.createElement('span');
+      nameBlock.className = 'result-item-name-wrap';
+      const dateEl = document.createElement('span');
+      dateEl.className = 'result-item-date';
+      dateEl.textContent = c.date;
+      nameBlock.append(nameEl, dateEl);
+    }
+
     const scoreEl = document.createElement('span');
     scoreEl.className = 'result-item-score';
     scoreEl.textContent = c.score + ' 分';
@@ -72,7 +82,7 @@ function renderResultsList(candidates) {
     arrowEl.setAttribute('aria-hidden', 'true');
     arrowEl.innerHTML = SVG_CHEVRON_RIGHT;
 
-    head.append(nameEl, scoreEl, tierEl, arrowEl);
+    head.append(nameBlock, scoreEl, tierEl, arrowEl);
 
     const body = document.createElement('div');
     body.className = 'result-item-body';
@@ -137,6 +147,18 @@ function renderResultsList(candidates) {
   }
 }
 
+// 把一批评分结果画进指定的容器组：完成页与「历史批次详情」弹窗共用（v1.20.0），
+// 保证两处的统计、档位分布、候选人列表长得一模一样。
+// els: { tierBars, list, statExtracted, statPassed, statAvg, statRate }
+function renderResultsInto(data, els) {
+  if (els.statExtracted) els.statExtracted.textContent = data.total;
+  if (els.statPassed) els.statPassed.textContent = data.passed;
+  if (els.statAvg) els.statAvg.textContent = data.avgScore;
+  if (els.statRate) els.statRate.textContent = data.passRate + '%';
+  renderTierBars(data.tiers, data.total, els.tierBars);
+  renderResultsList(data.candidates, { listEl: els.list });
+}
+
 async function loadScoringResults() {
   const resultsVisual = document.getElementById('results-visual');
   if (!resultsVisual) return;
@@ -146,12 +168,14 @@ async function loadScoringResults() {
       resultsVisual.style.display = 'none';
       return;
     }
-    document.getElementById('stat-extracted').textContent = data.total;
-    document.getElementById('stat-passed').textContent = data.passed;
-    document.getElementById('stat-avg').textContent = data.avgScore;
-    document.getElementById('stat-rate').textContent = data.passRate + '%';
-    renderTierBars(data.tiers, data.total);
-    renderResultsList(data.candidates);
+    renderResultsInto(data, {
+      tierBars: document.getElementById('tier-bars'),
+      list: document.getElementById('results-list'),
+      statExtracted: document.getElementById('stat-extracted'),
+      statPassed: document.getElementById('stat-passed'),
+      statAvg: document.getElementById('stat-avg'),
+      statRate: document.getElementById('stat-rate'),
+    });
     resultsVisual.style.display = '';
   } catch {
     resultsVisual.style.display = 'none';

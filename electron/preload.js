@@ -27,6 +27,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openHistory: (dirPath) => ipcRenderer.invoke('open-history', dirPath),
   resumeExtraction: (archiveDir) => ipcRenderer.invoke('resume-extraction', { archiveDir }),
   rescoreFromHistory: (archiveDir) => ipcRenderer.invoke('rescore-from-history', { archiveDir }),
+  // v1.20.0: 历史批次详情（只读，显示该批次的评分一览与候选人）
+  getBatchResults: (dirPath) => ipcRenderer.invoke('get-batch-results', dirPath),
+
+  // v1.20.0: 候选人查询（跨批次评价索引，按姓名/拼音检索）
+  searchCandidateIndex: (query) => ipcRenderer.invoke('search-candidate-index', query),
+  clearCandidateIndex: () => ipcRenderer.invoke('clear-candidate-index'),
 
   // 推荐牛人页岗位列表（含每条的「可搜索文本」，供搜索匹配拼音首字母）
   getRecommendJobs: () => ipcRenderer.invoke('get-recommend-jobs'),

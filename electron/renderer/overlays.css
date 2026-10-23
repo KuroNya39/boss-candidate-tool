@@ -442,22 +442,8 @@
 .tier-bar-fill--2 { background: var(--color-orange); }
 .tier-bar-fill--1 { background: var(--color-disabled-text); }
 
-/* 候选人列表 */
-.results-candidates-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  font-size: var(--text-md);
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: var(--space-2);
-}
-.results-count {
-  font-size: var(--text-sm);
-  font-weight: 400;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums; /* 人数属「数字数据」（§3），与右侧 40px 宽的 .progress-pct 同理 */
-}
+/* 候选人列表。上下都没有「候选人 / 共 N 人」头行（用户要求删掉，完成页与批次详情都没有），
+   列表直接接在档位分布下面 */
 .results-list {
   /* 一页正好 10 名候选人：每个列表行固定 40px 高（见 .result-item-head；此为「行的高度」，
      与 §3 排版意义的行高无关），10×40 + 9 条分隔线(1px) + 容器上下边框(2px) = 411px，
@@ -596,8 +582,12 @@
    与「设置」是同一套居中弹窗：出入场直接用 .dialog-overlay / .dialog-box 的淡入缩放，
    不再有 drawer-in / drawer-out 那套左右滑入（抽屉专属的样式与关键帧已随改造删除）。
    高度封顶 78vh，列表自己滚、标题与底部「清空」固定不动。 */
-.history-box {
-  width: 560px; /* 历史条目比设置字段宽，给摘要行多留一点横向空间 */
+/* 历史记录 / 候选人查询 / 批次详情三处同一档几何：560 宽、78vh 封顶、flex 列。
+   历史条目比设置字段宽，给摘要行多留一点横向空间；批次详情的高度另给（见下） */
+.history-box,
+.candidate-query-box,
+.batch-detail-box {
+  width: 560px;
   max-height: 78vh;
   display: flex;
   flex-direction: column;
@@ -708,4 +698,98 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+/* 有评分结果的批次：整张卡可点开「批次详情」（v1.20.0）。
+   可点性只靠悬停底色 + 指针形状表达，不给卡片加边框色/阴影（§8 行级悬停只换底色）；
+   键盘焦点环向内画——列表容器 overflow-y:auto，外扩的环会被裁掉左右两边 */
+.history-item--openable {
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.history-item--openable:hover {
+  /* 与候选人行、岗位行、下拉选项同一套 accent 洗涤（不用 --bg-subtle：
+     卡内的来源胶囊 .meta-chip 本身就是 --bg-subtle，灰底一起会把胶囊吃掉） */
+  background: var(--bg-accent-tint);
+}
+.history-item--openable:active {
+  background: var(--bg-accent-tint-selected); /* 按下 = 选中档，与列表行/菜单项同一档 */
+}
+/* 选择器带上 .history-list 才压得住 base.css 的 [tabindex]:not([tabindex="-1"]):focus-visible
+   ——那条是 (0,3,0)，只写 .history-item--openable:focus-visible 的 (0,2,0) 会输，外扩的环
+   随即把列表左右两边画到裁切线外（表现为键盘焦点环缺边） */
+.history-list .history-item--openable:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 var(--ring-width) var(--ring-color);
+}
+
+/* ===== 候选人查询弹窗（v1.20.0）=====
+   跨批次的 AI 评价索引。列表直接复用完成页的 .results-list / .result-item，
+   只是把行数上限交给弹窗高度（flex:1 撑满、自己滚），日期作为姓名后的标记。 */
+.candidate-query-box,
+.batch-detail-box {
+  width: 560px;
+  display: flex;
+  flex-direction: column;
+}
+/* 只有高度不同：批次详情要看一屏的统计 + 档位 + 候选人列表，特意比候选人查询/历史记录(78vh)高一档
+   （用户要求「上下再长一点」）；宽度与 78vh 那一档在 .history-box 那条共用规则里 */
+.batch-detail-box {
+  max-height: 88vh;
+}
+/* 两个弹窗的「列表撑满剩余高度、自己滚」是同一件事，合成一条：
+   外框 flex 列、列表 flex:1 且取消 .results-list 原本的 411px 上限 */
+.candidate-query-results,
+.batch-detail-body {
+  flex: 1;
+  min-height: 0; /* 结果多时列表自己收缩滚动，而不是把底部按钮顶出弹窗 */
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--space-2); /* 列表底部留 8px，再叠弹窗自身 24px 内距（批次详情没有底栏按钮） */
+}
+.candidate-query-results .results-list,
+.batch-detail-body .results-list {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+
+/* 同一个人可能有多条评价：姓名后跟一枚日期标记（YYYY-MM-DD），用来区分是哪一批的评分。
+   姓名的 margin-right:auto 上移到这层包装上，日期紧贴姓名、整组仍靠左 */
+.result-item-name-wrap {
+  flex: 0 1 auto;
+  margin-right: auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.result-item-name-wrap .result-item-name {
+  flex: 0 1 auto;
+  margin-right: 0;
+}
+.result-item-date {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== 历史批次详情弹窗（v1.20.0）=====
+   内容与完成页「评分结果」同一套渲染函数，只是装进弹窗：
+   统计条与档位分布固定，候选人列表撑满剩余高度、自己滚 */
+.batch-detail-sub {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-top: calc(-1 * var(--space-2)); /* 标题的下边距收紧一档：副标题与标题是一组 */
+  margin-bottom: var(--space-4);
+  font-variant-numeric: tabular-nums;
+}
+/* .batch-detail-body / .batch-detail-body .results-list 的撑满规则与 .candidate-query-results
+   合成在上面那条共用规则里了，这里只剩中间那层结果区自己的声明 */
+.batch-detail-body .results-candidates {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }

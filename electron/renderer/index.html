@@ -48,6 +48,10 @@
       <!-- 顶栏菜单按钮（more_vert：竖三点）与菜单项图标 -->
       <symbol id="icon-more-vert" viewBox="0 -960 960 960"><path fill="currentColor" d="M480-160q-33 0-56.5-23.5T400-240q0-33 23.5-56.5T480-320q33 0 56.5 23.5T560-240q0 33-23.5 56.5T480-160Zm0-240q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm0-240q-33 0-56.5-23.5T400-720q0-33 23.5-56.5T480-800q33 0 56.5 23.5T560-720q0 33-23.5 56.5T480-640Z"/></symbol>
       <symbol id="icon-history" viewBox="0 -960 960 960"><path fill="currentColor" d="M480-120q-138 0-240.5-91.5T122-440h82q14 104 92.5 172T480-200q117 0 198.5-81.5T760-480q0-117-81.5-198.5T480-760q-69 0-129 32t-101 88h110v80H120v-240h80v94q51-64 124.5-99T480-840q75 0 140.5 28.5t114 77q48.5 48.5 77 114T840-480q0 75-28.5 140.5t-77 114q-48.5 48.5-114 77T480-120Zm112-192L440-464v-216h80v184l128 128-56 56Z"/></symbol>
+      <!-- icon-person-search：⋮ 菜单「候选人查询」用（查的是人，不是内容，故用带人的字形而非普通放大镜）。
+           取 weight 600 而非默认 400：齿轮 / 时钟这两枚本地字形实测笔画中位宽 92 / 85（960 格），
+           person_search 的 400 只有 67，同排看明显细一圈；600 的 87 与它们齐平。见 docs/design-system.md §7 -->
+      <symbol id="icon-person-search" viewBox="0 -960 960 960"><path fill="currentColor" d="M440.39-507.35q-68.27 0-116.4-48.18-48.12-48.17-48.12-115.82 0-68.78 48.18-116.52 48.17-47.74 115.82-47.74 68.78 0 116.8 47.85 48.03 47.85 48.03 115.9 0 68.28-48.02 116.39-48.01 48.12-116.29 48.12Zm-.51-79.22q35.86 0 60.45-24.91 24.58-24.91 24.58-59.88 0-35.86-24.47-60.45-24.47-24.58-59.82-24.58-35.36 0-60.45 24.69-25.08 24.69-25.08 59.82 0 35.36 24.91 60.34 24.91 24.97 59.88 24.97ZM904.22.35 769.3-135.13q-23 16.44-46.95 22.09-23.96 5.65-48.91 5.65-75.02 0-127.54-52.24-52.51-52.25-52.51-127.29t52.36-127.36q52.36-52.33 127.57-52.33 75.2 0 127.53 52.51 52.33 52.52 52.33 127.54 0 24.95-5.94 48.91-5.93 23.95-22.37 46.63L960.35-55.78 904.22.35Zm-159.5-215.57q28.67-28.62 28.67-71.44 0-42.82-28.61-71.77-28.62-28.96-71.44-28.96-42.82 0-71.49 28.73-28.67 28.73-28.67 71.72 0 42.98 28.61 71.66 28.61 28.67 71.43 28.67 42.82 0 71.5-28.61Zm-638.85 76.7v-109.26q0-40.97 19.48-70.36 19.48-29.38 56.43-48.08 47.57-23.56 129.29-45.19 81.71-21.63 169.32-13.81-14.84 17.5-24.92 38.66-10.08 21.17-14.64 39-77.44-1.57-134.87 17.08-57.44 18.65-88.71 34.22-14.16 7.87-23.16 21.22-9 13.35-9 28.95v28.35h254.04q10.44 20.12 20.28 39.28 9.85 19.16 25.37 39.94H105.87ZM440-671.48Zm-.87 453.74Z"/></symbol>
       <!-- icon-resize：右下角抓握标（岗位描述输入框可拖拽调高）。两线 45° 严格平行；
            短线是长线右下方的缩短回声、中点落在长线的公垂线上（相对居中）。几何：长线 (7,19)→(18,8)、
            短线 (14.5,19.5)→(18.5,15.5)——两线中心距 ≈2.8px（紧贴但扫一眼仍能分清是两条线）。改它时保持此几何 -->
@@ -56,7 +60,7 @@
   </svg>
   <div id="app">
     <!-- 标题：软件名居中、版本号放最右不参与居中（topbar.css 三列 grid 布局）。
-         左上角 ⋮ 是「设置 / 历史记录」的唯一入口，两项都在它的下拉里（原来设置是首页折叠卡） -->
+         左上角 ⋮ 是「设置 / 历史记录 / 候选人查询」的唯一入口，三项都在它的下拉里（原来设置是首页折叠卡） -->
     <header>
       <div class="menu-wrap">
         <button type="button" id="btn-menu" class="menu-btn" aria-haspopup="menu" aria-expanded="false" aria-label="菜单">
@@ -68,6 +72,12 @@
           </button>
           <button type="button" class="menu-item" id="btn-history" role="menuitem">
             <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-history"/></svg><span>历史记录</span>
+          </button>
+          <button type="button" class="menu-item" id="btn-candidate-query" role="menuitem">
+            <!-- 与上面两项同取 18：weight 600 的墨迹 854×836，18px 下约 16.0×15.7，
+                 与齿轮（15.1×15.0）、时钟（13.5×13.5）齐平；此前取 20 是因为 400 的墨迹只有
+                 820×780 且笔画细，放大会连笔画一起放大。见 docs/design-system.md §7 -->
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-person-search"/></svg><span>候选人查询</span>
           </button>
         </div>
       </div>
@@ -252,7 +262,7 @@
 
         <!-- 完成页结果可视化：统计条 + 档位分布 + 可展开的候选人列表 -->
         <div id="results-visual" class="results-visual" style="display:none;">
-          <div class="results-title">评分结果一览</div>
+          <div class="results-title">评分结果</div>
 
           <div class="results-stats">
             <div class="stat-cell">
@@ -278,10 +288,6 @@
           <div class="tier-bars" id="tier-bars" role="group" aria-label="档位分布"></div>
 
           <div class="results-candidates">
-            <div class="results-candidates-head">
-              <span>候选人</span>
-              <span id="results-count" class="results-count"></span>
-            </div>
             <div class="results-list" id="results-list" role="list"></div>
           </div>
         </div>
@@ -374,10 +380,10 @@
           <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-close"/></svg>
         </button>
       </div>
+      <!-- 没有底部「取消」：弹窗只在选中一个岗位后关闭，Esc / 点遮罩仍可关闭 -->
       <div class="job-picker-list" id="job-picker-list" role="list" aria-live="polite"></div>
-      <div class="dialog-actions">
-        <button id="btn-picker-cancel" class="btn btn--ghost">取消</button>
-      </div>
+      <!-- 空态放在带边框的列表之外：只是页面底色上的一句灰字，不跟「+ 添加新岗位」框在一起 -->
+      <div class="empty-state job-picker-empty" id="job-picker-empty" style="display:none;" aria-live="polite"></div>
     </div>
   </div>
 
@@ -446,6 +452,62 @@
     </div>
   </div>
 
+  <!-- 候选人查询弹窗（v1.20.0）：跨批次的 AI 评价索引，按姓名（中文 / 拼音）检索。
+       索引与历史记录刻意解耦：删历史批次不影响这里；底部「清空」也只清这份索引 -->
+  <div id="candidate-query-overlay" class="dialog-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="candidate-query-title">
+    <div class="dialog-box candidate-query-box" id="candidate-query-box" tabindex="-1">
+      <div class="dialog-title" id="candidate-query-title">候选人查询</div>
+      <div class="job-picker-search">
+        <input type="text" id="candidate-query-input" class="job-picker-search-input" placeholder="搜索候选人…" aria-label="搜索候选人姓名" autocomplete="off" />
+        <button type="button" id="candidate-query-clear-input" class="field-icon-btn input-clear" aria-label="清空搜索">
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-close"/></svg>
+        </button>
+      </div>
+      <div class="empty-state candidate-query-hint" id="candidate-query-hint">输入候选人姓名开始查询</div>
+      <div class="candidate-query-results" id="candidate-query-results" style="display:none;">
+        <div class="results-list" id="candidate-query-list" role="list" aria-live="polite"></div>
+      </div>
+      <div class="dialog-actions">
+        <button id="btn-candidate-query-clear" class="btn btn--link btn--danger-ghost">清空候选人数据</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 历史批次详情弹窗（v1.20.0）：从历史记录的某一行打开，与历史弹窗互切（同目标岗位 ⇄ 编辑岗位）。
+       内容与完成页「评分结果」是同一套渲染（renderResultsInto），只读、不切换当前批次 -->
+  <div id="batch-detail-overlay" class="dialog-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="batch-detail-title">
+    <div class="dialog-box batch-detail-box" id="batch-detail-box" tabindex="-1">
+      <div class="dialog-title" id="batch-detail-title">批次详情</div>
+      <div class="batch-detail-sub" id="batch-detail-sub"></div>
+      <div class="batch-detail-body" id="batch-detail-body">
+        <div class="results-stats">
+          <div class="stat-cell">
+            <span class="stat-value" id="batch-detail-stat-extracted">0</span>
+            <span class="stat-label">提取人数</span>
+          </div>
+          <div class="stat-cell">
+            <span class="stat-value" id="batch-detail-stat-passed">0</span>
+            <span class="stat-label">通过人数</span>
+          </div>
+          <div class="stat-cell">
+            <span class="stat-value" id="batch-detail-stat-avg">0</span>
+            <span class="stat-label">平均分</span>
+          </div>
+          <div class="stat-cell">
+            <span class="stat-value" id="batch-detail-stat-rate">0%</span>
+            <span class="stat-label">通过率</span>
+          </div>
+        </div>
+        <div class="tier-bars" id="batch-detail-tier-bars" role="group" aria-label="档位分布"></div>
+        <div class="results-candidates">
+          <div class="results-list" id="batch-detail-list" role="list"></div>
+        </div>
+      </div>
+      <div class="empty-state batch-detail-empty" id="batch-detail-empty" style="display:none;">该批次没有评分结果。</div>
+      <!-- 没有底部「关闭」按钮：Esc / 点遮罩即可关闭（与候选人查询同一套） -->
+    </div>
+  </div>
+
   <!-- 通用确认弹窗（替代原生 confirm/alert） -->
   <div id="confirm-overlay" class="dialog-overlay" style="display:none;">
     <div class="dialog-box confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
@@ -463,7 +525,7 @@
        注意 showToast 是先插入空节点、下一帧才填文字（读屏只在既有 live region 内容变化时播报） -->
   <div id="toast-container" class="toast-container"></div>
 
-  <!-- 渲染层脚本已拆分：10 个文件共享全局作用域，加载顺序即下方排列顺序，切勿调整 -->
+  <!-- 渲染层脚本已拆分：11 个文件共享全局作用域，加载顺序即下方排列顺序，切勿调整 -->
   <script src="renderer-dom.js"></script>
   <script src="renderer-widgets.js"></script>
   <script src="renderer-progress.js"></script>
@@ -471,6 +533,7 @@
   <script src="renderer-ipc.js"></script>
   <script src="renderer-actions.js"></script>
   <script src="renderer-history.js"></script>
+  <script src="renderer-candidate-query.js"></script>
   <script src="renderer-jobs.js"></script>
   <script src="renderer-dialogs.js"></script>
   <script src="renderer-greet.js"></script>

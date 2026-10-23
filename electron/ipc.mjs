@@ -2,8 +2,8 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import { resolve, dirname, basename } from 'node:path';
 import { mkdirSync, existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
-import { TIER_THRESHOLDS, scoreToTier, scoreToRecommendation, isPassed } from '../scripts/score-tiers.mjs';
-import { formatComment } from '../scripts/format-comment.mjs';
+import { TIER_THRESHOLDS } from '../scripts/score-tiers.mjs';
+import { summarizeScoredCandidate } from '../scripts/scored-candidate.mjs';
 import { termLog, sleep } from './util.mjs';
 import { pinyinSearchText } from './pinyin.mjs';
 import {
@@ -17,8 +17,9 @@ import {
   apiConfig, setApiConfig,
   cdpStatus, setCdpStatus,
 } from './state.mjs';
-import { saveApiConfig, listRecommendJobs, addRecommendJob, getRecommendJobDesc, updateRecommendJob, renameRecommendJob, deleteRecommendJob } from './config.mjs';
-import { archiveDirNameMatches, readRunMeta, resolveBatchSource, restoreHistoryToOutput } from './archive.mjs';
+import { CONFIG_DIR, saveApiConfig, listRecommendJobs, addRecommendJob, getRecommendJobDesc, updateRecommendJob, renameRecommendJob, deleteRecommendJob } from './config.mjs';
+import { archiveDirNameMatches, isHistoryDir, readRunMeta, resolveBatchSource, restoreHistoryToOutput } from './archive.mjs';
+import { searchCandidateIndex, clearCandidateIndex } from './candidate-index.mjs';
 import { nonEmptyCandidates, restoreScorableCandidates } from './scoring.mjs';
 import { launchChrome, startCdpProxy } from './chrome.mjs';
 import { runPipeline } from './pipeline.mjs';
@@ -38,6 +39,45 @@ function isoToDisplayTime(iso) {
 // 动作名与 webContents 上的编辑命令同名，故只存名字、不建映射表 —— 少一处要跟着改的重复。
 // 用 Set 而不是对象：既是「成员判断」的本来写法，也不会被 toString 这类原型键蒙混过关
 const EDIT_ACTIONS = new Set(['cut', 'copy', 'paste', 'delete', 'selectAll']);
+
+// 读某个目录（当前输出目录 / 历史批次目录）下的 scored-candidates.json，
+// 算好统计与排序后的明细。完成页与「历史批次详情」弹窗共用这一份，
+// 保证两处显示的一览、分档、候选人顺序完全一致（只有数据来源目录不同）。
+function buildScoringResults(dir) {
+  const scoredPath = resolve(dir, 'scored-candidates.json');
+  if (!existsSync(scoredPath)) return { available: false };
+  try {
+    const raw = JSON.parse(readFileSync(scoredPath, 'utf-8'));
+    const candidates = nonEmptyCandidates(raw);
+    if (!candidates) return { available: false };
+
+    // 统计与明细都取同一次映射的结果（summarizeScoredCandidate 见 scripts/），
+    // 免得「通过人数」和行上的「通过」标记各算各的
+    const tiers = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    let passed = 0;
+    let sum = 0;
+    const list = candidates.map((c) => {
+      const row = summarizeScoredCandidate(c);
+      tiers[row.tier]++;
+      if (row.passed) passed++;
+      sum += row.score;
+      return row;
+    });
+    // 分数从高到低排序，方便直接看到最值得打招呼的人
+    list.sort((a, b) => b.score - a.score);
+    return {
+      available: true,
+      total: candidates.length,
+      passed,
+      avgScore: Math.round((sum / candidates.length) * 10) / 10,
+      passRate: Math.round((passed / candidates.length) * 1000) / 10,
+      tiers,
+      candidates: list,
+    };
+  } catch {
+    return { available: false };
+  }
+}
 
 // ===== IPC 注册 =====
 function registerIPC() {
@@ -130,49 +170,7 @@ function registerIPC() {
   });
 
   // 完成页结果可视化：读取最近一次评分结果，返回统计与候选人明细
-  ipcMain.handle('get-scoring-results', () => {
-    const scoredPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
-    if (!existsSync(scoredPath)) return { available: false };
-    try {
-      const raw = JSON.parse(readFileSync(scoredPath, 'utf-8'));
-      const candidates = raw.candidates || raw;
-      if (!Array.isArray(candidates) || candidates.length === 0) return { available: false };
-
-      const tiers = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-      let passed = 0;
-      let sum = 0;
-      const list = candidates.map((c) => {
-        const score = c.totalScore ?? c.jobRelevanceScore ?? 0;
-        const tier = scoreToTier(score);
-        tiers[tier]++;
-        if (isPassed(score)) passed++;
-        sum += score;
-        return {
-          name: c.basicInfo?.name || c.geekId || '未知',
-          position: c.positionInfo?.appliedJob || '',
-          score,
-          tier,
-          level: c.recommendationLevel ?? scoreToRecommendation(score),
-          passed: c.passed ?? isPassed(score),
-          // 完成页展示与 Excel「AI评级理由」同源同排版（formatComment 统一加 1.2.3. 编号与换行）
-          comment: formatComment(c.jobRelevanceComment || ''),
-        };
-      });
-      // 分数从高到低排序，方便直接看到最值得打招呼的人
-      list.sort((a, b) => b.score - a.score);
-      return {
-        available: true,
-        total: candidates.length,
-        passed,
-        avgScore: Math.round((sum / candidates.length) * 10) / 10,
-        passRate: Math.round((passed / candidates.length) * 1000) / 10,
-        tiers,
-        candidates: list,
-      };
-    } catch {
-      return { available: false };
-    }
-  });
+  ipcMain.handle('get-scoring-results', () => buildScoringResults(OUTPUT_DIR));
 
   ipcMain.handle('open-output', async () => {
     if (existsSync(OUTPUT_DIR)) await shell.openPath(OUTPUT_DIR);
@@ -378,9 +376,8 @@ function registerIPC() {
 
   // v1.5.0: 删除单个历史归档批次
   ipcMain.handle('delete-history', async (_event, dirPath) => {
-    const parentDir = dirname(OUTPUT_DIR);
-    const name = basename(dirPath);
-    if (!dirPath || !archiveDirNameMatches(name) || resolve(dirPath) !== resolve(parentDir, name)) {
+    // 删除唯一不接受当前输出目录的操作（见 archive.mjs 的 isHistoryDir）
+    if (!dirPath || !isHistoryDir(dirPath, { allowCurrent: false })) {
       return { error: '目标不是历史归档目录，拒绝删除' };
     }
     try {
@@ -413,18 +410,25 @@ function registerIPC() {
     return { ok: true };
   });
 
+  // v1.20.0: 历史批次详情 —— 点历史记录某批次，看该批次的评分一览与候选人（与完成页同源同排版）。
+  // 只读，不切换当前输出目录、不动任何文件。
+  ipcMain.handle('get-batch-results', (_event, dirPath) => {
+    if (!dirPath) return { error: '缺少参数' };
+    if (!isHistoryDir(dirPath)) return { error: '目标不是历史归档目录' };
+    return buildScoringResults(dirPath);
+  });
+
+  // v1.20.0: 候选人查询 —— 跨批次按姓名（中文/拼音）检索历史 AI 评价
+  ipcMain.handle('search-candidate-index', (_event, query) => searchCandidateIndex(CONFIG_DIR, query));
+  ipcMain.handle('clear-candidate-index', () => clearCandidateIndex(CONFIG_DIR));
+
   // v1.5.0: 继续提取 —— 还原历史批次为输出目录，用 --resume 续跑，跳过已提取项
   ipcMain.handle('resume-extraction', (_event, opts) => {
     if (hasRunningTask()) return { error: '已有任务运行中' };
     const dirPath = opts?.archiveDir;
     if (!dirPath) return { error: '缺少参数' };
-    const parentDir = dirname(OUTPUT_DIR);
-    const name = basename(dirPath);
-    const isCurrent = name === basename(OUTPUT_DIR);
-
-    if (!isCurrent && (!archiveDirNameMatches(name) || resolve(dirPath) !== resolve(parentDir, name))) {
-      return { error: '目标不是历史归档目录，无法继续提取' };
-    }
+    if (!isHistoryDir(dirPath)) return { error: '目标不是历史归档目录，无法继续提取' };
+    const isCurrent = resolve(dirPath) === resolve(OUTPUT_DIR);
     if (!existsSync(resolve(dirPath, '.extract-progress.json')) && !existsSync(resolve(dirPath, 'zhipin-candidates.json'))) {
       return { error: '该批次没有可继续的提取进度' };
     }
@@ -450,14 +454,7 @@ function registerIPC() {
     if (hasRunningTask()) return { error: '已有任务运行中' };
     const dirPath = opts?.archiveDir;
     if (!dirPath) return { error: '缺少参数' };
-    const parentDir = dirname(OUTPUT_DIR);
-    const name = basename(dirPath);
-    const isCurrent = name === basename(OUTPUT_DIR);
-    if (isCurrent) {
-      if (resolve(dirPath) !== resolve(OUTPUT_DIR)) return { error: '目标不是历史归档目录，无法重新评分' };
-    } else if (!archiveDirNameMatches(name) || resolve(dirPath) !== resolve(parentDir, name)) {
-      return { error: '目标不是历史归档目录，无法重新评分' };
-    }
+    if (!isHistoryDir(dirPath)) return { error: '目标不是历史归档目录，无法重新评分' };
     // 该批次只要有简历数据（完整提取 / 提了一半的进度 / 已评分结果）就能重新评分
     try {
       const targetPath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');

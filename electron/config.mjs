@@ -5,7 +5,8 @@ import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, rename
 import { termLog } from './util.mjs';
 import { setApiConfig, setOutputDir } from './state.mjs';
 
-const CONFIG_DIR = resolve(app.getPath('userData'), 'web-access');
+// 用户数据目录（= userData/web-access）：配置、JD、候选人评分索引都放这里
+export const CONFIG_DIR = resolve(app.getPath('userData'), 'web-access');
 const CONFIG_PATH = resolve(CONFIG_DIR, 'api-config.json');
 // 岗位描述统一存 userData（开发/打包一致）：重新安装/升级不丢，且各电脑独立。
 // 旧的 config/jd-descriptions 已废弃（原始 JD 未处理格式），不再使用。

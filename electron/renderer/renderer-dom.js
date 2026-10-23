@@ -30,7 +30,7 @@ const btnErrorBack = document.getElementById('btn-error-back');
 const btnRetryChrome = document.getElementById('btn-retry-chrome'); // 顶栏 Chrome 重连按钮
 const btnOpenDir = document.getElementById('btn-open-dir');
 const btnSelectDir = document.getElementById('btn-select-dir');
-// 左上角菜单：设置与历史记录的唯一入口（开关逻辑在 renderer-dialogs.js）。
+// 左上角菜单：设置 / 历史记录 / 候选人查询的唯一入口（开关逻辑在 renderer-dialogs.js）。
 // btnHistory 原先挂在设置折叠卡里，现在它是菜单的第二项，id 与 renderer-history.js 的绑定都没变
 const btnMenu = document.getElementById('btn-menu');
 const menuPanel = document.getElementById('menu-panel');
@@ -46,6 +46,27 @@ const historyDrawer = document.getElementById('history-drawer');
 const historyList = document.getElementById('history-list');
 const historyEmpty = document.getElementById('history-empty');
 const btnHistoryClearAll = document.getElementById('btn-history-clear-all');
+// v1.20.0 候选人查询（跨批次评价索引）与历史批次详情（从历史记录某一行打开，
+// 与历史弹窗互切）。函数在 renderer-candidate-query.js
+const btnCandidateQuery = document.getElementById('btn-candidate-query');
+const candidateQueryOverlay = document.getElementById('candidate-query-overlay');
+const candidateQueryInput = document.getElementById('candidate-query-input');
+const candidateQueryClearInput = document.getElementById('candidate-query-clear-input');
+const candidateQueryResults = document.getElementById('candidate-query-results');
+const candidateQueryList = document.getElementById('candidate-query-list');
+const candidateQueryHint = document.getElementById('candidate-query-hint');
+const btnCandidateQueryClear = document.getElementById('btn-candidate-query-clear');
+const batchDetailOverlay = document.getElementById('batch-detail-overlay');
+const batchDetailBox = document.getElementById('batch-detail-box');
+const batchDetailSub = document.getElementById('batch-detail-sub');
+const batchDetailBody = document.getElementById('batch-detail-body');
+const batchDetailList = document.getElementById('batch-detail-list');
+const batchDetailEmpty = document.getElementById('batch-detail-empty');
+const batchDetailTierBars = document.getElementById('batch-detail-tier-bars');
+const batchDetailStatExtracted = document.getElementById('batch-detail-stat-extracted');
+const batchDetailStatPassed = document.getElementById('batch-detail-stat-passed');
+const batchDetailStatAvg = document.getElementById('batch-detail-stat-avg');
+const batchDetailStatRate = document.getElementById('batch-detail-stat-rate');
 const countInput = document.getElementById('count-input');
 const countInc = document.getElementById('count-inc'); // 提取数量自绘步进箭头（原生 spin 已隐藏）
 const countDec = document.getElementById('count-dec');
@@ -58,9 +79,9 @@ const jobSelectSection = document.getElementById('job-select-section');
 const jobDisplay = document.getElementById('job-display');
 const jobPickerOverlay = document.getElementById('job-picker-overlay');
 const jobPickerList = document.getElementById('job-picker-list');
+const jobPickerEmpty = document.getElementById('job-picker-empty');
 const jobSearchInput = document.getElementById('job-search-input');
 const jobSearchClear = document.getElementById('job-search-clear');
-const btnPickerCancel = document.getElementById('btn-picker-cancel');
 const jobDialogOverlay = document.getElementById('job-dialog-overlay');
 const dialogJobName = document.getElementById('dialog-job-name');
 const dialogJobDesc = document.getElementById('dialog-job-desc');

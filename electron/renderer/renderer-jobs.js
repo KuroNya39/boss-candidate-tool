@@ -29,6 +29,9 @@ async function loadJobList() {
 // 渲染目标岗位弹窗列表
 function renderJobPicker() {
   jobPickerList.innerHTML = '';
+  // 空态是列表外面单独的一句灰字（见 index.html），每次重画先收起，需要时再亮出来
+  jobPickerEmpty.style.display = 'none';
+  jobPickerEmpty.textContent = '';
 
   // 顶部：添加新岗位
   const addItem = document.createElement('div');
@@ -46,10 +49,8 @@ function renderJobPicker() {
 
   // 岗位列表（按搜索词实时过滤；jobList 保持不变，只过滤副本）
   if (jobList.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'job-picker-item empty-state';
-    empty.textContent = '暂无岗位';
-    jobPickerList.appendChild(empty);
+    jobPickerEmpty.textContent = '暂无岗位';
+    jobPickerEmpty.style.display = '';
     return;
   }
   // 「可搜索文本」里既有岗位名原文、也有拼音首字母串和全拼串，故一句 includes 就够：
@@ -58,10 +59,8 @@ function renderJobPicker() {
   const query = jobSearchQuery.trim().toLowerCase();
   const filtered = query ? jobList.filter((job, i) => jobSearchText[i].includes(query)) : jobList;
   if (filtered.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'job-picker-item empty-state';
-    empty.textContent = '未找到匹配的岗位';
-    jobPickerList.appendChild(empty);
+    jobPickerEmpty.textContent = '未找到匹配的岗位';
+    jobPickerEmpty.style.display = '';
     return;
   }
   filtered.forEach(job => {

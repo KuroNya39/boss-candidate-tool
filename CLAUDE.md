@@ -9,10 +9,10 @@ Electron desktop app for extracting candidate profiles from BOSS直聘 (Boss Zhi
 ## Architecture
 
 ```
-electron/main.mjs        ← Electron main process 入口（应用生命周期 + --score-only）；其余 12 个业务模块 electron/{util,state,config,window,archive,scoring,runner,chrome,incremental,pipeline,greet,ipc}.mjs，各模块职责见 main.mjs 顶部注释
+electron/main.mjs        ← Electron main process 入口（应用生命周期 + --score-only）；其余 13 个业务模块 electron/{util,state,config,window,archive,scoring,runner,chrome,incremental,pipeline,greet,ipc,candidate-index}.mjs，各模块职责见 main.mjs 顶部注释
 electron/score-comment.mjs ← Shared scoring helpers: compute match score from comment (weighted base − deductions, with 学历硬性门槛 programmatic backstop) + patch education-deduction comment text
 electron/preload.js      ← Context bridge (electronAPI exposed to renderer)
-electron/renderer/       ← UI (index.html + 6 个 CSS：tokens.css / base.css / topbar.css / config.css / run.css / overlays.css（按序 <link>，勿调换）+ renderer-*.js 10 个按序 <script src> 引入共享全局作用域；样式拆分与规范见 docs/design-system.md)
+electron/renderer/       ← UI (index.html + 6 个 CSS：tokens.css / base.css / topbar.css / config.css / run.css / overlays.css（按序 <link>，勿调换）+ renderer-*.js 11 个按序 <script src> 引入共享全局作用域；样式拆分与规范见 docs/design-system.md)
 
 scripts/cdp-proxy.mjs                   ← HTTP → WebSocket CDP proxy daemon (port 3456)
 scripts/extract-common.mjs              ← Shared utilities (CDP calls, OCR engine, progress save/resume)
@@ -68,15 +68,17 @@ Child process cancellation works by writing `CANCEL\n` to stdin, waiting 2s, the
 - **权威分数 = 程序化计算**（v1.3.18）：AI 手写的「匹配度评分」算术不可靠，`computeMatchScoreFromComment()` 从评语解析各维度「独立得分×权重」重算加权基础分，再减「其他扣分合计」，作为 `totalScore`；评语里手写的匹配度评分只作解析兜底。打招呼等级过滤也据此判断。
 - **学历硬性门槛程序化兜底**（v1.3.26）：AI 常以「最高学历已达标」为由豁免第一学历扣分。只要评语「第一学历」明确为大专/专科或非全日制，`computeMatchScoreFromComment()` 就强制扣 20 分（任职资格扣分从评语独立解析，不依赖 AI 合计）；`patchEducationDeductionComment()` 同步修正评语数字并视情况追加「系统说明」。这两个函数在 `electron/score-comment.mjs`，主进程与重算脚本共用。
 - **教育经历顺序**：Excel 教育经历列最高学历在第一行、按时间由近到远排序（与推荐卡片 DOM 提取顺序一致）。简历解析优先（`fillEducationFromResumeText`），卡片学历只补充简历未覆盖的最高学历段。
-- **API response compatibility**: `callClaudeAPI()` handles Anthropic standard format, Anthropic thinking blocks, OpenAI Chat format, and raw response formats。**v1.4.5 双管齐下修复评分解析失败（2026-08-21 实测定论）**：
-  1. **剥思考块**：公司代理会把模型的「思考」包成 `<antml-thinking>` **text 块**放在 content 最前（即使请求 `thinking:disabled`），真正的回答在后续块——只取第一个 text 块会拿到思考、丢掉回答 → 系统性「解析失败(无有效JSON)」。现在拼所有块再剥掉 antml-thinking/thinking 块，让解析器在剩余文本找 JSON。
-  2. **换/选模型**：`deepseek-v4-flash_DeepSeek` 已变更为思考型模型，思考**无上限**（实测输出 16000 token 全是 `<antml-thinking>`、一个字答案都没有；`budget_tokens`/提示词禁止思考都不可靠，有随机性），3 人一批评分不可用（单候选人实测可出分，但慢）。用户当前选用 **`qwen3.5-35b-a3b_Local`**（2026-08-21 用户实测可用，README 第 4 步推荐它）；备选实测可用：`GLM-5_SLB`（3 人一批 16s 出分）、`kimi-k2.5-SLB`（21s）。注意部分模型有月度配额，超额会报 `API 429 insufficient_quota`（如 qwen3.7-plus_Aliyun）。max_tokens 8000→16000 保留（防长批输出被截断）。
+- **API response compatibility**: `callClaudeAPI()` handles Anthropic standard format, Anthropic thinking blocks, OpenAI Chat format, and raw response formats。**v1.4.5 修复评分解析失败（2026-08-21 实测定论）**：
+  - **剥思考块**：公司代理会把模型的「思考」包成 `<antml-thinking>` **text 块**放在 content 最前（即使请求 `thinking:disabled`），真正的回答在后续块——只取第一个 text 块会拿到思考、丢掉回答 → 系统性「解析失败(无有效JSON)」。现在拼所有块再剥掉 antml-thinking/thinking 块，让解析器在剩余文本找 JSON；max_tokens 8000→16000 保留（防长批输出被截断）。
+  - 部分模型有月度配额，超额会报 `API 429 insufficient_quota`（如 qwen3.7-plus_Aliyun）。
 - **Multi-position support**: Candidates grouped by `positionInfo.appliedJob`. Each position's JD loaded from userData `%AppData%\web-access\web-access\jd-descriptions\{position}.txt` (unified for dev/packaged since v1.3.15).
 - **目标岗位搜索支持拼音**（输入 `xsqd` 匹配「显示驱动工程师」，`neihe`/`neih` 匹配「内核」）：`electron/pinyin.mjs` 用 **pinyin-pro** 取**两串**——首字母串（按词判多音字：重庆→cq、长沙→cs；覆盖次常用字：深圳→sz、东莞→dg）与全拼串（内核→neihe）。渲染进程拿不到 Node 模块，故由主进程的 `get-recommend-jobs` 通道**随岗位列表一起**返回每条的「可搜索文本」（岗位名原文 + 首字母串 + 全拼串，已转小写），渲染进程只按同一下标做一句 `includes`——原文匹配与拼音匹配合成一条路，不另开通道、不另存平行结构。
   - pinyin-pro 默认用空格分隔音节（首字母 `x s q d`、全拼 `nei he`），必须传 `separator: ''`，否则连起来搜不到。
   - 两串之间用空格隔开（`${initials} ${full}`），所以短查询可能同时命中两串，属正常；全拼串会把匹配面放宽（`he` 也能搜到「内核」），拼音搜索本身如此，不额外加长度限制。
   - `pinyinSearchText()` 是纯函数，结果按岗位名 memo（岗位列表每次刷新都会重算，但其中最多只有一个名字变了）。
   - 试过但**不能用**的两个无依赖方案（都实测过，别再走一遍）：① GB2312 边界法（23 个边界字 + iconv 编码比大小）只覆盖一级字库 3755 字，「圳」在二级字库、按部首笔画排，取不到首字母 → `sz` 搜不到深圳；② `Intl.Collator('zh-Hans-u-co-pinyin')` 覆盖面全，但多音字读音与 GB2312 不一致（把「曾」读成 céng、「长」读成 zhǎng），边界字错位，「西安」会被判成 ZA。
+- **候选人查询索引（v1.20.0）**: 评分收尾时（`incremental.mjs` 的 `finalizeScoring`，写完 `scored-candidates.json` 的同一处）调用 `appendCandidateIndex(CONFIG_DIR, 本次评过的候选人数组)`——直接用内存里的数组，不重读结果文件；继续提取时播种进来的旧分不算本次，不重复记。把「一人一条评价」追加进 `%AppData%\web-access\web-access\candidate-index.jsonl`（JSONL，一行一条，只追加、不重写；流式 `readline` 查询）。索引与历史批次**刻意解耦**：删历史批次不影响它，索引「清空」也只删这一个文件。只存姓名/分数/等级/通过/岗位/评语/时间/姓名拼音串，**不存简历全文、不存 geekId**（三个页面的 ID 不是同一套编号，跨页面认不出同一个人，故按姓名归并）。写失败只记日志、不阻断导出。UI 入口：左上角 ⋮ 菜单第三项「候选人查询」，独立居中弹窗，按姓名（中文 / 拼音首字母 / 全拼）搜索。
+- **历史批次详情（v1.20.0）**: 历史记录里 `hasScored` 的条目整卡可点（行内按钮除外），打开只读的「批次详情」，内容与完成页同一套渲染（`buildScoringResults(dir)` + `renderResultsInto`），别另写一份。它与历史记录**互切**而不叠层：用 `swapDialogs(historyOverlay, batchDetailOverlay, …)`（与目标岗位 ⇄ 编辑岗位同一套交叉过渡，用户要求），关掉退回历史记录、焦点回到刚才那条。Esc 链仍必须先判批次详情、再判历史记录——互切动画期间两者 `display` 都是 `flex`，否则一次 Esc 关两层。`openDialog`/`closeDialog` 的焦点按层栈（`dialogFocusStack`）管理保留，供确认弹窗这类真正的叠层使用。
 - **Auto-archiving**: Old output directories renamed to `output-YYYYMMDD-HHMM` before each new run (done in main process to avoid Windows EBUSY).
 - **Windows GBK encoding**: `termLog()` and `decodeBuffer()` handle GBK encoding for stdout/stderr display on Windows terminals.
 

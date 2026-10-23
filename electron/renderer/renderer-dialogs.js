@@ -18,8 +18,27 @@ function trapFocus(overlay) {
   return () => document.removeEventListener('keydown', handler);
 }
 
-let activeDialogTrap = null;
-let dialogPrevFocus = null;
+// 同一时刻可能叠着两层弹窗（v1.20.0：历史记录 → 批次详情）。
+// 「打开前的焦点」按层记在栈里：关掉上层时把焦点还给下层里刚才那一点（如那条历史记录），
+// 而不是一路弹回页面。栈里只保留当前可见的层，互切收尾隐藏掉的旧弹窗会被摘掉。
+const dialogFocusStack = []; // 每层：{ overlay, prev }
+let activeTrap = null; // { overlay, release } —— 陷阱归当前最上层所有
+
+function releaseDialogTrap() {
+  if (activeTrap) { activeTrap.release(); activeTrap = null; }
+}
+
+function installDialogTrap(overlay) {
+  releaseDialogTrap(); // 上层弹窗盖住下层：Tab 只在上层循环
+  activeTrap = { overlay, release: trapFocus(overlay) };
+}
+
+// 从栈里摘掉某一层（弹窗被隐藏时用），不碰焦点陷阱——陷阱归当前最上层所有
+function removeFocusLayer(overlay) {
+  const idx = dialogFocusStack.findIndex((entry) => entry.overlay === overlay);
+  if (idx < 0) return null;
+  return dialogFocusStack.splice(idx, 1)[0];
+}
 
 // 浮层显隐的唯一入口。inert 与 --closing 属于「浮层生命周期」，不是某个弹窗的私事：
 // 上一次互切退场时挂上的 inert 没摘干净，这个弹窗下次打开就点不动（hideSwappedOutOverlay 那段历史）。
@@ -34,7 +53,9 @@ function hideOverlay(overlay) {
   overlay.style.display = 'none';
 }
 
-function openDialog(overlay, firstFocusEl) {
+// prevFocusEl：这一层关闭后焦点还到哪里。不传时——普通打开记当前焦点；互切进来沿用旧层记录的落点。
+// 像「历史记录某行 → 批次详情」这种旧层的落点不是发起元素（历史层的落点是 ☰），由调用方显式传行元素
+function openDialog(overlay, firstFocusEl, prevFocusEl) {
   // 弹窗互切入场（见 swapJobDialogs 与 overlays.css）：
   //  data-swap-over —— 交叉过渡：新弹窗以「透明遮罩 + 快速 box-in」浮到旧弹窗之上、与旧卡同屏对淡，
   //                    收尾帧由 swapJobDialogs 把它的 class 换成常驻态 swap-in
@@ -52,17 +73,49 @@ function openDialog(overlay, firstFocusEl) {
   } else {
     overlay.classList.remove('dialog-overlay--swap-in', 'dialog-overlay--swap-over');
   }
-  dialogPrevFocus = document.activeElement;
   showOverlay(overlay);
-  if (activeDialogTrap) activeDialogTrap();
-  activeDialogTrap = trapFocus(overlay);
+  // 记「这一层打开前的焦点」：上层关闭后还给它；下层弹出时它就在下层弹窗里（如历史记录某行）。
+  // 交叉互切（data-swap-over）进来的弹窗是「同一个入口的下一步」：旧弹窗此刻还在屏上、
+  // 焦点停在它马上要隐藏的按钮里 —— 沿用旧层记的落点，否则关新弹窗时焦点无处可还。
+  // 瞬切兜底（data-swap-in）已先把旧弹窗关掉并还过焦点，activeElement 本身就是对的
+  const swappedOver = overlay.classList.contains('dialog-overlay--swap-over');
+  const prevEl = prevFocusEl ?? (swappedOver && dialogFocusStack.length
+    ? dialogFocusStack[dialogFocusStack.length - 1].prev
+    : document.activeElement);
+  let layer = dialogFocusStack.find((entry) => entry.overlay === overlay);
+  if (!layer) {
+    layer = { overlay, prev: prevEl };
+    dialogFocusStack.push(layer);
+  } else if (!swappedOver) {
+    layer.prev = prevEl; // 同一弹窗重新打开：按本次的落点重新记（互切回来时归还点不变）
+  }
+  installDialogTrap(overlay);
   (firstFocusEl || overlay.querySelector('button, input, textarea, select')).focus();
 }
 
+// 关层收尾：隐藏后把陷阱交还给新的最上层，并把焦点还给该层记录的那个元素。
+// restoreFocus 只有关的是最上层时才给（见 closeDialog）——关的是被盖住的旧层（弹窗互切）时，
+// 焦点本来就在新弹窗里，不能抢回来
+function finishCloseDialog(overlay, { restoreFocus }) {
+  hideOverlay(overlay);
+  const top = dialogFocusStack[dialogFocusStack.length - 1];
+  if (top && activeTrap?.overlay !== top.overlay) installDialogTrap(top.overlay);
+  if (restoreFocus) {
+    const prev = restoreFocus.prev;
+    if (prev && typeof prev.focus === 'function' && prev.isConnected) prev.focus();
+  }
+}
+
 function closeDialog(overlay, { animate = false } = {}) {
-  if (activeDialogTrap) { activeDialogTrap(); activeDialogTrap = null; }
+  // 先判它是不是最上层、再摘层 —— 之后（淡出期间）别的弹窗可能又打开了，
+  // 那时再判会把「刚关的这层」误当成下面的层
+  const topLayer = dialogFocusStack[dialogFocusStack.length - 1];
+  const wasTop = !topLayer || topLayer.overlay === overlay;
+  const layer = removeFocusLayer(overlay);
+  if (activeTrap?.overlay === overlay) releaseDialogTrap();
   // 摘掉互切时的一次性入场/退场标记（挂在遮罩未显示时最安全，下次整屏打开遮罩才能正常淡入）
   overlay.classList.remove('dialog-overlay--swap-in', 'dialog-overlay--swap-out', 'dialog-overlay--swap-over');
+  const restoreFocus = wasTop ? layer : null;
   // 系统开了「减少动态效果」时不做过渡，直接关闭，避免干等动画时长
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (animate && !reduceMotion) {
@@ -74,28 +127,24 @@ function closeDialog(overlay, { animate = false } = {}) {
     setTimeout(() => {
       // 淡出期间这个弹窗若被重新打开（closing 类被摘、动画被取消），就不再隐藏它
       if (!overlay.classList.contains('dialog-overlay--closing')) return;
-      hideOverlay(overlay);
       overlay.classList.remove('dialog-overlay--closing');
-      // 已有其他弹窗开着（比如编辑弹窗）时不抢焦点
-      const anotherOpen = [...document.querySelectorAll('.dialog-overlay')]
-        .some((o) => o !== overlay && o.style.display === 'flex');
-      if (!anotherOpen && dialogPrevFocus && typeof dialogPrevFocus.focus === 'function') dialogPrevFocus.focus();
+      finishCloseDialog(overlay, { restoreFocus });
     }, exitMs);
   } else {
-    hideOverlay(overlay);
-    if (dialogPrevFocus && typeof dialogPrevFocus.focus === 'function') dialogPrevFocus.focus();
+    finishCloseDialog(overlay, { restoreFocus });
   }
 }
 
 // 互切收尾用的直接隐藏：旧弹窗此时已淡到透明，只是把它的遮罩撤掉、交给新弹窗接管。
-// 不能走 closeDialog——那会拆掉正在为「新弹窗」服务的共享 activeDialogTrap，还会把焦点抢到已隐藏的旧弹窗里。
+// 不能走 closeDialog——那会拆掉正在为「新弹窗」服务的共享 activeTrap，还会把焦点抢到已隐藏的旧弹窗里。
 // inert 必须一起摘：互切退场时挂上的，留着会让这个弹窗**下次打开时点不动**
 function hideSwappedOutOverlay(overlay) {
   overlay.classList.remove('dialog-overlay--swap-in', 'dialog-overlay--swap-out', 'dialog-overlay--swap-over');
   hideOverlay(overlay);
+  removeFocusLayer(overlay); // 它已被新弹窗顶替，别在焦点栈里留一层空壳
 }
 
-// ===== 左上角菜单（「设置」「历史记录」的唯一入口）=====
+// ===== 左上角菜单（「设置」「历史记录」「候选人查询」的唯一入口）=====
 // 面板出入场用 menu-in / menu-out（topbar.css），退场比入场短，与弹窗同一套「出快于入」。
 let menuExitTimer = null;
 // 语义上的「菜单开着」。不能拿 style.display 当开关：进 --closing 退场后 display 仍是 flex，
@@ -146,7 +195,7 @@ btnMenu.addEventListener('click', () => {
 // --- 键盘漫游 ---
 // 面板标了 role="menu"、菜单项标了 role="menuitem"，就必须兑现这套角色的键盘契约：
 // 方向键在项间移动。不兑现的话读屏会把「菜单」念给用户听，用户按方向键却没反应 —— 比不标角色更糟。
-// 菜单项固定两项（设置 / 历史记录），打开后不再增删 —— 一次性取好。
+// 菜单项固定三项（设置 / 历史记录 / 候选人查询），打开后不再增删 —— 一次性取好。
 // 方向键按住会以约 30 次/秒连发，每次事件重查 DOM 是白费的
 const menuItems = Array.from(menuPanel.querySelectorAll('.menu-item'));
 function focusMenuItem(index) {
@@ -217,7 +266,11 @@ document.addEventListener('keydown', (e) => {
   else if (jobDialogOverlay.style.display === 'flex') closeJobDialogAll();
   else if (jobPickerOverlay.style.display === 'flex') hideJobPicker();
   else if (settingsOverlay.style.display === 'flex') closeSettingsDialog();
+  // 批次详情是从历史记录互切出来的：互切动画期间两者 display 都是 flex，
+  // 必须先于历史记录判断，否则一次 Esc 会把两层一起关掉
+  else if (batchDetailOverlay.style.display === 'flex') closeBatchDetail();
   else if (historyOverlay.style.display === 'flex') closeHistoryDrawer();
+  else if (candidateQueryOverlay.style.display === 'flex') closeCandidateQuery();
 });
 
 // 显示/隐藏目标岗位弹窗
@@ -233,7 +286,7 @@ function hideJobPicker() {
 
 // 目标岗位弹窗事件
 jobDisplay.addEventListener('click', showJobPicker);
-btnPickerCancel.addEventListener('click', hideJobPicker);
+// 弹窗底部没有「取消」按钮：选中岗位即关闭，Esc / 点遮罩空白也能退出
 // 点遮罩空白关闭（同上：只在遮罩上按下并松开才算，拖动选字不会误关）
 bindBackdropDismiss(jobPickerOverlay, hideJobPicker);
 // 岗位搜索：输入实时过滤列表

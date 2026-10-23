@@ -126,6 +126,13 @@ header h1 {
      改字号要重新量：偏移量按 0.035em 走，14px → 0.5px、16px → 0.55px */
   transform: translateY(0.5px);
 }
+/* person_search（weight 600）的墨迹在 960 格里偏右下（x 106~960、y -836~0）：18px 的盒子里
+   墨迹中线比齿轮/时钟低 1.17px、偏右 1px。这里抵掉这段偏移（上面那条 0.5px 是替中文下坐
+   补的，这枚字形自带下坐，所以纵向只抵 1.17 - 0.5 = 0.67），三枚图标的墨迹中线与
+   「图标→文字」间距才一致。数值由 getBBox 实测反推，改尺寸或换字形要重测 */
+#btn-candidate-query svg {
+  transform: translate(-1px, -0.7px);
+}
 .menu-item:hover {
   background: var(--bg-accent-tint); /* 悬停 = 5% 淡底（同下拉选项），字色与图标都不变 */
 }
