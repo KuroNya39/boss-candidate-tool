@@ -300,8 +300,8 @@ button.is-loading::before {
    只用 transform 位移（合成层动画），不逐帧动布局 */
 .toggle-pill {
   position: absolute;
-  top: 4px;
-  bottom: 4px;
+  top: var(--space-1);
+  bottom: var(--space-1);
   left: 0;
   width: 0; /* 初始无宽，JS 首帧按默认选中按钮填充 */
   background: var(--bg-accent-tint-selected); /* 选中浅蓝底 */
@@ -391,7 +391,7 @@ body.is-dragging-source * {
   outline: none;
   color: var(--text-primary);
   font-size: var(--text-md);
-  padding: 0 8px 0 20px; /* 数字偏左但不太贴边（左留 20px，观感“居中偏左”）；值变长往左延展，不会顶到右侧箭头 */
+  padding: 0 var(--space-2) 0 20px; /* 数字偏左但不太贴边（左留 20px，观感“居中偏左”）；值变长往左延展，不会顶到右侧箭头 */
   text-align: left; /* 短数字不必完全居中；居中只在「成列数字纵向比较」时才讲究 */
   font-variant-numeric: tabular-nums;
   -webkit-appearance: none;
@@ -423,7 +423,7 @@ body.is-dragging-source * {
 .count-arrows {
   position: absolute;
   top: 0;
-  right: 4px; /* 不贴最右边缘（原 right:0 顶着圆角/边框，太靠右），整体左移 4px */
+  right: var(--space-1); /* 不贴最右边缘（原 right:0 顶着圆角/边框，太靠右），整体左移 4px */
   bottom: 0;
   width: 20px;
   display: flex;
@@ -784,11 +784,11 @@ body.is-dragging-source * {
 .btn--paused:hover:not(:disabled) { background: rgba(var(--color-warning-rgb),0.2); border-color: var(--color-warning-strong); color: var(--color-warning-strong); }
 /* 运行区按钮（暂停/继续/跳过）统一用 14px Material SVG 图标：SVG 作为 flex item 由
    align-items:center 几何居中，无需 emoji 的字形微调；缩小图标与文字的间距让三个按钮更紧凑 */
-.running-actions .btn { gap: 4px; }
+.running-actions .btn { gap: var(--space-1); }
 .btn--retry:hover:not(:disabled) { border-color: var(--color-error); color: var(--color-error); }
 
 /* 尺寸 */
-.btn--sm { padding: 4px 8px; font-size: var(--text-sm); }
+.btn--sm { padding: var(--space-1) var(--space-2); font-size: var(--text-sm); }
 /* 纯图标按钮：把 .btn--sm 的横向内距换成正方形，边长取「同一行文字按钮的高度」——
    文字按钮高 = 12(字) × 1.4(行高) + 4×2(内距) + 1×2(描边) ≈ 27px。
    这是由几何反推的值（同 §3 的「反推内距」一类）：改了 .btn--sm 的内距 / 行高 / 字号，
@@ -965,7 +965,7 @@ body.is-dragging-source * {
 .field-icon-btn {
   position: absolute;
   top: 50%;
-  right: 8px;
+  right: var(--space-2);
   transform: translateY(-50%);
   width: 24px;
   height: 24px;

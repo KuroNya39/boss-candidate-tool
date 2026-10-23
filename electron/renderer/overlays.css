@@ -602,16 +602,13 @@
   gap: var(--space-2);
   padding-bottom: var(--space-2); /* 滚到底时最后一张卡离底部按钮区留 8px 呼吸（该处已无分割线） */
 }
+/* 历史记录空态：颜色 / 字号 / 行高 / 内距 / 居中都在 .empty-state 底上（config.css），
+   这里只补「撑满列表剩余高度 + flex 居中」两条，别再重抄一遍样式 */
 .history-empty {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted);
-  font-size: var(--text-md);
-  text-align: center;
-  line-height: var(--leading-normal);
-  padding: var(--space-4);
 }
 .history-item {
   border: 1px solid var(--border-card);
@@ -726,14 +723,8 @@
 /* ===== 候选人查询弹窗（v1.20.0）=====
    跨批次的 AI 评价索引。列表直接复用完成页的 .results-list / .result-item，
    只是把行数上限交给弹窗高度（flex:1 撑满、自己滚），日期作为姓名后的标记。 */
-.candidate-query-box,
-.batch-detail-box {
-  width: 560px;
-  display: flex;
-  flex-direction: column;
-}
-/* 只有高度不同：批次详情要看一屏的统计 + 档位 + 候选人列表，特意比候选人查询/历史记录(78vh)高一档
-   （用户要求「上下再长一点」）；宽度与 78vh 那一档在 .history-box 那条共用规则里 */
+/* 宽度 / flex 列都在上面那条三框共用规则里，这里只给高度：批次详情要看一屏的统计 + 档位
+   + 候选人列表，特意比候选人查询/历史记录(78vh)高一档（用户要求「上下再长一点」） */
 .batch-detail-box {
   max-height: 88vh;
 }
