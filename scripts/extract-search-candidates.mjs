@@ -125,7 +125,7 @@ async function waitForPageLoad(targetId, maxWait = 20000) {
  *                  │   │       └─ .info-tags-wrap > .info-tags > .info-tags-item ← 技能
  *                  │   └─ ...
  *                  └─ .geek-words-edus                 ← 工作/教育经历
- *                       ├─ .exp-box.expect-exp-box    ← 期望城市
+ *                       ├─ .exp-box.expect-exp-box    ← 期望城市、期望岗位
  *                       ├─ .exp-box.work-exp-box      ← 工作经历
  *                       └─ .exp-box.edu-exp-box       ← 教育经历
  */
@@ -191,14 +191,22 @@ const EXTRACT_CARD_INFO_SCRIPT = `(function(){
       info.skills = Array.from(tagItems).map(function(t) { return safeText(t); });
     }
 
-    // 期望城市（在 .exp-box.expect-exp-box 中）
-    // DOM 结构：span.date 是标签"期望城市"，第二个 span 才是实际值
+    // 期望城市 / 期望岗位（在 .exp-box.expect-exp-box 中）
+    // DOM 结构（2026-10 实测）：span.date 是标签"期望"，后面按顺序是 span.render-two 的值：
+    //   期望 [广州] [Android]  → 城市、岗位；老版本卡片只有城市一项，按取到的个数算
     var expectBox = geekInfo.querySelector('.exp-box.expect-exp-box');
     if (expectBox) {
-      var expectSpans = expectBox.querySelectorAll('span');
-      if (expectSpans.length >= 2) {
+      var expectValues = Array.from(expectBox.querySelectorAll('span.render-two'))
+        .map(safeText).filter(Boolean);
+      // 老卡片的值没有 render-two 类，退回「标签 span 之后第一个 span」（只有城市）
+      if (expectValues.length === 0) {
+        var legacyCity = safeText(expectBox.querySelectorAll('span')[1]);
+        if (legacyCity) expectValues = [legacyCity];
+      }
+      if (expectValues.length > 0) {
         if (!info.positionInfo) info.positionInfo = {};
-        info.positionInfo.expectCity = safeText(expectSpans[1]);
+        info.positionInfo.expectCity = expectValues[0];
+        if (expectValues.length > 1) info.positionInfo.expectPosition = expectValues[1];
       }
     }
 

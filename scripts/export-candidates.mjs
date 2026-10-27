@@ -15,6 +15,7 @@ import ExcelJS from 'exceljs';
 import { scoreToTier } from './score-tiers.mjs';
 import { formatComment } from './format-comment.mjs';
 import { DEGREE_ANY_RE, degreeRank } from './degree.mjs';
+import { parseWorkExperienceFromResume } from './extract-common.mjs';
 
 // ===== CLI 参数解析 =====
 function parseArgs() {
@@ -52,11 +53,14 @@ const JOB_STATUS_FULL_RE = /(?:在职|离职)\s*[-－—]\s*[^\s，,。;；、|/
 const JOB_STATUS_BARE = ['随时到岗', '月内到岗', '考虑机会', '暂不考虑', '应届生', '在校生'];
 
 // 期望信息：卡片 DOM 上只有「期望城市 / 期望岗位 / 期望薪资」三项，没有期望行业 ——
-// 期望行业只存在于简历里。简历正文里那一块是无标签的（标题下面依次排 城市 / 岗位 / 行业 / 薪资），
-// 且小节标题有「期望职位」「求职期望」「最近关注」几种写法（实测同一批 10 份简历里三种都出现过）。
-// 注意：下面按「一行一项」来切，所以只对**带换行**的简历文本有效 —— 拖拽复制与截图 OCR
-// 出来的文本都保留换行（实测 output 里的简历正文 70~110 个换行）；万一某条路径把整份简历
-// 压成了一行，这里会认不到、留空，不会认错。
+// 期望行业只存在于简历里。简历正文里那一块有两种排版，最终都归到同一套归类：
+//   ① 截图 OCR 的排版：标题后面直接粘着一排用 | 隔开的值，标签还可能被 OCR 粘进上一行：
+//      32 岁 | 6 年 | 硕士 | 在职-考虑机会…期望职位深圳 | 驱动开发工程师 | 行业不限 | 30-50K
+//   ② 标题独占一行，下面每行一个值（拖拽复制 / DOM 提取）：城市 / 岗位 / 行业 / 薪资
+//   两种排版的值顺序一致（「行业不限」也是行业值）。
+// 小节标题有「期望职位」「求职期望」「最近关注」几种写法（实测同一批 10 份简历里三种都出现过）。
+// 注意 ② 只对**带换行**的简历文本有效 —— 拖拽复制与截图 OCR 出来的文本都保留换行（实测
+// output 里的简历正文 70~110 个换行）；万一某条路径把整份简历压成了一行，② 会认不到、留空，不会认错。
 const EXPECT_SECTION_HEADS = ['最近关注', '期望职位', '求职期望', '求职意向', '期望岗位'];
 // 简历里其它小节标题，用来判断「期望」块到哪儿结束
 const RESUME_SECTION_HEADS = [
@@ -64,6 +68,11 @@ const RESUME_SECTION_HEADS = [
   '证书', '语言能力', '牛人分析器', '牛人最近7天沟通过的职位', '查看全部', '经历描述',
 ];
 const SALARY_LINE_RE = /^(?:\d+\s*[-~－—至]\s*\d+\s*[Kk千万Ww]|\d+\s*[Kk千万Ww]|面议|薪资面议)$/;
+const PIPE_RE = /[|｜]/;
+const LEAD_COLONS_RE = /^[：:]+/;
+// 一次找出标题（OCR 的排版里标题常出现在行中间），不用逐行 includes 五遍
+const EXPECT_HEAD_RE = new RegExp(EXPECT_SECTION_HEADS.join('|'), 'g');
+const DATE_LINE_RE = /^\d{4}\s*[.\-/年]/;
 
 // 每人只算一次。下面几个字段是「一次导出里每人各取一次」的（四个期望字段共用一份解析结果，
 // 活跃度/求职状态/期望字段共用一份拼接文本），不缓存就是同一份简历反复切行、反复拼接。
@@ -77,31 +86,52 @@ const memoByCandidate = (fn) => {
   };
 };
 
-const parseExpectBlock = memoByCandidate((c) => {
+// 前两项固定是城市、岗位；剩下的项里，像薪资的当薪资，第一个不是薪资的当行业。
+// maxIndustryLen 给行业一个长度上限：OCR 那种一行值的排版容易把后续正文一起切进来，收得更紧。
+const classifyExpectValues = (values, maxIndustryLen) => {
+  const out = { expectCity: values[0], expectPosition: values[1] };
+  for (const v of values.slice(2)) {
+    if (SALARY_LINE_RE.test(v)) { if (!out.expectSalary) out.expectSalary = v; continue; }
+    if (!out.expectIndustry && v.length <= maxIndustryLen) out.expectIndustry = v;
+  }
+  return out;
+};
+
+const parseExpectSection = memoByCandidate((c) => {
   const text = c.resumeText || '';
   if (!text) return null;
   const lines = text.split(/\r?\n/).map(s => s.trim());
+
+  // ① OCR 排版：标题和值在同一行。先认这种，命中就不再看下一段的标题行。
+  //    「后面带 |」是硬条件；「必须有像薪资的一项」是第二道——正文里恰好提到
+  //    「期望职位… | …」不会带薪资，据此排除误命中。城市/岗位长度离谱也整行放弃。
+  for (const line of lines) {
+    EXPECT_HEAD_RE.lastIndex = 0;
+    let m;
+    while ((m = EXPECT_HEAD_RE.exec(line)) !== null) {
+      const rest = line.slice(m.index + m[0].length);
+      if (!PIPE_RE.test(rest)) continue;
+      const values = rest.split(PIPE_RE).map(s => s.trim().replace(LEAD_COLONS_RE, '')).filter(Boolean);
+      if (values.length < 2 || values[0].length > 20 || values[1].length > 30) continue;
+      if (!values.some(v => SALARY_LINE_RE.test(v))) continue;
+      return classifyExpectValues(values, 30);
+    }
+  }
+
+  // ② 标题独占一行：下面每行一个值
   const headIdx = lines.findIndex(l => EXPECT_SECTION_HEADS.includes(l));
   if (headIdx < 0) return null;
-
-  const block = [];
-  for (let i = headIdx + 1; i < lines.length && block.length < 6; i++) {
+  const values = [];
+  for (let i = headIdx + 1; i < lines.length && values.length < 6; i++) {
     const l = lines[i];
     if (!l) continue;
     if (RESUME_SECTION_HEADS.includes(l)) break;
-    if (l.length > 40) break;              // 长句 = 已经进正文了
-    if (/^\d{4}\s*[.\-/年]/.test(l)) break; // 日期行 = 已经进经历区了
-    block.push(l);
+    if (l.length > 40) break;       // 长句 = 已经进正文了
+    if (DATE_LINE_RE.test(l)) break; // 日期行 = 已经进经历区了
+    values.push(l);
   }
-  if (block.length < 2) return null;
-
-  // 前两行固定是城市、岗位；剩下的行里，像薪资的当薪资，其余第一个当行业
-  const out = { expectCity: block[0], expectPosition: block[1] };
-  for (const l of block.slice(2)) {
-    if (SALARY_LINE_RE.test(l)) { if (!out.expectSalary) out.expectSalary = l; continue; }
-    if (!out.expectIndustry) out.expectIndustry = l;
-  }
-  return out;
+  // 行业长度由上面「超过 40 字就停」兜住，这里不用再限
+  return values.length >= 2 ? classifyExpectValues(values, 40) : null;
 });
 
 // 期望信息：卡片上没有「期望行业」这一项，只能从简历正文里认（带标签的写法也一并兜住）
@@ -141,15 +171,26 @@ function jobStatusOf(c) {
   return '';
 }
 
-// 顺序：卡片 DOM 里直接读到的结构化字段 → 简历正文的「期望」区块 → 简历正文里带标签的写法
+// 顺序：卡片 DOM 里直接读到的结构化字段 → 简历正文的「期望」区块（两种排版已在
+// parseExpectSection 里归一）→ 简历正文里带标签的写法
 // （期望薪资在搜索页是 basicInfo.expectSalary，其余页面是 positionInfo.expectSalary，两个都认）
 function expectOf(c, key) {
   const structured = c.positionInfo?.[key] || c.basicInfo?.[key];
   if (structured) return structured;
-  const block = parseExpectBlock(c);
-  if (block && block[key]) return block[key];
+  const section = parseExpectSection(c);
+  if (section && section[key]) return section[key];
   return findLabeled(textOf(c), EXPECT_LABEL_RES[key]);
 }
+
+// 在职时间：提取时已从简历补进 workExperience[0].time 的（v1.16.0 起）直接用；
+// 老批次是提取阶段没补的，导出时再从简历正文认一次——重新导出老批次就能补上这一列。
+// 取文档顺序的第一条（简历按时间倒序，第一条即最近一段工作），不按 embedded 过滤：
+// embedded 只说明公司/职位不可信，日期本身仍然有效。
+const tenureOf = memoByCandidate((c) => {
+  const fromWork = c.workExperience?.[0]?.time;
+  if (fromWork) return fromWork;
+  return parseWorkExperienceFromResume(c.resumeText || '')[0]?.time || '';
+});
 
 // AI 评语排版统一收口到 ./format-comment.mjs（软件内完成页与 Excel 共用同一份），此处只导入使用
 const FIELD_CONFIG = {
@@ -253,7 +294,7 @@ const FIELD_CONFIG = {
   },
   currentTenure: {
     header: '在职时间',
-    extract: (c) => c.workExperience?.[0]?.time || '',
+    extract: (c) => tenureOf(c),
   },
   expectCity: {
     header: '期望城市',
