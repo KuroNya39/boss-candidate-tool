@@ -1,5 +1,7 @@
 # BOSS直聘候选人AI评分助手
 
+[![BOSS直聘候选人AI评分助手](https://socialify.git.ci/KuroNya39/boss-candidate-tool/image?description=1&font=Source%20Code%20Pro&language=1&name=1&owner=1&pattern=Plus&theme=Light)](https://github.com/KuroNya39/boss-candidate-tool)
+
 一个帮你「从 BOSS直聘招人」的桌面助手：它会帮你从 BOSS直聘提取候选人简历，把每位候选人的简历按岗位要求用 AI 评分，自动给分数达标的候选人打招呼，最后把所有结果整理成 Excel 表格发给你。
 
 > AI 评分仅供参考，录用与否请以专业判断为准。
@@ -32,6 +34,9 @@
 ---
 
 ## 安装
+
+[![版本](https://img.shields.io/github/v/release/KuroNya39/boss-candidate-tool?label=%E7%89%88%E6%9C%AC&color=00c1c1)](https://github.com/KuroNya39/boss-candidate-tool/releases)
+[![下载量](https://img.shields.io/github/downloads/KuroNya39/boss-candidate-tool/total?label=%E4%B8%8B%E8%BD%BD%E9%87%8F&color=00c1c1)](https://github.com/KuroNya39/boss-candidate-tool/releases)
 
 从 [GitHub Releases 页面](https://github.com/KuroNya39/boss-candidate-tool/releases) 下载最新版本：
 
