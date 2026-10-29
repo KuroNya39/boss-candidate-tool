@@ -308,3 +308,9 @@ AI 会根据岗位描述里的 3 个核心评估维度（带权重）给候选�
 完整协议见 [LICENSE.md](LICENSE.md)，也可查看 [PolyForm 官网](https://polyformproject.org/licenses/noncommercial/1.0.0/)。
 
 如需商业授权或其他授权，请通过 <https://github.com/KuroNya39> 联系作者。
+
+---
+
+## Star 历史
+
+[![Star History Chart](https://api.star-history.com/chart?repos=KuroNya39/boss-candidate-tool&type=date&legend=top-left)](https://www.star-history.com/#KuroNya39/boss-candidate-tool&type=date&legend=top-left)
