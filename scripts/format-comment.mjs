@@ -20,6 +20,10 @@ export const SECTION_LABELS = {
   education: '学历硬性门槛核查',
   conclusion: '综合结论',
 };
+// 任职资格逐项结论的三个词：解析侧（score-comment.mjs 按它切逐项行）与界面加粗共用，
+// 改提示词措辞只改这里——否则会出现「解析还在认这个词、加粗却不认」的静默错位
+export const VERDICT_LABELS = { pass: '达标', fail: '不达标', pending: '待核实' };
+
 // 有固定编号的四个板块（维度那个由维度行反推位置，不走这里）：[标题, 编号]
 const BLOCKS = [
   [SECTION_LABELS.firstSentence, 1],
@@ -30,24 +34,45 @@ const BLOCKS = [
 
 // 下面这些正则每次 formatComment 都要用（每位候选人一次，导出/界面各一次），
 // 全部在模块级建好，别在函数里反复 new RegExp。
+const BLOCK_TITLES = BLOCKS.map(([src]) => src);
 // 固定板块标题 → 模板编号
 const BLOCK_REWRITES = BLOCKS.map(([src, n]) => [new RegExp(src + '\\s*[:：]?'), `${n}.${src}：`]);
 const DIM_HEAD_RE = new RegExp('[0-9一二三四五六七八九十]*[.、．]?\\s*' + SECTION_LABELS.dimensions + '\\s*[:：]?');
+// 五个板块标题拼成的正则片段：认编号、【】剥壳、判「这行是不是节标题」三处共用一份（加标题只改 SECTION_LABELS）
+const ALL_TITLE_SRC = BLOCK_TITLES.concat(SECTION_LABELS.dimensions).join('|');
 const BLOCK_NUMBER_HEAD_RE = new RegExp(
-  '([0-9一二三四五六七八九十]+[.、．]\\s*)(?=(?:' + BLOCKS.map(([src]) => src).join('|') + '))',
+  '([0-9一二三四五六七八九十]+[.、．]\\s*)(?=(?:' + ALL_TITLE_SRC + '))',
   'g',
 );
+/** 板块之间空一行（第 5 步） */
+const BLOCK_SEP_RE = new RegExp('\\n(?=[1-5]\\.(?:' + ALL_TITLE_SRC + '))', 'g');
 const DIM_RE = new RegExp('(' + FORMAT_COMMENT_DIM_RE + ')', 'g');
 const DIM_AFTER_BLANK_RE = new RegExp('\\n{2,}(?=' + FORMAT_COMMENT_DIM_RE + ')', 'g');
 const SUBLINE_HEAD_RE = new RegExp('(\\n+)(' + SUBLINE_KW + ')\\s*[:：]?', 'g');
 const SUBLINE_INLINE_RE = new RegExp('(?<=。|；|）|：)(' + SUBLINE_KW + ')\\s*[:：]', 'g');
 const DIM_BLOCK_HEAD_RE = new RegExp('(\\n+)(?=' + FORMAT_COMMENT_DIM_RE + ')');
 
+// 模型偶尔把板块标题包进方括号：开头先甩一个空的「【】」，标题则写成独占一行的「【」+ 空行 + 「3.任职资格的匹配情况：】」
+// （2026-10-30 一批 45 人里 3 人这样）。这些括号不承载任何信息，只剥「空的一对」与「恰好包住板块标题的那对」，
+// 正文里其他方括号一概不碰——行首的「[硬性]」/「[优先]」是算分要用的档位标签，更不能动。
+const EMPTY_BRACKET_RE = /【\s*】/g;
+const WRAPPED_TITLE_RE = new RegExp(
+  '【\\s*((?:\\d+[.、．]\\s*)?(?:' + ALL_TITLE_SRC + ')\\s*[:：]?)\\s*】',
+  'g',
+);
+// 节标题行（已归一：可选编号 + 标题 + 可选冒号）。判「当前行属于哪一节」必须认标题**形状**：
+// 正文里顺口提到别的节名（如逐项行写「详见学历硬性门槛核查」）不能算换了节
+const SECTION_TITLE_LINE_RE = new RegExp('^\\s*(?:\\d+[.、．]\\s*)?(' + ALL_TITLE_SRC + ')\\s*[:：]?');
+
 export function formatComment(text) {
   if (!text) return '';
   let t = String(text);
 
-  // 0) 去掉 AI 可能自带的板块编号/标题，避免重复（如 "1.首句定性"、"2.3个评估维度的匹配情况："）
+  // 0) 剥掉模型自加的方括号壳（见上），再做编号/标题归一
+  t = t.replace(EMPTY_BRACKET_RE, '');
+  t = t.replace(WRAPPED_TITLE_RE, '$1');
+
+  // 0.1) 去掉 AI 可能自带的板块编号/标题，避免重复（如 "1.首句定性"、"2.3个评估维度的匹配情况："）
   t = t.replace(DIM_HEAD_RE, '');
   t = t.replace(BLOCK_NUMBER_HEAD_RE, '');
 
@@ -82,7 +107,7 @@ export function formatComment(text) {
   t = t.replace(DIM_BLOCK_HEAD_RE, '\n2.' + SECTION_LABELS.dimensions + '：\n');
 
   // 5) 板块之间空一行
-  t = t.replace(/\n(?=[1-5]\.(?:首句定性|3个评估维度|任职资格的匹配情况|学历硬性门槛核查|综合结论))/g, '\n\n');
+  t = t.replace(BLOCK_SEP_RE, '\n\n');
 
   // 6) 清理
   t = t.replace(/\n{3,}/g, '\n\n');
@@ -116,10 +141,17 @@ function labelEndIndex(line) {
 
 const SECTION_TITLE_RE = /^\s*【[^】]*】\s*$/;
 
+// 「不达标 / 待核实」单独加粗（「达标」不加）：只在第 3 节任职资格里生效。
+// 不加「达标」两个字是因为它到处都有、加粗反而糊成一片；不达标与待核实通常只出现在逐项结论里，
+// 是人工扫评语时最先要找的东西。注意 不达标 含 达标，正则只匹配 不达标 本身。
+// 带捕获组是给 split 用的：分出来的奇数下标正好是要加粗的那几个词
+const QUAL_VERDICT_RE = new RegExp(`(${VERDICT_LABELS.fail}|${VERDICT_LABELS.pending})`, 'g');
+
 /**
- * 把评语切成 [{ text, bold }] 片段。规则两条：
+ * 把评语切成 [{ text, bold }] 片段。规则三条：
  *   ① 行首到第一个（括号外的）冒号之间加粗——编号标题、维度行、逐项条件名、计分行都靠它出层次
  *   ② 独占一行的【系统核验】这类方括号标题整行加粗
+ *   ③ 第 3 节「任职资格的匹配情况」里的「不达标」「待核实」加粗（结论最需要一眼看到，「达标」不加）
  * 只有排版含义，不改文本内容；存储的评语保持纯文本（索引/邮件/复制都不受影响）。
  */
 function commentEmphasisSegments(text) {
@@ -130,17 +162,24 @@ function commentEmphasisSegments(text) {
     if (last && last.bold === bold) last.text += str;
     else out.push({ text: str, bold });
   };
+  // 正文里标出「不达标 / 待核实」（只在本节内调用）
+  const pushVerdicts = (str) => {
+    str.split(QUAL_VERDICT_RE).forEach((s, i) => push(s, i % 2 === 1));
+  };
+  let inQual = false;   // 当前行是否属于第 3 节（遇到别的板块标题就退出）
   String(text || '').split('\n').forEach((line, idx) => {
     if (idx > 0) push('\n', false);
     if (!line.trim()) return;
     if (SECTION_TITLE_RE.test(line)) return push(line, true);
+    // 先更新板块状态再排版本行：标题行本身也要算进它自己那一节
+    const title = line.match(SECTION_TITLE_LINE_RE);
+    if (title) inQual = title[1] === SECTION_LABELS.qualifications;
     const end = labelEndIndex(line);
-    if (end > 0 && end <= LABEL_MAX) {
-      push(line.slice(0, end + 1), true);
-      push(line.slice(end + 1), false);
-    } else {
-      push(line, false);
-    }
+    const hasLabel = end > 0 && end <= LABEL_MAX;
+    if (hasLabel) push(line.slice(0, end + 1), true);
+    const rest = hasLabel ? line.slice(end + 1) : line;
+    if (inQual) pushVerdicts(rest);
+    else push(rest, false);
   });
   return out;
 }

@@ -3,7 +3,7 @@
 import { resolve } from 'node:path';
 import { existsSync, readFileSync, writeFileSync, unlinkSync, readdirSync } from 'node:fs';
 import {
-  computeScoreBreakdown, parseMatchScoreFromComment, patchEducationDeductionComment,
+  computeScoreBreakdown, parseMatchScoreFromComment, patchScoreComment,
   appendScoringNotices, isNonAiComment, parseWorkYears, NO_RESUME_COMMENT,
 } from './score-comment.mjs';
 
@@ -19,7 +19,10 @@ import { appendCandidateIndex } from './candidate-index.mjs';
 // 增量评分器内部轮询/启动/放行阈值（用户确认的参数）
 const POLL_MS = 1500;              // 提取过程中轮询进度文件的间隔
 const POOL_START_THRESHOLD = 15;   // 提取到 15 人即开始边提取边评分（用户决定）
-const FLUSH_TIMEOUT = 30000;       // 不满一批的尾巴等待 30s 就放行，避免一直卡到提取结束
+const FLUSH_TIMEOUT = 60000;       // 尾巴里最早那位等满 60s 才整条放行（按人计时）。只在有新候选人
+                                   // 进来时才检查，所以它决定的是「下一包到达时零头并进去、还是
+                                   // 单独发一次 API」：30s 几乎每包都要单独发（45 人那批实测 17 次
+                                   // 调用 vs 最少 15 次），60s 基本都能并进下一包
 
 // ===== 提取与评分并行：增量评分器 =====
 // ctx: { outputDir, source, extractResult, skipIncremental, seedScores, indexDir, scoringError }
@@ -49,7 +52,7 @@ async function runIncrementalScoring(ctx) {
   const promptBuilders = new Map();  // 岗位 -> { build, requirements }（懒加载缓存）
   const dispatchQueue = [];          // 待调度批次 [{cands, build, requirements}]
   const executing = new Set();       // 在飞批 promise（并发上限 SCORE_CONCURRENCY）
-  const tailWait = new Map();        // 岗位 -> 尾巴首现时间（FLUSH 放行用）
+  const pendingSince = new Map();    // 候选人key -> 进入待评队列的时刻（尾巴超时按人计时，见 collectBatches）
   let lastSent = '';                 // 步骤2 上次已发的进度帧（去重用，见 sendStep2Progress）
   let lastPollAt = 0;
 
@@ -94,7 +97,10 @@ async function runIncrementalScoring(ctx) {
       const key = candidateKeyOf(c, i);
       if (seenRefs.has(key)) continue;
       seenRefs.set(key, c);
-      if (!c.resumeText) {
+      if (c.resumeText) {
+        pendingSince.set(key, Date.now());
+      } else {
+        // 无在线简历：不占 AI 调用，直接记 0 分（与 scoreCandidateList 同一口径）
         c.jobRelevanceScore = 0;
         c.jobRelevanceComment = NO_RESUME_COMMENT;
         scoredRefs.set(key, c);
@@ -149,7 +155,13 @@ async function runIncrementalScoring(ctx) {
     return b;
   }
 
-  // —— 收集待评分批次（每岗位 3 人一批；满阈值后；不满一批的尾巴超 FLUSH_TIMEOUT 放行） ——
+  // 该候选人已进批次队列：防重复收集；入队时刻已无用（派发过的人不会再出现在尾巴里），顺手删掉免得越攒越多
+  function markDispatched(key) {
+    dispatchingRefs.add(key);
+    pendingSince.delete(key);
+  }
+
+  // —— 收集待评分批次（每岗位 3 人一批；满阈值后；尾巴里最早那位等满 FLUSH_TIMEOUT 就放行） ——
   function collectBatches() {
     if (seenRefs.size < POOL_START_THRESHOLD) return [];
     const pendingByJob = {};
@@ -158,7 +170,7 @@ async function runIncrementalScoring(ctx) {
       if (!c.resumeText) continue;
       const job = c.positionInfo?.appliedJob || '未知岗位';
       if (!pendingByJob[job]) pendingByJob[job] = [];
-      pendingByJob[job].push(c);
+      pendingByJob[job].push({ key, c });   // 带上 key：派发时不必再算一次
     }
     const entries = [];
     const now = Date.now();
@@ -167,22 +179,22 @@ async function runIncrementalScoring(ctx) {
       const fullCount = Math.floor(list.length / BATCH_SIZE) * BATCH_SIZE;
       for (let i = 0; i < fullCount; i += BATCH_SIZE) {
         const batch = list.slice(i, i + BATCH_SIZE);
-        for (const c of batch) dispatchingRefs.add(candidateKeyOf(c));
-        entries.push({ cands: batch, ...builderFor(job) });
+        for (const { key } of batch) markDispatched(key);
+        entries.push({ cands: batch.map((e) => e.c), ...builderFor(job) });
       }
-      // 尾巴（不满一批）：等待 FLUSH_TIMEOUT 后放行，避免小尾巴一直卡到提取结束
+      // 尾巴（不满一批）：队首那位（按入队顺序，即等最久的）等满 FLUSH_TIMEOUT 才整条放行。
+      // 按人计时，不按「岗位的尾巴队列存在多久」——后者在队列一直不空时永不重置，
+      // 刚到的候选人会蹭上前面那批人攒下的等待被单独发走（2026-10-30 实测：28/35 → 29/35）。
+      // 注意本函数只在有新候选人进来（或用户暂停）时被调用，所以这里判的是
+      // 「下一包人到了，零头是并进去还是单独发一次」，不是「干等 60 秒后自动发」。
       const tail = list.slice(fullCount);
-      if (tail.length === 0) {
-        tailWait.delete(job);
-        continue;
-      }
-      const firstSeen = tailWait.get(job) ?? now;
-      tailWait.set(job, firstSeen);
+      if (tail.length === 0) continue;
+      // 理论上每个待评的人都有入队时刻；万一取不到，当作刚到处理（宁可多等，不提前多花一次调用）
+      const headSince = pendingSince.get(tail[0].key) ?? now;
       // v1.8.3：用户点「暂停」时 tailFlushRequested 置位，零头立刻放行，让评分进度在暂停期间跟上提取的人数
-      if (tailFlushRequested || now - firstSeen >= FLUSH_TIMEOUT) {
-        for (const c of tail) dispatchingRefs.add(candidateKeyOf(c));
-        entries.push({ cands: tail, ...builderFor(job) });
-        tailWait.delete(job);
+      if (tailFlushRequested || now - headSince >= FLUSH_TIMEOUT) {
+        for (const { key } of tail) markDispatched(key);
+        entries.push({ cands: tail.map((e) => e.c), ...builderFor(job) });
       }
     }
     return entries;
@@ -280,9 +292,10 @@ async function runIncrementalScoring(ctx) {
       });
       c.matchScore = bd?.score ?? parseMatchScoreFromComment(c.jobRelevanceComment);
       c.totalScore = c.matchScore ?? (c.jobRelevanceScore || 0);
-      // 学历硬性门槛兜底后，同步修正评语文字，避免「评语说不扣分、分数却扣了」的矛盾。
+      // 评语里的手写数字（学历扣分 / 扣分合计 / 匹配度评分）校正成与程序分数一致，
+      // 避免「评语写 62、列表显示 67」的矛盾。只改对不上的那几处，本来就一致的一句不动。
       // bd 为 null 时不必进去（它自己会再扫一遍全文，结果还是 null）
-      if (bd) c.jobRelevanceComment = patchEducationDeductionComment(c.jobRelevanceComment, bd);
+      if (bd) c.jobRelevanceComment = patchScoreComment(c.jobRelevanceComment, bd);
       // 程序判不出来 / 判出与模型结论矛盾的地方挂到评语末尾（**只提示、不改分**），人工复核时一眼能看到
       const notices = bd ? bd.notices : (noAiComment ? [] : [NO_BREAKDOWN_NOTICE]);
       c.jobRelevanceComment = appendScoringNotices(c.jobRelevanceComment, notices);
@@ -353,7 +366,7 @@ async function runIncrementalScoring(ctx) {
         }
       }
       // v1.8.3：用户点「暂停」→ tailFlushRequested 置位，把手头不满一批的零头立刻派出去评分，
-      // 暂停期间评分进度跟上提取人数（否则零头要等 FLUSH_TIMEOUT 30s 或再来人凑满一批）
+      // 暂停期间评分进度跟上提取人数（否则零头要等下一包人来凑满，或等到 FLUSH_TIMEOUT 到点）
       if (tailFlushRequested) {
         const flushEntries = collectBatches(); // collectBatches 内读取 flag 放行零头
         if (flushEntries.length > 0) {

@@ -6,7 +6,8 @@
  *
  * 权威分数一律由本模块算出（v1.21.0）：
  *   最终分 = clamp(加权基础分 − 学历扣分 − 任职资格扣分, 0, 100)
- * AI 自己写的「其他扣分合计」「匹配度评分」只活在评语文字里，**不参与计算**——
+ * AI 自己写的「其他扣分合计」「匹配度评分」只活在评语文字里，**不参与计算**（收尾时由
+ * patchScoreComment 校正成与本模块算出的分数一致，免得评语写着 62、列表显示 67）——
  * 实测它会在同一份评语里前后打架（合计行写「任职资格0 + 学历20」，下一节又写
  * 「这20是任职资格扣分」），信它就会算出多 20 或少 20 的分。没有例外：程序判不出来
  * 的地方一律不回头去信 AI 的数字，改成「按有利方向给分 + 在评语里挂一条【系统核验】提示」。
@@ -16,8 +17,8 @@
  * 只在 notices 里写明「这里没核对过」，交人工确认。
  */
 import { DEGREE_ANY_RE, DEGREE_BELOW_BACHELOR, DEGREE_BACHELOR_PLUS, DEGREE_SECONDARY, DEGREE_NON_STANDARD } from '../scripts/degree.mjs';
-// 评语板块标题的唯一定义（排版与解析共用一份，避免改标题时一边改了另一边静默解析出 0 条）
-import { SECTION_LABELS } from '../scripts/format-comment.mjs';
+// 评语板块标题 / 逐项判定词的唯一定义（排版与解析共用一份，避免改措辞时一边改了另一边静默解析出 0 条）
+import { SECTION_LABELS, VERDICT_LABELS } from '../scripts/format-comment.mjs';
 
 // —— 「这句不是 AI 评语」的两个兜底文案：评分、收尾、算分三处共用这一份 ——
 // 写用常量、判用 isNonAiComment，别在别处再抄一遍字面量：改文案时判定要跟着走，
@@ -53,7 +54,7 @@ const NON_STANDARD_RE = new RegExp(DEGREE_NON_STANDARD.join('|'));
 // 「非全日制」要排除「未标注/按全日制参考/存疑」这类模棱两可的写法，避免误伤第一学历已是本科的候选人
 const isNonFullTime = (t) => /非全日制/.test(t) && !/未标注|按全日制|存疑/.test(t);
 
-/** 学历硬性门槛扣分：第一学历低于全日制本科时扣这个数（评语改写里也用它，别再写字面量 20） */
+/** 学历硬性门槛扣分：第一学历低于全日制本科时扣这个数（算分与评语改写共用，别再写字面量 20） */
 const EDU_GATE_DEDUCTION = 20;
 
 /**
@@ -136,10 +137,11 @@ function qualificationDeduction(hardFailCount) {
 
 /** 维度行「（40%，独立得分：92分）」 */
 const DIM_RE = /（\s*(\d{1,2})\s*%\s*[，,]\s*独立得分\s*[:：]\s*(\d{1,3})\s*分）/g;
-/** 任职资格逐项行「[硬性] 学历要求（…）：达标。依据…」 */
-const QUAL_LINE_RE = /^(.{1,80}?)[：:]\s*(达标|不达标|待核实)/;
-/** 「学历硬性门槛扣分：X分」这个前缀：取原因、改数字几处共用一份，改提示词措辞只改这里 */
-const EDU_DED_PREFIX = '学历硬性门槛扣分\\s*[:：]\\s*\\d{1,3}\\s*分';
+/** 任职资格逐项行「[硬性] 学历要求（…）：达标。依据…」。判定词与界面加粗共用 VERDICT_LABELS */
+const QUAL_LINE_RE = new RegExp(`^(.{1,80}?)[：:]\\s*(${Object.values(VERDICT_LABELS).join('|')})`);
+/** 「学历硬性门槛扣分：」这个词头：取原因、改数字几处共用一份，改提示词措辞只改这里 */
+const EDU_DED_HEAD = '学历硬性门槛扣分\\s*[:：]\\s*';
+const EDU_DED_PREFIX = `${EDU_DED_HEAD}\\d{1,3}\\s*分`;
 /** 允许一层嵌套括号的括号体（提示词模板本身就在括号里再套一层括号） */
 const NESTED_PAREN = '[^（）]*(?:（[^（）]*）[^（）]*)*';
 
@@ -150,12 +152,15 @@ const NESTED_PAREN = '[^（）]*(?:（[^（）]*）[^（）]*)*';
  */
 const EDU_REASON_RE = new RegExp(EDU_DED_PREFIX + '\\s*[（(]\\s*(第一学历为[^）)]*)[）)]');
 
-// 评语数值修正用的静态正则：模块级建好，别在 patchEducationDeductionComment 里
-// 每人次 new RegExp 四遍（replace 会把 global 正则的 lastIndex 归零，复用安全）
-const EDU_DED_PAREN_RE = new RegExp(`${EDU_DED_PREFIX}\\s*（${NESTED_PAREN}）`, 'g');
-const EDU_DED_PLAIN_RE = new RegExp(EDU_DED_PREFIX, 'g');
-const DED_TOTAL_PAREN_RE = new RegExp(`其他扣分合计\\s*[:：]\\s*\\d{1,3}\\s*分\\s*（(${NESTED_PAREN})）`, 'g');
-const DED_TOTAL_PLAIN_RE = /其他扣分合计\s*[:：]\s*\d{1,3}\s*分/g;
+// 评语数值修正用的静态正则：模块级建好，别在 patchScoreComment 里每人次 new RegExp
+// 好几遍（replace 会把 global 正则的 lastIndex 归零，复用安全）
+/** 「学历硬性门槛扣分：X分」+ 可选的括号体（捕获组 1 = 括号里原来的原因，没有括号时为 undefined）。
+ *  \s* 必须留在括号组**里面**：没有括号时它也去吃空白，会把「0分」后面的换行一起吞掉，下一行就粘上来了 */
+const EDU_DED_RE = new RegExp(`${EDU_DED_PREFIX}(?:\\s*（(${NESTED_PAREN})）)?`, 'g');
+/** 同上但与 PREFIX 同源只取分数：判断 AI 写的数是否已与程序一致（一致就不动它） */
+const EDU_DED_NUM_RE = new RegExp(`${EDU_DED_HEAD}(\\d{1,3})\\s*分`, 'g');
+/** 「其他扣分合计：X分（…）」：捕获组 1 = 合计分，2 = 括号体（可省略）。合计与分项都要能核对，故合成一条 */
+const DED_TOTAL_RE = new RegExp(`其他扣分合计\\s*[:：]\\s*(\\d{1,3})\\s*分(?:\\s*（(${NESTED_PAREN})）)?`, 'g');
 
 /** 加权平均（各维度分按权重合成），无有效条目返回 null。所有数据来源都走这一个实现 */
 function weightedMean(pairs) {
@@ -312,7 +317,7 @@ function coverageNotices(items, ctx) {
 /**
  * 计算一份评语的完整得分明细。detail 是 AI 返回的 JSON 结构化字段（可能为 null/残缺），
  * ctx 是评分阶段采集的 JD / 页面数据（可省略，省略时跳过覆盖率核验）。
- * 返回 { verdict, eduReason, eduDed, qualDed, score, notices }；
+ * 返回 { base, verdict, eduReason, eduDed, qualDed, score, notices }；
  * 解析不到任何维度得分时返回 null（这种情况由调用方决定怎么兜底并标记）。
  * verdict / eduReason 一并给出，调用方（评语改写）不必再把学历阶梯重走一遍。
  */
@@ -347,10 +352,19 @@ export function computeScoreBreakdown(comment, detail = null, ctx = null) {
   }
 
   const score = Math.max(0, Math.min(100, base - eduDed - qualDed));
-  return { verdict, eduReason: reason, eduDed, qualDed, score, notices };
+  return { base, verdict, eduReason: reason, eduDed, qualDed, score, notices };
 }
 
 const NOTICE_HEADER = '【系统核验】';
+// patchScoreComment 追加在【系统核验】之前的「（系统说明：…）」整行：重复收尾时先剥后写，避免叠加
+const NOTE_PREFIX = '（系统说明：';
+// 前面跟几个换行都要吃掉：老版本的说明只挂了一个 \n
+const NOTE_LINE_RE = new RegExp(`\\n+${NOTE_PREFIX}[^\\n]*）`, 'g');
+
+/** 评语正文与【系统核验】段的分界（重写核验段、插系统说明两处共用，别各算各的分隔符） */
+function noticesSplitAt(comment) {
+  return String(comment || '').indexOf('\n\n' + NOTICE_HEADER);
+}
 
 /**
  * 把核验提示挂到评语末尾（UI 与 Excel 都直接展示评语，所以挂这里就等于全局可见）。
@@ -358,65 +372,102 @@ const NOTICE_HEADER = '【系统核验】';
  */
 export function appendScoringNotices(comment, notices) {
   const list = (notices || []).filter(Boolean);
-  const at = String(comment || '').indexOf('\n\n' + NOTICE_HEADER);
+  const at = noticesSplitAt(comment);
   const head = at === -1 ? (comment || '') : String(comment).slice(0, at);
   if (list.length === 0) return head;
   return `${head}\n\n${NOTICE_HEADER}\n${list.map((n) => `- ${n}`).join('\n')}`;
 }
 
-/** 直接解析评语中手写的「匹配度评分：XX分」作为兜底（维度分解析不出来时才用） */
+const SCORE_LINE_RE = /匹配度评分\s*[:：]([^\n]*)/;
+const SCORE_LINE_NUM_RE = /(\d{1,3})\s*分/g;
+/** 模板的标准写法「匹配度评分：67分（…）」：冒号后紧跟的就是分数 */
+const SCORE_HEAD_RE = /^\s*(\d{1,3})\s*分/;
+
+/**
+ * 评语「匹配度评分」那一行声称的最终分（三维度解析不出来时也拿它当兜底分）。
+ * 三种写法依次认：
+ *   ① 冒号后紧跟「N分」——模板的标准写法，也最可靠：括号里若再出现「72 分 - 5 分」，
+ *      取行内最后一个「N分」会读到 5（实测会把本来全对的一行判成错）
+ *   ② 行内最后一个「N分」——AI 把算式写成「85 - 0 = 90分」时冒号后不是分数，只能取末尾那个
+ *   ③ 行内第一个数字——连「分」都没写
+ * 整行缺失返回 null。
+ */
 export function parseMatchScoreFromComment(comment) {
-  const ms = (comment || '').match(/匹配度评分\s*[:：]\s*(\d{1,3})/);
-  return ms ? parseInt(ms[1], 10) : null;
+  const tail = (String(comment || '').match(SCORE_LINE_RE) || [])[1];
+  if (tail == null) return null;
+  const head = tail.match(SCORE_HEAD_RE);
+  if (head) return Number(head[1]);
+  const nums = [...tail.matchAll(SCORE_LINE_NUM_RE)];
+  if (nums.length > 0) return Number(nums[nums.length - 1][1]);
+  const any = tail.match(/(\d{1,3})/);
+  return any ? Number(any[1]) : null;
 }
 
 /**
- * 学历硬性门槛评语文字修正：第一学历低于全日制本科时为扣 20 分，
- * 若评语里写的不是 20 分，同步把相关数字和结论改对，避免「评语说不扣分、分数却扣了」的矛盾。
- * 第一学历达标 / 判不出时一个字都不改——分数按规则算，评语保留 AI 原话（用户 2026-10-30 决定）。
- * 每一处都单独判定，匹配不上就跳过，绝不改动评语其他内容。
+ * 评语数字校正：让评语里手写的「学历硬性门槛扣分 / 其他扣分合计 / 匹配度评分 / 合规性结论」
+ * 与程序算出的明细对得上。**只动这几个数，不动别的文字**：
+ *   - 数字本来就一致的那一处一个字都不改（幂等，重复收尾不会把评语越改越长）
+ *   - 确实改过才在末尾追加一条系统说明，写明完整算式（基础分 − 任职资格 − 学历 = 最终分）
+ * 为什么要这一步：权威分数由结构化字段算，AI 手写的那几个数是它自己另一套算法。
+ * 实测 2026-10-30 一批里，AI 把 1 项硬性不达标按 10 分扣、写死「匹配度评分：62分」，
+ * 而程序的档位是 5 分 → 67 分，不改就会出现「评语写 62、列表显示 67」的矛盾。
  *
  * bd 是调用方算好的明细：必须由调用方传进来，本函数不自己算——它手里只有评语文本，
  * 自己重算会走「解析评语」那条路，跟评分时按结构化字段算出的结果可能不一致
  * （同一条评语只该算一次，用哪份数据算由调用方定）。
  */
-export function patchEducationDeductionComment(comment, bd) {
+export function patchScoreComment(comment, bd) {
   if (!comment || !bd) return comment;
-  if (bd.verdict !== 'below') return comment;
-  const reason = bd.eduReason;
-  const newTotal = bd.eduDed + bd.qualDed;
-  const finalScore = bd.score;
+  const { base, eduDed, qualDed, score, verdict } = bd;
+  const dedTotal = eduDed + qualDed;
 
-  // 记录 AI 手写的「匹配度评分」，判断是否需要追加系统说明（分数被系统改判时）
-  const aiScore = parseMatchScoreFromComment(comment);
-  const needNote = aiScore != null && finalScore !== aiScore;
+  // 上一次收尾留下的系统说明先剥掉，最后按这次的明细重写：同样会重复收尾（继续提取播种的旧评语、
+  // 重算历史批次），分数若变了，留着旧说明就会变成「= 62 分」和「= 67 分」两条打架
+  const hadNote = comment.includes(NOTE_PREFIX);
+  let patched = comment.replace(NOTE_LINE_RE, '');
 
-  let patched = comment;
-  // 1) 学历硬性门槛扣分：X分（...）→ 20分（原因），并清掉残留的「故不扣分」类表述。
-  //    括号里可能再套一层括号（提示词模板本身就是「（第一学历为…（如大专、中专、技校等）…）」），
-  //    所以要按「允许一层嵌套」来匹配：只认第一个右括号会从内层截断，留下半句残文
-  patched = patched.replace(
-    EDU_DED_PAREN_RE,
-    `学历硬性门槛扣分：${EDU_GATE_DEDUCTION}分（${reason}，按硬性门槛规则扣除）`
-  );
-  patched = patched.replace(EDU_DED_PLAIN_RE, `学历硬性门槛扣分：${EDU_GATE_DEDUCTION}分`);
-  // 2) 其他扣分合计：X分 → 新合计（学历 20 + 任职资格档位扣分）。
-  //    括号里若写着「= …0分 + …20分」这类具体数字，一并换成新分项，
-  //    否则会留下「合计 25 分（= 0 分 + 20 分）」这种自相矛盾的残文
-  const breakdownText = `= 任职资格硬性不达标扣分${bd.qualDed}分 + 学历硬性门槛扣分${bd.eduDed}分`;
-  patched = patched.replace(
-    DED_TOTAL_PAREN_RE,
-    (m, inner) => `其他扣分合计：${newTotal}分（${/\d/.test(inner) ? breakdownText : inner}）`
-  );
-  patched = patched.replace(DED_TOTAL_PLAIN_RE, `其他扣分合计：${newTotal}分`);
-  // 3) 匹配度评分 → 修正后分数。AI 常写成「38 - 20 = 18分」这种算式，
-  //    只换末尾数字会留下「38 - 20 = 13分」的假算式，所以算式形态整段换成新分数
-  patched = patched.replace(/匹配度评分\s*[:：](?:\s*\d{1,3}\s*分|[^\n]*)/, `匹配度评分：${finalScore}分`);
-  // 4) 合规性结论：覆盖为「按规则扣分」的原因说明
-  patched = patched.replace(/(合规性结论：)[^\n]*/, `$1${reason}，按学历硬性门槛规则扣除${EDU_GATE_DEDUCTION}分。`);
-  // 5) 若系统分数与 AI 手写分数不一致，追加说明，避免用户困惑
-  if (needNote) {
-    patched += `\n（系统说明：${reason}，已按「学历硬性门槛」规则由系统扣除 ${EDU_GATE_DEDUCTION} 分；任职资格按硬性不达标项数档位计。评语中的扣分合计、匹配度评分等手写数字若与最终分数不一致，一律以最终分数 ${finalScore} 分为准。）`;
+  // 1) 学历硬性门槛扣分：与程序不一致（含第一学历低于门槛、AI 却写成 0 分）时改正。
+  //    按全文比一遍——这个数可能既在专门那一行，又在「其他扣分合计」的括号里（后者归第 2 步整条换掉）。
+  const aiEduDedWrong = [...patched.matchAll(EDU_DED_NUM_RE)].some((m) => Number(m[1]) !== eduDed);
+  if (aiEduDedWrong) {
+    // 括号里的原因 + 「合规性结论」那句话都要换成与分数同一口径，
+    // 否则会留下「扣分 0 分，合规性结论却写不符合要求扣 20 分」的自相矛盾
+    const { note, conclusion } = verdict === 'below'
+      ? { note: `${bd.eduReason}，按硬性门槛规则扣除`, conclusion: `${bd.eduReason}，按学历硬性门槛规则扣除${eduDed}分。` }
+      : verdict === 'ok'
+        ? { note: '第一学历为全日制本科及以上，不扣分', conclusion: '第一学历为全日制本科及以上，符合硬性门槛，不扣分。' }
+        : { note: '第一学历无法判定，按未扣分处理，请人工核实', conclusion: '第一学历无法判定，本次不扣学历硬性门槛分，请人工核实。' };
+    // 括号里可能再套一层括号（提示词模板本身就是「（第一学历为…（如大专、中专、技校等）…）」），
+    // 所以要按「允许一层嵌套」匹配：只认第一个右括号会从内层截断，留下半句残文。
+    // 本来没有括号的那一行不补括号（只改数字），免得把 AI 的简写改长
+    patched = patched.replace(EDU_DED_RE, (m, inner) => `学历硬性门槛扣分：${eduDed}分${inner == null ? '' : `（${note}）`}`);
+    patched = patched.replace(/(合规性结论：)[^\n]*/, `$1${conclusion}`);
   }
-  return patched;
+
+  // 2) 其他扣分合计：合计对不上、或括号里写着与程序不同的分项数字，整条换成程序口径。
+  //    括号里若留着「= 0 分 + 20 分」这种旧分项，会与新的合计自相矛盾，所以一并换掉
+  const breakdown = `= 任职资格硬性不达标扣分${qualDed}分 + 学历硬性门槛扣分${eduDed}分`;
+  const breakdownBare = breakdown.replace(/\s+/g, '');
+  patched = patched.replace(DED_TOTAL_RE, (m, num, inner) => {
+    // 合计对、括号里也没有分项数字（或就是程序写的那份分项，忽略空格差异）→ 原样保留，别为改而改
+    if (Number(num) === dedTotal && (inner == null || !/\d/.test(inner) || inner.replace(/\s+/g, '') === breakdownBare)) return m;
+    return `其他扣分合计：${dedTotal}分（${breakdown}）`;
+  });
+
+  // 3) 匹配度评分 → 最终分。AI 常写成「62分（= 72 - 10）」或「72 - 10 = 62分」这种算式，
+  //    算式本身可能就已算错，所以整段换成程序分数，不试图在算式里改数字
+  const aiScore = parseMatchScoreFromComment(patched);
+  if (aiScore != null && aiScore !== score) {
+    patched = patched.replace(SCORE_LINE_RE, `匹配度评分：${score}分`);
+  }
+
+  // 没改字、也没有旧说明要刷新 → 一个字都不动（每个分支出手都必然改动文本，所以直接比文本即可）
+  if (patched === comment && !hadNote) return patched;
+  // 空一行再挂：紧贴综合结论读起来像那句的延续，单独成段才看得出是系统追加的。
+  // 要挂在【系统核验】段**之前**——appendScoringNotices 每次都从这里整段重写，
+  // 放在它后面的内容会被截掉（实测 7 位带核验提示的候选人说明直接消失）
+  const note = `（系统说明：加权基础分 ${base} 分 − 任职资格硬性不达标扣分 ${qualDed} 分 − 学历硬性门槛扣分 ${eduDed} 分 = ${score} 分。评语中与程序口径不一致的手写数字已按此校正，以最终分数为准。）`;
+  const at = noticesSplitAt(patched);
+  return at === -1 ? `${patched}\n\n${note}` : `${patched.slice(0, at)}\n\n${note}${patched.slice(at)}`;
 }
+
