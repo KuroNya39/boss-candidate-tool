@@ -10,7 +10,7 @@ Electron desktop app for extracting candidate profiles from BOSS直聘 (Boss Zhi
 
 ```
 electron/main.mjs        ← Electron main process 入口（应用生命周期 + --score-only）；其余 14 个业务模块 electron/{util,state,config,window,archive,scoring,runner,chrome,incremental,pipeline,greet,ipc,candidate-index,name-sort}.mjs，各模块职责见 main.mjs 顶部注释
-electron/score-comment.mjs ← Shared scoring helpers: compute match score from comment (weighted base − deductions, with 学历硬性门槛 programmatic backstop) + patch education-deduction comment text
+electron/score-comment.mjs ← Shared scoring helpers: compute score breakdown (weighted base − 学历扣分 − 任职资格扣分, all programmatic from JSON fields or comment text) + patch education-deduction comment text
 electron/preload.js      ← Context bridge (electronAPI exposed to renderer)
 electron/renderer/       ← UI (index.html + 6 个 CSS：tokens.css / base.css / topbar.css / config.css / run.css / overlays.css（按序 <link>，勿调换）+ renderer-*.js 11 个按序 <script src> 引入共享全局作用域；样式拆分与规范见 docs/design-system.md)
 
@@ -25,8 +25,8 @@ scripts/process-icon.mjs                ← App icon processing (resize + rounde
 scripts/make-ico.mjs                    ← Generate .ico for electron-builder
 build.mjs                               ← Full build pipeline (icon → electron-builder → NSIS → release)
 
-config/scoring-prompt-with-jd.txt   ← AI scoring prompt template (recommend page)
-config/scoring-prompt-chat.txt       ← AI scoring prompt template (chat page)
+config/scoring-prompt-with-jd.md    ← AI scoring prompt template (recommend/search page)
+config/scoring-prompt-chat.md        ← AI scoring prompt template (chat page)
 ```
 > 岗位描述（JD）统一存用户数据目录 `%AppData%\web-access\web-access\jd-descriptions\`（开发/打包一致，重装不丢）。
 > 旧的 `config/jd-descriptions` 已废弃，不要再往里面写。
@@ -65,8 +65,21 @@ Child process cancellation works by writing `CANCEL\n` to stdin, waiting 2s, the
 - **最小化 vs 盖住（v1.4.4，后续实测修正）**: Chrome 最小化后渲染冻结，截图 OCR 必然变形。v1.4.3 曾做 `/window-restore` 自动恢复窗口，因自动弹窗被用户否掉已整体回退（代理无最小化特殊处理）。引导用户「别点最小化、用别的窗口盖住」即可。曾经的「边用边跑」特殊启动参数（禁用 `CalculateNativeWinOcclusion`/`BackgroundTabFreeze` 等）**实测无效已整体移除**：同窗口切后台标签页依旧失效，开两个 Chrome 窗口（BOSS 页在独立窗口置顶）无论盖不盖都正常。README「运行中的注意事项」第 1 条即此引导。
 - **模拟复制开关（v1.4.4）**: extract-common.mjs 模块级 `enableCopyFlag`（默认 true；`parseArgs --enable-copy 0` 关闭），在 `tryExtractResumeTextByTrustedCopy`/`tryExtractCanvasResumeByDragCopy` 两个复制入口开头守卫，关闭即 return null → 调用点自动降级走截图 OCR。renderer 复选框 → main runPipeline 拼 `--enable-copy 1/0`。界面默认不勾选（电脑闲置才建议开，开启才借用系统剪贴板）。
 - **Score output parsing**: `parseBatchScoreResponse()` finds the first valid JSON `[{candidateIndex, score, comment}]` array in the API response (per-candidate batch replies), handles markdown code blocks, formats comments with newlines before section headers.
-- **权威分数 = 程序化计算**（v1.3.18）：AI 手写的「匹配度评分」算术不可靠，`computeMatchScoreFromComment()` 从评语解析各维度「独立得分×权重」重算加权基础分，再减「其他扣分合计」，作为 `totalScore`；评语里手写的匹配度评分只作解析兜底。打招呼等级过滤也据此判断。
-- **学历硬性门槛程序化兜底**（v1.3.26）：AI 常以「最高学历已达标」为由豁免第一学历扣分。只要评语「第一学历」明确为大专/专科或非全日制，`computeMatchScoreFromComment()` 就强制扣 20 分（任职资格扣分从评语独立解析，不依赖 AI 合计）；`patchEducationDeductionComment()` 同步修正评语数字并视情况追加「系统说明」。这两个函数在 `electron/score-comment.mjs`，主进程与重算脚本共用。
+- **权威分数 = 程序化计算**（v1.3.18，v1.21.0 全面重写）：`computeScoreBreakdown()` 算 `clamp(加权基础分 − 学历扣分 − 任职资格扣分, 0, 100)` 作 `totalScore`，打招呼等级过滤也据它判断。
+  - **AI 写的「其他扣分合计」「匹配度评分」不参与计算**，只活在评语文字里。实测它会在同一份评语里前后打架（合计行写「任职资格0 + 学历20」，下一节又写「这20是任职资格扣分」），信它就会多扣或少扣 20 分（2026-10-30 那一批 200 人里 130 人分数因此变化）。
+  - **学历扣分**：第一学历全日制本科及以上 → 0；大专及以下 / 非统招 / 非全日制 → 20；**判不出 → 也按 0 分**，并在评语末尾挂一条「学历待核实」提示交人工确认（2026-10-30 决定）。原先的做法是「判不出就沿用 AI 写的扣分」，这正是本模块要消灭的东西，已删掉——宁可放过（Excel 里有学历列，人工一眼能核对），不可冤枉（错扣 20 分能把 80 分的人直接压到不推荐）。`educationGate()` 返回三态，`'ok'` 是能推翻 AI 数字的前提，别退回两态。
+  - **任职资格扣分**：按**硬性项不达标数**定档（0 项 0 分、1-2 项 5 分、3-4 项 10 分、≥5 项 15 分），取代原来「酌情扣 5-15 分」。**优先项与「待核实」不扣分**：优先项按 JD 原文字样（优先 / 非强制 / 加分 / 优选 / 者优先）判定，AI 标的 tier 与之冲突时以字样为准。
+  - **判定粒度是「一行一个条件」**：同一个筛选项里硬性与优先混写时（实测 36 份 JD 里有 8 处，如「3年及以上经验；有芯片厂商经验者优先」），提示词要求 AI 拆成多行各自打标——不拆则必然二选一，要么冤枉只差优先条件的人，要么放过硬性没达标的人。程序侧兜底 `HARD_MARK_RE`（硬性 / 必须 / 非「非强制」的强制）优先于其他判据：名字里明说硬性的，哪怕同处也写了「优先」也按硬性算。刻意不收「精通 / 及以上 / 至少」，否则「硕士及以上学历优先」会被误判成硬性。
+  - **行首的 `[硬性]` / `[优先]` 是标签，不是条件名**（2026-10-30）：提示词要求评语第 3 节每行以 `[硬性]` / `[优先]` 开头，`qualificationItemsFromComment` 用 `TIER_MARK_RE` 把它剥出来当 `tier`（与结构化字段的 `tier: hard/preferred` 归一）。**必须剥**：`HARD_MARK_RE` 靠「硬性」二字判硬性，标签留在名字里会让模型自己打的 `[硬性]` 命中它，把「…者优先」判成硬性不达标白扣 5 分——等于把「以 JD 原文字样为准」这条兜底架空。
+  - **数据来源两条路**：新批次读 AI 返回的结构化字段 `dimensions` / `qualifications` / `education`（挂在候选人的 `scoreDetail` 上，随 `scored-candidates.json` 落盘）；字段缺失（模型没按格式吐）时退回解析评语文本（第 3 节逐项结论 + 维度行），再不行才用 AI 的 `score`。降级路径必须一直在，否则一次格式抽风就整批丢分。
+  - **程序只判「对不上的那一侧」，结果挂【系统核验】（v1.21.0）**：`computeScoreBreakdown(comment, detail, ctx)` 的第三参 `ctx` 由两半拼成——岗位级那半（`jdWorkYears` / `jdItemCount`）在评分阶段随分数存进候选人的 `scoreContext`，取自 `createPositionPromptBuilder` 返回的 `requirements`（建 prompt 时按 `parseJdRequirements` 算一次，随 `run` 传给 `scoreOneBatch`；**别挂成函数属性、也别让每个调用方各传一份**，否则漏传的路径会静默失去核验）；页面工作年限那半由收尾从 `c.basicInfo.workYears` 现算，不落盘（存了会过期）。收尾算分时不必再读 JD 文件。产出 `notices` 由 `appendScoringNotices()` 写成评语末尾的【系统核验】段（UI 与 Excel 都直接展示评语，挂这里即全局可见；幂等，重复收尾不叠加）。**这些提示一律不改分**——程序能确定的只有「明显不够」，确定不了「够」，所以只提示、不替模型下结论。五类：
+    - **工作年限存疑**：JD「经验要求」里有明确 `N年`（`parseJdRequirements`，按；;。切分句，第一个带年数的分句若含优先字样则整条视为软条件返回 null，所以「具有2年以上技术背景者优先」不核验、「3年及以上…者优先」算 3 年），且页面 `basicInfo.workYears` 换算后 `< N`，而模型把经验项判成了达标。**单向**：JD 的年限常限定领域（「3 年以上半导体经验」），程序只会算总年限，所以只在「程序算出不够」时提示。
+    - **筛选项可能漏判**：程序数 JD「任职资格关键筛选项」的标签行数当**下限**（`其他硬性条件：无` 这类占位行不算；39 份 JD 全部能数出来，2–6 条），模型返回条数少于下限时提示。拆分只会让模型吐得更多，所以只判「少于下限」。沟通页无 JD 文件时不核验。
+    - **待核实偏多**：`pending >= 3` 且占一半以上时提示。提示词里已删掉「待核实项一律不扣分」这句**给模型看的**说法（等于告诉它有个免费逃生舱），改成待核实必须写明缺的是什么信息、有可判断内容就必须给明确结论。
+    - **维度分解析失败**：结构化字段和评语维度行都拿不到时退回 AI 的 `score`，并挂提示说明「本分数未经程序重算」。`无在线简历` / `评分失败` 两类不算 AI 评语，不挂提示。
+    - **评语不完整**：正文缺「任职资格的匹配情况」「学历硬性门槛核查」「综合结论」任一节时提示。实测：prompt 末尾追加结构化 JSON 字段后，deepseek 系只在正文写前两节、把第 3/4 节当成 `qualifications`/`education` 字段表达（2026-10-30，3 人批 784 字 vs 旧模板 1400-1800 字）。分数不受影响（仍按结构化字段算），但评语是给人看的。已在 schema 说明里明确「结构化字段是副本，不能替代正文第 3、4 节」。
+  - 评语里的数字**事后不改写**（用户 2026-10-30 决定），只有第一学历低于门槛时由 `patchEducationDeductionComment()` 把「学历扣分 / 扣分合计 / 匹配度评分」改成与分数一致并追加「系统说明」。这些函数在 `electron/score-comment.mjs`，只依赖评语文本与结构化字段、不依赖 Electron 全局对象，方便单独拿出来重算历史批次。
+- **评语加粗只做在软件界面**（2026-10-30）：`scripts/format-comment.mjs` 的 `commentEmphasisSegments` / `commentToHtml` 把「行首到第一个括号外冒号」和独占一行的【…】标题加粗，给完成页 / 批次详情 / 候选人查询用——`commentHtml` 由主进程 `ipc.mjs` 的 `toDisplayRow()` 现算，**不入库**（索引 JSONL 与 `scored-candidates.json` 存的仍是纯文本，复制/邮件不受影响）；展示行**只带 `commentHtml`、不带纯文本 `comment`**（候选人查询一次可回上千行，两份内容白传）。**Excel 导出不要富文本**（用户明确要求）：`export-candidates.mjs` 写普通字符串，别把 ExcelJS 的 `richText` 接回来。`formatComment` 另有一道兜底：模型漏写「首句定性：」标签时自动补在首个非空行（只补标签不补编号，编号由 BLOCK_REWRITES 统一加）。
 - **教育经历顺序**：Excel 教育经历列最高学历在第一行、按时间由近到远排序（与推荐卡片 DOM 提取顺序一致）。简历解析优先（`fillEducationFromResumeText`），卡片学历只补充简历未覆盖的最高学历段。
 - **期望字段的来源别混**（2026-10 实测）：搜索卡片的 `.exp-box.expect-exp-box` 里 `span.render-two` 依次是**城市、岗位**（老卡片只有城市，代码有回退）——所以期望岗位不用等 OCR；卡片上**没有期望行业与在职时间**，这两项只能从简历正文来（在职时间靠 `parseWorkExperienceFromResume` 解析「工作经历」段落：v1.16.0 起提取时补进 `workExperience[0].time`，导出时若为空再补一次，重新导出老批次也能填上这一列）。截图 OCR 出来的期望行是 `期望职位深圳 | 驱动开发工程师 | 行业不限 | 30-50K` 这种：标签与城市粘连、整行还可能并进上一行。`export-candidates.mjs` 的 `parseExpectSection` 一个解析器认两种排版（标题与值同行、标题独占一行），最后归到同一套「城市 / 岗位 / 其余项里认薪资与行业」的归类；OCR 那种行必须带 `|` 且有一项像薪资才算数（防正文误命中）。
 - **API response compatibility**: `callClaudeAPI()` handles Anthropic standard format, Anthropic thinking blocks, OpenAI Chat format, and raw response formats。**v1.4.5 修复评分解析失败（2026-08-21 实测定论）**：

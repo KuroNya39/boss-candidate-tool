@@ -17,8 +17,6 @@ files:
   - "!scripts/*.test.mjs"
   - "!scripts/process-icon.mjs"
   - "!scripts/make-ico.mjs"
-  - config/scoring-prompt-chat.txt
-  - config/scoring-prompt-with-jd.txt
   - "!config/jd-descriptions/**"
   - package.json
   - node_modules/**/*
@@ -27,6 +25,11 @@ files:
   - "!node_modules/png-to-ico/**"
   - "!**/*.map"
   - "!**/*.md"
+  # 评分模板本身是 .md，**必须排在上面的 "!**/*.md" 之后**：
+  # electron-builder 的匹配按顺序走、后匹配覆盖前匹配（app-builder-lib/out/util/filter.js 的
+  # minimatchAll），排在前面会被「不打包任何 .md」那条排除掉，装出来的程序找不到模板。
+  - config/scoring-prompt-chat.md
+  - config/scoring-prompt-with-jd.md
   - "!LICENSES.chromium.html"
   - build/app_icon_rounded.png
   - ocr-lang/**/*
@@ -37,8 +40,8 @@ extraFiles:
     to: LICENSE.md
 asarUnpack:
   - "scripts/**"
-  - "config/scoring-prompt-chat.txt"
-  - "config/scoring-prompt-with-jd.txt"
+  - "config/scoring-prompt-chat.md"
+  - "config/scoring-prompt-with-jd.md"
   - "ocr-lang/**"
   - "build/app_icon_rounded.png"
   # 子进程(fork)需要访问实体文件，不能放在 asar 里

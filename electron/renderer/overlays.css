@@ -578,6 +578,14 @@
   text-align: justify; /* 评分理由是多行长段落：两端对齐，左右边缘整齐 */
 }
 
+/* 评语里的标签（冒号前的部分、独占一行的【系统核验】）加粗并换主色——整段挤在一起时靠它拉出层次。
+   <b> 由主进程 format-comment.mjs 的 commentToHtml 生成，与 Excel 富文本同一套规则，别在别处另写一份。
+   微软雅黑下 font-weight:500 无字形会被降成 400，要显粗必须 600。 */
+.result-item-comment b {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
 /* ===== 历史记录弹窗（v1.5.0 起为左侧抽屉，v1.12.0 改居中弹窗） =====
    与「设置」是同一套居中弹窗：出入场直接用 .dialog-overlay / .dialog-box 的淡入缩放，
    不再有 drawer-in / drawer-out 那套左右滑入（抽屉专属的样式与关键帧已随改造删除）。

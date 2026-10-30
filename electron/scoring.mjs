@@ -7,6 +7,7 @@ import { apiConfig, OUTPUT_DIR, cancelled } from './state.mjs';
 import { JD_DIR } from './config.mjs';
 import { readRunMeta } from './archive.mjs';
 import { formatComment } from '../scripts/format-comment.mjs';
+import { parseJdRequirements, JD_SCREENING_HEADING, NO_RESUME_COMMENT, scoreFailedComment } from './score-comment.mjs';
 
 // ===== AI 评分常量（user 确认的参数：并发批数从 6 降到 5 更保守防限流；默认开启并行，不加开关） =====
 export const BATCH_SIZE = 3;              // 每批候选人数（保持 3 人一批，用户决定）
@@ -108,7 +109,19 @@ async function callClaudeAPI(prompt, { signal } = {}) {
 }
 
 /**
- * 解析批量评分返回的 JSON 数组 [{candidateIndex, score, comment}]
+ * 取一条 AI 返回里的结构化评分字段（models 偶尔漏字段，缺哪块就留 null，由解析层兜底）。
+ * 只保留程序用得上的三个键，别把模型塞的自由字段带进 scored-candidates.json。
+ */
+function pickScoreDetail(item) {
+  const dimensions = Array.isArray(item?.dimensions) ? item.dimensions : null;
+  const qualifications = Array.isArray(item?.qualifications) ? item.qualifications : null;
+  const education = item?.education && typeof item.education === 'object' ? item.education : null;
+  if (!dimensions && !qualifications && !education) return null;
+  return { dimensions, qualifications, education };
+}
+
+/**
+ * 解析批量评分返回的 JSON 数组 [{candidateIndex, score, comment, dimensions, qualifications, education}]
  * 兼容 markdown 代码块包裹和前后多余文本
  */
 function parseBatchScoreResponse(text) {
@@ -141,14 +154,15 @@ function parseBatchScoreResponse(text) {
             const idx = item?.candidateIndex ?? item?.index ?? null;
             const score = item?.score ?? item?.jobRelevanceScore ?? null;
             const comment = item?.comment ?? item?.jobRelevanceComment ?? item?.reason ?? null;
-            if (typeof idx === 'number' && typeof score === 'number' && typeof comment === 'string') {
+            // 结构化评分字段：权威分数由程序按这些字段算（见 score-comment.mjs），
+            // 字段缺失（模型没按格式吐）时退回解析评语文本，两条路都在 computeScoreBreakdown 里
+            const detail = pickScoreDetail(item);
+            const ok = typeof idx === 'number' && typeof score === 'number' && typeof comment === 'string';
+            results.push(ok
               // 评语排版统一走 formatComment（唯一实现，与完成页/Excel 同一份；它幂等，后面再排一次也不会变形）
-              const formatted = formatComment(comment);
-              results.push({ candidateIndex: idx, score, comment: formatted });
-              valid = true;
-            } else {
-              results.push({ candidateIndex: idx ?? -1, score: score ?? 0, comment: comment ?? '（AI评分未生成评语）' });
-            }
+              ? { candidateIndex: idx, score, comment: formatComment(comment), detail }
+              : { candidateIndex: idx ?? -1, score: score ?? 0, comment: comment ?? '（AI评分未生成评语）', detail });
+            if (ok) valid = true;
           }
           if (valid) return results;
         }
@@ -190,6 +204,8 @@ function stripScoreFields(candidates) {
     const clone = { ...c };
     delete clone.jobRelevanceScore;
     delete clone.jobRelevanceComment;
+    delete clone.scoreDetail;
+    delete clone.scoreContext;
     delete clone.matchScore;
     delete clone.totalScore;
     delete clone.recommendationLevel;
@@ -238,9 +254,11 @@ export function restoreScorableCandidates(srcDir, destPath) {
 
 // 构建某岗位的批量评分 prompt 生成器（含模板/JD 文件加载）。
 // getPoolCandidates: 返回该岗位当前所有已提取候选人（供沟通页无 JD 文件时从简历岗位描述兜底）。
+// 返回 { build, requirements }：requirements 是该 JD 的核验依据（筛选项条数 / 硬性年限），
+// 随 run 一起传给 scoreOneBatch，显式放在数据结构里，别再挂成 build 的函数属性。
 export function createPositionPromptBuilder(positionName, extractSource, getPoolCandidates) {
   const useWithJd = extractSource !== 'chat';
-  const templateName = useWithJd ? 'scoring-prompt-with-jd.txt' : 'scoring-prompt-chat.txt';
+  const templateName = useWithJd ? 'scoring-prompt-with-jd.md' : 'scoring-prompt-chat.md';
   const templatePath = resolve(UNPACKED_ROOT, 'config', templateName);
   let template;
   try {
@@ -264,23 +282,28 @@ export function createPositionPromptBuilder(positionName, extractSource, getPool
     // 按 section 解析：优先取「核心评估维度及权重」和「任职资格关键筛选项」两个部分
     const dimMatch = raw.match(/核心评估维度及?权重[\s\S]*?(?=(任职资格关键筛选项|$))/);
     if (dimMatch) jdDimensions = dimMatch[0].trim();
-    const criteriaMatch = raw.match(/任职资格关键筛选项[\s\S]*$/);
+    const criteriaMatch = raw.match(new RegExp(JD_SCREENING_HEADING + '[\\s\\S]*$'));
     if (criteriaMatch) jdScreeningCriteria = criteriaMatch[0].trim();
   } catch {}
   if (useWithJd && !jdContent && !dimensionsText) {
     termLog(`[AI评分] ⚠ 未配置核心评估维度，请先在设置中配置`, 'stderr');
   }
 
-  return function buildBatchPrompt(cands) {
+  // 喂给模型的筛选项来源。程序核验（parseJdRequirements）与 prompt 填槽共用这一个值，
+  // 保证「核验的」就是「模型看到的」那几条条件，不会两处各解析一遍后悄悄漂移。
+  const criteriaSource = jdScreeningCriteria || jdContent || screeningCriteriaText;
+  // 程序核验用的 JD 数据（筛选项条数下限 / 硬性经验年限）；取不到时两个值都是空，核验自动跳过
+  const requirements = parseJdRequirements(criteriaSource);
+
+  const build = (cands) => {
     let p;
     if (useWithJd) {
       // 结构化岗位文件：维度/筛选项分别填槽（权重、硬性条件真正生效）
       // 原始 JD 文件（无 section）：整段兜底填两个槽位（与旧行为一致）
       const dims = jdDimensions || jdContent || dimensionsText;
-      const criteria = jdScreeningCriteria || jdContent || screeningCriteriaText;
       p = template
         .replace('{dimensions}', dims)
-        .replace('{screeningCriteria}', criteria);
+        .replace('{screeningCriteria}', criteriaSource);
     } else {
       let jd = jdContent;
       if (!jd && typeof getPoolCandidates === 'function') {
@@ -316,21 +339,48 @@ export function createPositionPromptBuilder(positionName, extractSource, getPool
 
     p = p.replace('{resumeText}', resumeSections);
 
-    // 附加批量输出格式要求
-    p += `\n\n重要：本次请求要求 JSON 输出。请为以上每位候选人分别给出评分，严格只输出一个 JSON 数组（不要包含任何其他内容，不要用 markdown 代码块包裹）：\n` +
+    // 附加批量输出格式要求。schema 只写一遍（每条重复一遍会白烧几百 token，
+    // 还把「每人一条」这条真正的指令埋进 N 份副本里）
+    p += `\n\n重要：本次请求要求 JSON 输出。请为本批 ${cands.length} 位候选人每人输出一条，严格只输出一个 JSON 数组（不要包含任何其他内容，不要用 markdown 代码块包裹），元素形如：\n` +
       `[\n` +
-      cands.map((_, i) => `  {"candidateIndex": ${i}, "score": <0-100的整数，必须严格等于该候选人评语中的"匹配度评分：XX分">, "comment": "<按上方评语内容规范组织、完整包含匹配度评分/首句定性/维度匹配/任职资格/学历核查/综合结论各模块的评语，用\\n换行>"}`).join(',\n') +
-      `\n]`;
+      `  {\n` +
+      `    "candidateIndex": 0,\n` +
+      `    "score": <0-100的整数，与评语中的匹配度评分一致>,\n` +
+      `    "comment": "<按上文「输出规范」写出的完整评语，1-5 节一节都不能少，用\\n换行>",\n` +
+      `    "dimensions": [{"name": "<维度名>", "weight": <权重整数>, "score": <0-100整数>}, ...三个维度都要有],\n` +
+      `    "qualifications": [{"name": "<条件名，照抄原文>", "tier": "hard" 或 "preferred", "verdict": "pass" 或 "fail" 或 "pending"}, ...每个条件一条，硬性与优先混在一处的要拆成两条],\n` +
+      `    "education": {"firstDegree": "<第一学历，写成 学校 | 专业 | 学历层次 | 就读时间 | 全日制/非全日制>"}\n` +
+      `  }\n` +
+      `]\n` +
+      `数组共 ${cands.length} 条，candidateIndex 依次为 ${cands.map((_, i) => i).join('、')}。` +
+      `其中 dimensions / qualifications / education 三个字段是给系统算分用的，必须与评语内容一致（分数由系统按它们重算，评语里的数字只作说明）。\n` +
+      `⚠ comment 是给招聘人员看的正文，必须按「输出规范」写全 1-5 节。dimensions / qualifications / education 只是同一份结论的结构化副本，` +
+      `**不能替代 comment 里的第 3 节（任职资格的匹配情况）和第 4 节（学历硬性门槛核查）**——写了结构化字段，也仍要把逐条结论和学历核查写进 comment。`;
     return p;
   };
+  return { build, requirements };
 }
 
 // 执行一批评分（含失败重试/整批失败拆单重试/设 0 分兜底），原地写入 batch 内候选人的分数。
-// run: { signal, buildBatchPrompt, onBatchDone(batch) }
+// run: { signal, buildBatchPrompt, requirements, onBatchDone(batch) }
+// requirements 是岗位级的 JD 核验依据，由 createPositionPromptBuilder 一并给出；
+// 缺省为空对象，核验自动跳过（沟通页无 JD、或调用方不关心核验时如此）
 export async function scoreOneBatch(batch, run) {
   if (cancelled) return;
 
+  const requirements = run.requirements || {};
   const prompt = run.buildBatchPrompt(batch);
+
+  // 把一条 AI 评分结果写到候选人身上。批量路径与逐人重试路径共用这一份——
+  // 以后 AI 多返回一个字段，改这里一处即可，不会出现「批量路径有、重试路径漏」
+  const applyResult = (c, r) => {
+    c.jobRelevanceScore = r.score;
+    c.jobRelevanceComment = r.comment;
+    c.scoreDetail = r.detail;
+    // 岗位级的 JD 核验依据随分数存一份（收尾算分时不必再读 JD 文件）；
+    // 页面工作年限由收尾从 c.basicInfo 现算，不落盘，免得存一份会过期的派生值
+    c.scoreContext = { jdWorkYears: requirements.workYears, jdItemCount: requirements.itemCount };
+  };
   const batchNames = batch.map(c => c.basicInfo?.name || c.geekId || '未知').join('、');
   termLog(`[AI评分] 评分批： ${batchNames}`);
 
@@ -345,8 +395,7 @@ export async function scoreOneBatch(batch, run) {
         for (const r of results) {
           const idx = r.candidateIndex;
           if (idx >= 0 && idx < batch.length) {
-            batch[idx].jobRelevanceScore = r.score;
-            batch[idx].jobRelevanceComment = r.comment;
+            applyResult(batch[idx], r);
             const nm = batch[idx].basicInfo?.name || batch[idx].geekId || '未知';
             termLog(`  ✓ ${nm}： ${r.score}分`);
           }
@@ -391,8 +440,7 @@ export async function scoreOneBatch(batch, run) {
             const text = await callClaudeAPI(singlePrompt, { signal: run.signal });
             const results = parseBatchScoreResponse(text);
             if (results && results.length > 0 && typeof results[0].score === 'number') {
-              c.jobRelevanceScore = results[0].score;
-              c.jobRelevanceComment = results[0].comment;
+              applyResult(c, results[0]);
               termLog(`  ✓ ${nm}： ${results[0].score}分（逐人重试）`);
               recovered++;
               singleError = null;
@@ -407,14 +455,14 @@ export async function scoreOneBatch(batch, run) {
         }
         if (singleError) {
           c.jobRelevanceScore = 0;
-          c.jobRelevanceComment = `评分失败： ${singleError.message}`;
+          c.jobRelevanceComment = scoreFailedComment(singleError.message);
         }
       }
       termLog(`  ↻ 逐人重试完成：成功 ${recovered}/${batch.length} 人`, 'stderr');
     } else {
       for (const c of batch) {
         c.jobRelevanceScore = 0;
-        c.jobRelevanceComment = `评分失败： ${lastError.message}`;
+        c.jobRelevanceComment = scoreFailedComment(lastError.message);
       }
       termLog(`  ✗ 批次评分失败： ${lastError.message}`, 'stderr');
     }
@@ -462,19 +510,19 @@ export async function scoreCandidateList(candidates, extractSource, { signal, on
     for (const c of group) {
       if (!c.resumeText) {
         c.jobRelevanceScore = 0;
-        c.jobRelevanceComment = '无在线简历';
+        c.jobRelevanceComment = NO_RESUME_COMMENT;
         onBatchDone?.([c]);
       }
     }
 
     if (withResume.length === 0) continue;
 
-    const buildBatchPrompt = createPositionPromptBuilder(positionName, extractSource, () => withResume);
+    const { build: buildBatchPrompt, requirements } = createPositionPromptBuilder(positionName, extractSource, () => withResume);
     const batches = [];
     for (let i = 0; i < withResume.length; i += BATCH_SIZE) {
       batches.push(withResume.slice(i, i + BATCH_SIZE));
     }
     termLog(`[AI评分] 岗位「${positionName}」： ${withResume.length} 人，${batches.length} 批，并发 ${SCORE_CONCURRENCY} 批`);
-    await runBatchWindow(batches, { signal, buildBatchPrompt, onBatchDone });
+    await runBatchWindow(batches, { signal, buildBatchPrompt, requirements, onBatchDone });
   }
 }

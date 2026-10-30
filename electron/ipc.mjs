@@ -4,6 +4,7 @@ import { resolve, dirname, basename } from 'node:path';
 import { mkdirSync, existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { TIER_THRESHOLDS } from '../scripts/score-tiers.mjs';
 import { summarizeScoredCandidate } from '../scripts/scored-candidate.mjs';
+import { commentToHtml } from '../scripts/format-comment.mjs';
 import { termLog, sleep } from './util.mjs';
 import { pinyinSearchText } from './pinyin.mjs';
 import {
@@ -40,6 +41,13 @@ function isoToDisplayTime(iso) {
 // 用 Set 而不是对象：既是「成员判断」的本来写法，也不会被 toString 这类原型键蒙混过关
 const EDIT_ACTIONS = new Set(['cut', 'copy', 'paste', 'delete', 'selectAll']);
 
+// 展示行：评语换成加粗版 HTML（renderer 用 innerHTML 渲染）。
+// 纯文本 comment 不再随行过 IPC —— 评语很长，候选人查询一次可能回上千行，两份内容白传一遍。
+// 加粗规则只有 scripts/format-comment.mjs 一份，别在渲染进程另写；入库的仍是纯文本。
+function toDisplayRow({ comment, ...row }) {
+  return { ...row, commentHtml: commentToHtml(comment) };
+}
+
 // 读某个目录（当前输出目录 / 历史批次目录）下的 scored-candidates.json，
 // 算好统计与排序后的明细。完成页与「历史批次详情」弹窗共用这一份，
 // 保证两处显示的一览、分档、候选人顺序完全一致（只有数据来源目录不同）。
@@ -61,7 +69,7 @@ function buildScoringResults(dir) {
       tiers[row.tier]++;
       if (row.passed) passed++;
       sum += row.score;
-      return row;
+      return toDisplayRow(row);
     });
     // 分数从高到低排序，方便直接看到最值得打招呼的人
     list.sort((a, b) => b.score - a.score);
@@ -419,7 +427,11 @@ function registerIPC() {
   });
 
   // v1.20.0: 候选人查询 —— 跨批次按姓名（中文/拼音）检索历史 AI 评价
-  ipcMain.handle('search-candidate-index', (_event, query) => searchCandidateIndex(CONFIG_DIR, query));
+  ipcMain.handle('search-candidate-index', async (_event, query) => {
+    const res = await searchCandidateIndex(CONFIG_DIR, query);
+    if (Array.isArray(res?.candidates)) res.candidates = res.candidates.map(toDisplayRow);
+    return res;
+  });
   ipcMain.handle('clear-candidate-index', () => clearCandidateIndex(CONFIG_DIR));
 
   // v1.5.0: 继续提取 —— 还原历史批次为输出目录，用 --resume 续跑，跳过已提取项

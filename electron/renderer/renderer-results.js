@@ -107,7 +107,10 @@ function renderResultsList(candidates, { listEl } = {}) {
 
     const commentEl = document.createElement('div');
     commentEl.className = 'result-item-comment';
-    commentEl.textContent = c.comment || '（无评语）';
+    // 冒号前的标签加粗：主进程已把评语转成转义好的 HTML（format-comment.mjs 的 commentToHtml），
+    // 这里只负责塞进去；空评语显示占位文案
+    if (c.commentHtml) commentEl.innerHTML = c.commentHtml;
+    else commentEl.textContent = '（无评语）';
     commentEl.style.whiteSpace = 'pre-line';
 
     body.append(metaEl, commentEl);

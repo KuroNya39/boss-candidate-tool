@@ -545,9 +545,8 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
   const dataStartRow = 4; // 数据起始行号
 
   // 2. 添加数据行
-  for (const row of dataRows) {
-    ws.addRow(row);
-  }
+  //    评语列保持纯文本：加粗只做在软件界面里（用户 2026-10-30 决定），Excel 不要富文本
+  for (const row of dataRows) ws.addRow(row);
 
   const totalRows = groupData.length; // 总行数
 

@@ -274,7 +274,7 @@ AI 会根据岗位描述里的 3 个核心评估维度（带权重）给候选�
 - **主要模块**：
   ```
   electron/main.mjs                         主进程入口（生命周期、--score-only 无界面评分）
-  electron/score-comment.mjs                评语→评分计算与学历门槛兜底扣分（主进程/重算脚本共用）
+  electron/score-comment.mjs                评分程序化计算（维度加权分 − 学历扣分 − 任职资格扣分）、评语数值修正与【系统核验】提示
   electron/*.mjs                            其余主进程模块：流程编排、IPC、浏览器与代理管理、评分、打招呼、归档、候选人查询索引
   electron/renderer/                        界面（index.html + 6 个 CSS + renderer-*.js，均按序引入）
   scripts/cdp-proxy.mjs                     HTTP → WebSocket 代理，控制 Chrome（端口 3456）
@@ -288,7 +288,7 @@ AI 会根据岗位描述里的 3 个核心评估维度（带权重）给候选�
   scripts/scored-candidate.mjs              评分结果 → 列表行字段（界面与候选人查询共用）
   scripts/degree.mjs                        学历词汇表（提取/评分/导出共用）
   scripts/format-comment.mjs                评语排版（界面与 Excel 共用）
-  config/scoring-prompt-*.txt               AI 评分提示词模板
+  config/scoring-prompt-*.md                AI 评分提示词模板
   %AppData%\web-access\web-access\jd-descriptions\   岗位描述（存用户数据目录，升级不丢）
   ```
 - **常用命令**：
