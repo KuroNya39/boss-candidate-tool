@@ -19,6 +19,7 @@
 import { DEGREE_ANY_RE, DEGREE_BELOW_BACHELOR, DEGREE_BACHELOR_PLUS, DEGREE_SECONDARY, DEGREE_NON_STANDARD } from '../scripts/degree.mjs';
 // 评语板块标题 / 逐项判定词的唯一定义（排版与解析共用一份，避免改措辞时一边改了另一边静默解析出 0 条）
 import { SECTION_LABELS, VERDICT_LABELS, NOTICE_HEADER, TIER_MARK_SRC, noticesSplitAt, splitNotices, formatComment, missingSectionLabels } from '../scripts/format-comment.mjs';
+import { dimensionScores } from '../scripts/scored-candidate.mjs';
 
 // —— 「这句不是 AI 评语」的两个兜底文案：评分、收尾、算分三处共用这一份 ——
 // 写用常量、判用 isNonAiComment，别在别处再抄一遍字面量：改文案时判定要跟着走，
@@ -135,8 +136,6 @@ function qualificationDeduction(hardFailCount) {
   return 15;
 }
 
-/** 维度行「（40%，独立得分：92分）」 */
-const DIM_RE = /（\s*(\d{1,2})\s*%\s*[，,]\s*独立得分\s*[:：]\s*(\d{1,3})\s*分）/g;
 /** 任职资格逐项行「[硬性] 学历要求（…）：达标。依据…」。判定词与界面加粗共用 VERDICT_LABELS */
 const QUAL_LINE_RE = new RegExp(`^(.{1,80}?)[：:]\\s*(${Object.values(VERDICT_LABELS).join('|')})`);
 /** 「学历硬性门槛扣分：」这个词头：取原因、改数字几处共用一份，改提示词措辞只改这里 */
@@ -170,17 +169,6 @@ function weightedMean(pairs) {
     ws += w * s; wsum += w;
   }
   return wsum === 0 ? null : Math.round(ws / wsum);
-}
-
-/** 从结构化维度字段算加权基础分；字段缺失返回 null */
-function baseFromDetail(detail) {
-  const dims = detail?.dimensions?.length ? detail.dimensions : null;
-  return dims ? weightedMean(dims.map(d => [Number(d?.weight), Number(d?.score)])) : null;
-}
-
-/** 从评语正文的维度行算加权基础分（老数据兜底）；解析不到返回 null */
-function baseFromComment(comment) {
-  return weightedMean([...String(comment || '').matchAll(DIM_RE)].map(m => [Number(m[1]), Number(m[2])]));
 }
 
 /** 判定结果归一：结构化字段可能是 fail/pending，评语里是 不达标/待核实 */
@@ -322,7 +310,7 @@ function coverageNotices(items, ctx) {
  * verdict / eduReason 一并给出，调用方（评语改写）不必再把学历阶梯重走一遍。
  */
 export function computeScoreBreakdown(comment, detail = null, ctx = null) {
-  const base = baseFromDetail(detail) ?? baseFromComment(comment);
+  const base = weightedMean(dimensionScores(detail, comment).map((d) => [d.weight, d.score]));
   if (base == null) return null;
 
   // 先按展示口径排版再解析：模型漏写「3.任职资格的匹配情况」这类小节标题时，formatComment 会按内容

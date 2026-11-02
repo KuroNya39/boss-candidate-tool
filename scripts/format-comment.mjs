@@ -5,7 +5,17 @@
 // 把 AI 输出的评语重排成 config/scoring-prompt-*.md「输出规范」的编号结构：
 //   1.首句定性 / 2.3个评估维度的匹配情况(3维度+计分) / 3.任职资格的匹配情况 / 4.学历硬性门槛核查 / 5.综合结论
 // 无论 AI 是否自带编号/换行，都强制按模板排版。
-export const FORMAT_COMMENT_DIM_RE = '[^\\s：。，,；;！?！？…（）()]{2,30}（\\d{1,3}%，独立得分：\\d{1,3}分）\\s*[:：]';
+// 维度行括号里的「（40%，独立得分：92分）」：排版按它换行、解析按它取值，两处共用这一份。
+// 容忍全/半角逗号冒号与空格（模型三种都写过）—— 改写法只改这里，不会出现一处认得出、另一处静默认不出
+const DIM_PAREN_SRC = '（\\s*(\\d{1,3})\\s*%\\s*[，,]\\s*独立得分\\s*[:：]\\s*(\\d{1,3})\\s*分）';
+export const FORMAT_COMMENT_DIM_RE = '[^\\s：。，,；;！?！？…（）()]{2,30}' + DIM_PAREN_SRC + '\\s*[:：]';
+const DIM_LINE_RE = new RegExp(DIM_PAREN_SRC, 'g');
+
+/** 评语里的各维度得分：[{ weight, score }]。算分侧（加权基础分）与 Excel 拆列共用这一份 */
+export function parseDimensionScores(text) {
+  return [...String(text || '').matchAll(DIM_LINE_RE)]
+    .map((m) => ({ weight: Number(m[1]), score: Number(m[2]) }));
+}
 // 模板里要独占一行的子项关键词：计分三行 + 学历核查四行（「学历硬性门槛扣分」在提示词的输出模板里）
 // 下面两个正则共用这一份，新增子项只改这里。学历四行单独成串：它们还兼任第 4 节的「内容形状」
 // （insertSectionHead 认它补回漏写的小节标题），拆开才能两处共用一份

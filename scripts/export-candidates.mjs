@@ -12,8 +12,8 @@ import { readFileSync, mkdirSync, existsSync, renameSync, unlinkSync } from 'nod
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ExcelJS from 'exceljs';
-import { scoreToTier } from './score-tiers.mjs';
 import { formatComment } from './format-comment.mjs';
+import { summarizeScoredCandidate, dimensionScores } from './scored-candidate.mjs';
 import { DEGREE_ANY_RE, degreeRank } from './degree.mjs';
 import { parseWorkExperienceFromResume } from './extract-common.mjs';
 
@@ -36,11 +36,6 @@ function parseArgs() {
 }
 
 // ===== 字段配置 =====
-function toAiRating(candidate) {
-  const score = candidate.totalScore ?? candidate.score ?? 0;
-  return '★'.repeat(scoreToTier(score));
-}
-
 // ===== 卡片文字兜底识别 =====
 // 活跃度、求职状态这两项只有部分页面有独立的 DOM 元素（沟通页的活跃度、搜索页的求职状态），
 // 其余情况靠整张卡片的文字兜底：提取时卡片全文都存进了 rawVisibleText，
@@ -85,6 +80,18 @@ const memoByCandidate = (fn) => {
     return cache.get(c);
   };
 };
+
+// 展示行（档位 / 匹配度评分 / 排版后的评语）走与完成页、候选人查询同一份映射，Excel 不再自己算一遍
+const displayRowOf = memoByCandidate(summarizeScoredCandidate);
+
+// AI 评分拆出来的三个维度列：字段名、表头、取第几维。FIELD_CONFIG、二级分组、列宽都从这里派生，
+// 加一维或调顺序只改这一处
+const DIM_FIELDS = [0, 1, 2].map((i) => ({ key: `dim${i + 1}Score`, header: `维度${i + 1}得分`, idx: i }));
+
+// 三个维度列各取一次，解析评语只做一遍
+const dimScoresOf = memoByCandidate((c) => dimensionScores(c.scoreDetail, c.jobRelevanceComment));
+/** 第几维的得分；该候选人没有这一维时留空，不补 0（0 分是有效值，混在一起会误读） */
+const dimScoreOf = (idx) => (c) => dimScoresOf(c)[idx]?.score ?? '';
 
 // 前两项固定是城市、岗位；剩下的项里，像薪资的当薪资，第一个不是薪资的当行业。
 // maxIndustryLen 给行业一个长度上限：OCR 那种一行值的排版容易把后续正文一起切进来，收得更紧。
@@ -198,10 +205,17 @@ const FIELD_CONFIG = {
     header: '姓名',
     extract: (c) => c.basicInfo?.name || '',
   },
-  aiRating: {
-    header: 'AI评分',
-    extract: (c) => toAiRating(c),
+  // AI 评分拆成三组：档位（星级）/ 最终分 / 三个维度分。
+  // 维度列按序号命名是刻意的：每个岗位的维度名各不相同，按名称做表头会让不同 sheet 的列义漂移
+  tier: {
+    header: '档位',
+    extract: (c) => '★'.repeat(displayRowOf(c).tier),
   },
+  matchScore: {
+    header: '匹配度评分',
+    extract: (c) => displayRowOf(c).score,
+  },
+  ...Object.fromEntries(DIM_FIELDS.map(({ key, header, idx }) => [key, { header, extract: dimScoreOf(idx) }])),
   activeStatus: {
     header: '活跃度',
     extract: (c) => activeStatusOf(c),
@@ -257,7 +271,7 @@ const FIELD_CONFIG = {
   },
   jobRelevanceComment: {
     header: 'AI评语',
-    extract: (c) => formatComment(c.jobRelevanceComment || ''),
+    extract: (c) => displayRowOf(c).comment,
   },
   jobDescription: {
     header: '岗位描述',
@@ -328,11 +342,27 @@ const FIELD_CONFIG = {
   },
 };
 
+// 教育经历子字段列表（在列标题行合并为"教育经历"，子标题行显示具体字段名）。
+// 「哪些列属于教育经历」由下面的 SUB_GROUPS 引用它，别再在合并、样式里另写一份
+const EDU_SUB_FIELDS = ['eduSchool', 'eduMajor', 'eduDegree', 'eduTime'];
+
+// AI 评分拆出来的数值列：表头第二级合并成一块「AI评分」，第三级才是列名
+const AI_SCORE_SUB_FIELDS = ['tier', 'matchScore', ...DIM_FIELDS.map((d) => d.key)];
+
+// 表头第二级的分组（Row 1 是 FIELD_GROUPS 的分组标题，Row 2 是这里，Row 3 才是列名）。
+// 「哪些列属于哪个二级分组」只按这两张表判，别再在合并、样式里各写一份
+const SUB_GROUPS = [
+  { label: 'AI评分', fields: AI_SCORE_SUB_FIELDS },
+  { label: '教育经历', fields: EDU_SUB_FIELDS },
+];
+const SUB_GROUP_OF = new Map(SUB_GROUPS.flatMap(g => g.fields.map(f => [f, g])));
+
 // 默认导出字段顺序。
-// 注意：教育经历四个子字段必须相邻（合并表头按「最小下标 ~ 最大下标」算），中间别插别的字段
+// 注意：同一分组的成员必须相邻（合并表头按「最小下标 ~ 最大下标」算）——AI 评分的五个数值列、
+// 教育经历四个子字段，中间都别插别的字段，否则会被并进那条合并标题里
 const DEFAULT_FIELDS = [
   'name',
-  'aiRating',
+  ...AI_SCORE_SUB_FIELDS,
   'jobRelevanceComment',
   'activeStatus',
   'age',
@@ -352,10 +382,6 @@ const DEFAULT_FIELDS = [
   'resumeText',
 ];
 
-// 教育经历子字段列表（在列标题行合并为"教育经历"，子标题行显示具体字段名）。
-// 也是「哪些列属于教育经历」的唯一出处 —— 分组归属、合并区间都按它判
-const EDU_SUB_FIELDS = ['eduSchool', 'eduMajor', 'eduDegree', 'eduTime'];
-
 // ===== 分组配置 =====
 // 用字段名列出成员，**不写列下标**：列区间由 createStyledSheet 按实际列序算。
 // 写死下标的话，DEFAULT_FIELDS 插一个字段、或 --fields 只导一部分，区间就整体错位；
@@ -367,7 +393,11 @@ const EDU_SUB_FIELDS = ['eduSchool', 'eduMajor', 'eduDegree', 'eduTime'];
 // （深一档的蓝/绿/黄），但那样就不是这三个色了。
 // 三组必须各不相同：相邻两组同色时，两条标题条会连成一整条，分组边界就看不出来了。
 const FIELD_GROUPS = [
-  { label: 'AI分析', fields: ['aiRating', 'jobRelevanceComment'], headerFill: 'FF4285F4', headerText: 'FFFFFFFF' }, // 蓝
+  {
+    label: 'AI分析',
+    fields: [...AI_SCORE_SUB_FIELDS, 'jobRelevanceComment'],
+    headerFill: 'FF4285F4', headerText: 'FFFFFFFF', // 蓝
+  },
   {
     label: '基本信息',
     fields: [
@@ -379,6 +409,8 @@ const FIELD_GROUPS = [
   },
   { label: '求职期望', fields: ['expectCity', 'expectPosition', 'expectIndustry', 'expectSalary'], headerFill: 'FFFBBC05', headerText: 'FFFFFFFF' }, // 黄
 ];
+// 字段 → 所属分组（没有分组标题的字段查不到）。按表头、底色两处都查它，别再各写一遍 find/includes
+const FIELD_GROUP_OF = new Map(FIELD_GROUPS.flatMap(g => g.fields.map(f => [f, g])));
 
 // ===== 字段样式配置 =====
 // exceljs 的纯色填充写法很啰嗦，同色的字段又多，收一个工厂函数
@@ -387,7 +419,7 @@ const solidFill = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { arg
 // 列底色一个语义小分块一种色相，全部取浅色（明度 L* 都在 91 以上、彩度 C* 都不超过 16）。
 // 这里**不跟标题条的色相挂钩**：分组由标题条那条带子表达，列底色只管「把相邻的列分开」。
 // 所以配色唯一的硬约束是相邻两列要够开 —— 浅色之间色差本就小，不够就糊成一片
-// （实测相邻的异色列 ΔE 全部 ≥ 10.5，最紧的是 AI评分 → AI评语）。
+// （实测相邻的异色列 ΔE 全部 ≥ 10.5，最紧的是 AI 评分数值列 → AI评语）。
 const FIELD_TINTS = {
   name: 'FFDBEAF6',      // 淡蓝
   aiScore: 'FFFCF3D5',   // 淡黄
@@ -402,7 +434,8 @@ const FIELD_TINTS = {
 // 字段 → 用哪个底色。同色的字段写在同一行：改色只动 FIELD_TINTS，改归属只动这里
 const FIELD_TINT_BY_FIELD = {
   name: 'name',
-  aiRating: 'aiScore',
+  // AI 评分的五个数值列同属一块，共用一色；列与列之间靠细边框分开
+  ...Object.fromEntries(AI_SCORE_SUB_FIELDS.map((f) => [f, 'aiScore'])),
   jobRelevanceComment: 'aiComment',
   // 个人情况
   activeStatus: 'status', age: 'status', workYears: 'status', jobStatus: 'status',
@@ -421,6 +454,11 @@ const FIELD_ALIGNMENTS = {
   resumeText: { horizontal: 'left', vertical: 'top', wrapText: true },
 };
 
+// 数据行里另设字体的字段：星级（★）大一号、橙色，扫表时一眼定位档位
+const FIELD_FONTS = {
+  tier: { size: 14, color: { argb: 'FFFFA500' } },
+};
+
 // 由上面两张表拼出「字段 → 样式」。上面只写数据，这里只写拼法，加字段不必再抄一遍
 const FIELD_STYLES = Object.fromEntries(
   Object.entries(FIELD_TINT_BY_FIELD).map(([field, tint]) => {
@@ -432,6 +470,10 @@ const FIELD_STYLES = Object.fromEntries(
 
 // 列宽（Excel 的宽度单位约等于一个数字字符，一个汉字占 2 个单位）。不在表里的列用常规宽
 const COL_WIDTHS = {
+  // AI 评分那几列装的都是 2~3 个字 / 三位数，按表头文字定宽（一个汉字占 2 单位）
+  tier: 15,         // ★★★★★：星号在中文字体里按全角宽算，8 放不下五星（表头「档位」本身只要 4）
+  matchScore: 12,   // 表头「匹配度评分」正好 10 单位，留一点余量
+  ...Object.fromEntries(DIM_FIELDS.map((d) => [d.key, 12])), // 同上，「维度N得分」
   jobRelevanceComment: 90, // 评语是长段落，要给够
   resumeText: 60,          // 简历全文更长，但太宽会把整表撑得没法看，取 60 靠自动换行 + 固定行高截断
   // 学校与专业同宽（两列内容同类，宽度不一致会显得参差）。取值按较长的一类定：
@@ -461,6 +503,12 @@ const THIN_BORDER = {
 };
 
 // ===== 数据转换 =====
+// 「一人多段、占多行」的字段：extract 收第二个参数（行索引）就表示可展开（现在只有教育经历）。
+// 合并单元格时这类字段按行留空、不能跨行合并，其余字段一人一份、要合并。
+// 取值（transformCandidates 手里是配置对象）与合并（手里是字段名）共用这一份判据
+const isExpandable = (cfg) => (cfg?.extract.length ?? 0) >= 2;
+const isExpandedField = (field) => isExpandable(FIELD_CONFIG[field]);
+
 function getExpandedRowCount(candidate) {
   const eduList = candidate.educationExperience || [];
   return Math.max(1, eduList.length);
@@ -480,7 +528,7 @@ function transformCandidates(candidates, fields, mode = 'filter') {
     const rowCount = getExpandedRowCount(c);
     for (let ri = 0; ri < rowCount; ri++) {
       const row = selectedConfig.map(cfg => {
-        if (cfg.extract.length >= 2) {
+        if (isExpandable(cfg)) {
           // expandable field: 传入行索引取对应的教育经历段
           return cfg.extract(c, ri);
         }
@@ -499,26 +547,13 @@ function buildGroupedExportData(candidates, fields, mode = 'filter') {
   const rows = data.slice(1);
 
   // 分组标题行 (Row 1)：按字段名的分组归属填标签（与 createStyledSheet 里的 colGroups 同一判据）
-  const groupHeaders = fields.map(f => {
-    const g = FIELD_GROUPS.find(g => g.fields.includes(f));
-    return g ? g.label : undefined;
-  });
+  const groupHeaders = fields.map(f => FIELD_GROUP_OF.get(f)?.label);
 
-  // 主标题行 (Row 2)：教育经历子字段显示"教育经历"，其他用原始 header
-  const mainHeaders = fields.map(f => {
-    if (EDU_SUB_FIELDS.includes(f)) return '教育经历';
-    const cfg = FIELD_CONFIG[f];
-    return cfg ? cfg.header : f;
-  });
+  // 主标题行 (Row 2)：二级分组（AI评分 / 教育经历）显示分组名，其他用原始 header
+  const mainHeaders = fields.map(f => SUB_GROUP_OF.get(f)?.label ?? FIELD_CONFIG[f]?.header ?? f);
 
-  // 子标题行 (Row 3)：仅教育经历子字段显示原始 header，其他为空
-  const subHeaders = fields.map(f => {
-    const cfg = FIELD_CONFIG[f];
-    return cfg ? cfg.header : '';
-  });
-  for (let i = 0; i < subHeaders.length; i++) {
-    if (!EDU_SUB_FIELDS.includes(fields[i])) subHeaders[i] = '';
-  }
+  // 子标题行 (Row 3)：仅二级分组的成员显示原始 header，其他为空
+  const subHeaders = fields.map(f => (SUB_GROUP_OF.has(f) ? FIELD_CONFIG[f]?.header ?? f : ''));
 
   return [groupHeaders, mainHeaders, subHeaders, ...rows];
 }
@@ -526,7 +561,8 @@ function buildGroupedExportData(candidates, fields, mode = 'filter') {
 // ===== 样式化导出 =====
 /**
  * 创建带样式的 worksheet
- * 表头结构 3 行：分组标题 / 主标题（教育经历合并）/ 子标题（学校·专业·学历·时间）
+ * 表头结构 3 行：分组标题（AI分析 / 基本信息 / 求职期望）/ 二级分组（AI评分 · 教育经历，
+ * 横跨各自的子列）/ 列名（档位·匹配度评分·维度得分、学校·专业·学历·时间…）
  */
 async function createStyledSheet(wb, sheetName, groupData, fields) {
   const ws = wb.addWorksheet(sheetName);
@@ -552,39 +588,38 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
 
   // 3. 合并单元格
 
-  // 教育经历列下标：EDU_SUB_FIELDS 里落在 fields 中的那些。
-  // 不写死某个字段名 —— 四个子列的先后顺序会调（现为 学校/专业/学历/时间），
-  // 写死字段名在调顺序后就会指错列。
-  const eduIdx = fields.flatMap((f, i) => (EDU_SUB_FIELDS.includes(f) ? [i] : []));
-  // 合并表头要横跨四列，所以还得有个区间（取最小/最大下标）；一列都没有时为 null
-  const eduColRange = eduIdx.length
-    ? { start: Math.min(...eduIdx), end: Math.max(...eduIdx) }
-    : null;
-  // 「这列是不是教育经历」按字段名判（EDU_SUB_FIELDS 是唯一出处），不按上面的区间判 ——
+  // 一张分组定义表 → 各分组在**实际列序**里的区间（合并表头要横跨它）。
+  // 不写死字段名 —— 子列的先后顺序会调，写死字段名在调顺序后就会指错列；
+  // --fields 只导一部分时该组可能一列都没有，跳过
+  const colIndex = new Map(fields.map((f, i) => [f, i]));
+  const rangesOf = (defs) => defs.map((g) => {
+    const idx = g.fields.map((f) => colIndex.get(f)).filter((i) => i !== undefined);
+    return idx.length ? { start: Math.min(...idx), end: Math.max(...idx) } : null;
+  }).filter(Boolean);
+  // 「这列有没有二级标题」按字段名判（SUB_GROUP_OF 是唯一出处），不按区间判 ——
   // 区间只在合并表头那一处才真的需要
-  const isEduCol = (i) => EDU_SUB_FIELDS.includes(fields[i]);
+  const isSubCol = (i) => SUB_GROUP_OF.has(fields[i]);
+  const expandedCols = fields.map(isExpandedField);
 
   // 每列所属的分组（null = 没有分组标题，如姓名、在线简历）。只算一次，下面合并 / 补值 / Row 1 样式共用
-  const colGroups = fields.map(f => FIELD_GROUPS.find(g => g.fields.includes(f)) || null);
+  const colGroups = fields.map(f => FIELD_GROUP_OF.get(f) || null);
 
-  // 3a. 分组标题行合并（Row 1）。区间按字段名在**实际列序**里的位置算；
-  //     该组一个字段都没导出（--fields 只导了一部分）时跳过
   const merges = [];
-  for (const g of FIELD_GROUPS) {
-    const idx = g.fields.map(f => fields.indexOf(f)).filter(i => i >= 0);
-    if (!idx.length) continue;
-    merges.push({ s: { r: 1, c: Math.min(...idx) + 1 }, e: { r: 1, c: Math.max(...idx) + 1 } });
+
+  // 3a. 分组标题行合并（Row 1）
+  for (const r of rangesOf(FIELD_GROUPS)) {
+    merges.push({ s: { r: 1, c: r.start + 1 }, e: { r: 1, c: r.end + 1 } });
   }
 
-  // 3b. 主标题行"教育经历"合并（Row 2, 横跨四个子列）
-  if (eduColRange) {
-    merges.push({ s: { r: 2, c: eduColRange.start + 1 }, e: { r: 2, c: eduColRange.end + 1 } });
+  // 3b. 二级分组标题合并（Row 2, 横跨该组所有子列）：AI评分、教育经历各一条
+  for (const r of rangesOf(SUB_GROUPS)) {
+    merges.push({ s: { r: 2, c: r.start + 1 }, e: { r: 2, c: r.end + 1 } });
   }
 
-  // 3c. 非教育列合并表头：有分组标题的合并 Row 2~3（去掉中间分隔线）；
+  // 3c. 没有二级分组的列：有分组标题的合并 Row 2~3（去掉中间分隔线）；
   //     没有分组标题的（姓名、在线简历）直接合并 Row 1~3，标题占满三行表头高度，上方不留空档
   for (let c = 0; c < colCount; c++) {
-    if (isEduCol(c)) continue;
+    if (isSubCol(c)) continue;
     if (colGroups[c]) {
       merges.push({ s: { r: 2, c: c + 1 }, e: { r: 3, c: c + 1 } });
     } else {
@@ -592,7 +627,9 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
     }
   }
 
-  // 3d. 数据行垂直合并（同一候选人的非教育列）
+  // 3d. 数据行垂直合并（同一候选人占多行时，一人一份的列合并成一格）。
+  //     排除的是「可展开字段」——它们一人多段、每行一段（现在只有教育经历）；
+  //     AI 评分数值列一人只有一个值，要跟姓名、评语一样跨行合并
   const mergeBlocks = [];
   let blockStart = dataStartRow;
   for (let r = dataStartRow; r <= totalRows; r++) {
@@ -609,7 +646,7 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
   for (const block of mergeBlocks) {
     if (block.end - block.start < 1) continue;
     for (let c = 0; c < colCount; c++) {
-      if (isEduCol(c)) continue;
+      if (expandedCols[c]) continue;
       merges.push({ s: { r: block.start, c: c + 1 }, e: { r: block.end, c: c + 1 } });
     }
   }
@@ -622,7 +659,7 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
   // 部分 exceljs 版本合并后清空了左上单元格的值，此处补回
   // （无分组列的左上角在 Row 1，不是 Row 2 —— 合并的是 1~3 行）
   for (let c = 0; c < colCount; c++) {
-    if (isEduCol(c)) continue;
+    if (isSubCol(c)) continue;
     const v = groupData[1]?.[c];
     if (!v) continue;
     ws.getCell(colGroups[c] ? 2 : 1, c + 1).value = v;
@@ -661,11 +698,11 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
   const mainRowRef = ws.getRow(2);
   mainRowRef.eachCell((cell, colNum) => {
     const colIdx = colNum - 1;
-    // 非教育列跟 Row 3 纵向合并成一格，字体/底色/边框全由 Row 3 那趟决定 —— 这里直接跳过，
+    // 非二级分组的列跟 Row 3 纵向合并成一格，字体/底色/边框全由 Row 3 那趟决定 —— 这里直接跳过，
     // 免得写了又被覆盖（那样「表头不加粗」就成了循环顺序的副产物，谁调换两趟顺序谁就把加粗放回来）
-    if (!isEduCol(colIdx)) return;
-    // 只有「教育经历」这一格（横向合并 4 列、Row 3 够不着）的字体在这里定：不加粗 ——
-    // 它是子标题「时间/学校/专业/学历」的总帽子，加粗会和下面真正的列名抢注意力
+    if (!isSubCol(colIdx)) return;
+    // 二级分组标题（「AI评分」「教育经历」）横向合并、Row 3 够不着，字体在这里定：不加粗 ——
+    // 它是子标题的总帽子，加粗会和下面真正的列名抢注意力
     cell.font = { size: 11, color: { argb: 'FF000000' } };
     cell.alignment = { ...DEFAULT_ALIGNMENT };
     cell.border = THIN_BORDER;
@@ -704,10 +741,7 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
         cell.alignment = { ...DEFAULT_ALIGNMENT };
       }
 
-      cell.font = { size: 11 };
-      if (fieldKey === 'aiRating') {
-        cell.font = { size: 14, color: { argb: 'FFFFA500' } };
-      }
+      cell.font = FIELD_FONTS[fieldKey] ?? { size: 11 };
       cell.border = THIN_BORDER;
     });
   }
@@ -1113,4 +1147,4 @@ if (isMainModule) {
   });
 }
 
-export { FIELD_CONFIG, DEFAULT_FIELDS, FIELD_GROUPS, transformCandidates, buildGroupedExportData, safeSheetName, toAiRating, formatComment, activeStatusOf, jobStatusOf };
+export { FIELD_CONFIG, DEFAULT_FIELDS, FIELD_GROUPS, transformCandidates, buildGroupedExportData, safeSheetName, formatComment, activeStatusOf, jobStatusOf };
