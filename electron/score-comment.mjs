@@ -18,7 +18,7 @@
  */
 import { DEGREE_ANY_RE, DEGREE_BELOW_BACHELOR, DEGREE_BACHELOR_PLUS, DEGREE_SECONDARY, DEGREE_NON_STANDARD } from '../scripts/degree.mjs';
 // 评语板块标题 / 逐项判定词的唯一定义（排版与解析共用一份，避免改措辞时一边改了另一边静默解析出 0 条）
-import { SECTION_LABELS, VERDICT_LABELS } from '../scripts/format-comment.mjs';
+import { SECTION_LABELS, VERDICT_LABELS, NOTICE_HEADER, TIER_MARK_SRC, noticesSplitAt, splitNotices, formatComment, missingSectionLabels } from '../scripts/format-comment.mjs';
 
 // —— 「这句不是 AI 评语」的两个兜底文案：评分、收尾、算分三处共用这一份 ——
 // 写用常量、判用 isNonAiComment，别在别处再抄一遍字面量：改文案时判定要跟着走，
@@ -120,7 +120,7 @@ const HARD_MARK_RE = /硬性|必须|(?<!非)强制/;
  * 评语逐项行首的档位标签（提示词「输出规范」第 3 节要求每行以 [硬性] / [优先] 开头）。
  * 剥出来当 tier 用，剩下的才是条件原名——两件事分开，判硬性的规则才不会被模型标签劫持。
  */
-const TIER_MARK_RE = /^[\[【]\s*(硬性|优先)\s*[\]】]\s*/;
+const TIER_MARK_RE = new RegExp('^' + TIER_MARK_SRC + '\\s*');
 
 /**
  * 任职资格扣分档位：按「硬性项不达标数」定档，替代原来「酌情扣减 5-15 分」的自由发挥
@@ -325,7 +325,12 @@ export function computeScoreBreakdown(comment, detail = null, ctx = null) {
   const base = baseFromDetail(detail) ?? baseFromComment(comment);
   if (base == null) return null;
 
-  const text = String(comment || '');
+  // 先按展示口径排版再解析：模型漏写「3.任职资格的匹配情况」这类小节标题时，formatComment 会按内容
+  // 形状把标题补回来（见 scripts/format-comment.mjs 第 0.2 步）。直接读原文的话，按标题切节会切出
+  // 空数组（逐项不达标数算成 0 → 多给分），缺节检测也会把「内容都在、只缺标题」误报成评语不完整
+  // ——2026-11-02 一批 33 人缺节的提示里 15 人是这种情况，10-30 那批 36 份里 18 份是。格式化是纯
+  // 函数、幂等，不影响原文与改写
+  const text = formatComment(comment);
   const firstDegree = detail?.education?.firstDegree
     || (text.match(FIRST_DEGREE_RE) || [])[1]
     || (text.match(EDU_REASON_RE) || [])[1]
@@ -339,14 +344,14 @@ export function computeScoreBreakdown(comment, detail = null, ctx = null) {
   }
   const eduDed = verdict === 'below' ? EDU_GATE_DEDUCTION : 0;
 
-  const items = detail?.qualifications?.length ? detail.qualifications : qualificationItemsFromComment(comment);
+  const items = detail?.qualifications?.length ? detail.qualifications : qualificationItemsFromComment(text);
   const qualDed = qualificationDeduction(items.filter(isHardFail).length);
   notices.push(...coverageNotices(items, ctx));
   // 评语缺节：模型拿到结构化字段后，可能只在正文里写前两节（实测 deepseek 系一次 3 人批，
   // 12 条 qualifications 都给了，正文却停在「匹配度评分」）。结论本身没丢（分数照样按结构化字段算），
   // 但评语是给人看的，缺哪节必须显式标出来，否则用户会以为评估只做到维度为止。
-  const missingSections = [SECTION_LABELS.qualifications, SECTION_LABELS.education, SECTION_LABELS.conclusion]
-    .filter((k) => !text.includes(k));
+  // 只判正文（已排版：内容齐全、只是没写小节标题的，排完版就不算缺）
+  const missingSections = missingSectionLabels(text);
   if (missingSections.length > 0) {
     notices.push(`评语不完整：缺少「${missingSections.join('」「')}」小节，分数仍按结构化字段计算，请对照复核。`);
   }
@@ -355,16 +360,10 @@ export function computeScoreBreakdown(comment, detail = null, ctx = null) {
   return { base, verdict, eduReason: reason, eduDed, qualDed, score, notices };
 }
 
-const NOTICE_HEADER = '【系统核验】';
 // patchScoreComment 追加在【系统核验】之前的「（系统说明：…）」整行：重复收尾时先剥后写，避免叠加
 const NOTE_PREFIX = '（系统说明：';
 // 前面跟几个换行都要吃掉：老版本的说明只挂了一个 \n
 const NOTE_LINE_RE = new RegExp(`\\n+${NOTE_PREFIX}[^\\n]*）`, 'g');
-
-/** 评语正文与【系统核验】段的分界（重写核验段、插系统说明两处共用，别各算各的分隔符） */
-function noticesSplitAt(comment) {
-  return String(comment || '').indexOf('\n\n' + NOTICE_HEADER);
-}
 
 /**
  * 把核验提示挂到评语末尾（UI 与 Excel 都直接展示评语，所以挂这里就等于全局可见）。
@@ -372,8 +371,7 @@ function noticesSplitAt(comment) {
  */
 export function appendScoringNotices(comment, notices) {
   const list = (notices || []).filter(Boolean);
-  const at = noticesSplitAt(comment);
-  const head = at === -1 ? (comment || '') : String(comment).slice(0, at);
+  const [head] = splitNotices(comment);
   if (list.length === 0) return head;
   return `${head}\n\n${NOTICE_HEADER}\n${list.map((n) => `- ${n}`).join('\n')}`;
 }

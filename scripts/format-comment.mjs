@@ -7,8 +7,10 @@
 // 无论 AI 是否自带编号/换行，都强制按模板排版。
 export const FORMAT_COMMENT_DIM_RE = '[^\\s：。，,；;！?！？…（）()]{2,30}（\\d{1,3}%，独立得分：\\d{1,3}分）\\s*[:：]';
 // 模板里要独占一行的子项关键词：计分三行 + 学历核查四行（「学历硬性门槛扣分」在提示词的输出模板里）
-// 下面两个正则共用这一份，新增子项只改这里
-const SUBLINE_KW = '加权基础分计算|其他扣分合计|匹配度评分|第一学历|最高学历|学历硬性门槛扣分|合规性结论';
+// 下面两个正则共用这一份，新增子项只改这里。学历四行单独成串：它们还兼任第 4 节的「内容形状」
+// （insertSectionHead 认它补回漏写的小节标题），拆开才能两处共用一份
+const EDU_SUBLINE_KW = '第一学历|最高学历|学历硬性门槛扣分|合规性结论';
+const SUBLINE_KW = '加权基础分计算|其他扣分合计|匹配度评分|' + EDU_SUBLINE_KW;
 
 // 五个板块的标题字面量：**评语结构的唯一定义**。
 // 解析侧（electron/score-comment.mjs 按标题切节算分、查缺节）也从这里 import，
@@ -23,6 +25,34 @@ export const SECTION_LABELS = {
 // 任职资格逐项结论的三个词：解析侧（score-comment.mjs 按它切逐项行）与界面加粗共用，
 // 改提示词措辞只改这里——否则会出现「解析还在认这个词、加粗却不认」的静默错位
 export const VERDICT_LABELS = { pass: '达标', fail: '不达标', pending: '待核实' };
+
+// 评语末尾「系统核验」段的标题：score-comment.mjs 用它追加/重写这一段，本模块用它把这一段
+// 排除在「小节标题是否已存在」的判断之外（这段会引用「任职资格的匹配情况」等小节名）
+export const NOTICE_HEADER = '【系统核验】';
+
+/** 正文与【系统核验】段的分界；没有这一段返回 -1（追加核验、插系统说明、判缺节三处共用） */
+export function noticesSplitAt(text) {
+  return String(text || '').indexOf('\n\n' + NOTICE_HEADER);
+}
+
+/** 同上但直接切开：[正文, 【系统核验】段（含它前面的空行）；没有这一段时为 ''] */
+export function splitNotices(text) {
+  const s = String(text || '');
+  const at = noticesSplitAt(s);
+  return at === -1 ? [s, ''] : [s.slice(0, at), s.slice(at)];
+}
+
+/**
+ * 正文里缺哪几节（第 3/4/5 节，返回标题数组；一节不缺返回空数组）。
+ * 只看【系统核验】段之前的正文 —— 那一段里点名的正是缺的节名，连它一起判等于永远不缺。
+ * 收尾的「评语不完整」提示与评分时的补全重试共用这一份判定，别两处各写一遍。
+ * 传进来的应是已排版（formatComment）过的评语：缺小节标题但内容齐全的，排完版就不算缺。
+ */
+export function missingSectionLabels(comment) {
+  const [body] = splitNotices(comment);
+  return [SECTION_LABELS.qualifications, SECTION_LABELS.education, SECTION_LABELS.conclusion]
+    .filter((k) => !body.includes(k));
+}
 
 // 有固定编号的四个板块（维度那个由维度行反推位置，不走这里）：[标题, 编号]
 const BLOCKS = [
@@ -64,9 +94,33 @@ const WRAPPED_TITLE_RE = new RegExp(
 // 正文里顺口提到别的节名（如逐项行写「详见学历硬性门槛核查」）不能算换了节
 const SECTION_TITLE_LINE_RE = new RegExp('^\\s*(?:\\d+[.、．]\\s*)?(' + ALL_TITLE_SRC + ')\\s*[:：]?');
 
+// 第 3 / 4 节的**内容形状**：模型漏写小节标题时靠它把段落认回来（标题编号由第 1 步统一加）。
+// 第 3 节的形状就是逐项行首的档位标签，解析侧（score-comment.mjs 剥出 tier）也认这一份，
+// 提示词改标签写法只改这里
+export const TIER_MARK_SRC = '[\\[【]\\s*(硬性|优先)\\s*[\\]】]';
+const QUAL_ITEM_LINE_RE = new RegExp('^' + TIER_MARK_SRC);
+const EDU_SUBLINE_LINE_RE = new RegExp('^(?:' + EDU_SUBLINE_KW + ')\\s*[:：]');
+
+/**
+ * 有内容、没标题 → 在该节第一条内容行前补一行标题。已有标题、或认不出这一节的内容时原样返回（幂等）。
+ * 用途见 formatComment 第 0.2 步：标题缺了，逐项行会并进第 2 节，读起来像整节丢了。
+ */
+function insertSectionHead(text, label, lineRe) {
+  if (text.includes(label)) return text;
+  const lines = text.split('\n');
+  const at = lines.findIndex((l) => lineRe.test(l.trim()));
+  if (at === -1) return text;
+  lines.splice(at, 0, `${label}：`);
+  return lines.join('\n');
+}
+
 export function formatComment(text) {
   if (!text) return '';
-  let t = String(text);
+  // 【系统核验】段是系统追加的固定结构，整段不参与下面的编号/换行重排：提示里会引用小节名
+  // （如「缺少「任职资格的匹配情况」」），交给第 1 步会被当成板块标题加上编号、拆成带换行的
+  // 残文（用户看到的就是「缺少「⏎⏎3.任职资格的匹配情况：」」）。切出来，正文排完再原样接回去
+  const [src, notice] = splitNotices(text);
+  let t = src;
 
   // 0) 剥掉模型自加的方括号壳（见上），再做编号/标题归一
   t = t.replace(EMPTY_BRACKET_RE, '');
@@ -75,6 +129,13 @@ export function formatComment(text) {
   // 0.1) 去掉 AI 可能自带的板块编号/标题，避免重复（如 "1.首句定性"、"2.3个评估维度的匹配情况："）
   t = t.replace(DIM_HEAD_RE, '');
   t = t.replace(BLOCK_NUMBER_HEAD_RE, '');
+
+  // 0.2) 模型只写内容、漏写第 3/4 节标题时补上（2026-11-02 一批 33 人里 15 人这样：逐项结论、
+  //      学历核查一字不少，就是没有「3.任职资格的匹配情况：」这行，排出来整段并进第 2 节，
+  //      看着像这两节丢了；缺标题也会让 score-comment.mjs 按标题切节时切出 0 条）。
+  //      （【系统核验】段已在函数开头切走，不会把它引用的节名当成「标题已存在」）
+  t = insertSectionHead(t, SECTION_LABELS.qualifications, QUAL_ITEM_LINE_RE);
+  t = insertSectionHead(t, SECTION_LABELS.education, EDU_SUBLINE_LINE_RE);
 
   // 0.5) 首句定性标签兜底：模板里是「1. 首句定性：」+ 一句话，但模型常直接写总结句、漏掉标签
   //      （实测 deepseek 系 2026-10-30 那批：「整体匹配度中等偏上：…」直接起头）。
@@ -114,7 +175,8 @@ export function formatComment(text) {
   // 修复旧数据中误换行的"刚性扣分"（非标题场景，如"刚性扣分。学历..."）
   t = t.replace(/\n刚性扣分(?!说明)/g, '刚性扣分');
   t = t.replace(/^\n+/, '');
-  return t.trim();
+  // 7) 把【系统核验】段原样接回（它自带开头的空行，正文已 trim，直接拼即可）
+  return t.trim() + notice;
 }
 
 // ===== 评语加粗（只给软件界面用：完成页 / 批次详情 / 候选人查询） =====

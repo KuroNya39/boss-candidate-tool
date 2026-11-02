@@ -6,8 +6,8 @@ import { termLog, sleep, UNPACKED_ROOT } from './util.mjs';
 import { apiConfig, OUTPUT_DIR, cancelled } from './state.mjs';
 import { JD_DIR } from './config.mjs';
 import { readRunMeta } from './archive.mjs';
-import { formatComment } from '../scripts/format-comment.mjs';
-import { parseJdRequirements, JD_SCREENING_HEADING, NO_RESUME_COMMENT, scoreFailedComment } from './score-comment.mjs';
+import { formatComment, missingSectionLabels } from '../scripts/format-comment.mjs';
+import { parseJdRequirements, JD_SCREENING_HEADING, NO_RESUME_COMMENT, scoreFailedComment, isNonAiComment } from './score-comment.mjs';
 
 // ===== AI 评分常量（user 确认的参数：并发批数从 6 降到 5 更保守防限流；默认开启并行，不加开关） =====
 export const BATCH_SIZE = 3;              // 每批候选人数（保持 3 人一批，用户决定）
@@ -465,6 +465,42 @@ export async function scoreOneBatch(batch, run) {
         c.jobRelevanceComment = scoreFailedComment(lastError.message);
       }
       termLog(`  ✗ 批次评分失败： ${lastError.message}`, 'stderr');
+    }
+  }
+
+  // 评语缺节补救：模型拿到结构化字段后，常把第 3/4 节当成字段、正文只写到「匹配度评分」就收尾
+  // （2026-11-02 一批 200 人里 18 人）。分数不受影响（仍按结构化字段算），但评语是给人看的，
+  // 所以挑出来单独重问一次、要求把正文补全；只有补全后确实更完整才替换（别用更差的回答覆盖）。
+  // 失败就把原样留着，收尾会挂「评语不完整」提示交人工复核。
+  const incomplete = batch
+    .map((c) => ({
+      c,
+      missing: c.jobRelevanceComment && !isNonAiComment(c.jobRelevanceComment)
+        ? missingSectionLabels(c.jobRelevanceComment) : [],
+    }))
+    .filter((x) => x.missing.length > 0);
+  if (incomplete.length > 0) {
+    termLog(`  ⚠ ${incomplete.length} 人评语缺节，逐人补全一次`, 'stderr');
+    for (const { c, missing } of incomplete) {
+      if (cancelled) return;
+      const nm = c.basicInfo?.name || c.geekId || '未知';
+      const prompt = run.buildBatchPrompt([c]) +
+        `\n\n上一次的回答里 comment 正文缺少「${missing.join('」「')}」小节。` +
+        `请重新输出这一位候选人：comment 必须按「输出规范」把 1-5 节全部写全（结构化字段只是副本，不能替代正文），其余字段照旧。`;
+      try {
+        const text = await callClaudeAPI(prompt, { signal: run.signal });
+        const r = (parseBatchScoreResponse(text) || [])[0];
+        if (!r || typeof r.score !== 'number') continue;
+        const after = missingSectionLabels(r.comment).length;
+        // 补全只管正文：原结果带结构化字段、这次没带时不能换上去——收尾会从「按字段算」退回
+        // 「按评语解析」，分数可能跟着变。这种情况下宁可留着缺节的评语，让收尾挂核验提示
+        if (after >= missing.length || (c.scoreDetail && !r.detail)) continue;
+        applyResult(c, r);
+        termLog(`  ✓ ${nm}： 评语已补全${after > 0 ? `（仍缺 ${after} 节）` : ''}`);
+      } catch (err) {
+        if (run.signal.aborted) throw err;
+        termLog(`  ⚠ ${nm}： 评语补全失败，保留原评语（${err.message}）`, 'stderr');
+      }
     }
   }
 
