@@ -93,4 +93,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('greet-error', handler);
     return () => ipcRenderer.removeListener('greet-error', handler);
   },
+
+  // 运行中关闭窗口的确认：主进程拦下 close 发请求，渲染进程弹 confirmDialog 后回结果。
+  // 事件本身不带数据，回调不需要转发参数（与上面几条带 data 的监听不同）
+  onCloseConfirmRequest: (callback) => {
+    ipcRenderer.on('close-confirm-request', callback);
+    return () => ipcRenderer.removeListener('close-confirm-request', callback);
+  },
+  confirmClose: (confirmed) => ipcRenderer.send('close-confirm-response', confirmed),
 });

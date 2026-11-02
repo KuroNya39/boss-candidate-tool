@@ -87,6 +87,14 @@ function buildScoringResults(dir) {
   }
 }
 
+// 打开一个目录给用户看：目录不存在 / 资源管理器打不开都如实返回，界面据此提示。
+// 「打开输出目录」与「打开历史批次目录」共用这一份，别各写一遍错误映射
+async function openDirectory(dirPath) {
+  if (!dirPath || !existsSync(dirPath)) return { error: '目录不存在' };
+  const openErr = await shell.openPath(dirPath);
+  return openErr ? { error: openErr } : { ok: true };
+}
+
 // ===== IPC 注册 =====
 function registerIPC() {
   ipcMain.handle('start-extraction', (_event, opts) => {
@@ -180,10 +188,8 @@ function registerIPC() {
   // 完成页结果可视化：读取最近一次评分结果，返回统计与候选人明细
   ipcMain.handle('get-scoring-results', () => buildScoringResults(OUTPUT_DIR));
 
-  ipcMain.handle('open-output', async () => {
-    if (existsSync(OUTPUT_DIR)) await shell.openPath(OUTPUT_DIR);
-    return { ok: true };
-  });
+  // 目录可能被用户手动删掉 / 移走：别静默返回 ok，界面要据此提示
+  ipcMain.handle('open-output', () => openDirectory(OUTPUT_DIR));
 
   ipcMain.handle('get-output-dir', () => OUTPUT_DIR);
 
@@ -412,11 +418,7 @@ function registerIPC() {
   });
 
   // v1.5.0: 打开历史归档目录
-  ipcMain.handle('open-history', async (_event, dirPath) => {
-    if (!dirPath || !existsSync(dirPath)) return { error: '目录不存在' };
-    await shell.openPath(dirPath);
-    return { ok: true };
-  });
+  ipcMain.handle('open-history', (_event, dirPath) => openDirectory(dirPath));
 
   // v1.20.0: 历史批次详情 —— 点历史记录某批次，看该批次的评分一览与候选人（与完成页同源同排版）。
   // 只读，不切换当前输出目录、不动任何文件。

@@ -179,9 +179,10 @@ btnRetry.addEventListener('click', async () => {
   await startPipeline({ count, extractAll, source: selectedSource, job: selectedJob, enableCopy: enableCopyCheck.checked });
 });
 
-// 打开目录
+// 打开目录（目录被删 / 资源管理器打不开时给提示，别让点了像没点）
 btnOpenDir.addEventListener('click', async () => {
-  await window.electronAPI.openOutputDir();
+  const res = await window.electronAPI.openOutputDir();
+  if (res?.error) showToast('打开输出目录失败：' + res.error, 'error', 4000);
 });
 
 // Chrome 重连

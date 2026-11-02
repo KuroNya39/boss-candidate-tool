@@ -235,7 +235,8 @@ function renderHistoryItem(item, index) {
 
   // 文件夹墨迹只占 16/24，要 20px 才和垃圾桶 18px 的 13.5px 墨迹等高
   actions.appendChild(makeIconBtn('icon-folder', '打开目录', 20, async () => {
-    await window.electronAPI.openHistory(item.path);
+    const res = await window.electronAPI.openHistory(item.path);
+    if (res?.error) showToast('打开历史目录失败：' + res.error, 'error', 4000);
   }));
 
   // 评分：该批次有简历数据就能评（完整提取 / 提了一半 / 已评分均可，换模型后重评）。

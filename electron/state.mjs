@@ -72,6 +72,13 @@ export function isRunActive() {
   return runActive;
 }
 
+// 「现在有活没干完」的完整口径 = 整轮流水线 或 任何在跑的子进程（提取 / 导出 / 打招呼）。
+// 只判子进程会漏掉主进程内的评分阶段；只判 runActive 会漏掉打招呼（它不经过 runPipeline）。
+// 关窗口确认之类的「别把用户的活掐了」的判断一律用它，别在调用处自己拼并集
+export function isBusy() {
+  return isRunActive() || hasRunningTask();
+}
+
 // 向当前子进程 stdin 写一行控制信号（CANCEL/PAUSE/RESUME）。Windows 下 SIGTERM 不可靠，
 // 靠 stdin 通知子进程自行清理。写失败时挂个空 error 监听吞掉 EPIPE，不弹未捕获错误。
 export function sendStdinSignal(signal) {

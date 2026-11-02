@@ -261,9 +261,9 @@ document.addEventListener('keydown', (e) => {
   // 通用确认弹窗（删除/清空等）自带 Esc 处理，且它总是叠在别的弹窗之上。
   // 这里必须让路：全局链注册得更早、会先跑，不放行就会一次 Esc 把确认框和它底下的
   // 弹窗（如历史记录）一起关掉 —— 用户只想取消确认框，结果连历史记录也没了
-  if (confirmOverlay && confirmOverlay.style.display === 'flex') return;
+  if (isConfirmDialogOpen()) return;
   if (menuOpen) closeMenu({ restoreFocus: true });
-  else if (jobDialogOverlay.style.display === 'flex') closeJobDialogAll();
+  else if (jobDialogOverlay.style.display === 'flex') closeJobDialog();
   else if (jobPickerOverlay.style.display === 'flex') hideJobPicker();
   else if (settingsOverlay.style.display === 'flex') closeSettingsDialog();
   // 批次详情是从历史记录互切出来的：互切动画期间两者 display 都是 flex，
@@ -478,6 +478,7 @@ function showAddJobDialog() {
   // 名称框不再是只读态（v1.10.2 起可改），原先这里复位 readOnly / input-readonly 的两行已删
   dialogJobDesc.value = '';
   document.getElementById('job-dialog-title').textContent = '添加新岗位';
+  captureJobSnapshot();
   openDialog(jobDialogOverlay, dialogJobName);
 }
 
@@ -485,18 +486,26 @@ async function showEditJobDialog(jobName) {
   editJobName = jobName;
   // 岗位描述是本地文件读取（很快，几毫秒），先读好再弹窗，弹出来就是填好的，
   // 不会出现「先弹个空框、内容再突然塞进去」的突兀感
-  let desc = '';
+  let desc;
+  let readErr = null;
   try {
     desc = (await window.electronAPI.getRecommendJobDesc(jobName)) || '';
-  } catch {
-    desc = '';
+  } catch (err) {
+    readErr = err;
   }
   // 读取的这几毫秒里如果用户切走了（点了别的岗位编辑 / 关了弹窗），就不再打开旧岗位的弹窗
   if (editJobName !== jobName) return;
+  // 读不出原描述就**不开编辑器**：打开一个空框让用户保存，会把原岗位描述整份覆盖掉
+  if (readErr) {
+    editJobName = '';
+    showToast('读取岗位描述失败，本次编辑已取消：' + (readErr?.message || readErr), 'error', 5000);
+    return;
+  }
   // v1.10.2：岗位名称与描述一样可改（改名 = 重命名岗位文件，见保存分支）；名称框不再只读
   dialogJobName.value = jobName;
   dialogJobDesc.value = desc;
   document.getElementById('job-dialog-title').textContent = '编辑岗位';
+  captureJobSnapshot();
   openDialog(jobDialogOverlay, dialogJobDesc);
 }
 
@@ -561,17 +570,37 @@ function swapJobDialogs(openFn) {
   swapDialogs(fromOpen, fromOpen === jobPickerOverlay ? jobDialogOverlay : jobPickerOverlay, openFn);
 }
 
-// 从添加/编辑弹窗回到「目标岗位」列表（取消 / 保存后）：同一帧内互切，不闪不动
-function hideAddJobDialog() {
-  editJobName = '';
-  swapJobDialogs(showJobPicker);
+// 打开弹窗时记一份原始内容：关闭 / 取消时若改过就问一句，别让手滑丢掉刚粘进来的岗位描述。
+// 快照取的是**打开那一刻**的输入框值（添加模式为空、编辑模式为已读好的描述），
+// 只在两个打开函数里录、由 closeJobDialog 统一清
+let jobDialogSnapshot = null;
+function captureJobSnapshot() {
+  jobDialogSnapshot = [dialogJobName.value, dialogJobDesc.value];
+}
+function jobDialogDirty() {
+  return dialogJobName.value !== jobDialogSnapshot[0] || dialogJobDesc.value !== jobDialogSnapshot[1];
+}
+async function confirmDiscardJobEdits() {
+  if (!jobDialogDirty()) return true;
+  return confirmDialog({
+    title: '放弃未保存的修改？',
+    message: '岗位名称 / 岗位描述还有未保存的修改，关闭后会丢失。',
+    okText: '放弃',
+    cancelText: '取消',
+    danger: true,
+  });
 }
 
-// 添加/编辑岗位弹窗点遮罩空白 / 按 Esc：直接关闭所有弹窗回到主界面，不退回「目标岗位」列表。
-// 与「取消」按钮（返回目标岗位列表继续挑）语义区分——点空白 = 我不要这个弹窗了，全关掉。
-function closeJobDialogAll() {
+// 关闭添加/编辑弹窗的**唯一出口**（Esc / 点遮罩 / 取消 / 保存成功都走它）。
+// 改了内容先问一句；ask=false 只给「保存成功」用（内容已落盘，不用再问）。
+// toPicker=true 回到「目标岗位」列表继续挑（取消 / 保存后，同一帧互切不闪不动）；
+// false 则整屏关掉回主界面（Esc / 点空白 = 我不要这个弹窗了）
+async function closeJobDialog({ toPicker = false, ask = true } = {}) {
+  if (ask && !(await confirmDiscardJobEdits())) return;
+  jobDialogSnapshot = null;
   editJobName = '';
-  closeDialog(jobDialogOverlay, { animate: true });
+  if (toPicker) swapJobDialogs(showJobPicker);
+  else closeDialog(jobDialogOverlay, { animate: true });
 }
 
 // 删除岗位
@@ -587,18 +616,20 @@ async function deleteJob(jobName) {
     await window.electronAPI.deleteRecommendJob(jobName);
     if (selectedJob === jobName) selectedJob = '';
     await loadJobList();
+    showToast(`已删除岗位「${jobName}」`, 'success', 2000);
   } catch (err) {
     showToast('删除失败：' + err.message, 'error');
   }
 }
 
-btnDialogCancel.addEventListener('click', hideAddJobDialog);
+// 「取消」= 回目标岗位列表继续挑（同样会丢内容，closeJobDialog 里会先问）
+btnDialogCancel.addEventListener('click', () => closeJobDialog({ toPicker: true }));
 // 岗位描述文本域：右下角自定义拖拽手柄，替代原生 resize 手柄
 const dialogResizeHandle = document.getElementById('dialog-resize-handle');
-// 点遮罩空白 = 直接关掉所有弹窗回主界面（不退回目标岗位列表，见 closeJobDialogAll）。
+// 点遮罩空白 = 直接关掉所有弹窗回主界面（不退回目标岗位列表，见 closeJobDialog）。
 // 拖右下角手柄调高度不会误关：手柄起手就 stopPropagation，bindBackdropDismiss 收不到
 // 「按在遮罩上」那一步，无论松手落在哪都不会判成点了空白（原先靠 isDialogResizing 标志挡，已被这层覆盖）
-bindBackdropDismiss(jobDialogOverlay, closeJobDialogAll);
+bindBackdropDismiss(jobDialogOverlay, closeJobDialog);
 if (dialogResizeHandle) {
   dialogResizeHandle.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return; // 只响应鼠标左键
@@ -643,8 +674,8 @@ btnDialogSave.addEventListener('click', async () => {
   // 保存要走三次 IPC（重命名 / 写描述 / 重载列表），慢盘上看得出来；期间转圈 + 禁点，
   // 防止连点保存写出两份（§8 loading = 转圈 + 真禁用，文字不变）。finally 保证异常路径也还原
   // 保存要跑三次 await（重命名 / 写描述 / 重载列表），期间用户可能按 Esc 或点遮罩把弹窗关掉
-  // （closeJobDialogAll 会把 editJobName 清空）。这些 await 回来时必须先确认弹窗还在：
-  // 否则 hideAddJobDialog 会顺着互切把刚被关掉的「目标岗位」列表又弹回来，报错文案也会因为
+  // （closeJobDialog 会把 editJobName 清空）。这些 await 回来时必须先确认弹窗还在：
+  // 否则再走一次 closeJobDialog 会把刚被关掉的「目标岗位」列表又弹回来，报错文案也会因为
   // editJobName 已经被清空而把「编辑失败」说成「添加失败」。起手把模式记在局部变量里
   const editing = editJobName;
   const stillOpen = () => jobDialogOverlay.style.display === 'flex';
@@ -664,7 +695,9 @@ btnDialogSave.addEventListener('click', async () => {
       selectedJob = jobName;
     }
     await loadJobList();
-    if (stillOpen()) hideAddJobDialog();
+    // 内容已落盘，ask:false 不再问「放弃修改」
+    if (stillOpen()) closeJobDialog({ toPicker: true, ask: false });
+    showToast('岗位已保存', 'success', 2000);
   } catch (err) {
     showToast((editing ? '编辑' : '添加') + '失败：' + err.message, 'error');
   } finally {

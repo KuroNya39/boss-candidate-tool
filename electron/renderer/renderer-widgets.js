@@ -573,6 +573,11 @@ function bindDialogWheelGuard(overlay, scrollEl) {
 }
 
 // ===== 通用确认弹窗（替代原生 confirm/alert）=====
+// 确认弹窗此刻是否正开着：全局 Escape 链（要先让路）与「运行中关窗」请求（不叠第二个）共用这一条判断
+function isConfirmDialogOpen() {
+  const overlay = document.getElementById('confirm-overlay');
+  return !!overlay && overlay.style.display === 'flex';
+}
 // 返回 Promise<boolean>。danger 时确定按钮变红色；showCancel:false 时只保留确定按钮。
 // swapTo（可选，目前只有「请选择目标岗位」在用）：形如 { overlay, open }，
 // 点「确定」后本弹窗不整屏淡出，而是与那个弹窗做交叉过渡（见 renderer-dialogs.js 的 swapDialogs）——

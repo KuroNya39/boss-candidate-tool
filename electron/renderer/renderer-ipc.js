@@ -122,6 +122,25 @@ function setupListeners() {
     })
   );
 
+  // 运行中关闭窗口：主进程拦下 close 后发来的请求，用与删除 / 清空同一套 confirmDialog 询问
+  registerCleanup(
+    window.electronAPI.onCloseConfirmRequest(async () => {
+      // 已有确认框开着（比如正在确认清空）：不叠第二个，本次关闭作废，用户关掉后可以再点一次
+      if (isConfirmDialogOpen()) {
+        window.electronAPI.confirmClose(false);
+        return;
+      }
+      const ok = await confirmDialog({
+        title: '任务正在运行',
+        message: '提取 / 评分 / 导出 / 打招呼尚未结束，现在退出会中断任务。',
+        okText: '退出',
+        cancelText: '取消',
+        danger: true,
+      });
+      window.electronAPI.confirmClose(ok);
+    })
+  );
+
   registerCleanup(
     window.electronAPI.onGreetError((data) => {
       greetProgress.style.display = 'none';

@@ -1,7 +1,8 @@
 // electron/window.mjs — 主窗口创建、等比缩放锁定、6 个进度推送（renderer 进度全部经这里发出）。
-import { BrowserWindow, screen } from 'electron';
+import { BrowserWindow, ipcMain, screen } from 'electron';
 import { resolve } from 'node:path';
 import { ELECTRON_DIR, UNPACKED_ROOT } from './util.mjs';
+import { isBusy } from './state.mjs';
 
 let mainWindow = null;
 
@@ -70,6 +71,31 @@ export function createWindow() {
   });
   mainWindow.setMenu(null);
   mainWindow.webContents.on('did-finish-load', () => fitZoom());
+
+  // 运行中关窗口先确认：退出会直接杀掉子进程（见 main.mjs 的 window-all-closed）。
+  // 提取 / 导出的进度已落盘，历史记录里能继续；**打招呼没有断点续跑**，退出就真断了。
+  // 确认框走渲染进程的 confirmDialog（与删除 / 清空同一套设计系统组件）：这里只拦下 close、
+  // 发请求过去，等用户选完、渲染进程回一句 close-confirm-response 才真正放行。
+  // 「在不在跑」用 state.mjs 的 isBusy()（流水线 + 子进程的并集，评分阶段没有子进程也不会漏）
+  let closePromptPending = false;
+  mainWindow.on('close', (e) => {
+    if (!isBusy()) return;
+    e.preventDefault();
+    if (closePromptPending) return; // 已经在问了，别叠第二个确认框
+    // 渲染进程已不可用（崩溃 / 销毁）时没人能弹框，只能直接放行
+    if (mainWindow.webContents.isDestroyed()) { mainWindow.destroy(); return; }
+    closePromptPending = true;
+    mainWindow.webContents.send('close-confirm-request');
+  });
+  const onCloseResponse = (_event, confirmed) => {
+    closePromptPending = false;
+    // 走 destroy() 而非 close()：destroy 不再触发上面的 close handler，省掉一个「已确认」标志；
+    // closed 事件照常发，window-all-closed 照常做进程清理
+    if (confirmed && mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy();
+  };
+  ipcMain.on('close-confirm-response', onCloseResponse);
+  // 窗口重建时别留下旧监听（macOS 的 activate 会再 createWindow 一次）
+  mainWindow.on('closed', () => ipcMain.removeListener('close-confirm-response', onCloseResponse));
 
   // 拖动改窗口大小时，系统会先按"下一次有效尺寸"分步触发 resize；
   // 如果每一条 resize 都立即 fitZoom，偶发会在某个中间帧读到临时的小内容区

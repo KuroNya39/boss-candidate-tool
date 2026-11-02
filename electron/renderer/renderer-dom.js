@@ -37,9 +37,6 @@ const menuPanel = document.getElementById('menu-panel');
 const btnOpenSettings = document.getElementById('btn-open-settings');
 const settingsOverlay = document.getElementById('settings-overlay');
 const btnSettingsClose = document.getElementById('btn-settings-close');
-// 通用确认弹窗（renderer-widgets.js 的 confirmDialog 自己按需取用；这里只为全局 Esc 链
-// 判断「最上层是不是确认框」——是就让路，免得一次 Esc 连底下的弹窗一起关掉）
-const confirmOverlay = document.getElementById('confirm-overlay');
 const btnHistory = document.getElementById('btn-history');
 const historyOverlay = document.getElementById('history-overlay');
 const historyDrawer = document.getElementById('history-drawer');
