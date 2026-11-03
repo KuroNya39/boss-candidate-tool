@@ -157,6 +157,11 @@
 }
 
 /* 通用确认弹窗（替代原生 confirm/alert） */
+/* 确认框要压过所有普通弹窗（含自带 +1 的岗位弹窗与互切层），故用独立层级 --z-confirm；
+   规则见 docs/design-system.md §6「弹窗分层」 */
+#confirm-overlay {
+  z-index: var(--z-confirm);
+}
 .confirm-box {
   width: 424px;
 }

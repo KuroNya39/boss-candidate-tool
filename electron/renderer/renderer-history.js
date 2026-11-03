@@ -56,7 +56,7 @@ async function loadHistory() {
   }
   const items = data?.list || [];
   if (items.length === 0) {
-    showHistoryEmpty('暂无历史记录。');
+    showHistoryEmpty('暂无历史记录');
     return;
   }
   // **数据到手才动 DOM**：原来是一进来就清空列表再等 IPC，中间那 100 多毫秒弹窗是空的，
@@ -279,7 +279,7 @@ btnHistoryClearAll.addEventListener('click', async () => {
   const ok = await confirmDialog({
     title: '清空历史记录？',
     message: '将删除本地保存的全部历史记录，删除后不可恢复。',
-    okText: '确定',
+    okText: '清空',
     danger: true,
   });
   if (!ok) return;
@@ -287,7 +287,7 @@ btnHistoryClearAll.addEventListener('click', async () => {
   try {
     const result = await window.electronAPI.clearHistory();
     if (result.error) {
-      showToast('清理失败：' + result.error, 'error');
+      showToast('清空失败：' + result.error, 'error');
     } else {
       let parts = [];
       if (result.deleted > 0) parts.push('已删除 ' + result.deleted + ' 条历史记录');
@@ -299,7 +299,7 @@ btnHistoryClearAll.addEventListener('click', async () => {
       showToast(parts.join('，'), toastType, 4000);
     }
   } catch (err) {
-    showToast('清理失败：' + err.message, 'error');
+    showToast('清空失败：' + err.message, 'error');
   } finally {
     setLoading(btnHistoryClearAll, false);
     loadHistory();

@@ -28,7 +28,7 @@ btnStartGreet.addEventListener('click', async () => {
   greetProgress.style.display = '';
   greetProgressBar.style.width = '0%';
   if (greetProgressBar.setAttribute) greetProgressBar.setAttribute('aria-valuenow', '0');
-  greetProgressText.textContent = isRetry ? '正在重试失败的人…' : '正在打招呼…';
+  greetProgressText.textContent = isRetry ? '正在重试失败的候选人…' : '正在打招呼…';
   const res = await window.electronAPI.startGreeting({ level, source, retry: isRetry });
   // 已有任务运行中：主进程拒绝，恢复打招呼面板，避免卡在「正在打招呼」的假进度
   if (res?.error) {

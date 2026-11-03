@@ -172,7 +172,7 @@ async function openBatchDetail(item, openerEl) {
   if (!data || data.error || !data.available) {
     batchDetailBody.style.display = 'none';
     batchDetailEmpty.style.display = '';
-    batchDetailEmpty.textContent = data?.error || '该批次没有评分结果。';
+    batchDetailEmpty.textContent = data?.error || '该批次没有评分结果';
   } else {
     batchDetailEmpty.style.display = 'none';
     batchDetailBody.style.display = '';

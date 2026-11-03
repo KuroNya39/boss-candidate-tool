@@ -116,7 +116,7 @@ function setupListeners() {
         `成功打招呼 ${data.success} 人` +
         (data.already > 0 ? `，${data.already} 人已打过招呼` : '') +
         (data.notFound > 0 ? `，${data.notFound} 人不在当前列表中` : '') +
-        (hasRetry ? `，${data.retryable} 人未成功，可点上方「重试」再试` : '') +
+        (hasRetry ? `，${data.retryable} 人未成功，可点击上方「重试」` : '') +
         (data.skipped > 0 ? `，${data.skipped} 人当前无打招呼按钮，未打招呼` : '');
       autoGreetEnabled = false;
     })
@@ -131,8 +131,8 @@ function setupListeners() {
         return;
       }
       const ok = await confirmDialog({
-        title: '任务正在运行',
-        message: '提取 / 评分 / 导出 / 打招呼尚未结束，现在退出会中断任务。',
+        title: '退出软件？',
+        message: '当前任务尚未结束，现在退出会中断任务。',
         okText: '退出',
         cancelText: '取消',
         danger: true,

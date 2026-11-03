@@ -583,8 +583,8 @@ function jobDialogDirty() {
 async function confirmDiscardJobEdits() {
   if (!jobDialogDirty()) return true;
   return confirmDialog({
-    title: '放弃未保存的修改？',
-    message: '岗位名称 / 岗位描述还有未保存的修改，关闭后会丢失。',
+    title: '放弃未保存的更改？',
+    message: '有未保存的更改，关闭后会丢失。',
     okText: '放弃',
     cancelText: '取消',
     danger: true,

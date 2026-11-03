@@ -39,8 +39,7 @@ btnStart.addEventListener('click', async () => {
     if (st && !st.ok) {
       await confirmDialog({
         title: '未找到 Chrome',
-        message: st.message || '没有在常见位置找到 Chrome。请正常打开 Chrome，开启远程调试后使用。',
-        okText: '知道了',
+        message: st.message || '没有在常见位置找到 Chrome。请先打开 Chrome，开启远程调试后使用。',
         showCancel: false,
       });
       return;
@@ -57,7 +56,6 @@ btnStart.addEventListener('click', async () => {
       await confirmDialog({
         title: 'Chrome 未连接',
         message: '请检查软件连接状态，并允许 Chrome 远程调试。',
-        okText: '知道了',
         showCancel: false,
       });
       return;
@@ -106,7 +104,6 @@ btnSkipExtract.addEventListener('click', async () => {
   const ok = await confirmDialog({
     title: '跳过提取？',
     message: '确定跳过剩余候选人，用已提取的数据开始 AI 评分吗？',
-    okText: '跳过并评分',
   });
   if (!ok) return;
   setLoading(btnSkipExtract, true);
@@ -126,7 +123,7 @@ btnPauseExtract.addEventListener('click', async () => {
     // 当前已暂停 → 点「继续」恢复提取
     const res = await window.electronAPI.resumeCurrentExtraction();
     if (!res?.ok) {
-      showToast('提取进程已结束或不在提取中，无法继续', 'warning', 3000);
+      showToast('提取进程已结束或不在提取进程中，无法继续', 'warning', 3000);
       return;
     }
     extractPaused = false;

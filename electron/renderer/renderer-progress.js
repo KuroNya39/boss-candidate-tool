@@ -99,7 +99,7 @@ function handleProgress(data) {
     }
   }
 
-  // 记录各步骤状态，供「并行：步骤1 + 步骤2」指示文案判断。
+  // 记录各步骤状态，供「并行：步骤 1 + 步骤 2」指示文案判断。
   // effStatus 已把「步骤2 等待候选人」折算成 waiting（不算 running，不触发「并行」）
   stepStates[step] = effStatus;
 
@@ -116,7 +116,7 @@ function handleProgress(data) {
       // v1.5.12 并行：只有步骤2 真正开始评分（running）时才显示「并行」；
       // 步骤2 还停在等待（waiting）时仍按进行中的步骤1 显示「步骤 1/3」
       if (stepStates[1] === 'running' && stepStates[2] === 'running') {
-        stepInd.textContent = '并行：步骤1 + 步骤2';
+        stepInd.textContent = '并行：步骤 1 + 步骤 2';
       } else if (stepStates[1] === 'running') {
         stepInd.textContent = '步骤 1/3';
       } else if (stepStates[2] === 'running') {
