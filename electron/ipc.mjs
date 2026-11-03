@@ -4,7 +4,7 @@ import { resolve, dirname, basename } from 'node:path';
 import { mkdirSync, existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { TIER_THRESHOLDS } from '../scripts/score-tiers.mjs';
 import { summarizeScoredCandidate } from '../scripts/scored-candidate.mjs';
-import { commentToHtml } from '../scripts/format-comment.mjs';
+import { commentToHtml, formatComment } from '../scripts/format-comment.mjs';
 import { termLog, sleep } from './util.mjs';
 import { pinyinSearchText } from './pinyin.mjs';
 import {
@@ -44,8 +44,10 @@ const EDIT_ACTIONS = new Set(['cut', 'copy', 'paste', 'delete', 'selectAll']);
 // 展示行：评语换成加粗版 HTML（renderer 用 innerHTML 渲染）。
 // 纯文本 comment 不再随行过 IPC —— 评语很长，候选人查询一次可能回上千行，两份内容白传一遍。
 // 加粗规则只有 scripts/format-comment.mjs 一份，别在渲染进程另写；入库的仍是纯文本。
+// 展示时现排一遍：formatComment 幂等，历史存档里的旧格式（候选人查询的 jsonl 写入时就存了排版后的文本）
+// 在这里一并修好，不用回头改存档
 function toDisplayRow({ comment, ...row }) {
-  return { ...row, commentHtml: commentToHtml(comment) };
+  return { ...row, commentHtml: commentToHtml(formatComment(comment)) };
 }
 
 // 读某个目录（当前输出目录 / 历史批次目录）下的 scored-candidates.json，

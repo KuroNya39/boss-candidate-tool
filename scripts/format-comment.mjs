@@ -103,6 +103,9 @@ const DIM_BLOCK_HEAD_RE = new RegExp('(\\n+)(?=' + FORMAT_COMMENT_DIM_RE + ')');
 // （2026-10-30 一批 45 人里 3 人这样）。这些括号不承载任何信息，只剥「空的一对」与「恰好包住板块标题的那对」，
 // 正文里其他方括号一概不碰——行首的「[硬性]」/「[优先]」是算分要用的档位标签，更不能动。
 const EMPTY_BRACKET_RE = /【\s*】/g;
+// 模型偶尔把下一行开头的英文词漏在上一节末尾（实测只有 Linux 一例：维度名以它开头，维度行里反而少了它），
+// 单独占一行或缀在句号后。只认纯字母单词——带数字或符号的（CET-6、K8s）可能是正文，不动
+const STRAY_WORD_RE = /(^|[。；])[ \t]*[A-Za-z]{2,}[ \t]*$/gm;
 const WRAPPED_TITLE_RE = new RegExp(
   '【\\s*((?:\\d+[.、．]\\s*)?(?:' + ALL_TITLE_SRC + ')\\s*[:：]?)\\s*】',
   'g',
@@ -139,8 +142,10 @@ export function formatComment(text) {
   const [src, notice] = splitNotices(text);
   let t = src;
 
-  // 0) 剥掉模型自加的方括号壳（见上），再做编号/标题归一
+  // 0) 剥掉模型自加的方括号壳（见上）与节间多吐的英文残片，再做编号/标题归一。
+  //    残片必须排在 0.5 补「首句定性」标签之前：它若正好是第一行，补完标签就成了「首句定性：Linux」
   t = t.replace(EMPTY_BRACKET_RE, '');
+  t = t.replace(STRAY_WORD_RE, '$1');
   t = t.replace(WRAPPED_TITLE_RE, '$1');
 
   // 0.1) 去掉 AI 可能自带的板块编号/标题，避免重复（如 "1.首句定性"、"2.3个评估维度的匹配情况："）
