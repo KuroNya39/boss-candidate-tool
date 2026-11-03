@@ -45,7 +45,8 @@ function removeFocusLayer(overlay) {
 // 确认弹窗是直接改 display 打开的旁路，最记不住这类规矩——收进这里，调用方谁都不用再管。
 function showOverlay(overlay) {
   overlay.removeAttribute('inert');
-  overlay.classList.remove('dialog-overlay--closing'); // 正在淡出时又被重新打开，则取消关闭
+  // 正在淡出 / 正在互切退场时又被重新打开：两者都要撤掉，否则面板一打开就停在淡出后的样子
+  overlay.classList.remove('dialog-overlay--closing', 'dialog-overlay--swap-out');
   overlay.style.display = 'flex';
 }
 function hideOverlay(overlay) {
@@ -53,12 +54,23 @@ function hideOverlay(overlay) {
   overlay.style.display = 'none';
 }
 
+// 互切用的三个生命周期类：入场 --swap-in、浮在旧卡上入场 --swap-over、退场 --swap-out。
+// 挂的地方散在 openDialog / swapDialogs，摘的地方收在这里，免得加一个新类要挨个改
+const SWAP_CLASSES = ['dialog-overlay--swap-in', 'dialog-overlay--swap-over', 'dialog-overlay--swap-out'];
+function clearSwapClasses(overlay) {
+  overlay.classList.remove(...SWAP_CLASSES);
+}
+// 正在互切退场：这期间 display 仍是 flex，但这一层已经不算「开着」（关层时判重用）
+function isSwappingOut(overlay) {
+  return overlay.classList.contains('dialog-overlay--swap-out');
+}
+
 // prevFocusEl：这一层关闭后焦点还到哪里。不传时——普通打开记当前焦点；互切进来沿用旧层记录的落点。
 // 像「历史记录某行 → 批次详情」这种旧层的落点不是发起元素（历史层的落点是 ☰），由调用方显式传行元素
 function openDialog(overlay, firstFocusEl, prevFocusEl) {
-  // 弹窗互切入场（见 swapJobDialogs 与 overlays.css）：
+  // 弹窗互切入场（见 swapDialogs 与 overlays.css）：
   //  data-swap-over —— 交叉过渡：新弹窗以「透明遮罩 + 快速 box-in」浮到旧弹窗之上、与旧卡同屏对淡，
-  //                    收尾帧由 swapJobDialogs 把它的 class 换成常驻态 swap-in
+  //                    收尾帧由 swapDialogs 把它的 class 换成常驻态 swap-in
   //  data-swap-in   —— 瞬切兜底：遮罩瞬间接替（animation:none），只演快速面板入场
   //  一次性 data-swap-* 读后即摘；class 挂到下次关闭/收尾再摘（见 closeDialog / hideSwappedOutOverlay），
   //  避免中途摘掉让基础遮罩淡入在打开后补跑一帧。整屏打开（无 data-swap-*）则确保已摘、遮罩正常淡入
@@ -114,7 +126,7 @@ function closeDialog(overlay, { animate = false } = {}) {
   const layer = removeFocusLayer(overlay);
   if (activeTrap?.overlay === overlay) releaseDialogTrap();
   // 摘掉互切时的一次性入场/退场标记（挂在遮罩未显示时最安全，下次整屏打开遮罩才能正常淡入）
-  overlay.classList.remove('dialog-overlay--swap-in', 'dialog-overlay--swap-out', 'dialog-overlay--swap-over');
+  clearSwapClasses(overlay);
   const restoreFocus = wasTop ? layer : null;
   // 系统开了「减少动态效果」时不做过渡，直接关闭，避免干等动画时长
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -139,7 +151,7 @@ function closeDialog(overlay, { animate = false } = {}) {
 // 不能走 closeDialog——那会拆掉正在为「新弹窗」服务的共享 activeTrap，还会把焦点抢到已隐藏的旧弹窗里。
 // inert 必须一起摘：互切退场时挂上的，留着会让这个弹窗**下次打开时点不动**
 function hideSwappedOutOverlay(overlay) {
-  overlay.classList.remove('dialog-overlay--swap-in', 'dialog-overlay--swap-out', 'dialog-overlay--swap-over');
+  clearSwapClasses(overlay);
   hideOverlay(overlay);
   removeFocusLayer(overlay); // 它已被新弹窗顶替，别在焦点栈里留一层空壳
 }
@@ -274,9 +286,10 @@ document.addEventListener('keydown', (e) => {
 });
 
 // 显示/隐藏目标岗位弹窗
+// 打开时不重画列表：jobList 只有 loadJobList 会改，而它每次改完都已重画过（见 renderer-jobs.js），
+// 这里再画一遍只会把用户滚到的位置弹回顶部
 function showJobPicker() {
   jobSearchClear.classList.toggle('show', !!jobSearchInput.value);
-  renderJobPicker();
   openDialog(jobPickerOverlay, jobSearchInput);
 }
 
@@ -514,8 +527,10 @@ async function showEditJobDialog(jobName) {
 // 遮罩由旧弹窗从头到尾撑住（旧弹窗 swap-out 时遮罩 animation:none 留在原地），新弹窗以透明遮罩
 // 叠在其上（不叠暗、不另起遮罩淡入）。全程没有任何「只剩空遮罩」的帧 → 不再闪。
 // 两段都走 --dur-normal(250ms)，收尾帧(≈280ms)旧弹窗已淡尽，直接隐藏并把遮罩交接给新弹窗。
-// 两处调用者：① 目标岗位 ⇄ 添加/编辑岗位（swapJobDialogs）② 「请选择目标岗位」提示 →「目标岗位」
-// （renderer-widgets.js 的 confirmDialog，调用方传 swapTo 交棒过来）
+// 调用者：目标岗位 ⇄ 添加/编辑岗位、「请选择目标岗位」提示 → 目标岗位（renderer-widgets.js 的
+// confirmDialog 传 swapTo 交棒）、历史记录 ⇄ 批次详情。
+// 谁进谁出由调用方写明，别在这里按 display 猜：互切动画期间两个弹窗 display 都是 flex，
+// 猜出来的方向会把「正在退场的那个」当成起点
 function swapDialogs(fromOpen, toOpen, openFn) {
   // 以下情况不演交叉过渡，同帧瞬切兜底（display 切换与后续打开在同一个 JS 任务内完成，浏览器只画一帧）：
   //  - 旧弹窗本身还在互切退场中（避免嵌套互切）
@@ -525,7 +540,7 @@ function swapDialogs(fromOpen, toOpen, openFn) {
   const stillEntering = !!box && typeof box.getAnimations === 'function' &&
     box.getAnimations().some((a) => a.animationName === 'box-in' && a.playState === 'running');
   if (
-    fromOpen.classList.contains('dialog-overlay--swap-out') ||
+    isSwappingOut(fromOpen) ||
     matchMedia('(prefers-reduced-motion: reduce)').matches ||
     stillEntering
   ) {
@@ -564,12 +579,6 @@ function swapDialogs(fromOpen, toOpen, openFn) {
   }, outMs);
 }
 
-// 目标岗位 ⇄ 添加/编辑岗位：这一对是谁开着就推谁（from 与 to 互为对方），其余交给 swapDialogs
-function swapJobDialogs(openFn) {
-  const fromOpen = jobPickerOverlay.style.display === 'flex' ? jobPickerOverlay : jobDialogOverlay;
-  swapDialogs(fromOpen, fromOpen === jobPickerOverlay ? jobDialogOverlay : jobPickerOverlay, openFn);
-}
-
 // 打开弹窗时记一份原始内容：关闭 / 取消时若改过就问一句，别让手滑丢掉刚粘进来的岗位描述。
 // 快照取的是**打开那一刻**的输入框值（添加模式为空、编辑模式为已读好的描述），
 // 只在两个打开函数里录、由 closeJobDialog 统一清
@@ -578,6 +587,8 @@ function captureJobSnapshot() {
   jobDialogSnapshot = [dialogJobName.value, dialogJobDesc.value];
 }
 function jobDialogDirty() {
+  // 快照已清空（弹窗正在关闭）时不算改过
+  if (!jobDialogSnapshot) return false;
   return dialogJobName.value !== jobDialogSnapshot[0] || dialogJobDesc.value !== jobDialogSnapshot[1];
 }
 async function confirmDiscardJobEdits() {
@@ -591,16 +602,18 @@ async function confirmDiscardJobEdits() {
   });
 }
 
-// 关闭添加/编辑弹窗的**唯一出口**（Esc / 点遮罩 / 取消 / 保存成功都走它）。
+// 关闭添加/编辑弹窗的**唯一出口**（Esc / 点遮罩空白 / 取消 / 保存成功都走它）。
 // 改了内容先问一句；ask=false 只给「保存成功」用（内容已落盘，不用再问）。
-// toPicker=true 回到「目标岗位」列表继续挑（取消 / 保存后，同一帧互切不闪不动）；
-// false 则整屏关掉回主界面（Esc / 点空白 = 我不要这个弹窗了）
-async function closeJobDialog({ toPicker = false, ask = true } = {}) {
+// 关掉的只是编辑器这一层，所以一律互切回列表：让用户接着挑别的岗位，
+// 而不是两层一起消失、掉回主界面
+async function closeJobDialog({ ask = true } = {}) {
+  // 已经在退场（互切那 250ms 里又按了 Esc）：忽略重复调用，否则会二次弹「放弃修改」。
+  // 退场期间这层遮罩是 pointer-events:none，点不到，所以只可能是 Esc 走到这里
+  if (isSwappingOut(jobDialogOverlay)) return;
   if (ask && !(await confirmDiscardJobEdits())) return;
   jobDialogSnapshot = null;
   editJobName = '';
-  if (toPicker) swapJobDialogs(showJobPicker);
-  else closeDialog(jobDialogOverlay, { animate: true });
+  swapDialogs(jobDialogOverlay, jobPickerOverlay, showJobPicker);
 }
 
 // 删除岗位
@@ -623,10 +636,10 @@ async function deleteJob(jobName) {
 }
 
 // 「取消」= 回目标岗位列表继续挑（同样会丢内容，closeJobDialog 里会先问）
-btnDialogCancel.addEventListener('click', () => closeJobDialog({ toPicker: true }));
+btnDialogCancel.addEventListener('click', () => closeJobDialog());
 // 岗位描述文本域：右下角自定义拖拽手柄，替代原生 resize 手柄
 const dialogResizeHandle = document.getElementById('dialog-resize-handle');
-// 点遮罩空白 = 直接关掉所有弹窗回主界面（不退回目标岗位列表，见 closeJobDialog）。
+// 点遮罩空白 = 关掉编辑器这一层、回到「目标岗位」列表（与 Esc / 取消一致，见 closeJobDialog）。
 // 拖右下角手柄调高度不会误关：手柄起手就 stopPropagation，bindBackdropDismiss 收不到
 // 「按在遮罩上」那一步，无论松手落在哪都不会判成点了空白（原先靠 isDialogResizing 标志挡，已被这层覆盖）
 bindBackdropDismiss(jobDialogOverlay, closeJobDialog);
@@ -694,9 +707,10 @@ btnDialogSave.addEventListener('click', async () => {
       await window.electronAPI.addRecommendJob(jobName, jobDesc);
       selectedJob = jobName;
     }
-    await loadJobList();
+    // 只改描述时名称与选中都没动，列表内容没变，不必再拉一遍列表重画
+    if (!editing || jobName !== editing) await loadJobList();
     // 内容已落盘，ask:false 不再问「放弃修改」
-    if (stillOpen()) closeJobDialog({ toPicker: true, ask: false });
+    if (stillOpen()) closeJobDialog({ ask: false });
     showToast('岗位已保存', 'success', 2000);
   } catch (err) {
     showToast((editing ? '编辑' : '添加') + '失败：' + err.message, 'error');

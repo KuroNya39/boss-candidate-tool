@@ -20,7 +20,7 @@
 }
 /* 弹窗关闭过渡：整体淡出，与下一个弹窗的淡入衔接成连续过渡。
    退场刻意比入场快一档：遮罩淡入/弹窗入场是仪态(400)，关闭走 --dur-normal(250)——用户在
-   关闭时是想尽快进行下一步，不必陪半秒。时长由 closeDialog/swapJobDialogs 读 CSS 自动同步 */
+   关闭时是想尽快进行下一步，不必陪半秒。时长由 closeDialog/swapDialogs 读 CSS 自动同步 */
 .dialog-overlay--closing {
   animation: overlay-out var(--dur-normal) var(--ease-in-out) forwards;
   pointer-events: none;
@@ -28,7 +28,7 @@
 .dialog-overlay--closing .dialog-box {
   animation: box-out var(--dur-normal) var(--ease-in-out) forwards;
 }
-/* 弹窗互切（目标岗位 ⇄ 添加/编辑岗位）——同屏交叉过渡，全程无空场：
+/* 弹窗互切（目标岗位 ⇄ 添加/编辑岗位、历史记录 ⇄ 批次详情）——同屏交叉过渡，全程无空场：
    旧卡退场(swap-out)只淡面板、遮罩留在原地撑住明暗；新卡以透明遮罩叠到旧弹窗之上(swap-over)，
    两卡同时淡入/淡出交叉过渡。互切 = 界面内跳转：入场用快速档(250)与退场同拍，不重演遮罩淡入。
    （历史上做成「先淡没旧卡、再淡入新卡」的两段式，中间只剩空黑遮罩，即用户看到的每次闪动） */
@@ -41,14 +41,14 @@
   animation: box-in var(--dur-normal) var(--ease-out);
 }
 /* 过渡完成、旧弹窗收起后，新弹窗的静止态：不再浮层，恢复自有遮罩（与旧弹窗遮罩同色，交接帧无跳变）。
-   class 由 openDialog 读到 data-swap-over 时挂上，swapJobDialogs 在收尾帧换成 swap-in */
+   class 由 openDialog 读到 data-swap-over 时挂上，swapDialogs 在收尾帧换成 swap-in */
 .dialog-overlay--swap-in {
   animation: none;
 }
 .dialog-overlay--swap-in .dialog-box {
   animation-duration: var(--dur-normal);
 }
-/* 弹窗互切的旧卡退场：只淡面板、遮罩不动；淡完由 swapJobDialogs 收起旧弹窗并把遮罩交接给新弹窗 */
+/* 弹窗互切的旧卡退场：只淡面板、遮罩不动；淡完由 swapDialogs 收起旧弹窗并把遮罩交接给新弹窗 */
 .dialog-overlay--swap-out {
   animation: none;
   pointer-events: none; /* 退场期间不再响应点击，避免中途又触发一次互切 */

@@ -42,7 +42,7 @@ function renderJobPicker() {
   addBtn.className = 'job-picker-item-name';
   addBtn.textContent = '+ 添加新岗位';
   addBtn.addEventListener('click', () => {
-    swapJobDialogs(showAddJobDialog);
+    swapDialogs(jobPickerOverlay, jobDialogOverlay, showAddJobDialog);
   });
   addItem.appendChild(addBtn);
   jobPickerList.appendChild(addItem);
@@ -75,6 +75,10 @@ function renderJobPicker() {
     nameBtn.className = 'job-picker-item-name';
     nameBtn.textContent = job;
     nameBtn.addEventListener('click', () => {
+      // 列表不在打开时重画（见 renderer-dialogs.js 的 showJobPicker），选中态就地切换
+      jobPickerList.querySelectorAll('.job-picker-item.selected')
+        .forEach((el) => el.classList.remove('selected'));
+      item.classList.add('selected');
       selectedJob = job;
       updateJobDisplay();
       hideJobPicker();
@@ -90,8 +94,8 @@ function renderJobPicker() {
     btnEdit.textContent = '编辑';
     btnEdit.addEventListener('click', (e) => {
       e.stopPropagation();
-      // 编辑弹窗互切：旧弹窗直接收起（不淡出），由编辑弹窗入场接管，避免两弹窗叠放交叉
-      swapJobDialogs(() => showEditJobDialog(job));
+      // 列表 ⇄ 编辑器互切：两卡同屏对淡（见 renderer-dialogs.js 的 swapDialogs）
+      swapDialogs(jobPickerOverlay, jobDialogOverlay, () => showEditJobDialog(job));
     });
     actions.appendChild(btnEdit);
 

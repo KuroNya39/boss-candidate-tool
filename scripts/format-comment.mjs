@@ -32,6 +32,9 @@ export const SECTION_LABELS = {
   education: '学历硬性门槛核查',
   conclusion: '综合结论',
 };
+// 维度节的别名：模型有时把「的」漏掉，写成「3个评估维度匹配情况」（2026-11-03 那批 315 人里 96 人这样）。
+// 并进标题来源串后，包壳剥除与标题识别都认它；0.1 步把别名行剥掉，第 4 步照旧插标准标题
+const DIM_ALIASES = ['3个评估维度匹配情况'];
 // 任职资格逐项结论的三个词：解析侧（score-comment.mjs 按它切逐项行）与界面加粗共用，
 // 改提示词措辞只改这里——否则会出现「解析还在认这个词、加粗却不认」的静默错位
 export const VERDICT_LABELS = { pass: '达标', fail: '不达标', pending: '待核实' };
@@ -77,9 +80,13 @@ const BLOCKS = [
 const BLOCK_TITLES = BLOCKS.map(([src]) => src);
 // 固定板块标题 → 模板编号
 const BLOCK_REWRITES = BLOCKS.map(([src, n]) => [new RegExp(src + '\\s*[:：]?'), `${n}.${src}：`]);
-const DIM_HEAD_RE = new RegExp('[0-9一二三四五六七八九十]*[.、．]?\\s*' + SECTION_LABELS.dimensions + '\\s*[:：]?');
-// 五个板块标题拼成的正则片段：认编号、【】剥壳、判「这行是不是节标题」三处共用一份（加标题只改 SECTION_LABELS）
-const ALL_TITLE_SRC = BLOCK_TITLES.concat(SECTION_LABELS.dimensions).join('|');
+// 维度节标题的两种写法（模板标准写法 + 别名）：剥编号与认标题两处共用
+const DIM_TITLE_SRC = [SECTION_LABELS.dimensions, ...DIM_ALIASES].join('|');
+// 去掉 AI 自带的维度标题。必须全局剥：同一份评语里常同时有别名行与标准标题行，
+// 只剥第一处会把另一处留给第 4 步插出第二个标题
+const DIM_HEAD_RE = new RegExp('[0-9一二三四五六七八九十]*[.、．]?\\s*(?:' + DIM_TITLE_SRC + ')\\s*[:：]?', 'g');
+// 五个板块标题（含维度别名）拼成的正则片段：认编号、【】剥壳、判「这行是不是节标题」三处共用一份（加标题只改 SECTION_LABELS）
+const ALL_TITLE_SRC = BLOCK_TITLES.concat(DIM_TITLE_SRC).join('|');
 const BLOCK_NUMBER_HEAD_RE = new RegExp(
   '([0-9一二三四五六七八九十]+[.、．]\\s*)(?=(?:' + ALL_TITLE_SRC + '))',
   'g',
