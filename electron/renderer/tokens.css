@@ -27,8 +27,10 @@
   /* 间距（8 网格：4 半拍 / 8 / 16 / 24 / 32；12/20 旧档已收敛移除，勿再加回） */
   --space-1: 4px; --space-2: 8px; --space-4: 16px; --space-6: 24px; --space-8: 32px;
 
-  /* 语义色：红黄绿蓝取 Google 产品色（红 #EA4335 / 黄 #FBBC05 / 绿 #34A853 / 蓝 #4285F4），
-     各配一套浅底/描边/深字，保证白底小字对比度达标；accent 仍是 Google 蓝 #1A73E8 */
+  /* 语义色：四族锚点是本项目自定的色板（蓝 #3186FF / 绿 #00AF57 / 黄 #FFBE00 / 红 #FC413D）。
+     锚点色只做**非文字**的填充——进度条、档位条、状态点、描边、图标、淡底源；
+     每族再各推一档：*-strong 给浅底/白底上的**字**（§9 的 4.5 门槛），*-fill 给**配白字的实心面**
+     （按钮、步号徽标、结果圆底）。锚点色本身压不住白字：蓝 3.51 / 绿 2.89 / 红 3.52 */
   --bg-page: #ffffff;             /* 页面底色：改纯白（原 #f8fafc）。注意卡片 --bg-card 也是白，
                                      两者同色后卡片只靠 --shadow-sm 分层，底色不再帮忙衬轮廓——
                                      嫌卡片发平就调阴影（或给 .card 补一条描边），别指望底色差 */
@@ -67,21 +69,24 @@
   --icon-hover: #475569;          /* 悬停（与 --text-secondary 同值） */
   --icon-active: #0f172a;         /* 按下（与 --text-primary 同值） */
   --icon-disabled: #cbd5e1;       /* 禁用：比静置**更浅**，不用 opacity 调淡 */
-  --color-accent: #1a73e8;        /* Google 蓝（纯色，不用渐变）：实心底的静置色 */
-  --color-accent-light: #4285f4;  /* 浅一档：**实心底悬停用**（深底变浅，见 §8 悬停总则） */
-  --color-accent-hover: #1765cc;  /* 深一档：**白底上的字 / 描边悬停用**（浅底加深），现存的用户是
+  --color-accent: #3186ff;        /* 蓝锚点：进度条 / 档位条 / 描边 / 图标 / 5–15% 淡底源。
+                                     **不做文字、不做配白字的底**（白字 3.51，见 §1） */
+  --color-accent-fill: #1a6ae0;   /* 实心面（配白字）：.btn--primary / .btn--cta / 运行中的步号徽标。
+                                     白字 5.02:1（锚点色只有 3.51，压不住白字） */
+  --color-accent-fill-hover: #2570e6; /* 实心面悬停：比 -fill 浅一档，仍配白字。白字 4.63:1——
+                                     不能再浅，回到锚点色就只有 3.51 */
+  --color-accent-hover: #0b5bd3;  /* 深一档：**白底上的字 / 描边悬停用**（浅底加深），现存的用户是
                                      .custom-select-trigger:active；.btn--cta 的加深悬停也用它。
-                                     与 --color-accent-light 方向相反，别混用：
-                                     -light 配实心底，-hover 配白底上的字与描边 */
-  --color-accent-active: #185abc; /* 再深一档：浅底控件按下；.btn--cta 按下也用它 */
-  /* accent 的「strong」档 —— 补上四族都有的那一档。success/warning/error/info 都有 *-strong
-     专供「坐在自家浅底上的文字」，只有 accent 一直没有，于是「选中 = 10% 浅蓝底 + accent 蓝字」
-     里的字直接取了 base #1a73e8：base 在白底上本就只有 4.51（刚过线），垫一层洗涤后跌到 3.95，
-     是全站唯一不达标的一族。选中态的字改用它，浅蓝底上 4.89、白底 5.57。
-     值与 --color-accent-hover / --color-info-strong 相同是有意的：三者角色不同（悬停 / 信息族深字 /
-     选中态深字）、各自可单独调，不合并成一行——合并了将来调其中一处就会连带改动另两处 */
-  --color-accent-strong: #1765cc;
-  --color-accent-rgb: 26, 115, 232;
+                                     与实心面悬停的方向相反，别混用：
+                                     实心面悬停取 -fill-hover（变浅），白底上的字与描边取这里（加深） */
+  --color-accent-active: #0847a6; /* 再深一档：浅底控件按下；.btn--cta 按下也用它 */
+  /* accent 的「strong」档：坐在自家浅底（选中态 5/10/15% 淡蓝）上的字。
+     锚点色在白底上只有 3.51，垫一层洗涤后掉到 3.14，远够不着 4.5；这一档白底 6.08、
+     5% 底 5.76 / 10% 底 5.44 / 15% 底 5.14，三档淡底全过线。
+     值与 --color-accent-hover 相同是有意的：两者角色不同（悬停态的字 / 浅底上的字），各自可单独调，
+     不合并成一行——合并了将来调其中一处就会连带改动另一处。信息族的 --color-info-strong 则直接引用本行 */
+  --color-accent-strong: #0b5bd3;
+  --color-accent-rgb: 49, 134, 255;
   /* accent 浅底三档：来源分段按钮定下的配色，全应用的分段按钮/下拉/列表/菜单项共用
      （悬停未选中 = 5% 淡底 · 选中 = 按下 = 10% 浅蓝底 · 悬停**已选中**的项 = 15% 加深）。
      三档是等差数列、档间恒差 5，加一档减一档都落在同一条梯子上。
@@ -92,25 +97,32 @@
   --bg-accent-tint: rgba(var(--color-accent-rgb), 0.05);
   --bg-accent-tint-selected: rgba(var(--color-accent-rgb), 0.10);
   --bg-accent-tint-active: rgba(var(--color-accent-rgb), 0.15);
-  --color-success: #34a853;       /* Google 绿 */
-  --color-success-rgb: 52, 168, 83;
-  --color-success-strong: #0d652d;
-  --bg-success: #e6f4ea;
-  --color-warning: #fbbc05;       /* Google 黄 */
-  --color-warning-rgb: 251, 188, 4;
-  --color-warning-strong: #a95900; /* 原 #b25e00。琥珀族是四族里唯一在自家浅底上不达标的（4.36:1），
-                                     其余三族都过线（success 6.34 / error 4.92 / info 4.86）——
-                                     因为 #b25e00 当初是按**白底**校准的。深 5% 后浅黄底 4.76、白底 5.10，两处都过 */
-  --bg-warning: #fef7e0;
-  --color-error: #ea4335;         /* Google 红 */
-  --color-error-rgb: 234, 67, 53;
-  --color-error-strong: #c5221f;
-  --color-error-light: #ee675c;   /* 浅一档：红实心底（.btn--danger）悬停用（深底变浅） */
-  --bg-error: #fce8e6;
-  --color-info: #4285f4;          /* Google 蓝（信息态；accent 的深蓝保持 #1A73E8 区分） */
-  --color-info-rgb: 66, 133, 244;
-  --color-info-strong: #1765cc;
-  --bg-info: #e8f0fe;
+  --color-success: #00af57;       /* 绿锚点 */
+  --color-success-rgb: 0, 175, 87;
+  --color-success-strong: #007a3d; /* 浅底 / 白底上的字：白底 5.45、自家浅绿底 4.88 */
+  --color-success-fill: #008640;   /* 配白字的实心面：完成的步号徽标、结果页对勾圆底。白字 4.68:1 */
+  --bg-success: #e3f7ed;
+  --color-warning: #ffbe00;       /* 黄锚点 */
+  --color-warning-rgb: 255, 190, 0;
+  /* 黄族的字只有这一档：白底 5.27、自家浅黄底 4.95、悬停的 20% 黄底 4.72。黄锚点自己连白底
+     都只有 1.66，只做条 / 点 / 淡底源——**不做文字，也不做 1px 描边**（描边也取这一档，否则描边看不见）。
+     深字取深橙、不取深黄：真正发黄的深字要暗到发橄榄（#7a6600 是 H50）才够亮，发棕发灰。
+     色相取 H32（贴亮橙 #d97706 的 H32 / S94），只把明度压到 33%——该色相下过 4.5 的最亮一档。
+     亮橙直接用都不行：#d97706 白底 3.19、#ea580c（二星色）3.56，浅黄底还要再低一档 */
+  --color-warning-strong: #a35905;
+  --bg-warning: #fff8e0;
+  --color-error: #fc413d;         /* 红锚点：条 / 点 / 描边 / 淡底源。**不做文字、不做配白字的底**（白字 3.52） */
+  --color-error-rgb: 252, 65, 61;
+  --color-error-strong: #c0261f;  /* 浅底 / 白底上的字：白底 5.94、自家浅红底 5.11 */
+  --color-error-fill: #d92b26;    /* 配白字的实心面：.btn--danger、失败圆底。白字 4.86:1（锚点 3.52） */
+  --color-error-fill-hover: #dd322d; /* 实心面悬停：比 -fill 浅一档，白字 4.60:1（回到锚点色只有 3.52） */
+  --bg-error: #ffe9e8;
+  /* 信息态与 accent 同一支蓝（本项目色板只有一种蓝）：三档直接引用 accent 的取值，
+     不复制十六进制——复制的话调一处色会发现另一处没动。淡底仍自成一行，将来要单独调它也够 */
+  --color-info: var(--color-accent);
+  --color-info-rgb: var(--color-accent-rgb);
+  --color-info-strong: var(--color-accent-strong);
+  --bg-info: #e9f2ff;
   /* 档位橙：二星专属，独立于「警示」用的 warning 黄 */
   --color-orange: #f97316;
   --color-orange-strong: #ea580c;

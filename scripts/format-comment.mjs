@@ -63,8 +63,8 @@ export const VERDICT_LABELS = { pass: '达标', fail: '不达标', pending: '待
 // 排除在「小节标题是否已存在」的判断之外（这段会引用「任职资格的匹配情况」等小节名）
 export const NOTICE_HEADER = '【系统核验】';
 
-/** 正文与【系统核验】段的分界；没有这一段返回 -1（追加核验、插系统说明、判缺节三处共用） */
-export function noticesSplitAt(text) {
+/** 正文与【系统核验】段的分界；没有这一段返回 -1（本模块内只给 splitNotices 用） */
+function noticesSplitAt(text) {
   return String(text || '').indexOf('\n\n' + NOTICE_HEADER);
 }
 
@@ -220,8 +220,9 @@ export function formatComment(text) {
   return t.trim() + notice;
 }
 
-// ===== 评语加粗（只给软件界面用：完成页 / 批次详情 / 候选人查询） =====
-// Excel 导出保持纯文本（用户 2026-10-30 决定），别再把富文本接回 export-candidates.mjs。
+// ===== 评语强调（界面加粗 + 上色；Excel 只上色不加粗） =====
+// 界面：完成页 / 批次详情 / 候选人查询走 commentToHtml（<b> 与 cmt-* 颜色）。
+// Excel：走 commentToRuns，只给三个结论词上色、**一律不加粗**（用户要求）。
 
 /** 冒号前最多多少字才算「标签」；超过就当正文里偶然出现的冒号，不加粗 */
 const LABEL_MAX = 60;
@@ -244,18 +245,28 @@ function labelEndIndex(line) {
 
 const SECTION_TITLE_RE = /^\s*【[^】]*】\s*$/;
 
-// 「不达标 / 待核实」单独加粗（「达标」不加）：只在第 3 节任职资格里生效。
-// 不加「达标」两个字是因为它到处都有、加粗反而糊成一片；不达标与待核实通常只出现在逐项结论里，
-// 是人工扫评语时最先要找的东西。注意 不达标 含 达标，正则只匹配 不达标 本身。
-// 带捕获组是给 split 用的：分出来的奇数下标正好是要加粗的那几个词
-const QUAL_VERDICT_RE = new RegExp(`(${VERDICT_LABELS.fail}|${VERDICT_LABELS.pending})`, 'g');
+// 三个逐项结论词：只在第 3 节任职资格里生效，各上一档语义色（红 / 黄 / 绿），是人工扫评语时
+// 最先要找的东西。「不达标」「待核实」加粗，「达标」只上色不加粗——它条条都有，加粗反而糊成一片。
+// 交替顺序把 不达标 放最前：它含「达标」，顺序反了会把「不达标」切成「不」+「达标」。
+// 带捕获组是给 split 用的：分出来的奇数下标正好是这几个词
+const QUAL_VERDICT_RE = new RegExp(
+  `(${VERDICT_LABELS.fail}|${VERDICT_LABELS.pending}|${VERDICT_LABELS.pass})`,
+  'g',
+);
+// 结论词 → 语义色族。三个词都在表里（写全，别用「其余当成功」兜底：
+// 将来加第四个结论词或改措辞时，漏改这里会静默变绿，而不是报错）
+const VERDICT_TONES = {
+  [VERDICT_LABELS.pass]: 'success',
+  [VERDICT_LABELS.pending]: 'warning',
+  [VERDICT_LABELS.fail]: 'error',
+};
 
 /**
  * 把评语切成 [{ text, bold, tone }] 片段。规则三条：
  *   ① 行首到第一个（括号外的）冒号之间加粗——编号标题、维度行、逐项条件名、计分行都靠它出层次
  *   ② 独占一行的【系统核验】这类方括号标题整行加粗
- *   ③ 第 3 节「任职资格的匹配情况」里的「不达标」「待核实」加粗（结论最需要一眼看到，「达标」不加）；
- *      「不达标」再带一条 tone=error，渲染时上错误色——这三个字是人工扫评语时最先要找的
+ *   ③ 第 3 节「任职资格的匹配情况」里的「达标」「不达标」「待核实」各带一条 tone
+ *      （success / error / warning），渲染时上对应的语义色；「不达标」「待核实」另加粗（「达标」不加）
  * 只有排版含义，不改文本内容；存储的评语保持纯文本（索引/邮件/复制都不受影响）。
  */
 function commentEmphasisSegments(text) {
@@ -267,11 +278,11 @@ function commentEmphasisSegments(text) {
     if (last && last.bold === bold && last.tone === tone) last.text += str;
     else out.push({ text: str, bold, tone });
   };
-  // 正文里标出「不达标 / 待核实」（只在本节内调用）
+  // 正文里标出三个结论词（只在本节内调用）：色是共有的，粗只给「不达标 / 待核实」
   const pushVerdicts = (str) => {
     str.split(QUAL_VERDICT_RE).forEach((s, i) => {
-      const tone = i % 2 === 1 && s === VERDICT_LABELS.fail ? 'error' : undefined;
-      push(s, i % 2 === 1, tone);
+      if (i % 2 === 0) return push(s, false);
+      push(s, s !== VERDICT_LABELS.pass, VERDICT_TONES[s]);
     });
   };
   let inQual = false;   // 当前行是否属于第 3 节（遇到别的板块标题就退出）
@@ -295,16 +306,40 @@ function commentEmphasisSegments(text) {
 const HTML_ESCAPE = { '&': '&amp;', '<': '&lt;', '>': '&gt;' };
 
 /**
- * 评语 → 转义好的 HTML（完成页用 innerHTML 渲染；<b> 由本模块统一生成）。
- * tone=error 的片段带 class，具体颜色由渲染进程的 CSS 决定（`--color-error-strong`），
- * 主进程不写死颜色——Excel 那边是纯文本，不经过这里。
+ * 评语 → 转义好的 HTML（完成页用 innerHTML 渲染；<b> / <span> 由本模块统一生成）。
+ * 带 tone 的片段挂一个 class，具体颜色由渲染进程的 CSS 决定（各取语义色族的 -strong 深字），
+ * 主进程不写死颜色——Excel 那条路是 commentToRuns，颜色在 TONE_ARGB 里。
  */
+// 三个结论词的两种渲染放在同一张表：界面要 class、Excel 要 ARGB，共用一套色族名。
+// ARGB 必须与 tokens.css 的 --color-*-strong 同值——导出跑在子进程里、读不到 CSS 变量，
+// 只能在这里存一份，改语义色时两处一起改（界面那条走 overlays.css 的 .cmt-*）
+const TONES = {
+  success: { cls: 'cmt-pass', argb: 'FF007A3D' },
+  warning: { cls: 'cmt-warn', argb: 'FFA35905' },
+  error: { cls: 'cmt-fail', argb: 'FFC0261F' },
+};
+/** Excel 富文本用的颜色（ARGB），按色族名取；由上一张表派生，别在这里另抄一份 */
+export const TONE_ARGB = Object.fromEntries(Object.entries(TONES).map(([tone, s]) => [tone, s.argb]));
+
+/**
+ * 评语 → ExcelJS richText 片段：三个结论词上语义色、其余原样，Excel 里一律不加粗。
+ * 切分复用 commentEmphasisSegments（与界面同一套），别在导出侧另写一份。
+ */
+export function commentToRuns(text) {
+  return commentEmphasisSegments(text).map(({ text: t, tone }) =>
+    tone ? { text: t, font: { color: { argb: TONE_ARGB[tone] } } } : { text: t },
+  );
+}
+
 export function commentToHtml(text) {
   return commentEmphasisSegments(text)
     .map((s) => {
       const safe = s.text.replace(/[&<>]/g, (ch) => HTML_ESCAPE[ch]);
-      if (!s.bold) return safe;
-      return `<b${s.tone === 'error' ? ' class="cmt-fail"' : ''}>${safe}</b>`;
+      if (!s.bold && !s.tone) return safe;
+      // 加粗用 <b>，只上色的用 <span>：「达标」加粗会把逐项结论糊成一片
+      const tag = s.bold ? 'b' : 'span';
+      const cls = s.tone ? ` class="${TONES[s.tone].cls}"` : '';
+      return `<${tag}${cls}>${safe}</${tag}>`;
     })
     .join('');
 }

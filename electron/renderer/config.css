@@ -44,8 +44,8 @@
   cursor: pointer;
 }
 .job-display.placeholder:hover {
-  border-color: var(--color-accent); /* 描边按非文本门槛 3:1，accent 在 5% 淡底上是 4.23，够用 */
-  color: var(--color-accent-strong); /* 但字是文本门槛 4.5：accent 在 5% 淡底上只有 4.23，深一档后 5.23（§9） */
+  border-color: var(--color-accent); /* 描边按非文本门槛 3:1，accent 在 5% 淡底上是 3.32，够用 */
+  color: var(--color-accent-strong); /* 但字是文本门槛 4.5：accent 在 5% 淡底上只有 3.32，深一档后 5.76（§9） */
   background: var(--bg-accent-tint);
 }
 
@@ -114,7 +114,7 @@
 }
 .job-picker-add .job-picker-item-name {
   /* 字色同选中态取 --color-accent-strong：这一行也是 .job-picker-item，悬停照样铺 5% 淡蓝底，
-     base 在那层底上只有 4.23:1（§9 的文本门槛是 4.5），深一档后 5.23 */
+     base 在那层底上只有 3.32:1（§9 的文本门槛是 4.5），深一档后 5.76 */
   color: var(--color-accent-strong);
   /* 600 —— 曾因「同一张列表里和『已选中』撞信号」降到 400，**用户定稿改回 600**，别再降：
      这一行是列表里的动作入口（不是一条可选的数据），读起来该与被选中的岗位同一量级，
@@ -123,7 +123,7 @@
   font-weight: 600;
 }
 .job-picker-item.selected .job-picker-item-name {
-  color: var(--color-accent-strong); /* 选中态的字坐在 10% 浅蓝底上：base 只有 3.95:1，深一档后 4.89（§9） */
+  color: var(--color-accent-strong); /* 选中态的字坐在 10% 浅蓝底上：base 只有 3.14:1，深一档后 5.44（§9） */
   font-weight: 600;
 }
 /* 这里原有 ::before { content: '✓ ' } 的勾号前缀，已删：
@@ -270,7 +270,7 @@ button.is-loading::before {
   -webkit-app-region: no-drag;
 }
 .toggle-btn.active {
-  color: var(--color-accent-strong); /* 选中的字坐在 10% 浅蓝底上：base 只有 3.95:1，深一档后 4.89（§9） */
+  color: var(--color-accent-strong); /* 选中的字坐在 10% 浅蓝底上：base 只有 3.14:1，深一档后 5.44（§9） */
 }
 .toggle-btn:hover:not(.active) {
   /* 悬停只加 5% 淡底、字色不变（用户要求：悬停别让字变深，浅底已足够提示） */
@@ -718,7 +718,7 @@ body.is-dragging-source * {
 }
 .custom-select-option.selected {
   background: var(--bg-accent-tint-selected); /* 选中 = 10% 浅蓝底（同来源分段按钮），靠 accent 蓝字 + 600 区分 */
-  color: var(--color-accent-strong); /* 字坐在浅蓝底上：base 只有 3.95:1，深一档后 4.89（§9） */
+  color: var(--color-accent-strong); /* 字坐在浅蓝底上：base 只有 3.14:1，深一档后 5.44（§9） */
   font-weight: 600;
 }
 .custom-select-option.selected:hover {
@@ -762,30 +762,33 @@ body.is-dragging-source * {
 /* 变体。悬停一律遵守上面那条总则（浅底加深 / 深底变浅），只改底色、不上浮、不加悬停影；
    按下不再单独给色，统一交给 .btn:active 的 scale(.98)（少了按下的深色，但按压反馈由缩放承担，
    避免了「悬停变浅、按下又变深」的方向来回） */
-.btn--primary { background: var(--color-accent); color: var(--text-on-accent); }
-.btn--primary:hover:not(:disabled) { background: var(--color-accent-light); } /* 深底 → 变浅 */
-.btn--secondary { background: var(--bg-card); color: var(--color-accent); border-color: var(--color-accent); }
+.btn--primary { background: var(--color-accent-fill); color: var(--text-on-accent); }
+.btn--primary:hover:not(:disabled) { background: var(--color-accent-fill-hover); } /* 深底 → 变浅，但停在还压得住白字的一档 */
+/* 蓝描边 + 蓝字一律取 strong 档：锚点蓝在白底上只有 3.51，做描边够 3:1、做字不够 4.5（§9）。
+   描边与文字同色（§8），所以两处用同一个 token */
+.btn--secondary { background: var(--bg-card); color: var(--color-accent-strong); border-color: var(--color-accent-strong); }
 .btn--secondary:hover:not(:disabled) { background: var(--bg-accent-tint); } /* 白底 → 加深（5% 淡底） */
 .btn--ghost { background: transparent; color: var(--text-secondary); border-color: var(--border-input); }
 /* 白底 → 加深一档。原先取 --bg-neutral-tint(#f8fafc)，在白卡上几乎看不出，
    等于「悬停没反应」；改用下陷面那一档 --bg-subtle(#f1f5f9)，轮廓才读得出来 */
 .btn--ghost:hover:not(:disabled) { background: var(--bg-subtle); color: var(--text-primary); }
 /* 破坏性操作（删除岗位/清空历史）用红底白字，重操作一眼可辨；不用红描边以免和次要红字链接混淆 */
-.btn--danger { background: var(--color-error); color: var(--text-on-accent); border-color: var(--color-error); }
-.btn--danger:hover:not(:disabled) { background: var(--color-error-light); border-color: var(--color-error-light); color: var(--text-on-accent); }
+.btn--danger { background: var(--color-error-fill); color: var(--text-on-accent); border-color: var(--color-error-fill); }
+.btn--danger:hover:not(:disabled) { background: var(--color-error-fill-hover); border-color: var(--color-error-fill-hover); color: var(--text-on-accent); } /* 深底 → 变浅，但停在还压得住白字的一档 */
 /* 警示档：琥珀浅底 + warning 描边。两个类同款，合并成一条选择器列表——
    .btn--warning 给「跳过本次」这类警示动作，.btn--paused 给「暂停已生效」的状态标记，
-   语义不同、外观一致（琥珀浅底 + warning 描边），分别维护会在改色时漏掉一个 */
+   语义不同、外观一致（琥珀浅底 + warning 描边），分别维护会在改色时漏掉一个。
+   描边取 warning-strong 而不是黄色锚点：1px 的 #ffbe00 在白底上只有 1.66:1，等于没有描边 */
 .btn--warning,
-.btn--paused { background: var(--bg-warning); color: var(--color-warning-strong); border-color: var(--color-warning); }
-/* hover 必须重申 color，否则琥珀字会被压成黑字：暂停/继续按钮是 .btn--ghost + .btn--paused，
+.btn--paused { background: var(--bg-warning); color: var(--color-warning-strong); border-color: var(--color-warning-strong); }
+/* hover 必须重申 color，否则警示字会被压成黑字：暂停/继续按钮是 .btn--ghost + .btn--paused，
    两者 :hover 权重相同，本规则自己不写 color 时就落到更靠前的 .btn--ghost:hover 的 --text-primary 上 */
 .btn--warning:hover:not(:disabled),
 .btn--paused:hover:not(:disabled) { background: rgba(var(--color-warning-rgb),0.2); border-color: var(--color-warning-strong); color: var(--color-warning-strong); }
 /* 运行区按钮（暂停/继续/跳过）统一用 14px Material SVG 图标：SVG 作为 flex item 由
    align-items:center 几何居中，无需 emoji 的字形微调；缩小图标与文字的间距让三个按钮更紧凑 */
 .running-actions .btn { gap: var(--space-1); }
-.btn--retry:hover:not(:disabled) { border-color: var(--color-error); color: var(--color-error); }
+.btn--retry:hover:not(:disabled) { border-color: var(--color-error-strong); color: var(--color-error-strong); }
 
 /* 尺寸 */
 .btn--sm { padding: var(--space-1) var(--space-2); font-size: var(--text-sm); }
@@ -828,7 +831,7 @@ body.is-dragging-source * {
    **除它以外不要再有第二枚按钮用这个类**：这些值（尤其是那个悬停影和上浮）是全站专属的例外，
    多一枚就变成「有的按钮上浮有的不浮」的老问题——那正是当初统一掉 translateY 的原因 */
 .btn--cta {
-  background: var(--color-accent);
+  background: var(--color-accent-fill);
   color: var(--text-on-accent);
   border-color: transparent;
   padding: var(--space-2) var(--space-6);
@@ -851,12 +854,12 @@ body.is-dragging-source * {
    只剩「清空历史记录」借它的尺寸；红字由下面的 .btn--danger-ghost 叠上 */
 .btn--link {
   background: var(--bg-card);
-  color: var(--color-accent);
+  color: var(--color-accent-strong);
   border-color: var(--border-input);
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
 }
-.btn--link:hover:not(:disabled) { border-color: var(--color-accent); background: var(--bg-accent-tint); }
+.btn--link:hover:not(:disabled) { border-color: var(--color-accent-strong); background: var(--bg-accent-tint); }
 
 /* 幽灵危险钮：清空历史这类「轻量破坏性动作」。
    （历史记录行内的删除钮不走这一档：它是无框图标钮，与「打开目录」同为灰色，
@@ -867,8 +870,8 @@ body.is-dragging-source * {
    只做描边浅底、不做红底白字：后者留给确认弹窗里的 .btn--danger，重操作与轻操作一眼可分 */
 .btn--danger-ghost {
   background: transparent;
-  color: var(--color-error);
-  border-color: var(--color-error);
+  color: var(--color-error-strong);
+  border-color: var(--color-error-strong);
 }
 .btn--danger-ghost:hover:not(:disabled) {
   background: rgba(var(--color-error-rgb),0.10); /* 浅底加深：0.06 → 0.10（0.06 在白卡上几乎看不出） */

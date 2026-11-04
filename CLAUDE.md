@@ -29,7 +29,7 @@ scripts/extract-search-candidates.mjs   ← 搜索页提取
 scripts/greet-candidates.mjs            ← 批量打招呼
 scripts/export-candidates.mjs           ← Excel 导出（可选邮件）
 scripts/send-candidates-email.mjs       ← 邮件发送（nodemailer）
-scripts/format-comment.mjs              ← 评语排版 + 界面加粗 HTML（唯一实现）
+scripts/format-comment.mjs              ← 评语排版 + 强调渲染（界面 HTML 加粗/上色、Excel 富文本上色，唯一实现）
 scripts/score-tiers.mjs                 ← 档位阈值（唯一数据源：5 星 91+ / 4 星 81+ / 3 星 61+ 通过线 …）
 scripts/degree.mjs                      ← 学历词表（唯一数据源）
 scripts/scored-candidate.mjs            ← 评分结果 → 展示行的唯一映射
@@ -201,9 +201,9 @@ config/scoring-prompt-chat.md       ← 评分提示词（沟通页）
 - **评语里的数字与程序分数对不上时会被改写**（2026-10-30 改，此前「一律不改写」）：收尾时
   `patchScoreComment(comment, bd)` 核对四处——「学历硬性门槛扣分」、「扣分合计」（连括号里的分项）、
   「优先项达标加分」、「匹配度评分」；改学历那处时把「合规性结论」那句一并换成同一口径（否则留下「扣 0 分、结论却写扣 20 分」的
-  自相矛盾）。**对得上的那一处一个字都不动**；全都对就全文不改、也不追加说明；确实改过才在末尾挂
-  「（系统说明：加权基础分 + 优先项达标加分 − 硬性项不达标扣分 − 学历 = 最终分，公示全额；无加分时不写这一项）」。
-  幂等，重复收尾不叠加。「优先项达标加分」那一行只有评语里已经写了才校正（老评语不主动插入，差额由说明行解释）。
+  自相矛盾）。**对得上的那一处一个字都不动**；改完就返回，**不追加任何说明行**——评语里只留 AI 自己写的正文
+  （2026-11-04 用户要求；此前的「（系统说明：…）」算式段已去掉，老评语里遗留的顺带剥掉）。
+  幂等，重复收尾不叠加。「优先项达标加分」那一行只有评语里已经写了才校正（老评语不主动插入）。
   三个坑：
   - 「匹配度评分」先认冒号后紧跟的「N分」（模板标准写法，最可靠；实测
     `匹配度评分：67分（= 加权基础分 72 分 - 5 分）` 取末尾会读成 5）；没紧跟才取行内**最后一个**「N分」——
@@ -251,15 +251,20 @@ config/scoring-prompt-chat.md       ← 评分提示词（沟通页）
   - 模型偶尔把下一行开头的英文词漏在上一节末尾（实测只有 Linux 一例：维度名以它开头，维度行里反而少了它），
     单独占一行或缀在句号后 —— 排版时清掉。只认纯字母单词，带数字/符号的（`CET-6`、`K8s`）不动。
     这一步必须排在补「首句定性」标签**之前**，否则残片会变成「首句定性：Linux」。
-- **评语加粗只做在软件界面**（2026-10-30）：`commentEmphasisSegments` / `commentToHtml` 加粗三处——行首到第一个
-  括号外冒号、「独占一行的【…】标题」、第 3 节里的「不达标 / 待核实」（「达标」不加，避免糊成一片）。
-  「不达标」额外带 `tone=error`（v1.22.0），渲染成 `<b class="cmt-fail">` 上 `--color-error-strong`；
-  「待核实」只加粗不上色——它是要人工确认，不是已确定的问题。
+- **评语的加粗只做在软件界面，上色两边都做**（2026-10-30 定，2026-11-04 补色）：`commentEmphasisSegments`
+  切片段，`commentToHtml` 给界面、`commentToRuns` 给 Excel，一份切分两处渲染。
+  - 界面 `commentToHtml` 加粗三处——行首到第一个括号外冒号、「独占一行的【…】标题」、第 3 节里的
+    「不达标 / 待核实」（「达标」不加粗，避免糊成一片）；三个结论词各按语义上色：`达标` →
+    `<span class="cmt-pass">` 上 `--color-success-strong`，`待核实` → `<b class="cmt-warn">` 上
+    `--color-warning-strong`（待人工确认、不是已定问题，故走 warning），`不达标` → `<b class="cmt-fail">` 上
+    `--color-error-strong`。词本身就是文字信号，颜色只是加一层，不违反「状态双通道」；三色都取语义族的
+    `-strong` 深字，白底对比度过 4.5。
+  - Excel `commentToRuns`（`export-candidates.mjs` 用）只给三个结论词上同样的三种颜色、**一律不加粗**（用户要求）。
+    颜色存在 `scripts/format-comment.mjs` 的 `TONE_ARGB`——导出跑在子进程里读不到 CSS 变量，改语义色时
+    要和 `tokens.css` 的 `-strong` 一起改。没有结论词的格子保持普通字符串，不为每格都造富文本。
   `commentHtml` 由主进程 `ipc.mjs` 的 `toDisplayRow()` **现算、不入库**（索引 JSONL 与 `scored-candidates.json`
   存的仍是纯文本，复制/邮件不受影响）；展示行**只带 `commentHtml`、不带纯文本 `comment`**（候选人查询一次可回
   上千行，两份内容白传）。`toDisplayRow` 里会先 `formatComment` 再转 HTML——历史存档里的旧格式在展示时一并修好。
-  **Excel 导出不要富文本**（用户明确要求）：`export-candidates.mjs` 写普通字符串，别把 ExcelJS 的 `richText`
-  接回来。
 - **评分结果 → 展示行只有一份映射**：`scripts/scored-candidate.mjs` 的 `summarizeScoredCandidate()`
   （分数口径 `finalScore`、缺省姓名、评语排版都在这），`buildScoringResults` 与候选人索引共用。
 - **候选人索引（v1.20.0）**：评分收尾时（`incremental.mjs` 的 `finalizeScoring`，写完 `scored-candidates.json`

@@ -538,7 +538,7 @@
   transform: rotate(90deg);
 }
 .tier--5 { color: var(--color-success-strong); }
-.tier--4 { color: var(--color-accent); }
+.tier--4 { color: var(--color-accent-strong); }
 .tier--3 { color: var(--color-warning-strong); }
 .tier--2 { color: var(--color-orange-strong); }
 .tier--1 { color: var(--color-disabled-text); }
@@ -552,6 +552,11 @@
   gap: var(--space-1);
   margin-bottom: var(--space-2);
 }
+/* 药丸胶囊：底色 + 同族 -strong 深字，四档语义各一条，靠语义而不是场景取名——
+   结果行的档位药丸与历史记录的状态药丸共用这四条（绿=达成、蓝=进行中 / 次高档、
+   黄=待定、红=不通过），新增用途挑一条用，别再按场景复制一条新类。
+   二星不单独给橙色：它的文案与一星同为「暂不推荐」，同一个词不配两种颜色；
+   且橙字 `#ea580c` 白底只有 3.56:1，做 12px 药丸字过不了 §9（档位星号那条是既有例外） */
 .meta-chip {
   font-size: var(--text-sm);
   color: var(--text-secondary);
@@ -591,10 +596,17 @@
   color: var(--text-primary);
 }
 
-/* 第 3 节里判为「不达标」的条目再上一档错误色（错误族深字，白底 5.8:1；浅底用法见 §1）。
-   加粗已经在，颜色是第三条通道——「不达标」三个字本身就是文字信号，不违反状态双通道原则。
-   「待核实」保持加粗不上色：它是要人工确认，不是已确定的问题。 */
-.result-item-comment b.cmt-fail {
+/* 第 3 节逐项结论的三个词各上一档语义色（取各族深字，白底对比度均过 §9 的 4.5）：
+   达标 = success / 待核实 = warning / 不达标 = error。「待核实」是待人工确认、不是已确定的问题，
+   故走 warning 而不是 error；「不达标」「待核实」加粗，「达标」只上色（见 format-comment.mjs）。
+   颜色只是第三条通道——词本身就是文字信号，不违反状态双通道原则。 */
+.result-item-comment .cmt-pass {
+  color: var(--color-success-strong);
+}
+.result-item-comment .cmt-warn {
+  color: var(--color-warning-strong);
+}
+.result-item-comment .cmt-fail {
   color: var(--color-error-strong);
 }
 

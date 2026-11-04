@@ -32,12 +32,12 @@
   transition: background-color var(--transition-normal), color var(--transition-normal);
 }
 .step-item[data-state="running"] .step-number {
-  background: var(--color-accent);
+  background: var(--color-accent-fill);
   color: var(--text-on-accent);
   animation: step-pulse 1.6s var(--ease-in-out) infinite;
 }
 .step-item[data-state="done"] .step-number {
-  background: var(--color-success);
+  background: var(--color-success-fill);
   color: var(--text-on-accent);
   animation: step-pop var(--dur-normal) var(--ease-out);
 }
@@ -56,10 +56,10 @@
   font-variant-numeric: tabular-nums;
 }
 .step-item[data-state="running"] .step-item-status {
-  color: var(--color-accent); /* 运行中高亮靠 accent 色 + 数字/进度条，状态属辅助行不加粗 */
+  color: var(--color-accent-strong); /* 运行中高亮靠蓝字 + 数字/进度条，状态属辅助行不加粗 */
 }
 .step-item[data-state="done"] .step-item-status {
-  color: var(--color-success);
+  color: var(--color-success-strong);
 }
 .step-progress {
   display: flex;
@@ -123,10 +123,10 @@
   justify-content: center;
 }
 .result-icon-circle.success {
-  background: var(--color-success);
+  background: var(--color-success-fill);
 }
 .result-icon-circle.error {
-  background: var(--color-error);
+  background: var(--color-error-fill);
 }
 .result-icon-check {
   display: flex;
@@ -166,14 +166,11 @@
   color: var(--color-warning-strong); /* 靠琥珀色字区分，展开项不加粗 */
   user-select: none;
   /* 这一条**刻意不设 hover / active 底色**（§8 五态底线的具名例外，不是漏写）。
-     它坐在琥珀浅底上，字是 --color-warning-strong —— 两处色值已经贴得很紧：静置 4.76:1，
-     而四族里就这族最紧（success 6.34 / error 4.92 / info 4.86）。§8 的悬停总则要求「浅底加深一档」，
-     但把这层琥珀每加深一步，这行字就往下掉：加深到 rgba(--color-warning-rgb, .20) 只剩 4.57、
-     .24 掉到 4.46 —— 一步就破 §9 的 4.5。
-     所以这里不是「忘了给反馈」，是**这层底没有可用的加深余量**：给出的反馈会先弄坏可读性。
+     它整块是一层琥珀浅底，再叠一层同色的悬停底就有「两层黄套在一起」的观感，
      可点性改由 cursor:pointer + 展开时旋转的箭头承担（箭头转动是状态反馈，见上）。
-     将来若要给它悬停底色，得先把这行字挪出琥珀族（换 --text-secondary 一类有余量的色），
-     那会改动静置观感，不要顺手加一条 :hover 了事。 */
+     对比度不是这里的理由：字取 --color-warning-strong，在浅黄底与加深一档的黄底上都有余量
+     （具体数值见 tokens.css 黄族的注释）—— 是刻意不给，不是忘了。
+     不要顺手加一条 :hover 了事；真要加，先想清楚这层黄要不要换成一档中性底。 */
 
   /* 收起/展开用精灵图箭头，不用浏览器默认的 ▸ 三角形（§7：Unicode 字形不当图标）。
      默认三角先关掉：Firefox 用 list-style，Chromium 用 ::-webkit-details-marker */

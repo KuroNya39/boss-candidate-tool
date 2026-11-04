@@ -2,20 +2,25 @@
 //
 // ===== 完成页结果可视化 =====
 
-// 档位分布条的元信息（顺序从高分到低分）。颜色用 CSS 类控制，避免内联色值。
-const TIER_BAR_META = [
-  { tier: 5, label: '五星', className: 'tier-bar-fill--5' },
-  { tier: 4, label: '四星', className: 'tier-bar-fill--4' },
-  { tier: 3, label: '三星', className: 'tier-bar-fill--3' },
-  { tier: 2, label: '二星', className: 'tier-bar-fill--2' },
-  { tier: 1, label: '一星', className: 'tier-bar-fill--1' },
+// 档位的元信息（顺序从高分到低分），一个档位一行：barClass 给分布条，chipClass 给列表行里的
+// 档位药丸。颜色都在 CSS 里，这里只放类名；改档位配色只改 CSS，改「哪档配哪种色」只改这张表。
+// 药丸接的是 §1「档位色阶」：强烈推荐=绿、推荐=蓝、可考虑=黄（与同行的星号 .tier--N 同族）；
+// 1/2 星同为红——两者文案都是「暂不推荐」，同一个词不给两种颜色（橙色字白底 3.56，也不够 §9）
+const TIER_META = [
+  { tier: 5, label: '五星', barClass: 'tier-bar-fill--5', chipClass: 'meta-chip--pass' },
+  { tier: 4, label: '四星', barClass: 'tier-bar-fill--4', chipClass: 'meta-chip--info' },
+  { tier: 3, label: '三星', barClass: 'tier-bar-fill--3', chipClass: 'meta-chip--warn' },
+  { tier: 2, label: '二星', barClass: 'tier-bar-fill--2', chipClass: 'meta-chip--fail' },
+  { tier: 1, label: '一星', barClass: 'tier-bar-fill--1', chipClass: 'meta-chip--fail' },
 ];
+/** 档位元信息按星级查（5 条，线性找足够）；查不到返回 undefined，调用方退回无色的裸胶囊 */
+const tierMeta = (tier) => TIER_META.find((m) => m.tier === tier);
 
 // container 可指定：完成页与「历史批次详情」弹窗各有一组（v1.20.0），渲染逻辑同一份
 function renderTierBars(tiers, total, container) {
   if (!container) return;
   container.innerHTML = '';
-  for (const meta of TIER_BAR_META) {
+  for (const meta of TIER_META) {
     const count = tiers[meta.tier] || 0;
     const pct = total > 0 ? Math.round((count / total) * 100) : 0;
     const row = document.createElement('div');
@@ -26,7 +31,7 @@ function renderTierBars(tiers, total, container) {
     const track = document.createElement('span');
     track.className = 'tier-bar-track';
     const fill = document.createElement('span');
-    fill.className = `tier-bar-fill ${meta.className}`;
+    fill.className = `tier-bar-fill ${meta.barClass}`;
     fill.style.width = pct + '%';
     track.appendChild(fill);
     const countEl = document.createElement('span');
@@ -97,13 +102,9 @@ function renderResultsList(candidates, { listEl } = {}) {
       metaEl.appendChild(chip);
     }
     const levelChip = document.createElement('span');
-    levelChip.className = `meta-chip ${c.passed ? 'meta-chip--pass' : 'meta-chip--fail'}`;
+    levelChip.className = ['meta-chip', tierMeta(c.tier)?.chipClass].filter(Boolean).join(' ');
     levelChip.textContent = c.level;
     metaEl.appendChild(levelChip);
-    const passChip = document.createElement('span');
-    passChip.className = 'meta-chip';
-    passChip.textContent = c.passed ? '通过' : '未通过';
-    metaEl.appendChild(passChip);
 
     const commentEl = document.createElement('div');
     commentEl.className = 'result-item-comment';

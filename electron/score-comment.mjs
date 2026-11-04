@@ -18,7 +18,7 @@
  */
 import { DEGREE_ANY_RE, DEGREE_BELOW_BACHELOR, DEGREE_BACHELOR_PLUS, DEGREE_SECONDARY, DEGREE_NON_STANDARD } from '../scripts/degree.mjs';
 // 评语板块标题 / 逐项判定词的唯一定义（排版与解析共用一份，避免改措辞时一边改了另一边静默解析出 0 条）
-import { SECTION_LABELS, VERDICT_LABELS, NOTICE_HEADER, TIER_MARK_SRC, AMOUNT_LABELS, AMOUNT_LABEL_MATCH, noticesSplitAt, splitNotices, formatComment, missingSectionLabels } from '../scripts/format-comment.mjs';
+import { SECTION_LABELS, VERDICT_LABELS, NOTICE_HEADER, TIER_MARK_SRC, AMOUNT_LABELS, AMOUNT_LABEL_MATCH, splitNotices, formatComment, missingSectionLabels } from '../scripts/format-comment.mjs';
 import { dimensionScores } from '../scripts/scored-candidate.mjs';
 
 // —— 「这句不是 AI 评语」的两个兜底文案：评分、收尾、算分三处共用这一份 ——
@@ -401,7 +401,8 @@ export function computeScoreBreakdown(comment, detail = null, ctx = null) {
   return { base, verdict, eduReason: reason, eduDed, qualDed, prioPass, score, notices };
 }
 
-// patchScoreComment 追加在【系统核验】之前的「（系统说明：…）」整行：重复收尾时先剥后写，避免叠加
+// 评语末尾曾挂过「（系统说明：…）」算式行（2026-11-04 起不再写，评语只留正文）。
+// 历史数据里还有，收尾时先剥掉：重复收尾会重算分数，留着旧算式就会与新分数打架
 const NOTE_PREFIX = '（系统说明：';
 // 前面跟几个换行都要吃掉：老版本的说明只挂了一个 \n
 const NOTE_LINE_RE = new RegExp(`\\n+${NOTE_PREFIX}[^\\n]*）`, 'g');
@@ -446,7 +447,8 @@ export function parseMatchScoreFromComment(comment) {
  * 评语数字校正：让评语里手写的「学历硬性门槛扣分 / 扣分合计 / 优先项达标加分 / 匹配度评分 /
  * 合规性结论」与程序算出的明细对得上。**只动这几个数，不动别的文字**：
  *   - 数字本来就一致的那一处一个字都不改（幂等，重复收尾不会把评语越改越长）
- *   - 确实改过才在末尾追加一条系统说明，写明完整算式（基础分 + 优先项达标加分 − 硬性项不达标扣分 − 学历 = 最终分）
+ *   - **不追加任何说明**：改完就是改完，评语里只留 AI 的正文（2026-11-04 用户要求）。
+ *     老评语末尾遗留的「（系统说明：…）」算式行顺带剥掉
  * 为什么要这一步：权威分数由结构化字段算，AI 手写的那几个数是它自己另一套算法。
  * 实测 2026-10-30 一批里，AI 把 1 项硬性不达标按 10 分扣、写死「匹配度评分：62分」，
  * 而程序的档位是 5 分 → 67 分，不改就会出现「评语写 62、列表显示 67」的矛盾。
@@ -461,9 +463,7 @@ export function patchScoreComment(comment, bd) {
   const dedTotal = eduDed + qualDed;
   const bonus = tierStep(prioPass);
 
-  // 上一次收尾留下的系统说明先剥掉，最后按这次的明细重写：同样会重复收尾（继续提取播种的旧评语、
-  // 重算历史批次），分数若变了，留着旧说明就会变成「= 62 分」和「= 67 分」两条打架
-  const hadNote = comment.includes(NOTE_PREFIX);
+  // 老评语末尾的系统说明先剥掉（理由见 NOTE_PREFIX 处的注释）
   let patched = comment.replace(NOTE_LINE_RE, '');
 
   // 1) 学历硬性门槛扣分：与程序不一致（含第一学历低于门槛、AI 却写成 0 分）时改正。
@@ -490,7 +490,7 @@ export function patchScoreComment(comment, bd) {
   patched = rewriteAmountLine(patched, DED_TOTAL_LINE, dedTotal, breakdown);
 
   // 3) 优先项达标加分：与程序不一致就换掉；括号里写上达标项数，人工核对时不用回头数。
-  //    老评语（v1.22 之前）没有这一行，不主动插入——分数已经算进去了，说明行会解释差额
+  //    老评语（v1.22 之前）没有这一行，不主动插入——分数照样算进去，只是正文里看不出这几分从哪来
   patched = rewriteAmountLine(patched, PRIO_BONUS_LINE, bonus, `= 优先项达标 ${prioPass} 项`);
 
   // 4) 匹配度评分 → 最终分。AI 常写成「62分（= 72 - 10）」或「72 - 10 = 62分」这种算式，
@@ -500,18 +500,8 @@ export function patchScoreComment(comment, bd) {
     patched = patched.replace(SCORE_LINE_RE, `${AMOUNT_LABELS.match}：${score}分`);
   }
 
-  // 没改字、也没有旧说明要刷新 → 一个字都不动（每个分支出手都必然改动文本，所以直接比文本即可）
-  if (patched === comment && !hadNote) return patched;
-  // 空一行再挂：紧贴正文末句读起来像那句的延续，单独成段才看得出是系统追加的。
-  // 要挂在【系统核验】段**之前**——appendScoringNotices 每次都从这里整段重写，
-  // 放在它后面的内容会被截掉（实测 7 位带核验提示的候选人说明直接消失）
-  const bonusText = bonus > 0 ? ` + 优先项达标加分 ${bonus} 分` : '';
-  // 加分让上限第一次够得着：算式算出 105、分数却是 100 时，说明行必须自己说清楚，
-  // 否则「A + B − C − D = 100」本身就是一个假算式
-  const raw = base + bonus - dedTotal;
-  const clampText = raw === score ? '' : `（加权合计 ${raw} 分，按 0-100 截断）`;
-  const note = `（系统说明：加权基础分 ${base} 分${bonusText} − 硬性项不达标扣分 ${qualDed} 分 − 学历硬性门槛扣分 ${eduDed} 分 = ${score} 分${clampText}。评语中与程序口径不一致的手写数字已按此校正，以最终分数为准。）`;
-  const at = noticesSplitAt(patched);
-  return at === -1 ? `${patched}\n\n${note}` : `${patched.slice(0, at)}\n\n${note}${patched.slice(at)}`;
+  // 改过就返回改后的正文，一个字都不额外追加（用户要求评语只留正文）；
+  // 没改也不必特判——patched 本来就等于原评语
+  return patched;
 }
 

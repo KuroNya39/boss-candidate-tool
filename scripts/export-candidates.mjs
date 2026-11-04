@@ -12,7 +12,7 @@ import { readFileSync, mkdirSync, existsSync, renameSync, unlinkSync } from 'nod
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ExcelJS from 'exceljs';
-import { formatComment } from './format-comment.mjs';
+import { formatComment, commentToRuns } from './format-comment.mjs';
 import { summarizeScoredCandidate, dimensionScores } from './scored-candidate.mjs';
 import { DEGREE_ANY_RE, degreeRank } from './degree.mjs';
 import { parseWorkExperienceFromResume } from './extract-common.mjs';
@@ -580,18 +580,28 @@ async function createStyledSheet(wb, sheetName, groupData, fields) {
   ws.addRow(subHeaders);
   const dataStartRow = 4; // 数据起始行号
 
+  // 字段名 → 实际列序（0 基）。合并表头、补值、Row 1 样式下面都要用，放在最前：
+  // 不写死字段名 —— 子列的先后顺序会调，写死字段名在调顺序后就会指错列
+  const colIndex = new Map(fields.map((f, i) => [f, i]));
+
   // 2. 添加数据行
-  //    评语列保持纯文本：加粗只做在软件界面里（用户 2026-10-30 决定），Excel 不要富文本
-  for (const row of dataRows) ws.addRow(row);
+  //    评语列只给结论词上语义色、不加粗（界面那套加粗只做在软件里）；文字一个都不改。
+  //    与 addRow 同一趟循环：行号就是 addRow 的隐式计数器，分成两趟得再维护一套下标
+  const commentCol = colIndex.get('jobRelevanceComment');
+  dataRows.forEach((row, i) => {
+    ws.addRow(row);
+    if (commentCol === undefined) return;
+    const runs = commentToRuns(row[commentCol]);
+    // 没有结论词就保持纯字符串，不为每格都造一个富文本
+    if (runs.some((r) => r.font)) ws.getCell(dataStartRow + i, commentCol + 1).value = { richText: runs };
+  });
 
   const totalRows = groupData.length; // 总行数
 
   // 3. 合并单元格
 
   // 一张分组定义表 → 各分组在**实际列序**里的区间（合并表头要横跨它）。
-  // 不写死字段名 —— 子列的先后顺序会调，写死字段名在调顺序后就会指错列；
   // --fields 只导一部分时该组可能一列都没有，跳过
-  const colIndex = new Map(fields.map((f, i) => [f, i]));
   const rangesOf = (defs) => defs.map((g) => {
     const idx = g.fields.map((f) => colIndex.get(f)).filter((i) => i !== undefined);
     return idx.length ? { start: Math.min(...idx), end: Math.max(...idx) } : null;

@@ -70,7 +70,7 @@ header h1 {
 /* 展开态：与来源分段/下拉的「选中」同色（10% 浅蓝底 + 蓝字），一眼看出菜单开着 */
 .menu-btn[aria-expanded="true"] {
   background: var(--bg-accent-tint-selected);
-  color: var(--color-accent);
+  color: var(--color-accent-strong);
 }
 .menu-btn svg {
   display: block;
