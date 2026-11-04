@@ -280,7 +280,7 @@ async function runIncrementalScoring(ctx) {
 
     // 3) 派生字段 + 一次性写回 scored-candidates.json
     // 权威分数全部由程序算；算式只在 score-comment.mjs 文件头写一份，这里不重述（重述会悄悄过期）。
-    // AI 手写的「其他扣分合计」「匹配度评分」不可信（实测同一份评语里前后打架），只作评语文字展示。
+    // AI 手写的「扣分合计」「匹配度评分」不可信（实测同一份评语里前后打架），只作评语文字展示。
     for (const c of candidates) {
       // 「无在线简历」「评分失败」这两类不是 AI 评语，没有可解析的内容，也不该挂核验提示
       const noAiComment = isNonAiComment(c.jobRelevanceComment);
@@ -292,7 +292,7 @@ async function runIncrementalScoring(ctx) {
       });
       c.matchScore = bd?.score ?? parseMatchScoreFromComment(c.jobRelevanceComment);
       c.totalScore = c.matchScore ?? (c.jobRelevanceScore || 0);
-      // 评语里的手写数字（学历扣分 / 扣分合计 / 优先项加分 / 匹配度评分）校正成与程序分数一致，
+      // 评语里的手写数字（学历扣分 / 扣分合计 / 优先项达标加分 / 匹配度评分）校正成与程序分数一致，
       // 避免「评语写 62、列表显示 67」的矛盾。只改对不上的那几处，本来就一致的一句不动。
       // bd 为 null 时不必进去（它自己会再扫一遍全文，结果还是 null）
       if (bd) c.jobRelevanceComment = patchScoreComment(c.jobRelevanceComment, bd);

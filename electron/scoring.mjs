@@ -6,13 +6,15 @@ import { termLog, sleep, UNPACKED_ROOT } from './util.mjs';
 import { apiConfig, OUTPUT_DIR, cancelled } from './state.mjs';
 import { JD_DIR } from './config.mjs';
 import { readRunMeta } from './archive.mjs';
-import { formatComment, missingSectionLabels } from '../scripts/format-comment.mjs';
+import { formatComment, missingSectionLabels, SECTION_LABELS } from '../scripts/format-comment.mjs';
 import { parseJdRequirements, JD_SCREENING_HEADING, NO_RESUME_COMMENT, scoreFailedComment, isNonAiComment } from './score-comment.mjs';
 
 // ===== AI 评分常量（user 确认的参数：并发批数从 6 降到 5 更保守防限流；默认开启并行，不加开关） =====
 export const BATCH_SIZE = 3;              // 每批候选人数（保持 3 人一批，用户决定）
 export const SCORE_CONCURRENCY = 5;       // 同时并发批数（5批×3人≈15人，用户决定，原 6）
 const MAX_RESUME_LEN = 4000;              // 每份简历截断，避免 prompt 过长
+// 「输出规范」的节数由 SECTION_LABELS 决定（评语结构的唯一定义），提示词里别手写「1-4 节」
+const SECTION_RANGE = `1-${Object.keys(SECTION_LABELS).length}`;
 
 // ===== AI 评分 =====
 
@@ -346,7 +348,7 @@ export function createPositionPromptBuilder(positionName, extractSource, getPool
       `  {\n` +
       `    "candidateIndex": 0,\n` +
       `    "score": <0-100的整数，与评语中的匹配度评分一致>,\n` +
-      `    "comment": "<按上文「输出规范」写出的完整评语，1-5 节一节都不能少，用\\n换行>",\n` +
+      `    "comment": "<按上文「输出规范」写出的完整评语，${SECTION_RANGE} 节一节都不能少，用\\n换行>",\n` +
       `    "dimensions": [{"name": "<维度名>", "weight": <权重整数>, "score": <0-100整数>}, ...三个维度都要有],\n` +
       `    "qualifications": [{"name": "<条件名，照抄原文>", "tier": "hard" 或 "preferred", "verdict": "pass" 或 "fail" 或 "pending"}, ...每个条件一条，硬性与优先混在一处的要拆成两条],\n` +
       `    "education": {"firstDegree": "<第一学历，写成 学校 | 专业 | 学历层次 | 就读时间 | 全日制/非全日制>"}\n` +
@@ -354,7 +356,7 @@ export function createPositionPromptBuilder(positionName, extractSource, getPool
       `]\n` +
       `数组共 ${cands.length} 条，candidateIndex 依次为 ${cands.map((_, i) => i).join('、')}。` +
       `其中 dimensions / qualifications / education 三个字段是给系统算分用的，必须与评语内容一致（分数由系统按它们重算，评语里的数字只作说明）。\n` +
-      `⚠ comment 是给招聘人员看的正文，必须按「输出规范」写全 1-5 节。dimensions / qualifications / education 只是同一份结论的结构化副本，` +
+      `⚠ comment 是给招聘人员看的正文，必须按「输出规范」写全 ${SECTION_RANGE} 节。dimensions / qualifications / education 只是同一份结论的结构化副本，` +
       `**不能替代 comment 里的第 3 节（任职资格的匹配情况）和第 4 节（学历硬性门槛核查）**——写了结构化字段，也仍要把逐条结论和学历核查写进 comment。`;
     return p;
   };
@@ -486,7 +488,7 @@ export async function scoreOneBatch(batch, run) {
       const nm = c.basicInfo?.name || c.geekId || '未知';
       const prompt = run.buildBatchPrompt([c]) +
         `\n\n上一次的回答里 comment 正文缺少「${missing.join('」「')}」小节。` +
-        `请重新输出这一位候选人：comment 必须按「输出规范」把 1-5 节全部写全（结构化字段只是副本，不能替代正文），其余字段照旧。`;
+        `请重新输出这一位候选人：comment 必须按「输出规范」把 ${SECTION_RANGE} 节全部写全（结构化字段只是副本，不能替代正文），其余字段照旧。`;
       try {
         const text = await callClaudeAPI(prompt, { signal: run.signal });
         const r = (parseBatchScoreResponse(text) || [])[0];

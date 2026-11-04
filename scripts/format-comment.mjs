@@ -3,7 +3,7 @@
 // v1.10.2 抽到这里供主进程 ipc.mjs 复用，让软件内展示与 Excel 输出同一份排版。
 //
 // 把 AI 输出的评语重排成 config/scoring-prompt-*.md「输出规范」的编号结构：
-//   1.首句定性 / 2.3个评估维度的匹配情况(3维度+计分) / 3.任职资格的匹配情况 / 4.学历硬性门槛核查 / 5.综合结论
+//   1.首句定性(含风险提示) / 2.3 个评估维度的匹配情况(3维度+计分) / 3.任职资格的匹配情况 / 4.学历硬性门槛核查
 // 无论 AI 是否自带编号/换行，都强制按模板排版。
 // 维度行括号里的「（40%，独立得分：92分）」：排版按它换行、解析按它取值，两处共用这一份。
 // 容忍全/半角逗号冒号与空格（模型三种都写过）—— 改写法只改这里，不会出现一处认得出、另一处静默认不出
@@ -20,14 +20,14 @@ export function parseDimensionScores(text) {
 // 两处共用这一份，改提示词措辞只改这里
 export const AMOUNT_LABELS = {
   base: '加权基础分计算',
-  dedTotal: '其他扣分合计',
+  dedTotal: '扣分合计',
   prioBonus: '优先项达标加分',
   match: '匹配度评分',
   eduDed: '学历硬性门槛扣分',
 };
-// 计分行的旧标签：v1.22.0 之前这条叫「优先项加分」，历史评语里仍是旧写法。
-// 排版换行与数值校正都要认出来，否则老评语这一行会并进上一行、数字也不再校正
-const AMOUNT_LABEL_ALIASES = { prioBonus: ['优先项加分'] };
+// 计分行的旧标签（就是下面这张表的键，改名时把旧名加进对应数组即可，别的不用动）：
+// 历史评语里仍是旧写法，排版换行与数值校正都要认出来，否则老评语这一行会并进上一行、数字也不再校正
+const AMOUNT_LABEL_ALIASES = { dedTotal: ['其他扣分合计'], prioBonus: ['优先项加分'] };
 /** 匹配用的标签源（含旧名），改标签时不必再去 score-comment.mjs 补一遍 */
 export const AMOUNT_LABEL_MATCH = Object.fromEntries(
   Object.entries(AMOUNT_LABELS).map(([key, label]) => [key, [label, ...(AMOUNT_LABEL_ALIASES[key] || [])].join('|')]),
@@ -39,19 +39,22 @@ const EDU_AUX_KW = '第一学历|最高学历|合规性结论';
 const EDU_SUBLINE_KW = `${AMOUNT_LABELS.eduDed}|${EDU_AUX_KW}`;
 const SUBLINE_KW = Object.values(AMOUNT_LABEL_MATCH).join('|') + '|' + EDU_AUX_KW;
 
-// 五个板块的标题字面量：**评语结构的唯一定义**。
+// 四个板块的标题字面量：**评语结构的唯一定义**。
 // 解析侧（electron/score-comment.mjs 按标题切节算分、查缺节）也从这里 import，
 // 改标题只改这一处；再叠加两份提示词模板的「输出规范」。
 export const SECTION_LABELS = {
   firstSentence: '首句定性',
-  dimensions: '3个评估维度的匹配情况',
+  dimensions: '3 个评估维度的匹配情况',
   qualifications: '任职资格的匹配情况',
   education: '学历硬性门槛核查',
-  conclusion: '综合结论',
 };
-// 维度节的别名：模型有时把「的」漏掉，写成「3个评估维度匹配情况」（2026-11-03 那批 315 人里 96 人这样）。
-// 并进标题来源串后，包壳剥除与标题识别都认它；0.1 步把别名行剥掉，第 4 步照旧插标准标题
-const DIM_ALIASES = ['3个评估维度匹配情况'];
+// 维度节标题的**识别源**：数字后的空格与「的」都可能被漏写（「3个评估维度的匹配情况」是改版前的
+// 标准写法；漏「的」的「3个评估维度匹配情况」在 2026-11-03 那批 315 人里占 96 人）。
+// 所以这里不列举写法，两条都容忍；由标准写法推导，改 SECTION_LABELS 不会漏改。
+// 插标题用的仍是 SECTION_LABELS.dimensions（识别的宽容不改变输出的唯一写法）
+const DIM_TITLE_SRC = SECTION_LABELS.dimensions
+  .replace(/\s+/g, '\\s*')
+  .replaceAll('的', '\\s*的?\\s*');
 // 任职资格逐项结论的三个词：解析侧（score-comment.mjs 按它切逐项行）与界面加粗共用，
 // 改提示词措辞只改这里——否则会出现「解析还在认这个词、加粗却不认」的静默错位
 export const VERDICT_LABELS = { pass: '达标', fail: '不达标', pending: '待核实' };
@@ -73,14 +76,16 @@ export function splitNotices(text) {
 }
 
 /**
- * 正文里缺哪几节（第 3/4/5 节，返回标题数组；一节不缺返回空数组）。
+ * 正文里缺哪几节（第 3/4 节，返回标题数组；一节不缺返回空数组）。
+ * 1 节不查——排版只会补上标签、不保证有内容（首行本身就是节标题时标签下仍是空的）；
+ * 5 节「综合结论」已并入 1 节，不再单列。
  * 只看【系统核验】段之前的正文 —— 那一段里点名的正是缺的节名，连它一起判等于永远不缺。
  * 收尾的「评语不完整」提示与评分时的补全重试共用这一份判定，别两处各写一遍。
  * 传进来的应是已排版（formatComment）过的评语：缺小节标题但内容齐全的，排完版就不算缺。
  */
 export function missingSectionLabels(comment) {
   const [body] = splitNotices(comment);
-  return [SECTION_LABELS.qualifications, SECTION_LABELS.education, SECTION_LABELS.conclusion]
+  return [SECTION_LABELS.qualifications, SECTION_LABELS.education]
     .filter((k) => !body.includes(k));
 }
 
@@ -89,7 +94,6 @@ const BLOCKS = [
   [SECTION_LABELS.firstSentence, 1],
   [SECTION_LABELS.qualifications, 3],
   [SECTION_LABELS.education, 4],
-  [SECTION_LABELS.conclusion, 5],
 ];
 
 // 下面这些正则每次 formatComment 都要用（每位候选人一次，导出/界面各一次），
@@ -97,19 +101,17 @@ const BLOCKS = [
 const BLOCK_TITLES = BLOCKS.map(([src]) => src);
 // 固定板块标题 → 模板编号
 const BLOCK_REWRITES = BLOCKS.map(([src, n]) => [new RegExp(src + '\\s*[:：]?'), `${n}.${src}：`]);
-// 维度节标题的两种写法（模板标准写法 + 别名）：剥编号与认标题两处共用
-const DIM_TITLE_SRC = [SECTION_LABELS.dimensions, ...DIM_ALIASES].join('|');
-// 去掉 AI 自带的维度标题。必须全局剥：同一份评语里常同时有别名行与标准标题行，
+// 去掉 AI 自带的维度标题。必须全局剥：同一份评语里常同时有旧写法与标准写法，
 // 只剥第一处会把另一处留给第 4 步插出第二个标题
 const DIM_HEAD_RE = new RegExp('[0-9一二三四五六七八九十]*[.、．]?\\s*(?:' + DIM_TITLE_SRC + ')\\s*[:：]?', 'g');
-// 五个板块标题（含维度别名）拼成的正则片段：认编号、【】剥壳、判「这行是不是节标题」三处共用一份（加标题只改 SECTION_LABELS）
+// 四个板块标题（维度标题按上面的宽松写法）拼成的正则片段：认编号、【】剥壳、判「这行是不是节标题」三处共用一份（加标题只改 SECTION_LABELS）
 const ALL_TITLE_SRC = BLOCK_TITLES.concat(DIM_TITLE_SRC).join('|');
 const BLOCK_NUMBER_HEAD_RE = new RegExp(
   '([0-9一二三四五六七八九十]+[.、．]\\s*)(?=(?:' + ALL_TITLE_SRC + '))',
   'g',
 );
 /** 板块之间空一行（第 5 步） */
-const BLOCK_SEP_RE = new RegExp('\\n(?=[1-5]\\.(?:' + ALL_TITLE_SRC + '))', 'g');
+const BLOCK_SEP_RE = new RegExp('\\n(?=\\d+\\.(?:' + ALL_TITLE_SRC + '))', 'g');
 const DIM_RE = new RegExp('(' + FORMAT_COMMENT_DIM_RE + ')', 'g');
 const DIM_AFTER_BLANK_RE = new RegExp('\\n{2,}(?=' + FORMAT_COMMENT_DIM_RE + ')', 'g');
 const SUBLINE_HEAD_RE = new RegExp('(\\n+)(' + SUBLINE_KW + ')\\s*[:：]?', 'g');
@@ -197,7 +199,7 @@ export function formatComment(text) {
   t = t.replace(DIM_AFTER_BLANK_RE, '\n');
 
   // 3) 计分行、学历核查子行：行首换行统一为一个
-  //    （关键词后必须跟冒号才视为标题，避免误切"匹配度评分：91分（=...其他扣分合计0...）"里的同名词）
+  //    （关键词后必须跟冒号才视为标题，避免误切"匹配度评分：91分（=...扣分合计0...）"里的同名词）
   t = t.replace(SUBLINE_HEAD_RE, '\n$2：');
   //    AI 挤成一行时，句号/分号/冒号后出现的关键词也补换行（句号是安全的句子边界；
   //    冒号是给「4.学历硬性门槛核查：第一学历：…」这种把子项接在标题后面的写法用的）
