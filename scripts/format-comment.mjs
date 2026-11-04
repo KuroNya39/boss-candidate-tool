@@ -16,11 +16,21 @@ export function parseDimensionScores(text) {
   return [...String(text || '').matchAll(DIM_LINE_RE)]
     .map((m) => ({ weight: Number(m[1]), score: Number(m[2]) }));
 }
-// 模板里要独占一行的子项关键词：计分三行 + 学历核查四行（「学历硬性门槛扣分」在提示词的输出模板里）
-// 下面两个正则共用这一份，新增子项只改这里。学历四行单独成串：它们还兼任第 4 节的「内容形状」
-// （insertSectionHead 认它补回漏写的小节标题），拆开才能两处共用一份
-const EDU_SUBLINE_KW = '第一学历|最高学历|学历硬性门槛扣分|合规性结论';
-const SUBLINE_KW = '加权基础分计算|其他扣分合计|匹配度评分|' + EDU_SUBLINE_KW;
+// 计分四行 + 学历扣分行的标签：排版侧认行首换行，解析侧（score-comment.mjs）按「标签：X分」改数字，
+// 两处共用这一份，改提示词措辞只改这里
+export const AMOUNT_LABELS = {
+  base: '加权基础分计算',
+  dedTotal: '其他扣分合计',
+  prioBonus: '优先项加分',
+  match: '匹配度评分',
+  eduDed: '学历硬性门槛扣分',
+};
+// 模板里要独占一行的子项关键词：上面的计分行 + 学历核查四行。下面两个正则共用这一份，新增子项只改这里。
+// 学历四行单独成串：它们还兼任第 4 节的「内容形状」（insertSectionHead 认它补回漏写的小节标题），
+// 拆开才能两处共用一份
+const EDU_AUX_KW = '第一学历|最高学历|合规性结论';
+const EDU_SUBLINE_KW = `${AMOUNT_LABELS.eduDed}|${EDU_AUX_KW}`;
+const SUBLINE_KW = Object.values(AMOUNT_LABELS).join('|') + '|' + EDU_AUX_KW;
 
 // 五个板块的标题字面量：**评语结构的唯一定义**。
 // 解析侧（electron/score-comment.mjs 按标题切节算分、查缺节）也从这里 import，
@@ -232,23 +242,28 @@ const SECTION_TITLE_RE = /^\s*【[^】]*】\s*$/;
 const QUAL_VERDICT_RE = new RegExp(`(${VERDICT_LABELS.fail}|${VERDICT_LABELS.pending})`, 'g');
 
 /**
- * 把评语切成 [{ text, bold }] 片段。规则三条：
+ * 把评语切成 [{ text, bold, tone }] 片段。规则三条：
  *   ① 行首到第一个（括号外的）冒号之间加粗——编号标题、维度行、逐项条件名、计分行都靠它出层次
  *   ② 独占一行的【系统核验】这类方括号标题整行加粗
- *   ③ 第 3 节「任职资格的匹配情况」里的「不达标」「待核实」加粗（结论最需要一眼看到，「达标」不加）
+ *   ③ 第 3 节「任职资格的匹配情况」里的「不达标」「待核实」加粗（结论最需要一眼看到，「达标」不加）；
+ *      「不达标」再带一条 tone=error，渲染时上错误色——这三个字是人工扫评语时最先要找的
  * 只有排版含义，不改文本内容；存储的评语保持纯文本（索引/邮件/复制都不受影响）。
  */
 function commentEmphasisSegments(text) {
   const out = [];
-  const push = (str, bold) => {
+  const push = (str, bold, tone) => {
     if (!str) return;
     const last = out[out.length - 1];
-    if (last && last.bold === bold) last.text += str;
-    else out.push({ text: str, bold });
+    // tone 也要比：不然「不达标」会和紧挨着的加粗片段合并，丢掉上色标记
+    if (last && last.bold === bold && last.tone === tone) last.text += str;
+    else out.push({ text: str, bold, tone });
   };
   // 正文里标出「不达标 / 待核实」（只在本节内调用）
   const pushVerdicts = (str) => {
-    str.split(QUAL_VERDICT_RE).forEach((s, i) => push(s, i % 2 === 1));
+    str.split(QUAL_VERDICT_RE).forEach((s, i) => {
+      const tone = i % 2 === 1 && s === VERDICT_LABELS.fail ? 'error' : undefined;
+      push(s, i % 2 === 1, tone);
+    });
   };
   let inQual = false;   // 当前行是否属于第 3 节（遇到别的板块标题就退出）
   String(text || '').split('\n').forEach((line, idx) => {
@@ -270,12 +285,17 @@ function commentEmphasisSegments(text) {
 
 const HTML_ESCAPE = { '&': '&amp;', '<': '&lt;', '>': '&gt;' };
 
-/** 评语 → 转义好的 HTML（完成页用 innerHTML 渲染；<b> 由本模块统一生成） */
+/**
+ * 评语 → 转义好的 HTML（完成页用 innerHTML 渲染；<b> 由本模块统一生成）。
+ * tone=error 的片段带 class，具体颜色由渲染进程的 CSS 决定（`--color-error-strong`），
+ * 主进程不写死颜色——Excel 那边是纯文本，不经过这里。
+ */
 export function commentToHtml(text) {
   return commentEmphasisSegments(text)
     .map((s) => {
       const safe = s.text.replace(/[&<>]/g, (ch) => HTML_ESCAPE[ch]);
-      return s.bold ? `<b>${safe}</b>` : safe;
+      if (!s.bold) return safe;
+      return `<b${s.tone === 'error' ? ' class="cmt-fail"' : ''}>${safe}</b>`;
     })
     .join('');
 }
