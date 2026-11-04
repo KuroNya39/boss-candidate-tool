@@ -1024,12 +1024,10 @@ body.is-dragging-source * {
   width: 16px;
   height: 16px;
 }
-/* 只写它自己独有的「浅灰圆底」，字色由 .field-icon-btn 一族给，不重复 */
+/* 只写它自己独有的「浅灰圆底」，字色由 .field-icon-btn 一族给，不重复。
+   按下不另给底色：顶档已是 15%（§8「档位起点看族别」） */
 .input-clear:hover {
-  background: rgba(var(--text-muted-rgb), 0.15); /* 中性灰 5% 读不出来，悬停从 15% 起（§8 档位起点看族别） */
-}
-.input-clear:active {
-  background: rgba(var(--text-muted-rgb), 0.20); /* 按下再深一档（§8 五态底线） */
+  background: rgba(var(--text-muted-rgb), 0.15);
 }
 
 /* ===== Output Row ===== */
