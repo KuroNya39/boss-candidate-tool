@@ -272,7 +272,7 @@ BOSS直聘切到后台标签页时，模拟复制和截图都会失效。**请�
 - **主要模块**：
   ```
   electron/main.mjs                         主进程入口（生命周期、--score-only 无界面评分）
-  electron/score-comment.mjs                评分程序化计算（维度加权分 + 优先项加分 − 学历扣分 − 任职资格扣分）、评语数值修正与【系统核验】提示
+  electron/score-comment.mjs                评分程序化计算（维度加权分 + 优先项达标加分 − 学历扣分 − 硬性项不达标扣分）、评语数值修正与【系统核验】提示
   electron/*.mjs                            其余主进程模块：流程编排、IPC、浏览器与代理管理、评分、打招呼、归档、候选人查询索引
   electron/renderer/                        界面（index.html + 6 个 CSS + renderer-*.js，均按序引入）
   scripts/cdp-proxy.mjs                     HTTP → WebSocket 代理，控制 Chrome（端口 3456）

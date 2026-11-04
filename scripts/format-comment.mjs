@@ -21,16 +21,23 @@ export function parseDimensionScores(text) {
 export const AMOUNT_LABELS = {
   base: '加权基础分计算',
   dedTotal: '其他扣分合计',
-  prioBonus: '优先项加分',
+  prioBonus: '优先项达标加分',
   match: '匹配度评分',
   eduDed: '学历硬性门槛扣分',
 };
+// 计分行的旧标签：v1.22.0 之前这条叫「优先项加分」，历史评语里仍是旧写法。
+// 排版换行与数值校正都要认出来，否则老评语这一行会并进上一行、数字也不再校正
+const AMOUNT_LABEL_ALIASES = { prioBonus: ['优先项加分'] };
+/** 匹配用的标签源（含旧名），改标签时不必再去 score-comment.mjs 补一遍 */
+export const AMOUNT_LABEL_MATCH = Object.fromEntries(
+  Object.entries(AMOUNT_LABELS).map(([key, label]) => [key, [label, ...(AMOUNT_LABEL_ALIASES[key] || [])].join('|')]),
+);
 // 模板里要独占一行的子项关键词：上面的计分行 + 学历核查四行。下面两个正则共用这一份，新增子项只改这里。
 // 学历四行单独成串：它们还兼任第 4 节的「内容形状」（insertSectionHead 认它补回漏写的小节标题），
 // 拆开才能两处共用一份
 const EDU_AUX_KW = '第一学历|最高学历|合规性结论';
 const EDU_SUBLINE_KW = `${AMOUNT_LABELS.eduDed}|${EDU_AUX_KW}`;
-const SUBLINE_KW = Object.values(AMOUNT_LABELS).join('|') + '|' + EDU_AUX_KW;
+const SUBLINE_KW = Object.values(AMOUNT_LABEL_MATCH).join('|') + '|' + EDU_AUX_KW;
 
 // 五个板块的标题字面量：**评语结构的唯一定义**。
 // 解析侧（electron/score-comment.mjs 按标题切节算分、查缺节）也从这里 import，

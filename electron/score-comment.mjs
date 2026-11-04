@@ -5,7 +5,7 @@
  * 因此可被主进程的收尾算分与独立脚本共用，避免两处实现漂移。
  *
  * 权威分数一律由本模块算出（v1.21.0）：
- *   最终分 = clamp(加权基础分 + 优先项加分 − 学历扣分 − 任职资格扣分, 0, 100)
+ *   最终分 = clamp(加权基础分 + 优先项达标加分 − 学历扣分 − 硬性项不达标扣分, 0, 100)
  * AI 自己写的「其他扣分合计」「匹配度评分」只活在评语文字里，**不参与计算**（收尾时由
  * patchScoreComment 校正成与本模块算出的分数一致，免得评语写着 62、列表显示 67）——
  * 实测它会在同一份评语里前后打架（合计行写「任职资格0 + 学历20」，下一节又写
@@ -18,7 +18,7 @@
  */
 import { DEGREE_ANY_RE, DEGREE_BELOW_BACHELOR, DEGREE_BACHELOR_PLUS, DEGREE_SECONDARY, DEGREE_NON_STANDARD } from '../scripts/degree.mjs';
 // 评语板块标题 / 逐项判定词的唯一定义（排版与解析共用一份，避免改措辞时一边改了另一边静默解析出 0 条）
-import { SECTION_LABELS, VERDICT_LABELS, NOTICE_HEADER, TIER_MARK_SRC, AMOUNT_LABELS, noticesSplitAt, splitNotices, formatComment, missingSectionLabels } from '../scripts/format-comment.mjs';
+import { SECTION_LABELS, VERDICT_LABELS, NOTICE_HEADER, TIER_MARK_SRC, AMOUNT_LABELS, AMOUNT_LABEL_MATCH, noticesSplitAt, splitNotices, formatComment, missingSectionLabels } from '../scripts/format-comment.mjs';
 import { dimensionScores } from '../scripts/scored-candidate.mjs';
 
 // —— 「这句不是 AI 评语」的两个兜底文案：评分、收尾、算分三处共用这一份 ——
@@ -154,10 +154,13 @@ const NESTED_PAREN = '[^（）]*(?:（[^（）]*）[^（）]*)*';
 /**
  * 「<标签>：X分（可选括号体）」这类计分行。一次给出正则与标签：改写时要按标签拼回原文，
  * 两处各写一遍字面量就会出现「改名后这里认得出、那里认不出」。
- * 三条计分行（其他扣分合计 / 优先项加分 / 学历硬性门槛扣分）共用这一份写法。
+ * 三条计分行（其他扣分合计 / 优先项达标加分 / 学历硬性门槛扣分）共用这一份写法。
+ * matchSrc 是匹配用的标签源（可含旧名，见 AMOUNT_LABEL_MATCH），改写时仍按 label 拼回。
  */
-function amountLine(label) {
-  return { label, re: new RegExp(`${label}\\s*[:：]\\s*(\\d{1,3})\\s*分(?:\\s*（(${NESTED_PAREN})）)?`, 'g') };
+function amountLine(label, matchSrc = label) {
+  // matchSrc 可能是一条 | 交替（新名|旧名），必须包成一组：不包的话 | 会把整条正则劈成两半，
+  // 前半截只认标签本身，「优先项达标加分」会被当成命中、在原行前面再插一遍新内容
+  return { label, re: new RegExp(`(?:${matchSrc})\\s*[:：]\\s*(\\d{1,3})\\s*分(?:\\s*（(${NESTED_PAREN})）)?`, 'g') };
 }
 
 /**
@@ -175,22 +178,23 @@ const EDU_DED_LINE = amountLine(AMOUNT_LABELS.eduDed);
 /** 同上但与 PREFIX 同源只取分数：判断 AI 写的数是否已与程序一致（一致就不动它） */
 const EDU_DED_NUM_RE = new RegExp(`${EDU_DED_HEAD}(\\d{1,3})\\s*分`, 'g');
 /**
- * 把这条计分行改成程序口径。数字对得上、括号里也没写着别的分项数字时原样返回
+ * 把这条计分行改成程序口径：合计数与括号里的**分项数字**都对得上就原样返回
  * （幂等：重复收尾不该把评语越改越长）。
- * 括号里的空格必须先去掉再比 —— 程序写出的「= 优先项达标 2 项」第二次读回来带空格，
- * 逐字比会认不出来，于是每次收尾都重写一遍。
+ * 比的是数字序列而不是整句文字——括号里的措辞会随提示词改版变化（如「任职资格硬性不达标扣分」
+ * 改名「硬性项不达标扣分」），按文字比会让历史评语凭空重写一遍、还多挂一条「数字已校正」说明。
  */
 function rewriteAmountLine(text, line, value, inner) {
-  const bare = inner.replace(/\s+/g, '');
+  const digits = (s) => ((s || '').match(/\d+/g) || []).join(',');
+  const want = digits(inner);
   return text.replace(line.re, (m, num, got) => {
-    if (Number(num) === value && (got == null || !/\d/.test(got) || got.replace(/\s+/g, '') === bare)) return m;
+    if (Number(num) === value && digits(got) === want) return m;
     return `${line.label}：${value}分（${inner}）`;
   });
 }
 /** 「其他扣分合计：X分（…）」：合计与括号里的分项都要能核对 */
 const DED_TOTAL_LINE = amountLine(AMOUNT_LABELS.dedTotal);
-/** 「优先项加分：X分（…）」：写法与扣分合计同构 */
-const PRIO_BONUS_LINE = amountLine(AMOUNT_LABELS.prioBonus);
+/** 「优先项达标加分：X分（…）」：写法与扣分合计同构；旧名「优先项加分」的历史评语也认 */
+const PRIO_BONUS_LINE = amountLine(AMOUNT_LABELS.prioBonus, AMOUNT_LABEL_MATCH.prioBonus);
 
 /** 加权平均（各维度分按权重合成），无有效条目返回 null。所有数据来源都走这一个实现 */
 function weightedMean(pairs) {
@@ -438,10 +442,10 @@ export function parseMatchScoreFromComment(comment) {
 }
 
 /**
- * 评语数字校正：让评语里手写的「学历硬性门槛扣分 / 其他扣分合计 / 优先项加分 / 匹配度评分 /
+ * 评语数字校正：让评语里手写的「学历硬性门槛扣分 / 其他扣分合计 / 优先项达标加分 / 匹配度评分 /
  * 合规性结论」与程序算出的明细对得上。**只动这几个数，不动别的文字**：
  *   - 数字本来就一致的那一处一个字都不改（幂等，重复收尾不会把评语越改越长）
- *   - 确实改过才在末尾追加一条系统说明，写明完整算式（基础分 + 优先项加分 − 任职资格 − 学历 = 最终分）
+ *   - 确实改过才在末尾追加一条系统说明，写明完整算式（基础分 + 优先项达标加分 − 硬性项不达标扣分 − 学历 = 最终分）
  * 为什么要这一步：权威分数由结构化字段算，AI 手写的那几个数是它自己另一套算法。
  * 实测 2026-10-30 一批里，AI 把 1 项硬性不达标按 10 分扣、写死「匹配度评分：62分」，
  * 而程序的档位是 5 分 → 67 分，不改就会出现「评语写 62、列表显示 67」的矛盾。
@@ -481,10 +485,10 @@ export function patchScoreComment(comment, bd) {
 
   // 2) 其他扣分合计：合计对不上、或括号里写着与程序不同的分项数字，整条换成程序口径。
   //    括号里若留着「= 0 分 + 20 分」这种旧分项，会与新的合计自相矛盾，所以一并换掉
-  const breakdown = `= 任职资格硬性不达标扣分${qualDed}分 + 学历硬性门槛扣分${eduDed}分`;
+  const breakdown = `= 硬性项不达标扣分${qualDed}分 + 学历硬性门槛扣分${eduDed}分`;
   patched = rewriteAmountLine(patched, DED_TOTAL_LINE, dedTotal, breakdown);
 
-  // 3) 优先项加分：与程序不一致就换掉；括号里写上达标项数，人工核对时不用回头数。
+  // 3) 优先项达标加分：与程序不一致就换掉；括号里写上达标项数，人工核对时不用回头数。
   //    老评语（v1.22 之前）没有这一行，不主动插入——分数已经算进去了，说明行会解释差额
   patched = rewriteAmountLine(patched, PRIO_BONUS_LINE, bonus, `= 优先项达标 ${prioPass} 项`);
 
@@ -500,12 +504,12 @@ export function patchScoreComment(comment, bd) {
   // 空一行再挂：紧贴综合结论读起来像那句的延续，单独成段才看得出是系统追加的。
   // 要挂在【系统核验】段**之前**——appendScoringNotices 每次都从这里整段重写，
   // 放在它后面的内容会被截掉（实测 7 位带核验提示的候选人说明直接消失）
-  const bonusText = bonus > 0 ? ` + 优先项加分 ${bonus} 分` : '';
+  const bonusText = bonus > 0 ? ` + 优先项达标加分 ${bonus} 分` : '';
   // 加分让上限第一次够得着：算式算出 105、分数却是 100 时，说明行必须自己说清楚，
   // 否则「A + B − C − D = 100」本身就是一个假算式
   const raw = base + bonus - dedTotal;
   const clampText = raw === score ? '' : `（加权合计 ${raw} 分，按 0-100 截断）`;
-  const note = `（系统说明：加权基础分 ${base} 分${bonusText} − 任职资格硬性不达标扣分 ${qualDed} 分 − 学历硬性门槛扣分 ${eduDed} 分 = ${score} 分${clampText}。评语中与程序口径不一致的手写数字已按此校正，以最终分数为准。）`;
+  const note = `（系统说明：加权基础分 ${base} 分${bonusText} − 硬性项不达标扣分 ${qualDed} 分 − 学历硬性门槛扣分 ${eduDed} 分 = ${score} 分${clampText}。评语中与程序口径不一致的手写数字已按此校正，以最终分数为准。）`;
   const at = noticesSplitAt(patched);
   return at === -1 ? `${patched}\n\n${note}` : `${patched.slice(0, at)}\n\n${note}${patched.slice(at)}`;
 }
