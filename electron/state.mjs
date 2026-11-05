@@ -5,7 +5,7 @@ import { app } from 'electron';
 import { resolve } from 'node:path';
 import { APP_ROOT } from './util.mjs';
 // 取消/跳过时子进程等 OCR 收尾的上限，与提取脚本共用同一个常量（见 flushProgressOnCancel）
-import { CLEANUP_OCR_GRACE_MS } from '../scripts/extract-common.mjs';
+import { CLEANUP_OCR_GRACE_MS } from '../scripts/progress-store.mjs';
 
 function getDefaultOutputDir() {
   return app.isPackaged

@@ -107,7 +107,10 @@ function registerIPC() {
     const source = opts?.source || 'chat';
     const job = opts?.job || '';
     const enableCopy = opts?.enableCopy !== false; // v1.4.4 模拟复制开关，默认开启
-    runPipeline(count, skipExtract, extractAll, source, job, enableCopy);
+    // 出错页的「重试」：pipeline 按本轮记下的失败步数接着跑
+    // （步骤 2 失败只重评分、步骤 3 失败只重新导出），不再从步骤 1 重新提取
+    const retry = opts?.retry === true;
+    runPipeline(count, skipExtract, extractAll, source, job, enableCopy, false, retry);
     return { ok: true };
   });
 

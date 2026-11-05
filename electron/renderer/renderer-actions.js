@@ -202,7 +202,9 @@ btnRetry.addEventListener('click', async () => {
 
   resetSteps();
   showState('state-running');
-  await startPipeline({ count, extractAll, source: selectedSource, job: selectedJob, enableCopy: enableCopyCheck.checked });
+  // retry：让主进程按输出目录里已有的数据决定从哪一步接着跑（步骤 2 失败 → 只重评分，
+  // 步骤 3 失败 → 只重新导出），不再从步骤 1 重新提取
+  await startPipeline({ count, extractAll, source: selectedSource, job: selectedJob, enableCopy: enableCopyCheck.checked, retry: true });
 });
 
 // 打开目录（目录被删 / 资源管理器打不开时给提示，别让点了像没点）

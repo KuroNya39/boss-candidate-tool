@@ -183,7 +183,6 @@
   font-weight: 600;
   line-height: var(--leading-tight); /* 16px 属标题档，行高 = 字号 ×1.2（§3，字号越大倍数越小），不跟正文的 ×1.5 */
   color: var(--text-secondary); /* 模块标题用次级字色：与下方说明文字拉开一档但不过黑（用户反馈 #0f172a 太深） */
-  letter-spacing: 0.5px;
   display: flex;
   align-items: center;
   gap: var(--space-2);

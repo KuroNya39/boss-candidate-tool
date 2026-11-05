@@ -225,7 +225,7 @@ BOSS直聘切到后台标签页时，模拟复制和截图都会失效。**请�
 
 ### 2. 运行期间会影响我用电脑吗？
 
-不会。仅勾选「开启模拟复制提取」时，提取画布简历的几秒内会占用系统剪贴板。
+基本不会。仅勾选「开启模拟复制提取」时，提取画布简历的几秒内会占用系统剪贴板，其他时间不影响正常使用。
 
 ### 3. 候选人提取不到 / 数量不对
 
@@ -269,32 +269,40 @@ BOSS直聘切到后台标签页时，模拟复制和截图都会失效。**请�
 - **技术栈**：Electron + Node.js，通过 Chrome DevTools 协议（CDP）代理控制浏览器
 - **主要模块**：
   ```
-  electron/main.mjs                         主进程入口（生命周期、--score-only 无界面评分）
-  electron/score-comment.mjs                评分程序化计算（维度加权分 + 优先项达标加分 − 学历扣分 − 硬性项不达标扣分）、评语数值修正与【系统核验】提示
-  electron/*.mjs                            其余主进程模块：流程编排、IPC、浏览器与代理管理、评分、打招呼、归档、候选人查询索引
-  electron/renderer/                        界面（index.html + 6 个 CSS + renderer-*.js，均按序引入）
-  scripts/cdp-proxy.mjs                     HTTP → WebSocket 代理，控制 Chrome（端口 3456）
-  scripts/extract-common.mjs                提取脚本共用工具（CDP 调用、截图 OCR、进度续跑）
-  scripts/extract-recommend-candidates.mjs  推荐牛人页提取
-  scripts/extract-search-candidates.mjs     搜索页提取
-  scripts/extract-candidates-full.mjs       沟通页提取
-  scripts/greet-candidates.mjs              批量打招呼
-  scripts/export-candidates.mjs             Excel 导出（邮件见 send-candidates-email.mjs）
-  scripts/score-tiers.mjs                   档位阈值与推荐级别常量（打分/打招呼/导出/统计共用）
-  scripts/scored-candidate.mjs              评分结果 → 列表行字段（界面与候选人查询共用）
-  scripts/degree.mjs                        学历词汇表（提取/评分/导出共用）
-  scripts/format-comment.mjs                评语排版（界面与 Excel 共用）
-  config/scoring-prompt-*.md                AI 评分提示词模板
-  %AppData%\web-access\web-access\jd-descriptions\   岗位描述（存用户数据目录，升级不丢）
+  主进程（electron/）
+    main.mjs                                   入口（生命周期、--score-only 无界面评分）
+    pipeline.mjs / incremental.mjs             主流程编排、边提取边评分的调度与收尾
+    scoring.mjs / score-comment.mjs            AI 请求与分批重试、程序化算分
+    ipc.mjs / window.mjs / state.mjs           IPC 通道、窗口与运行时状态
+    archive.mjs / candidate-index.mjs          历史批次、候选人查询索引
+    greet.mjs / pinyin.mjs / name-sort.mjs     批量打招呼、拼音搜索与姓名排序
+    config.mjs / util.mjs                      配置读写、日志与 GBK 解码
+    renderer/                                  界面（index.html + 6 个 CSS + renderer-*.js，均按序引入）
+
+  提取（scripts/）
+    cdp-proxy.mjs / cdp-base.mjs               CDP 代理（端口 3456）与底层调用封装
+    extract-*.mjs                              沟通页 / 推荐牛人页 / 搜索页提取
+    extract-common.mjs / canvas-copy.mjs       提取共用工具、canvas 简历模拟复制
+    progress-store.mjs / resume-parse.mjs      断点续跑与简历解析
+
+  评分与导出（scripts/）
+    export-candidates.mjs                      Excel 导出（含邮件发送）
+    export-fields.mjs / export-education.mjs   字段表与样式（加列改这里）、教育经历修正
+    format-comment.mjs / scored-candidate.mjs  评语排版、评分结果 → 列表行
+    score-tiers.mjs / degree.mjs               档位阈值、学历词汇表
+
+  配置
+    config/scoring-prompt-*.md                 AI 评分提示词模板
+    %AppData%\web-access\web-access\jd-descriptions\  岗位描述（存用户数据目录，升级不丢）
   ```
 - **常用命令**：
   ```bash
   npm install                 # 安装依赖
   npm start                   # 开发模式运行
-  node scripts/cdp-proxy.mjs  # 单独跑 CDP 代理（调试）
-  npm run pack                # 打包发布（icon → electron-builder → NSIS → release）
+  node scripts/cdp-proxy.mjs  # 单独运行 CDP 代理（调试）
+  npm run pack                # 打包发布（图标 → electron-builder → NSIS → release）
   ```
-- 详细开发文档见 [CLAUDE.md](CLAUDE.md)
+- **开发文档**：完整模块清单、核心流程与开发约定详见 [CLAUDE.md](CLAUDE.md)
 
 ---
 

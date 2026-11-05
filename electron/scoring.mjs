@@ -7,7 +7,7 @@ import { apiConfig, OUTPUT_DIR, cancelled } from './state.mjs';
 import { JD_DIR } from './config.mjs';
 import { readRunMeta } from './archive.mjs';
 import { formatComment, missingSectionLabels, SECTION_LABELS } from '../scripts/format-comment.mjs';
-import { parseJdRequirements, JD_SCREENING_HEADING, NO_RESUME_COMMENT, scoreFailedComment, isNonAiComment } from './score-comment.mjs';
+import { JD_SCREENING_HEADING, NO_RESUME_COMMENT, scoreFailedComment, isNonAiComment } from './score-comment.mjs';
 
 // ===== AI 评分常量（user 确认的参数：并发批数从 6 降到 5 更保守防限流；默认开启并行，不加开关） =====
 export const BATCH_SIZE = 3;              // 每批候选人数（保持 3 人一批，用户决定）
@@ -207,7 +207,6 @@ function stripScoreFields(candidates) {
     delete clone.jobRelevanceScore;
     delete clone.jobRelevanceComment;
     delete clone.scoreDetail;
-    delete clone.scoreContext;
     delete clone.matchScore;
     delete clone.totalScore;
     delete clone.recommendationLevel;
@@ -256,8 +255,7 @@ export function restoreScorableCandidates(srcDir, destPath) {
 
 // 构建某岗位的批量评分 prompt 生成器（含模板/JD 文件加载）。
 // getPoolCandidates: 返回该岗位当前所有已提取候选人（供沟通页无 JD 文件时从简历岗位描述兜底）。
-// 返回 { build, requirements }：requirements 是该 JD 的核验依据（筛选项条数 / 硬性年限），
-// 随 run 一起传给 scoreOneBatch，显式放在数据结构里，别再挂成 build 的函数属性。
+// 返回 { build }：build(cands) 生成该岗位一批人的评分 prompt。
 export function createPositionPromptBuilder(positionName, extractSource, getPoolCandidates) {
   const useWithJd = extractSource !== 'chat';
   const templateName = useWithJd ? 'scoring-prompt-with-jd.md' : 'scoring-prompt-chat.md';
@@ -291,11 +289,8 @@ export function createPositionPromptBuilder(positionName, extractSource, getPool
     termLog(`[AI评分] ⚠ 未配置核心评估维度，请先在设置中配置`, 'stderr');
   }
 
-  // 喂给模型的筛选项来源。程序核验（parseJdRequirements）与 prompt 填槽共用这一个值，
-  // 保证「核验的」就是「模型看到的」那几条条件，不会两处各解析一遍后悄悄漂移。
+  // 喂给模型的筛选项来源
   const criteriaSource = jdScreeningCriteria || jdContent || screeningCriteriaText;
-  // 程序核验用的 JD 数据（筛选项条数下限 / 硬性经验年限）；取不到时两个值都是空，核验自动跳过
-  const requirements = parseJdRequirements(criteriaSource);
 
   const build = (cands) => {
     let p;
@@ -360,17 +355,14 @@ export function createPositionPromptBuilder(positionName, extractSource, getPool
       `**不能替代 comment 里的第 3 节（任职资格的匹配情况）和第 4 节（学历硬性门槛核查）**——写了结构化字段，也仍要把逐条结论和学历核查写进 comment。`;
     return p;
   };
-  return { build, requirements };
+  return { build };
 }
 
 // 执行一批评分（含失败重试/整批失败拆单重试/设 0 分兜底），原地写入 batch 内候选人的分数。
-// run: { signal, buildBatchPrompt, requirements, onBatchDone(batch) }
-// requirements 是岗位级的 JD 核验依据，由 createPositionPromptBuilder 一并给出；
-// 缺省为空对象，核验自动跳过（沟通页无 JD、或调用方不关心核验时如此）
+// run: { signal, buildBatchPrompt, onBatchDone(batch) }
 export async function scoreOneBatch(batch, run) {
   if (cancelled) return;
 
-  const requirements = run.requirements || {};
   const prompt = run.buildBatchPrompt(batch);
 
   // 把一条 AI 评分结果写到候选人身上。批量路径与逐人重试路径共用这一份——
@@ -379,9 +371,6 @@ export async function scoreOneBatch(batch, run) {
     c.jobRelevanceScore = r.score;
     c.jobRelevanceComment = r.comment;
     c.scoreDetail = r.detail;
-    // 岗位级的 JD 核验依据随分数存一份（收尾算分时不必再读 JD 文件）；
-    // 页面工作年限由收尾从 c.basicInfo 现算，不落盘，免得存一份会过期的派生值
-    c.scoreContext = { jdWorkYears: requirements.workYears, jdItemCount: requirements.itemCount };
   };
   const batchNames = batch.map(c => c.basicInfo?.name || c.geekId || '未知').join('、');
   termLog(`[AI评分] 评分批： ${batchNames}`);
@@ -473,7 +462,7 @@ export async function scoreOneBatch(batch, run) {
   // 评语缺节补救：模型拿到结构化字段后，常把第 3/4 节当成字段、正文只写到「匹配度评分」就收尾
   // （2026-11-02 一批 200 人里 18 人）。分数不受影响（仍按结构化字段算），但评语是给人看的，
   // 所以挑出来单独重问一次、要求把正文补全；只有补全后确实更完整才替换（别用更差的回答覆盖）。
-  // 失败就把原样留着，收尾会挂「评语不完整」提示交人工复核。
+  // 失败就把原样留着——分数照常按结构化字段算，评语不完整只是读着少一截。
   const incomplete = batch
     .map((c) => ({
       c,
@@ -495,7 +484,7 @@ export async function scoreOneBatch(batch, run) {
         if (!r || typeof r.score !== 'number') continue;
         const after = missingSectionLabels(r.comment).length;
         // 补全只管正文：原结果带结构化字段、这次没带时不能换上去——收尾会从「按字段算」退回
-        // 「按评语解析」，分数可能跟着变。这种情况下宁可留着缺节的评语，让收尾挂核验提示
+        // 「按评语解析」，分数可能跟着变。这种情况下宁可留着缺节的评语
         if (after >= missing.length || (c.scoreDetail && !r.detail)) continue;
         applyResult(c, r);
         termLog(`  ✓ ${nm}： 评语已补全${after > 0 ? `（仍缺 ${after} 节）` : ''}`);
@@ -555,12 +544,12 @@ export async function scoreCandidateList(candidates, extractSource, { signal, on
 
     if (withResume.length === 0) continue;
 
-    const { build: buildBatchPrompt, requirements } = createPositionPromptBuilder(positionName, extractSource, () => withResume);
+    const { build: buildBatchPrompt } = createPositionPromptBuilder(positionName, extractSource, () => withResume);
     const batches = [];
     for (let i = 0; i < withResume.length; i += BATCH_SIZE) {
       batches.push(withResume.slice(i, i + BATCH_SIZE));
     }
     termLog(`[AI评分] 岗位「${positionName}」： ${withResume.length} 人，${batches.length} 批，并发 ${SCORE_CONCURRENCY} 批`);
-    await runBatchWindow(batches, { signal, buildBatchPrompt, requirements, onBatchDone });
+    await runBatchWindow(batches, { signal, buildBatchPrompt, onBatchDone });
   }
 }

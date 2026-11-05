@@ -18,7 +18,6 @@ header h1 {
   line-height: var(--leading-tight); /* 18px 属标题档，行高 = 字号 ×1.2（§3，字号越大倍数越小）；顶栏高度由自身内距定，这一行不会把它压矮 */
   text-align: center;
   color: var(--text-primary);
-  letter-spacing: 0.5px;
 }
 
 /* 版本号：贴最右（左菜单 / 中标题 / 右版本，三列各归各位，标题居中不再有歧义） */

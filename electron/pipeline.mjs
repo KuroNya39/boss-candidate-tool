@@ -2,7 +2,7 @@
 import { resolve, dirname, basename } from 'node:path';
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { powerSaveBlocker } from 'electron';
-import { archiveOldOutput, cleanupCacheFiles } from '../scripts/extract-common.mjs';
+import { archiveOldOutput, cleanupCacheFiles } from '../scripts/progress-store.mjs';
 import { termLog } from './util.mjs';
 import { OUTPUT_DIR, apiConfig, cancelled, setCancelled, skipRecovered, setSkipRecovered, skipToScoring, setSkipToScoring, setExportMailResult, exportMailResult, actualExportPath, setRunActive } from './state.mjs';
 import { sendProgress, sendDone, sendError } from './window.mjs';
@@ -14,6 +14,11 @@ import { runScript, parseExtractProgress, parseExportProgress } from './runner.m
 import { isChromeRunning, getSourcePageUrl, launchChrome, buildPageNotOpenMessage, openUrlInChrome } from './chrome.mjs';
 
 // ===== 主流程编排 =====
+// 上一轮失败在第几步（1 提取 / 2 评分 / 3 导出），供出错页的「重试」从这一步接着跑。
+// 只存在主进程内存里：软件重启后就没有「上一轮」了，本来就该从头开始。
+// 运行中直接在这一格上推进（每过一个里程碑改一次），不另设局部镜像。
+let lastFailedStep = 0;
+
 // 在历史归档目录（output-YYYYMMDD-HHMM）里找最近一份含「可评分数据」的目录
 // （完整提取数据 / 提取到一半的进度 / 已评分结果都算）。
 // 用于「跳过提取 / 历史记录评分」：数据被归档后仍能恢复出来直接重新评分，无需重新提取。
@@ -34,9 +39,20 @@ function findRecentArchiveWithScorable() {
   return null;
 }
 
-async function runPipeline(count, skipExtract = false, extractAll = false, source = 'chat', job = '', enableCopy = true, resume = false) {
+async function runPipeline(count, skipExtract = false, extractAll = false, source = 'chat', job = '', enableCopy = true, resume = false, retry = false) {
   setCancelled(false);
   setSkipRecovered(false);
+
+  // 出错页的「重试」：从上一轮**失败的那一步**接着跑，不回到步骤 1 把已提取的候选人重提一遍。
+  // 失败步数记在 lastFailedStep（本模块内存，进程重启即失效——重启后本就该从头来）。
+  // 只有渲染进程显式传 retry 才用它：用户点「返回」重新开始是一次全新的运行，不能沿用旧值，
+  // 所以每次进这里都清掉，用完不残留。
+  const retryFrom = retry ? lastFailedStep : 0;
+  lastFailedStep = 0;
+  // 步骤 3 失败 = 评分结果已经在了，只重导出；步骤 2 失败 = 提取数据在，跳过提取重新评分。
+  // 步骤 1 失败（含「页面未打开」）没有可复用的东西，照常从头提取
+  const exportOnly = retryFrom === 3 && existsSync(resolve(OUTPUT_DIR, 'scored-candidates.json'));
+  if (retryFrom === 2 || exportOnly) skipExtract = true;
 
   // 运行期间阻止系统休眠/显示器关闭（v1.3.27）：
   // 同事实测跑一批会因系统休眠后锁屏而暂停。powerSaveBlocker('prevent-display-sleep')
@@ -66,7 +82,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       }
       // 兜底：万一归档没挪干净（个别文件仍被占用留在原地），清掉评分器会误读的残留进度/扫描缓存。
       // 新开一轮的进度必须从零开始，绝不能沿用上一批候选人为新岗位抢先开评。
-      // 复用 extract-common 的 cleanupCacheFiles（参数传目录内任一文件路径，它据此定位目录）
+      // 复用 progress-store 的 cleanupCacheFiles（参数传目录内任一文件路径，它据此定位目录）
       cleanupCacheFiles(resolve(OUTPUT_DIR, 'zhipin-candidates.json'));
     }
 
@@ -145,11 +161,15 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       indexDir: CONFIG_DIR,         // 候选人查询索引：收尾时记录本次评过的人
       scoringError: null,
     };
-    const scoringPromise = runIncrementalScoring(scoreCtx).catch((err) => {
+    const scoringPromise = exportOnly ? Promise.resolve() : runIncrementalScoring(scoreCtx).catch((err) => {
       scoreCtx.scoringError = err;
     });
 
-    if (!skipExtract) {
+    if (exportOnly) {
+      // 步骤 1 上一轮已经跑完（只有导出失败才走这里）：补一条「已完成」，
+      // 免得重试时卡片停在「等待中」、看着像跳过了这一步（步骤 2 下面统一报）
+      sendProgress(1, 'done', 100, '候选人信息提取完成');
+    } else if (!skipExtract) {
       sendProgress(1, 'running', 0, extractAll ? `正在扫描候选人列表（${pageLabel}页）…` : '正在扫描候选人列表…');
       const extractArgs = extractAll
         ? ['--all', '--output', resolve(OUTPUT_DIR, 'zhipin-candidates.json')]
@@ -227,6 +247,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       await scoringPromise;
       if (cancelled) throw new Error('已取消');
       if (extractError) throw extractError;
+      lastFailedStep = 2; // 提取已成功：之后再出错都算步骤 2
       if (scoreCtx.scoringError) throw scoreCtx.scoringError;
     } else {
       // v1.4.8: 「跳过提取，直接用已有数据评分」——若当前输出目录没有完整的候选人文件，
@@ -257,6 +278,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       scoreCtx.extractResult = { ok: true };
       await scoringPromise;
       if (cancelled) throw new Error('已取消');
+      lastFailedStep = 2;
       if (scoreCtx.scoringError) throw scoreCtx.scoringError;
     }
 
@@ -265,6 +287,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     sendProgress(3, 'running', 0, '正在导出 Excel…');
     const scoredPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
     if (!existsSync(scoredPath)) throw new Error(`未找到评分结果文件： ${scoredPath}`);
+    lastFailedStep = 3; // 评分结果已在，之后出错都能直接重导出
 
     // v1.9.3 自愈：这轮跑到评分完成，确保当前目录一定留有 .run-meta.json。
     // 个别异常流程（早期写 meta 被占用/被跳过）可能留下「有数据没 meta」的批次，
@@ -344,6 +367,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       emailError: exportMailResult.status === 'fail' ? exportMailResult.error : '',
     });
   } catch (err) {
+    // lastFailedStep 已在运行中按里程碑推进，这里不必再记（步骤 1 失败时它仍是进函数时清掉的 0）
     if (err.message === '已取消') {
       sendProgress(1, 'idle', 0, '已取消');
       sendProgress(2, 'idle', 0, '');

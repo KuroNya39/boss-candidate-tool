@@ -19,20 +19,21 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { proxyGet, proxyPost, sleep, randomDelay, cdpEval } from './cdp-base.mjs';
 import {
-  proxyGet, proxyPost, sleep, randomDelay,
-  cdpEval, prepareTab, waitWhilePaused, installStdinControls,
+  saveScanCache, loadScanCache, saveProgress, loadProgress, flushProgressOnCancel, cleanupCacheFiles,
+  archiveOldOutput,
+} from './progress-store.mjs';
+import { parseEducationFromResume } from './resume-parse.mjs';
+import {
+  prepareTab, waitWhilePaused, installStdinControls,
   clickOnlineResume,
   closeResumeDialog,
   captureResumeScreenshots,
   ocrScreenshots, tryExtractResumeTextFromDOM,
   safeName, cleanOcrText, FIND_LIST_CONTAINER_JS,
-  getScanCachePath, getProgressPath,
-  saveScanCache, loadScanCache, saveProgress, loadProgress, flushProgressOnCancel, cleanupCacheFiles,
-  archiveOldOutput,
   reportStats,
   parseArgs,
-  parseEducationFromResume,
   isMainModule,
 } from './extract-common.mjs';
 

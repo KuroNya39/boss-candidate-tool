@@ -4,7 +4,7 @@ import { existsSync, statSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import nodemailer from 'nodemailer';
-import { sleep } from './extract-common.mjs';
+import { sleep } from './cdp-base.mjs';
 
 const DEFAULT_SUBJECT = '候选人评分结果';
 const DEFAULT_TEXT = '候选人评分结果已生成，Excel 文件见附件。';

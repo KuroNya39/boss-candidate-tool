@@ -19,21 +19,25 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { proxyGet, proxyPost, sleep, randomDelay, cdpEval } from './cdp-base.mjs';
 import {
-  proxyGet, proxyPost, sleep, randomDelay,
-  cdpEval, prepareTab, waitWhilePaused, installStdinControls,
+  saveScanCache, loadScanCache, saveProgress, loadProgress, flushProgressOnCancel, cleanupCacheFiles,
+  archiveOldOutput,
+} from './progress-store.mjs';
+import {
+  COPY_JUNK_RE, DOM_MIN_TEXT_LEN,
+  tryExtractResumeTextByTrustedCopy,
+  tryExtractCanvasResumeByDragCopy,
+} from './canvas-copy.mjs';
+import { parseEducationFromResume } from './resume-parse.mjs';
+import {
+  prepareTab, waitWhilePaused, installStdinControls,
   closeBossPopup,
   captureResumeScreenshots,
   ocrScreenshots,
-  safeName, findFrameInTree, diagnoseResumeIframeDom, probeFramesForResumeText, COPY_JUNK_RE,
-  tryExtractResumeTextByTrustedCopy,
-  tryExtractCanvasResumeByDragCopy,
-  getScanCachePath, getProgressPath,
-  saveScanCache, loadScanCache, saveProgress, loadProgress, flushProgressOnCancel, cleanupCacheFiles,
-  archiveOldOutput,
+  safeName, findFrameInTree, diagnoseResumeIframeDom, probeFramesForResumeText,
   reportStats,
   parseArgs,
-  parseEducationFromResume,
   isMainModule,
 } from './extract-common.mjs';
 import { DEGREE_ANY_RE, degreeRank } from './degree.mjs';
@@ -887,8 +891,7 @@ async function getRecommendResumeScrollInfo(targetId) {
  *
  * @returns {string|null} 提取到的文本，若 DOM 不可用/过短返回 null
  */
-// DOM 提取文本最短阈值：低于此值视为抓到弹窗壳（头部固定文案等）而非简历正文
-const DOM_MIN_TEXT_LEN = 200;
+// DOM 提取文本最短阈值（DOM_MIN_TEXT_LEN）与 canvas-copy 共用一份，见上面的 import
 async function tryExtractRecommendResumeTextFromDOM(targetId) {
   // 方式一：在嵌套简历 iframe 中提取（在线 HTML 简历走这里，文本干净）
   try {
@@ -1585,7 +1588,7 @@ async function main() {
                 // clip 尺寸无效（width/height 为 0，常见于 iframe 尚未渲染完成）时
                 // 转全屏截图兜底，避免 CDP 报 "Cannot take screenshot with 0 width"
                 const shotClip = (clip && clip.width > 0 && clip.height > 0) ? clip : null;
-                const { cdpScreenshot } = await import('./extract-common.mjs');
+                const { cdpScreenshot } = await import('./cdp-base.mjs');
                 await cdpScreenshot(targetId, ssPath, shotClip);
                 screenshots.push(ssPath);
                 success = true;

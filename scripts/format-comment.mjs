@@ -48,31 +48,28 @@ export const SECTION_LABELS = {
   qualifications: '任职资格的匹配情况',
   education: '学历硬性门槛核查',
 };
-// 维度节标题的**识别源**：数字后的空格与「的」都可能被漏写（「3个评估维度的匹配情况」是改版前的
-// 标准写法；漏「的」的「3个评估维度匹配情况」在 2026-11-03 那批 315 人里占 96 人）。
-// 所以这里不列举写法，两条都容忍；由标准写法推导，改 SECTION_LABELS 不会漏改。
-// 插标题用的仍是 SECTION_LABELS.dimensions（识别的宽容不改变输出的唯一写法）
-const DIM_TITLE_SRC = SECTION_LABELS.dimensions
+// 标题的**宽松写法**：数量前缀「3 个」、数字后的空格与「的」都可能被漏写（「3个评估维度的匹配情况」
+// 是改版前的标准写法；漏「的」的「3个评估维度匹配情况」在 2026-11-03 那批 315 人里占 96 人，
+// 整个省掉「3 个」的「评估维度匹配情况」也见过）。由标准写法推导，改 SECTION_LABELS 不会漏改；
+// 插标题用的仍是 SECTION_LABELS 的原文（识别的宽容不改变输出的唯一写法）
+const looseTitle = (label) => label
+  .replace(/^\d+\s*个\s*/, '(?:\\d+\\s*个\\s*)?')
   .replace(/\s+/g, '\\s*')
   .replaceAll('的', '\\s*的?\\s*');
+const DIM_TITLE_SRC = looseTitle(SECTION_LABELS.dimensions);
 // 任职资格逐项结论的三个词：解析侧（score-comment.mjs 按它切逐项行）与界面加粗共用，
 // 改提示词措辞只改这里——否则会出现「解析还在认这个词、加粗却不认」的静默错位
 export const VERDICT_LABELS = { pass: '达标', fail: '不达标', pending: '待核实' };
 
-// 评语末尾「系统核验」段的标题：score-comment.mjs 用它追加/重写这一段，本模块用它把这一段
-// 排除在「小节标题是否已存在」的判断之外（这段会引用「任职资格的匹配情况」等小节名）
-export const NOTICE_HEADER = '【系统核验】';
+// 评语末尾【系统核验】段的标题。这一版起不再生成（旧批次存档里还有），但排版时仍要整段切掉——
+// 它引用了「任职资格的匹配情况」等小节名，留着会被当成板块标题重排
+const NOTICE_HEADER = '【系统核验】';
 
-/** 正文与【系统核验】段的分界；没有这一段返回 -1（本模块内只给 splitNotices 用） */
-function noticesSplitAt(text) {
-  return String(text || '').indexOf('\n\n' + NOTICE_HEADER);
-}
-
-/** 同上但直接切开：[正文, 【系统核验】段（含它前面的空行）；没有这一段时为 ''] */
-export function splitNotices(text) {
+/** 只要正文：历史存档里的【系统核验】段在这里丢掉（formatComment 与缺节判定共用） */
+function stripNotices(text) {
   const s = String(text || '');
-  const at = noticesSplitAt(s);
-  return at === -1 ? [s, ''] : [s.slice(0, at), s.slice(at)];
+  const at = s.indexOf('\n\n' + NOTICE_HEADER);
+  return at === -1 ? s : s.slice(0, at);
 }
 
 /**
@@ -80,11 +77,11 @@ export function splitNotices(text) {
  * 1 节不查——排版只会补上标签、不保证有内容（首行本身就是节标题时标签下仍是空的）；
  * 5 节「综合结论」已并入 1 节，不再单列。
  * 只看【系统核验】段之前的正文 —— 那一段里点名的正是缺的节名，连它一起判等于永远不缺。
- * 收尾的「评语不完整」提示与评分时的补全重试共用这一份判定，别两处各写一遍。
+ * 评分时的「补全重试」用它挑出缺节的人，别在别处另写一份判定。
  * 传进来的应是已排版（formatComment）过的评语：缺小节标题但内容齐全的，排完版就不算缺。
  */
 export function missingSectionLabels(comment) {
-  const [body] = splitNotices(comment);
+  const body = stripNotices(comment);
   return [SECTION_LABELS.qualifications, SECTION_LABELS.education]
     .filter((k) => !body.includes(k));
 }
@@ -98,14 +95,23 @@ const BLOCKS = [
 
 // 下面这些正则每次 formatComment 都要用（每位候选人一次，导出/界面各一次），
 // 全部在模块级建好，别在函数里反复 new RegExp。
-const BLOCK_TITLES = BLOCKS.map(([src]) => src);
-// 固定板块标题 → 模板编号
-const BLOCK_REWRITES = BLOCKS.map(([src, n]) => [new RegExp(src + '\\s*[:：]?'), `${n}.${src}：`]);
+// 固定板块标题 → 模板编号。**只改真正处在标题位置的**：行首，或紧跟句末标点/冒号、换行之后。
+// 不这么限定，正文里顺口提一句标题名就会被硬拆开——实测白宇那条写「…重算为67分，与首句定性一致）」，
+// 排出来变成「…与⏎⏎1.首句定性：一致）」，排版反而把评语弄乱了
+// 标题前只认**水平**空白：用 \s* 会让「。⏎⏎4.学历…」从那个句号处匹配、把句号挤到单独一行
+// （标题本来就在行首，该从换行处匹配）
+// 认标题用宽松写法：编号剥离、节判定、剥壳都认「任职资格匹配情况」这种省「的」的写法，
+// 唯独这里不认的话，那一行会被剥掉编号却加不回来（同一份标题词表，别只认一半）
+const BLOCK_REWRITES = BLOCKS.map(([src, n]) => [
+  new RegExp('(^|[\\n。；;：])[ \\t]*' + looseTitle(src) + '\\s*[:：]?', 'g'),
+  `$1\n${n}.${src}：`,
+]);
 // 去掉 AI 自带的维度标题。必须全局剥：同一份评语里常同时有旧写法与标准写法，
 // 只剥第一处会把另一处留给第 4 步插出第二个标题
 const DIM_HEAD_RE = new RegExp('[0-9一二三四五六七八九十]*[.、．]?\\s*(?:' + DIM_TITLE_SRC + ')\\s*[:：]?', 'g');
-// 四个板块标题（维度标题按上面的宽松写法）拼成的正则片段：认编号、【】剥壳、判「这行是不是节标题」三处共用一份（加标题只改 SECTION_LABELS）
-const ALL_TITLE_SRC = BLOCK_TITLES.concat(DIM_TITLE_SRC).join('|');
+// 四个板块标题（一律按上面的宽松写法）拼成的正则片段：认编号、【】剥壳、判「这行是不是节标题」、
+// 删章节标签行四处共用一份（加标题只改 SECTION_LABELS）
+const ALL_TITLE_SRC = Object.values(SECTION_LABELS).map(looseTitle).join('|');
 const BLOCK_NUMBER_HEAD_RE = new RegExp(
   '([0-9一二三四五六七八九十]+[.、．]\\s*)(?=(?:' + ALL_TITLE_SRC + '))',
   'g',
@@ -125,13 +131,20 @@ const EMPTY_BRACKET_RE = /【\s*】/g;
 // 模型偶尔把下一行开头的英文词漏在上一节末尾（实测只有 Linux 一例：维度名以它开头，维度行里反而少了它），
 // 单独占一行或缀在句号后。只认纯字母单词——带数字或符号的（CET-6、K8s）可能是正文，不动
 const STRAY_WORD_RE = /(^|[。；])[ \t]*[A-Za-z]{2,}[ \t]*$/gm;
-const WRAPPED_TITLE_RE = new RegExp(
-  '【\\s*((?:\\d+[.、．]\\s*)?(?:' + ALL_TITLE_SRC + ')\\s*[:：]?)\\s*】',
-  'g',
-);
+// 「可选编号 + 板块标题 + 可选冒号」：剥壳、删标签行、判节标题三条路共用，加一种标题写法只改这里
+const NUM_PREFIX_SRC = '(?:\\d+[.、．]\\s*)?';
+const TITLE_LINE_SRC = NUM_PREFIX_SRC + '(?:' + ALL_TITLE_SRC + ')\\s*[:：]?';
+const WRAPPED_TITLE_RE = new RegExp('【\\s*(' + TITLE_LINE_SRC + ')\\s*】', 'g');
+// 模型（2026-11 起 deepseek 系高发：一天 449 人里 347 人）会在小节标题前多写一行章节标签，
+// 内容就是标题的简写（【任职资格匹配情况】、【评估维度匹配情况】——省「的」，也省「3 个」）。
+// 删掉「整行就是一个方括号」那种：它在界面上会被当独立标题加粗，最显眼，内容又与下一行完全重复。
+// 「【维度1】Linux」这类行尾还有内容的、以及【系统核验】（开头已切走）都不动。
+// 不看下一行是什么：真标题漏写时 insertSectionHead 会按内容形状补回来，留下的反而是个没人管的裸标签行。
+// 标题写法从 SECTION_LABELS 推导（ALL_TITLE_SRC），别在这里另抄词表——改了标题却漏改词表，这行就会静默漏删
+const BRACKET_LABEL_RE = new RegExp('^[ \\t]*【\\s*' + TITLE_LINE_SRC + '\\s*】[ \\t]*\\r?\\n', 'gm');
 // 节标题行（已归一：可选编号 + 标题 + 可选冒号）。判「当前行属于哪一节」必须认标题**形状**：
 // 正文里顺口提到别的节名（如逐项行写「详见学历硬性门槛核查」）不能算换了节
-const SECTION_TITLE_LINE_RE = new RegExp('^\\s*(?:\\d+[.、．]\\s*)?(' + ALL_TITLE_SRC + ')\\s*[:：]?');
+const SECTION_TITLE_LINE_RE = new RegExp('^\\s*' + NUM_PREFIX_SRC + '(' + ALL_TITLE_SRC + ')\\s*[:：]?');
 
 // 第 3 / 4 节的**内容形状**：模型漏写小节标题时靠它把段落认回来（标题编号由第 1 步统一加）。
 // 第 3 节的形状就是逐项行首的档位标签，解析侧（score-comment.mjs 剥出 tier）也认这一份，
@@ -155,16 +168,17 @@ function insertSectionHead(text, label, lineRe) {
 
 export function formatComment(text) {
   if (!text) return '';
-  // 【系统核验】段是系统追加的固定结构，整段不参与下面的编号/换行重排：提示里会引用小节名
-  // （如「缺少「任职资格的匹配情况」」），交给第 1 步会被当成板块标题加上编号、拆成带换行的
-  // 残文（用户看到的就是「缺少「⏎⏎3.任职资格的匹配情况：」」）。切出来，正文排完再原样接回去
-  const [src, notice] = splitNotices(text);
-  let t = src;
+  // 【系统核验】段（只有旧批次存档里还有）整段丢掉：它会引用小节名（如「缺少「任职资格的匹配情况」」），
+  // 留在正文里会被第 1 步当成板块标题加上编号、拆成带换行的残文
+  let t = stripNotices(text);
 
   // 0) 剥掉模型自加的方括号壳（见上）与节间多吐的英文残片，再做编号/标题归一。
   //    残片必须排在 0.5 补「首句定性」标签之前：它若正好是第一行，补完标签就成了「首句定性：Linux」
   t = t.replace(EMPTY_BRACKET_RE, '');
   t = t.replace(STRAY_WORD_RE, '$1');
+  // 章节标签整行先删：排在剥壳之前，否则「【学历硬性门槛核查】」会被剥成光秃秃的标题行，
+  // 下一行真正的标题再被编号合并，拼出「4.学历硬性门槛核查：学历硬性门槛核查：」
+  t = t.replace(BRACKET_LABEL_RE, '');
   t = t.replace(WRAPPED_TITLE_RE, '$1');
 
   // 0.1) 去掉 AI 可能自带的板块编号/标题，避免重复（如 "1.首句定性"、"2.3个评估维度的匹配情况："）
@@ -216,8 +230,7 @@ export function formatComment(text) {
   // 修复旧数据中误换行的"刚性扣分"（非标题场景，如"刚性扣分。学历..."）
   t = t.replace(/\n刚性扣分(?!说明)/g, '刚性扣分');
   t = t.replace(/^\n+/, '');
-  // 7) 把【系统核验】段原样接回（它自带开头的空行，正文已 trim，直接拼即可）
-  return t.trim() + notice;
+  return t.trim();
 }
 
 // ===== 评语强调（界面加粗 + 上色；Excel 只上色不加粗） =====
@@ -264,7 +277,7 @@ const VERDICT_TONES = {
 /**
  * 把评语切成 [{ text, bold, tone }] 片段。规则三条：
  *   ① 行首到第一个（括号外的）冒号之间加粗——编号标题、维度行、逐项条件名、计分行都靠它出层次
- *   ② 独占一行的【系统核验】这类方括号标题整行加粗
+ *   ② 独占一行的方括号标题（如【系统核验】，旧批次评语里还有）整行加粗
  *   ③ 第 3 节「任职资格的匹配情况」里的「达标」「不达标」「待核实」各带一条 tone
  *      （success / error / warning），渲染时上对应的语义色；「不达标」「待核实」另加粗（「达标」不加）
  * 只有排版含义，不改文本内容；存储的评语保持纯文本（索引/邮件/复制都不受影响）。
@@ -294,7 +307,11 @@ function commentEmphasisSegments(text) {
     const title = line.match(SECTION_TITLE_LINE_RE);
     if (title) inQual = title[1] === SECTION_LABELS.qualifications;
     const end = labelEndIndex(line);
-    const hasLabel = end > 0 && end <= LABEL_MAX;
+    // 第 3 节的逐项行以 [硬性] / [优先] 打头，是明确的结构标记：条目名再长也照加粗。
+    // 60 字的上限是给「正文里偶然出现的冒号」兜底的，不该管到这种行——
+    // 实测「[硬性] 熟悉GPIO、I2C、SPI…等驱动：」一串外设名能到 70+ 字，被上限挡掉后整条都不加粗，
+    // 扫评语时看不出这行是个条目（候选人索引里 1358 行 / 41685 行）。非标签行一旦超过 60 字仍不加粗。
+    const hasLabel = end > 0 && (end <= LABEL_MAX || QUAL_ITEM_LINE_RE.test(line));
     if (hasLabel) push(line.slice(0, end + 1), true);
     const rest = hasLabel ? line.slice(end + 1) : line;
     if (inQual) pushVerdicts(rest);

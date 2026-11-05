@@ -4,11 +4,8 @@ import { resolve } from 'node:path';
 import { existsSync, readFileSync, writeFileSync, unlinkSync, readdirSync } from 'node:fs';
 import {
   computeScoreBreakdown, parseMatchScoreFromComment, patchScoreComment,
-  appendScoringNotices, isNonAiComment, parseWorkYears, NO_RESUME_COMMENT,
+  isNonAiComment, NO_RESUME_COMMENT,
 } from './score-comment.mjs';
-
-// 维度分既没走结构化字段、评语里也解析不出来时的兜底提示（分数仍用模型自报值）
-const NO_BREAKDOWN_NOTICE = '本分数未经程序重算（维度分解析失败），直接采用模型自报分数，仅供参考。';
 import { scoreToRecommendation, isPassed } from '../scripts/score-tiers.mjs';
 import { termLog, sleep } from './util.mjs';
 import { tailFlushRequested, setTailFlushRequested, setAiAbortController, aiAbortController, cancelled, OUTPUT_DIR } from './state.mjs';
@@ -49,8 +46,8 @@ async function runIncrementalScoring(ctx) {
   const scoredRefs = new Map();      // 候选人key -> 已评分对象（快照，分数/评语在对象上）
   const seenRefs = new Map();        // 候选人key -> 已提取对象（快照）
   const dispatchingRefs = new Set(); // 已进入批队列（排队或在飞）的 key，防止重复收集
-  const promptBuilders = new Map();  // 岗位 -> { build, requirements }（懒加载缓存）
-  const dispatchQueue = [];          // 待调度批次 [{cands, build, requirements}]
+  const promptBuilders = new Map();  // 岗位 -> { build }（懒加载缓存）
+  const dispatchQueue = [];          // 待调度批次 [{cands, build}]
   const executing = new Set();       // 在飞批 promise（并发上限 SCORE_CONCURRENCY）
   const pendingSince = new Map();    // 候选人key -> 进入待评队列的时刻（尾巴超时按人计时，见 collectBatches）
   let lastSent = '';                 // 步骤2 上次已发的进度帧（去重用，见 sendStep2Progress）
@@ -145,7 +142,7 @@ async function runIncrementalScoring(ctx) {
     return list;
   }
 
-  // —— 某岗位的 prompt 生成器（懒加载 + 缓存）：{ build, requirements } ——
+  // —— 某岗位的 prompt 生成器（懒加载 + 缓存）：{ build } ——
   function builderFor(job) {
     let b = promptBuilders.get(job);
     if (!b) {
@@ -208,7 +205,6 @@ async function runIncrementalScoring(ctx) {
       const run = {
         signal,
         buildBatchPrompt: entry.build,
-        requirements: entry.requirements,
         onBatchDone(batch) {
           for (const c of batch) scoredRefs.set(candidateKeyOf(c), c);
           reportProgress();
@@ -255,7 +251,6 @@ async function runIncrementalScoring(ctx) {
         c.jobRelevanceScore = snap.jobRelevanceScore;
         c.jobRelevanceComment = snap.jobRelevanceComment;
         c.scoreDetail = snap.scoreDetail;
-        c.scoreContext = snap.scoreContext;   // JD 核验依据 + 页面工作年限，收尾算分要用
         merged++;
       }
     }
@@ -282,23 +277,16 @@ async function runIncrementalScoring(ctx) {
     // 权威分数全部由程序算；算式只在 score-comment.mjs 文件头写一份，这里不重述（重述会悄悄过期）。
     // AI 手写的「扣分合计」「匹配度评分」不可信（实测同一份评语里前后打架），只作评语文字展示。
     for (const c of candidates) {
-      // 「无在线简历」「评分失败」这两类不是 AI 评语，没有可解析的内容，也不该挂核验提示
+      // 「无在线简历」「评分失败」这两类不是 AI 评语，没有可解析的内容
       const noAiComment = isNonAiComment(c.jobRelevanceComment);
-      // 明细只算一次：分数、评语改写、核验提示必须出自同一份计算，否则正文可能写着另一个分数。
-      // 页面工作年限在这里现算（不落盘），JD 那半边由评分阶段随分数存进 scoreContext
-      const bd = noAiComment ? null : computeScoreBreakdown(c.jobRelevanceComment, c.scoreDetail, {
-        ...c.scoreContext,
-        candidateWorkYears: parseWorkYears(c.basicInfo?.workYears),
-      });
+      // 明细只算一次：分数与评语改写必须出自同一份计算，否则正文可能写着另一个分数
+      const bd = noAiComment ? null : computeScoreBreakdown(c.jobRelevanceComment, c.scoreDetail);
       c.matchScore = bd?.score ?? parseMatchScoreFromComment(c.jobRelevanceComment);
       c.totalScore = c.matchScore ?? (c.jobRelevanceScore || 0);
       // 评语里的手写数字（学历扣分 / 扣分合计 / 优先项达标加分 / 匹配度评分）校正成与程序分数一致，
       // 避免「评语写 62、列表显示 67」的矛盾。只改对不上的那几处，本来就一致的一句不动。
       // bd 为 null 时不必进去（它自己会再扫一遍全文，结果还是 null）
       if (bd) c.jobRelevanceComment = patchScoreComment(c.jobRelevanceComment, bd);
-      // 程序判不出来 / 判出与模型结论矛盾的地方挂到评语末尾（**只提示、不改分**），人工复核时一眼能看到
-      const notices = bd ? bd.notices : (noAiComment ? [] : [NO_BREAKDOWN_NOTICE]);
-      c.jobRelevanceComment = appendScoringNotices(c.jobRelevanceComment, notices);
       c.recommendationLevel = scoreToRecommendation(c.totalScore);
       c.passed = isPassed(c.totalScore);
     }

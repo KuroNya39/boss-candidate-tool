@@ -25,9 +25,8 @@
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  proxyGet, proxyPost, sleep, cdpEval, isMainModule,
-} from './extract-common.mjs';
+import { proxyGet, proxyPost, sleep, cdpEval } from './cdp-base.mjs';
+import { isMainModule } from './extract-common.mjs';
 import { TIER_THRESHOLDS } from './score-tiers.mjs';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));

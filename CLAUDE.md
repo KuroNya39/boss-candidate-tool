@@ -21,13 +21,20 @@ electron/preload.js      ← Context bridge（electronAPI）
 electron/renderer/       ← UI：index.html + 6 个 CSS（tokens / base / topbar / config / run / overlays，
                            按序 <link>，勿调换）+ 11 个 renderer-*.js（按序 <script src>，共享全局作用域）
 
-scripts/cdp-proxy.mjs                   ← HTTP → WebSocket CDP 代理（端口 3456）
-scripts/extract-common.mjs              ← 提取共用：CDP 调用、OCR 引擎、进度存取/续跑
+scripts/cdp-proxy.mjs                   ← HTTP → WebSocket CDP 代理（端口 3456，路由表）
+scripts/cdp-canvas-copy.mjs             ← /canvas-copy 端点：canvas 简历的拖拽复制（从代理路由表拆出）
+scripts/cdp-base.mjs                    ← 跟 cdp-proxy 说话的最底层：proxyGet/Post、cdpEval、截图、标签页回前台
+scripts/extract-common.mjs              ← 提取共用：弹窗操作、截图 OCR、DOM 探测、parseArgs
+scripts/progress-store.mjs              ← 扫描缓存 / 逐人进度 / 取消落盘 / 输出归档（.scan-cache.json 等）
+scripts/canvas-copy.mjs                 ← 模拟复制提取简历正文（真实 Ctrl+C / 拖拽选中 → 系统剪贴板）
+scripts/resume-parse.mjs                ← 简历文本 → 教育 / 工作经历（纯函数，提取与导出共用）
 scripts/extract-candidates-full.mjs     ← 沟通页提取
 scripts/extract-recommend-candidates.mjs ← 推荐页提取
 scripts/extract-search-candidates.mjs   ← 搜索页提取
 scripts/greet-candidates.mjs            ← 批量打招呼
-scripts/export-candidates.mjs           ← Excel 导出（可选邮件）
+scripts/export-candidates.mjs           ← Excel 导出（可选邮件）：数据转换 + 表格构建 + 交付
+scripts/export-fields.mjs               ← 导出字段表 / 分组 / 样式 / 列宽（加列改这里）
+scripts/export-education.mjs            ← 导出前教育经历修正（以 AI 评语为准绳）与排序
 scripts/send-candidates-email.mjs       ← 邮件发送（nodemailer）
 scripts/format-comment.mjs              ← 评语排版 + 强调渲染（界面 HTML 加粗/上色、Excel 富文本上色，唯一实现）
 scripts/score-tiers.mjs                 ← 档位阈值（唯一数据源：5 星 91+ / 4 星 81+ / 3 星 61+ 通过线 …）
@@ -58,6 +65,12 @@ config/scoring-prompt-chat.md       ← 评分提示词（沟通页）
 
 取消：主进程向子进程 stdin 写 `CANCEL\n`，等 2s 再强杀。AI 请求共用一个 `AbortController`。
 
+重试：出错页的「重试」由渲染进程带 `retry: true` 进 `start-extraction`，`runPipeline` 按本轮记下的
+失败步数接着跑——步骤 2 失败 → 跳过提取重新评分（`skipExtract`），步骤 3 失败 → 直接重新导出
+（`exportOnly`，连评分器都不启动），步骤 1 失败才从头提取。失败步数存在模块内 `lastFailedStep`，
+每次进 `runPipeline` 先取后清，所以「返回」后重新开始一定是全新的一轮。别改成按输出目录里有没有
+`scored-candidates.json` 猜：归档失败留下的旧结果会让它误判成「评分已完成」。
+
 ### 数据流
 
 1. **提取**：脚本 → HTTP → `cdp-proxy`(3456) → WebSocket → Chrome DevTools → BOSS 页面
@@ -85,7 +98,7 @@ config/scoring-prompt-chat.md       ← 评分提示词（沟通页）
 - **进度持久化**：输出目录里的 `.scan-cache.json`（候选人列表缓存）与 `.extract-progress.json`（逐人进度）；
   `--resume` 读这两份跳过已处理的人。
 - **取消清理**：提取脚本的 `doCleanup()` 处理 SIGTERM / stdin CANCEL。主进程等
-  `CLEANUP_OCR_GRACE_MS`（`extract-common.mjs` 导出，当前 20s）+ 6s 余量再强杀——子进程要先等当前
+  `CLEANUP_OCR_GRACE_MS`（`progress-store.mjs` 导出，当前 20s）+ 6s 余量再强杀——子进程要先等当前
   那位的后台 OCR 收尾并落盘（`flushProgressOnCancel`，三个提取脚本共用）。
 - **OCR 流水线**：`captureResumeScreenshots()` 逐页滚动截图 → `ocrScreenshots()` 逐页识别 →
   `dedupePages()` 去相邻页重叠 → `cleanOcrText()` 规范化空白、纠正 OCR 错字、剥样板文字。
@@ -103,7 +116,7 @@ config/scoring-prompt-chat.md       ← 评分提示词（沟通页）
   - 全部失败时输出一次弹窗结构诊断。
 - **canvas 简历复制提取（v1.4.0）**：iframe 里 `#resume` 有宽高正常的 `canvas` 且 textContent 不足阈值时：
   WASM 渲染（body 含 `wasm-resume-container` / `wasm-resume`）走 `tryExtractCanvasResumeByDragCopy()`，
-  旧版 canvas 走 `tryExtractResumeTextByTrustedCopy()`。拖拽复制端点 `/canvas-copy`（cdp-proxy.mjs）
+  旧版 canvas 走 `tryExtractResumeTextByTrustedCopy()`。拖拽复制端点 `/canvas-copy`（`cdp-canvas-copy.mjs`，代理路由表只留一行转发）
   模拟「鼠标选中 → 滚动容器 → 底部延伸选中 → 真实 Ctrl+C」，Boss 的 copy 处理器把全文写进**系统剪贴板**
   （页面级拦截看不到），调用方用 PowerShell `Get-Clipboard` 读走（base64）。要点：
   - 滚动容器各页不同（推荐/搜索页 `.resume-detail-wrap`，沟通页 `.resume-detail`）。端点从简历 iframe
@@ -118,7 +131,7 @@ config/scoring-prompt-chat.md       ← 评分提示词（沟通页）
   「别点最小化、用别的窗口盖住」即可。曾经的「边用边跑」启动参数（禁用 `CalculateNativeWinOcclusion` /
   `BackgroundTabFreeze` 等）**实测无效已整体移除**：同窗口切后台标签页依旧失效；开两个 Chrome 窗口
   （BOSS 页在独立窗口）无论盖不盖都正常。README「运行中的注意事项」第 1 条即此引导。
-- **模拟复制开关（v1.4.4）**：`extract-common.mjs` 模块级 `enableCopyFlag`（默认 true，
+- **模拟复制开关（v1.4.4）**：`canvas-copy.mjs` 模块级 `enableCopyFlag`（默认 true，
   `parseArgs --enable-copy 0` 关闭），在两个复制入口开头守卫，关掉即 return null → 调用点自动降级走截图 OCR。
   renderer 复选框 → main 拼 `--enable-copy 1/0`。界面默认不勾选（电脑闲置才建议开，开启才借用系统剪贴板）。
 
@@ -143,7 +156,7 @@ config/scoring-prompt-chat.md       ← 评分提示词（沟通页）
     ——实测评语写「匹配度评分 82 分，推荐」，程序算出来 78，数字被校正成 78，评语里却还写着推荐。
     等级一律由 `scoreToRecommendation(totalScore)` 算、单列展示，提示词只要求一句话总结。
   - **学历扣分**：第一学历全日制本科及以上 → 0；大专及以下 / 非统招 / 非全日制 → 20；
-    **判不出 → 也按 0 分**，并在评语末尾挂「学历待核实」提示交人工（2026-10-30 决定）。原先「判不出就沿用
+    **判不出 → 也按 0 分**（不扣分，交人工看 Excel 的学历列；2026-10-30 决定）。原先「判不出就沿用
     AI 的扣分」已删——宁可放过（Excel 有学历列，人工一眼可核），不可冤枉（错扣 20 分能把 80 分压到不推荐）。
     `educationGate()` 返回三态，`'ok'` 是能推翻 AI 数字的前提，别退回两态。
   - **硬性项不达标扣分与优先项达标加分共用一张档位表**（`tierStep`）：按项数 0 项 0 分、1–2 项 5 分、3–4 项 10 分、
@@ -171,33 +184,21 @@ config/scoring-prompt-chat.md       ← 评分提示词（沟通页）
   - **数据来源两条路**：新批次读 AI 返回的结构化字段 `dimensions` / `qualifications` / `education`
     （挂在候选人的 `scoreDetail` 上，随 `scored-candidates.json` 落盘）；字段缺失时退回解析评语文本
     （第 3 节逐项结论 + 维度行），再不行才用 AI 的 `score`。**降级路径必须一直在**，否则一次格式抽风就整批丢分。
-- **程序只判「对不上的那一侧」，结果挂【系统核验】（v1.21.0）**：
-  `computeScoreBreakdown(comment, detail, ctx)` 的第三参 `ctx` 由两半拼成——岗位级那半
-  （`jdWorkYears` / `jdItemCount`）在评分阶段随分数存进候选人的 `scoreContext`，取自
-  `createPositionPromptBuilder` 返回的 `requirements`（建 prompt 时按 `parseJdRequirements` 算一次，
-  随 `run` 传给 `scoreOneBatch`；**别挂成函数属性、也别让每个调用方各传一份**，漏传的路径会静默失去核验）；
-  页面工作年限那半由收尾从 `c.basicInfo.workYears` 现算，不落盘（存了会过期）。所以收尾算分不必再读 JD 文件。
-  `notices` 由 `appendScoringNotices()` 写成评语末尾的【系统核验】段（UI 与 Excel 都直接展示评语，
-  挂这里即全局可见；幂等，重复收尾不叠加）。**这些提示一律不改分**——程序能确定的只有「明显不够」，
-  确定不了「够」，所以只提示、不替模型下结论。五类：
-  - **工作年限存疑**：JD「经验要求」有明确 `N年`（`parseJdRequirements` 按 `；;。` 切分句，第一个带年数的
-    分句若含优先字样则整条视为软条件返回 null——「具有2年以上技术背景者优先」不核验，「3年及以上…者优先」
-    算 3 年），且页面 `basicInfo.workYears` 换算后 `< N`，而模型把它判成了达标。**单向**：JD 的年限常限定
-    领域（「3 年以上半导体经验」），程序只会算总年限，所以只在「程序算出不够」时提示。
-  - **筛选项可能漏判**：程序数 JD「任职资格关键筛选项」的标签行数当**下限**（`其他硬性条件：无` 这类占位行
-    不算；39 份 JD 全部能数出来，2–6 条），模型返回条数少于下限时提示。拆分只会让模型吐得更多，
-    所以只判「少于下限」。沟通页无 JD 文件时不核验。
-  - **待核实偏多**：`pending >= 3` 且占一半以上时提示。提示词里已删掉「待核实项一律不扣分」这句**给模型看的**
-    说法（等于告诉它有个免费逃生舱），改成待核实必须写明缺什么信息、有可判断内容就必须给明确结论。
-  - **维度分解析失败**：结构化字段和评语维度行都拿不到时退回 AI 的 `score`，并挂提示说明「本分数未经程序重算」。
-    `无在线简历` / `评分失败` 两类不算 AI 评语，不挂提示。
-  - **评语不完整**：正文缺「任职资格的匹配情况」「学历硬性门槛核查」任一节时提示（第 1 节不查：排版只会补标签、不保证有内容）。实测：prompt
-    末尾加结构化 JSON 字段后，deepseek 系只在正文写前两节、把第 3/4 节当成 `qualifications` / `education`
-    字段表达（2026-10-30，3 人批 784 字 vs 旧模板 1400–1800 字；2026-11-02 的 200 人批里 18 人正文停在
-    「匹配度评分」）。分数不受影响，但评语是给人看的。已在 schema 说明里明确「结构化字段是副本，不能替代
-    正文第 3、4 节」。两处配合：**评分时补全重试**——`scoreOneBatch` 收尾挑出缺节的人
-    （`missingSectionLabels`），逐人重问一次要求写全 1–4 节，只有确实更完整才替换；**判缺节只看正文**
-    （它会先切掉【系统核验】段——那一段点名的正是缺的节名，连它一起判等于永远不缺）。
+- **程序只判「对不上的那一侧」**：`computeScoreBreakdown(comment, detail)` 只吃评语与结构化字段，
+  收尾算分不读 JD、也不需要页面数据。程序能确定的只有「明显不够」，确定不了「够」，所以判不出来时
+  按有利方向给分（如学历判不出 → 按 0 分扣），不替模型下结论。
+  - 曾把这类「没核对过」的地方写成评语末尾的【系统核验】段（v1.21.0：工作年限存疑 / 筛选项可能漏判 /
+    待核实偏多 / 维度分解析失败 / 评语不完整），连同 `notices`、候选人的 `scoreContext`、
+    `parseJdRequirements` 一整套已删除（2026-11-05 用户要求：评语只留 AI 写的正文）。
+    旧批次存档里还留着这一段：`formatComment` 与 Excel 导出（`stripNotices`）都会把它切掉，不用回改数据。
+  - 提示词里「待核实项一律不扣分」那句**给模型看的**说法早先已删掉（等于告诉它有个免费逃生舱），
+    改成待核实必须写明缺什么信息、有可判断内容就必须给明确结论——这条不受上面删除的影响。
+  - **评语不完整**现在只在评分阶段处理：提示词末尾加结构化 JSON 字段后，deepseek 系会在正文只写前两节、
+    把第 3/4 节当成 `qualifications` / `education` 字段表达（2026-10-30，3 人批 784 字 vs 旧模板 1400–1800 字；
+    2026-11-02 的 200 人批里 18 人正文停在「匹配度评分」）。分数不受影响，但评语是给人看的，所以
+    schema 说明里明确「结构化字段是副本，不能替代正文第 3、4 节」，并在 `scoreOneBatch` 收尾**补全重试**：
+    挑出缺节的人（`missingSectionLabels`）逐人重问一次要求写全 1–4 节，只有确实更完整才替换。
+    判缺节只看正文（`missingSectionLabels` 会先切掉历史【系统核验】段——那一段点名的正是缺的节名）。
 - **评语里的数字与程序分数对不上时会被改写**（2026-10-30 改，此前「一律不改写」）：收尾时
   `patchScoreComment(comment, bd)` 核对四处——「学历硬性门槛扣分」、「扣分合计」（连括号里的分项）、
   「优先项达标加分」、「匹配度评分」；改学历那处时把「合规性结论」那句一并换成同一口径（否则留下「扣 0 分、结论却写扣 20 分」的
@@ -208,10 +209,14 @@ config/scoring-prompt-chat.md       ← 评分提示词（沟通页）
   - 「匹配度评分」先认冒号后紧跟的「N分」（模板标准写法，最可靠；实测
     `匹配度评分：67分（= 加权基础分 72 分 - 5 分）` 取末尾会读成 5）；没紧跟才取行内**最后一个**「N分」——
     AI 常写「72 - 10 = 62分」，取冒号后第一个数会读到 72，末端的矛盾就漏了。
-  - 「扣分合计」括号里若写着分项数字，要和程序分项逐位比，不然会留下「合计 5 分（= 任职资格 10 + 学历 0）」
-    的残文。「优先项达标加分」同理（括号里是「= 优先项达标 N 项」）。**比的是数字序列，不是整句文字**：
-    措辞会随提示词改版变化（「任职资格硬性不达标扣分」改叫「硬性项不达标扣分」），按文字比会让历史评语
-    凭空重写一遍、还多挂一条「数字已校正」的说明（实测 372 条只改了措辞）。
+  - 「扣分合计」括号里写「= 硬性项不达标 N 项 + 学历硬性门槛扣分 X 分」，**项数与分数并列**，与上面
+    「优先项达标加分：X分（= 优先项达标 N 项）」对称（2026-11-05 用户要求：要不都写要不都不写）。
+    这一行比**逐字一致**（`rewriteAmountLine(..., { exact: true })`），不是比数字序列：括号里第一个数从
+    「扣分数」换成了「项数」，数字对得上也可能表达的是另一件事（0 项和 0 分都是 0），比数字会放过残文。
+    实测候选人索引 3823 条：全部改写成新写法，重跑幂等。「优先项达标加分」仍按数字序列比（括号里是「= 优先项达标
+    N 项」，没有换过含义）。**数字序列比是为了措辞改版不误伤历史评语**：措辞会随提示词改版变化（「任职资格
+    硬性不达标扣分」改叫「硬性项不达标扣分」），按文字比会让历史评语凭空重写一遍、还多挂一条「数字已校正」
+    的说明（实测 372 条只改了措辞）。
   - 逐项结论可能写成「：（达标）」带括号（旧模板原样照抄，实测 172 行硬性不达标、142 行优先达标）。
     模板已改成不带括号（`[硬性] 名称：达标。依据…`），但 `QUAL_LINE_RE` 仍要认 `[（(]?` 这一层：
     历史评语里两千多行是这个写法，不认就等于把这些条目整条丢掉——扣分和加分都会漏算。
@@ -237,22 +242,35 @@ config/scoring-prompt-chat.md       ← 评分提示词（沟通页）
   「综合结论」与第 1 节都是「一句话总结」，已合并进第 1 节，硬性项的风险提示也改挂在那里。历史评语里
   的 `5.综合结论：…` 不再当节标题，原样留在文末，不再重排也不删。主要兜底：
   - 模型漏写「首句定性：」标签时补在首个非空行（只补标签不补编号，编号由 `BLOCK_REWRITES` 统一加）。
+    `BLOCK_REWRITES` 加编号**只认标题真在标题位置**（行首 / 换行后 / 紧跟 `。；;：`），不带这个前提地全局替换
+    会把正文里顺口提的节名硬拆成标题——实测一条写「…重算为67分，与首句定性一致）」，排出来成了
+    「…与⏎⏎1.首句定性：一致）」，而且评分时就存进了 `scored-candidates.json`，事后重排也救不回来。
+    标题前只认**水平**空白（`[ \t]*`）：用 `\s*` 会从句号处跨过换行匹配，把句号挤到单独一行。
   - 模型把板块标题包进方括号时剥壳——只剥「空的一对」和「恰好包住板块标题的那对」。行首的 `[硬性]` / `[优先]`
     是算分要用的档位标签，**不能动**。
+  - 模型还会在小节标题前多写一行**独占一行的方括号标签**（`【任职资格匹配情况】`，简称标题、省「的」也省「3 个」；
+    2026-11 起 deepseek 系高发，索引里 3823 人占 1498 行）。这种整行删掉：它会被当独立标题加粗、内容又与下一行重复。
+    和剥壳用同一份 `BRACKET_TITLE_SRC`（由 `ALL_TITLE_SRC` 生成）。不看下一行是什么——真标题漏写时
+    `insertSectionHead` 会按内容形状补回来，留着的反倒是个没人管的裸标签行。
+    索引里仍剩 12 行是模型自造的缩写（`【维度匹配情况】`、`【2. 三维度匹配情况】`），派生不出来，不追。
   - 模型只写内容、漏写第 3/4 节标题时，按内容形状补回（`insertSectionHead`：3 节认行首 `[硬性]`/`[优先]`，
     4 节认 `第一学历：`/`学历硬性门槛扣分：` 等子行；2026-11-02 一批 33 人里 15 人如此，内容一字不少，
     排出来却像整节丢了）。补标题只在【系统核验】段之前判。
   - 维度节标题的标准写法是「3 个评估维度的匹配情况」，排版时统一插这个写法。**识别**则由
-    `SECTION_LABELS` 推导出一条宽松正则（`DIM_TITLE_SRC`）：数字后的空格、「的」都能缺，
+    `SECTION_LABELS` 推导出宽松写法（`looseTitle` → 四个标题拼成 `ALL_TITLE_SRC`，认编号 / 剥壳 / 判节标题 /
+    删标签行四处共用）：「3 个」这个数量前缀、数字后的空格、「的」都能缺，
     所以「3个评估维度的匹配情况」「3个评估维度匹配情况」（漏「的」，2026-11-03 那批 315 人里 96 人）都认。
     别再回去列举写法——模型每次现写，列举永远漏一种，漏掉的那份会与插进去的标准标题并排出现。
     剥标题必须**全局**剥，否则同一份评语里的旧写法与标准写法会各留一个。
-    ⚠ 改标题只改 `SECTION_LABELS`：识别源由它推导（只有空格与「的」可以不写，其余措辞仍要一致）；它的字面量只决定排版插进去的写法。
+    ⚠ 改标题只改 `SECTION_LABELS`：识别源由它推导（只有「N 个」前缀、空格与「的」可以不写，其余措辞仍要一致）；它的字面量只决定排版插进去的写法。
   - 模型偶尔把下一行开头的英文词漏在上一节末尾（实测只有 Linux 一例：维度名以它开头，维度行里反而少了它），
     单独占一行或缀在句号后 —— 排版时清掉。只认纯字母单词，带数字/符号的（`CET-6`、`K8s`）不动。
     这一步必须排在补「首句定性」标签**之前**，否则残片会变成「首句定性：Linux」。
 - **评语的加粗只做在软件界面，上色两边都做**（2026-10-30 定，2026-11-04 补色）：`commentEmphasisSegments`
   切片段，`commentToHtml` 给界面、`commentToRuns` 给 Excel，一份切分两处渲染。
+  - 「行首到冒号」有 60 字上限（`LABEL_MAX`，超过就当正文里偶然出现的冒号，不加粗），
+    **但第 3 节以 `[硬性]` / `[优先]` 打头的逐项行不受这个上限**：条目名常是一长串工具/外设名，
+    实测能到 70+ 字（索引里 1358 / 41685 行），被上限挡掉后整条都不加粗、看不出是个条目。
   - 界面 `commentToHtml` 加粗三处——行首到第一个括号外冒号、「独占一行的【…】标题」、第 3 节里的
     「不达标 / 待核实」（「达标」不加粗，避免糊成一片）；三个结论词各按语义上色：`达标` →
     `<span class="cmt-pass">` 上 `--color-success-strong`，`待核实` → `<b class="cmt-warn">` 上
@@ -282,7 +300,7 @@ config/scoring-prompt-chat.md       ← 评分提示词（沟通页）
   这两项只能从简历正文来（在职时间靠 `parseWorkExperienceFromResume` 解析「工作经历」段：v1.16.0 起提取时
   补进 `workExperience[0].time`，导出时为空再补一次，重新导出老批次也能填上）。OCR 出的期望行形如
   `期望职位深圳 | 驱动开发工程师 | 行业不限 | 30-50K`：标签与城市粘连、整行还可能并进上一行。
-  `export-candidates.mjs` 的 `parseExpectSection` 一个解析器认两种排版（标题与值同行 / 标题独占一行），
+  `export-fields.mjs` 的 `parseExpectSection` 一个解析器认两种排版（标题与值同行 / 标题独占一行），
   归到同一套「城市 / 岗位 / 其余项里认薪资与行业」；OCR 那种行必须带 `|` 且有一项像薪资才算数（防正文误命中）。
 
 ### 界面交互
@@ -318,7 +336,7 @@ config/scoring-prompt-chat.md       ← 评分提示词（沟通页）
 - **CDP 代理**（`scripts/cdp-proxy.mjs`，核心依赖）：
   - 自动发现 Chrome 调试端口（读 `DevToolsActivePort` 文件，或扫 9222/9229/9333），失败重试（`connectWithRetry`）。
   - HTTP API 在 3456：`/eval`、`/screenshot`、`/click`、`/new`、`/navigate`、`/frames`、`/wheel`、
-    `/eval-context`、`/health`（另有 `/canvas-copy`，见 canvas 提取）。
+    `/eval-context`、`/health`（`/canvas-copy` 在 `cdp-canvas-copy.mjs`，见 canvas 提取）。
   - 按 target 管理 CDP 会话（`ensureSession`），操作落在正确的浏览器 target 上。
   - 反检测：TCP 探测端口（避免 Chrome 弹鉴权框）、`clickAt` 发真实鼠标事件。
 
