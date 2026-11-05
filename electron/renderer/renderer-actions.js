@@ -40,6 +40,7 @@ btnStart.addEventListener('click', async () => {
       await confirmDialog({
         title: '未找到 Chrome',
         message: st.message || '没有在常见位置找到 Chrome。请先打开 Chrome，开启远程调试后使用。',
+        okText: '知道了',
         showCancel: false,
       });
       return;
@@ -56,6 +57,7 @@ btnStart.addEventListener('click', async () => {
       await confirmDialog({
         title: 'Chrome 未连接',
         message: '请检查软件连接状态，并允许 Chrome 远程调试。',
+        okText: '知道了',
         showCancel: false,
       });
       return;
@@ -90,20 +92,47 @@ btnStart.addEventListener('click', async () => {
   await startPipeline({ count, extractAll, source: selectedSource, job: selectedJob, autoGreet: autoGreetEnabled, greetLevel: greetLevel2, enableCopy: enableCopyCheck.checked });
 });
 
-// 取消
+// 三个阶段取消后留下的东西不一样，弹窗与 toast 各说各的：
+//   提取 → 进度落盘，能「继续提取」；评分 → 本次分数不落盘（简历还在，能重评）；导出 → 本次无 Excel。
+// 阶段取 stepStates（handleProgress 写的那份），不读卡片的 data-state——那是给 CSS 用的。
+function cancelDialogCopy() {
+  const s = stepStates;
+  // 导出中（含评分刚完、步骤 3 还没点亮的空档）
+  if (s[3] === 'running' || s[2] === 'done') {
+    return { message: '导出会被中断，本次不会生成 Excel 文件。', toast: '已取消，本次未生成 Excel 文件' };
+  }
+  // 提取已结束 → 在评分，或评分还没点亮的空档（这时候丢的是本次评分，不是提取进度）
+  if (s[1] === 'done') {
+    return { message: '已提取的数据会保存，但本次已评出的分数不会保留。', toast: '已取消，已提取的数据可在「历史记录」里重新评分' };
+  }
+  // 提取中（增量评分可能同时在跑，此时用户要停的仍是提取）/ 还没开始
+  return { message: '已提取的数据会保存，之后可在「历史记录」里继续提取。', toast: '已保存进度，可在「历史记录」里继续提取' };
+}
+
+// 取消。运行中点一下就停，所以先问一句。
+// 按钮刻意不用「取消」：弹窗自己的取消键和动作名「取消」撞在一起，用户得反应一下才知道哪个是不要停。
+// 改成「继续运行 / 确定」——左键直接说结果，右键「确定」就是确认要停。
+// 进度有落盘、能接着跑，不按破坏性动作处理（不给 danger 红钮）。
 btnCancel.addEventListener('click', async () => {
+  const { message, toast } = cancelDialogCopy();
+  const ok = await confirmDialog({
+    title: '取消本次任务？',
+    message,
+    cancelText: '继续运行',
+  });
+  if (!ok) return;
   await window.electronAPI.cancelExtraction();
   resetSteps();
   syncAutoGreetUI();
   showState('state-initial');
-  showToast('已保存进度，可在「历史记录」里继续提取', 'info', 5000);
+  showToast(toast, 'info', 5000);
 });
 
 // 跳过提取，直接评分
 btnSkipExtract.addEventListener('click', async () => {
   const ok = await confirmDialog({
     title: '跳过提取？',
-    message: '确定跳过剩余候选人，用已提取的数据开始 AI 评分吗？',
+    message: '跳过剩余候选人，用已提取的数据开始 AI 评分？',
   });
   if (!ok) return;
   setLoading(btnSkipExtract, true);

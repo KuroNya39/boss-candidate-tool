@@ -38,6 +38,7 @@ function resetSteps() {
     const s = stepCards[i];
     s.card.className = 'step-item';
     s.card.dataset.state = 'waiting';
+    stepStates[i] = 'idle'; // 记账那份一起复位：取消后残留的 done/running 会让下一轮误判阶段
     s.bar.style.width = '0%';
     if (s.bar.setAttribute) s.bar.setAttribute('aria-valuenow', '0');
     if (s.pct) s.pct.textContent = '';

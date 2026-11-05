@@ -620,7 +620,7 @@ async function closeJobDialog({ ask = true } = {}) {
 async function deleteJob(jobName) {
   const ok = await confirmDialog({
     title: '删除岗位？',
-    message: `确定要删除岗位「${jobName}」吗？`,
+    message: `将删除岗位「${jobName}」，删除后不可恢复。`,
     okText: '删除',
     danger: true,
   });

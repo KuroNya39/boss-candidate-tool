@@ -740,8 +740,8 @@ body.is-dragging-source * {
   cursor: pointer;
   user-select: none;
   -webkit-app-region: no-drag;
-  transition: background var(--transition-fast), border-color var(--transition-fast),
-    color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast),
+    box-shadow var(--transition-fast), transform var(--transition-fast), translate var(--transition-fast);
 }
 /* 悬停总则（§8）：**浅底加深、深底变浅**，只改底色，不上浮。
    原先每个按钮悬停都 translateY(-1px) 上浮，与「有的变色、有的上浮」的观感混杂，
@@ -840,11 +840,11 @@ body.is-dragging-source * {
   letter-spacing: 0.5px;
 }
 .btn--cta:hover:not(:disabled) {
-  /* 底色与常规实心钮同一档变浅；它独有的只是「上浮 + 悬停影」这两样（§8 的唯一例外）。
-     按下不另写规则：与其余按钮一样交给 .btn:active 的 scale(.98) */
+  /* 底色与常规实心钮同一档变浅；独有的只是「上浮 + 悬停影」（§8 的唯一例外）。
+     上浮走 translate、按下 scale 走 transform，两条属性互不覆盖——为什么，见 §8「别让悬停和按下争同一个属性」 */
   background: var(--color-accent-fill-hover);
   box-shadow: 0 4px 15px rgba(var(--color-accent-rgb), 0.3);
-  transform: translateY(-1px);
+  translate: 0 -1px;
 }
 
 /* 链接式小按钮：轻动作的紧凑档（白底 + 12px 字 + 更小的内距）。
