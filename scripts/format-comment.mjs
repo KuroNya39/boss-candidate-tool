@@ -8,7 +8,14 @@
 // 维度行括号里的「（40%，独立得分：92分）」：排版按它换行、解析按它取值，两处共用这一份。
 // 容忍全/半角逗号冒号与空格（模型三种都写过）—— 改写法只改这里，不会出现一处认得出、另一处静默认不出
 const DIM_PAREN_SRC = '（\\s*(\\d{1,3})\\s*%\\s*[，,]\\s*独立得分\\s*[:：]\\s*(\\d{1,3})\\s*分）';
-export const FORMAT_COMMENT_DIM_RE = '[^\\s：。，,；;！?！？…（）()]{2,30}' + DIM_PAREN_SRC + '\\s*[:：]';
+// 维度名允许空格与括号：JD 的维度名常是中英混排（「AI Native 工具应用与信息调研效率」「DVB Demux/音视频…」），
+// 原先禁止空格，标题一含空格就从最后一个空格处被截断、前半截孤零零留在上一行（实测同一岗位 498 人复现）。
+// 长度上限放宽到 60，仍以「（N%，独立得分：M分）」这个括号当准星
+export const FORMAT_COMMENT_DIM_RE = '[^\\n。！？!?；;：:，,、…]{2,60}?' + DIM_PAREN_SRC + '\\s*[:：]';
+// 模型自己写的小序号（「3.」「2、」）：维度行、残行、行尾残片三处都要认，只在这一份里定写法
+const SERIAL_SRC = '\\d{1,2}[.、．]';
+// 维度行前允许带一个模型自编号（「3. DVB Demux/…」）。排版不按维度编号，认出来是为了把它丢掉
+const DIM_LINE_SRC = '(?:' + SERIAL_SRC + '[ \\t]*)?' + FORMAT_COMMENT_DIM_RE;
 const DIM_LINE_RE = new RegExp(DIM_PAREN_SRC, 'g');
 
 /** 评语里的各维度得分：[{ weight, score }]。算分侧（加权基础分）与 Excel 拆列共用这一份 */
@@ -118,7 +125,10 @@ const BLOCK_NUMBER_HEAD_RE = new RegExp(
 );
 /** 板块之间空一行（第 5 步） */
 const BLOCK_SEP_RE = new RegExp('\\n(?=\\d+\\.(?:' + ALL_TITLE_SRC + '))', 'g');
-const DIM_RE = new RegExp('(' + FORMAT_COMMENT_DIM_RE + ')', 'g');
+// 维度行只从行首或句末标点后开始：标题虽然允许空格，但不能往上一句里伸手
+// （不加边界的话，「…匹配良好 工具应用与信息调研效率（35%…）」会把「匹配良好」也吞进标题）。
+// 分组：1 边界、2 模型自编号、3 维度行——编号在这里一并丢掉，见 splitDimLine
+const DIM_RE = new RegExp('(^|[\\n。；;！!？?：:])[ \\t]*(?:(' + SERIAL_SRC + ')[ \\t]*)?(' + FORMAT_COMMENT_DIM_RE + ')', 'gm');
 const DIM_AFTER_BLANK_RE = new RegExp('\\n{2,}(?=' + FORMAT_COMMENT_DIM_RE + ')', 'g');
 const SUBLINE_HEAD_RE = new RegExp('(\\n+)(' + SUBLINE_KW + ')\\s*[:：]?', 'g');
 const SUBLINE_INLINE_RE = new RegExp('(?<=。|；|）|：)(' + SUBLINE_KW + ')\\s*[:：]', 'g');
@@ -145,6 +155,65 @@ const BRACKET_LABEL_RE = new RegExp('^[ \\t]*【\\s*' + TITLE_LINE_SRC + '\\s*�
 // 节标题行（已归一：可选编号 + 标题 + 可选冒号）。判「当前行属于哪一节」必须认标题**形状**：
 // 正文里顺口提到别的节名（如逐项行写「详见学历硬性门槛核查」）不能算换了节
 const SECTION_TITLE_LINE_RE = new RegExp('^\\s*' + NUM_PREFIX_SRC + '(' + ALL_TITLE_SRC + ')\\s*[:：]?');
+
+// —— 结构残片清理（formatComment 第 0 步）——
+// 模型写维度时有三种坏形状，排出来都是噪声：
+//   ① 序号单写一行（「2. ⏎嵌入式Linux/RTOS视频驱动…」）——看着像重复编号
+//   ② 标题在空格/换行处断成两行（「…。⏎嵌入式 Linux BSP ⏎开发与移植维护能力（35%…）」）——维度行没有名字
+//   ③ 半截英文标题甩到段落里（「AI Native ⏎⏎2.3 个评估维度的匹配情况：⏎工具应用与信息调研效率（35%…）」）
+// 统一在这里修成一种形状：维度行 = 完整标题（可含空格）+（N%，独立得分：M分）：正文
+// 判维度行一律用 DIM_LINE_HEAD_RE（行首 + 维度行正则），不要另抄一份形状
+const DIM_LINE_HEAD_RE = new RegExp('^[ \\t]*' + DIM_LINE_SRC);
+const LONE_NUM_LINE_RE = new RegExp('^\\s*' + SERIAL_SRC + '?\\s*$');
+// 行尾吊着的序号（「…存在偏差。1. 」）：前面必须是标点或空白，正文里的数字不算
+const TRAILING_NUM_RE = new RegExp('(^|[。；;：:，,、\\s])' + SERIAL_SRC + '[ \\t]*$');
+// 只认「几个英文/数字词」这种形状（AI Native、Linux BSP）；正文里的英文长句不会命中
+const LATIN_FRAGMENT_RE = /^[A-Za-z][A-Za-z0-9 .&+/_()'’-]{1,40}$/;
+// 断掉的标题前半截只会在维度行/第 2 节标题跟前出现，这两个形状判它们
+const SENT_END_RE = /[。！？；：）」]$/;
+const ALNUM_TAIL_RE = /[A-Za-z0-9)]$/;
+const DIM_SECTION_LINE_RE = new RegExp('^\\s*' + NUM_PREFIX_SRC + '(?:' + DIM_TITLE_SRC + ')\\s*[:：]?\\s*$');
+
+function stripStrayStructure(text) {
+  // ① 序号残片：整行只有序号（「1.」「2、」）的整行删掉；句子末尾挂着的（「…存在偏差。1. 」）就地剥掉。
+  //    序号本身没有信息，板块编号后面统一加，留着只会看着像重复编号
+  let lines = text
+    .split('\n')
+    .filter((l) => !LONE_NUM_LINE_RE.test(l))
+    .map((l) => l.replace(TRAILING_NUM_RE, '$1').trimEnd());
+
+  // ②③ 断掉的标题前半截并回它后面那条维度行：②是紧挨的下一行（模型把带空格的维度名写成两行），
+  //     ③隔着空行、可能还夹着第 2 节标题（「AI Native ⏎⏎2.3 个评估维度的匹配情况：⏎工具应用…」）。
+  //     没有维度行时两条都无从谈起，先判一次省掉整轮扫描
+  if (text.includes('独立得分')) {
+    for (let i = lines.length - 2; i >= 0; i--) {
+      const cur = lines[i].trimEnd();
+      if (!cur) continue;
+      let j = -1;
+      if (!SENT_END_RE.test(cur) && ALNUM_TAIL_RE.test(cur) && DIM_LINE_HEAD_RE.test(lines[i + 1])) {
+        j = i + 1;
+      } else if (LATIN_FRAGMENT_RE.test(cur)) {
+        let k = i + 1;
+        while (k < lines.length && !lines[k].trim()) k++;
+        if (DIM_SECTION_LINE_RE.test(lines[k] || '')) {
+          k++;
+          while (k < lines.length && !lines[k].trim()) k++;
+        }
+        if (k < lines.length && DIM_LINE_HEAD_RE.test(lines[k])) j = k;
+      }
+      if (j === -1) continue;
+      lines[j] = cur + ' ' + lines[j].trimStart();
+      lines.splice(i, 1);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/** 第 2 步：维度行前补一个换行（本来就在行首的保持原样），顺手丢掉模型自加的编号（组 2） */
+function splitDimLine(match, bound, serial, dim) {
+  return (bound === '\n' ? '' : bound) + '\n' + dim;
+}
 
 // 第 3 / 4 节的**内容形状**：模型漏写小节标题时靠它把段落认回来（标题编号由第 1 步统一加）。
 // 第 3 节的形状就是逐项行首的档位标签，解析侧（score-comment.mjs 剥出 tier）也认这一份，
@@ -175,11 +244,15 @@ export function formatComment(text) {
   // 0) 剥掉模型自加的方括号壳（见上）与节间多吐的英文残片，再做编号/标题归一。
   //    残片必须排在 0.5 补「首句定性」标签之前：它若正好是第一行，补完标签就成了「首句定性：Linux」
   t = t.replace(EMPTY_BRACKET_RE, '');
-  t = t.replace(STRAY_WORD_RE, '$1');
   // 章节标签整行先删：排在剥壳之前，否则「【学历硬性门槛核查】」会被剥成光秃秃的标题行，
   // 下一行真正的标题再被编号合并，拼出「4.学历硬性门槛核查：学历硬性门槛核查：」
   t = t.replace(BRACKET_LABEL_RE, '');
   t = t.replace(WRAPPED_TITLE_RE, '$1');
+  // 模型的序号残行 / 断成两行的维度名 / 甩出去的英文残片：修成完整的一行（见 stripStrayStructure）。
+  // 必须排在 STRAY_WORD_RE 之前：那个英文残片若是维度名的前半截（实测 Linux），并回维度行才是对的，
+  // 先删就把它删没了
+  t = stripStrayStructure(t);
+  t = t.replace(STRAY_WORD_RE, '$1');
 
   // 0.1) 去掉 AI 可能自带的板块编号/标题，避免重复（如 "1.首句定性"、"2.3个评估维度的匹配情况："）
   t = t.replace(DIM_HEAD_RE, '');
@@ -208,8 +281,8 @@ export function formatComment(text) {
     t = t.replace(re, '\n' + label);
   }
 
-  // 2) 每个维度行前统一为一个换行（AI 没换行就补上，AI 换多了就并掉）
-  t = t.replace(DIM_RE, '\n$1');
+  // 2) 每个维度行前统一为一个换行（AI 没换行就补上，AI 换多了就并掉），顺带丢掉模型自编号
+  t = t.replace(DIM_RE, splitDimLine);
   t = t.replace(DIM_AFTER_BLANK_RE, '\n');
 
   // 3) 计分行、学历核查子行：行首换行统一为一个
