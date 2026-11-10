@@ -42,8 +42,9 @@
       <symbol id="icon-chevron-right" viewBox="0 -960 960 960"><path fill="currentColor" d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z"/></symbol>
       <symbol id="icon-chevron-down" viewBox="0 -960 960 960"><path fill="currentColor" d="M480-344 240-584l56-56 184 184 184-184 56 56-240 240Z"/></symbol>
       <symbol id="icon-chevron-up" viewBox="0 -960 960 960"><path fill="currentColor" d="M480-528 296-344l-56-56 240-240 240 240-56 56-184-184Z"/></symbol>
-      <!-- icon-arrow-drop-down：气泡尖角用（见 config.css 的 .tip-arrow）。字形墨迹 10×5、两条腰 45°，
-           调用处放大 1.2 倍包进 28.8 的盒子露出 12×6 的尖角 —— 倍数与那个 28.8 的理由见 docs/design-system.md §7 -->
+      <!-- icon-arrow-drop-down：气泡尖角用（见 config.css 的 .tip .tip-arrow）。字形墨迹 10×5、两条腰 45°，
+           调用处按 1.6 倍放大包进 38.4 的盒子 —— 倍数、盒子尺寸与埋进气泡的那一截，理由见
+           docs/design-system.md §7 -->
       <symbol id="icon-arrow-drop-down" viewBox="0 -960 960 960"><path fill="currentColor" d="M480-360 280-560h400L480-360Z"/></symbol>
       <!-- 顶栏菜单按钮（more_vert：竖三点）与菜单项图标 -->
       <symbol id="icon-more-vert" viewBox="0 -960 960 960"><path fill="currentColor" d="M480-160q-33 0-56.5-23.5T400-240q0-33 23.5-56.5T480-320q33 0 56.5 23.5T560-240q0 33-23.5 56.5T480-160Zm0-240q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm0-240q-33 0-56.5-23.5T400-720q0-33 23.5-56.5T480-800q33 0 56.5 23.5T560-720q0 33-23.5 56.5T480-640Z"/></symbol>
@@ -144,7 +145,7 @@
               <input type="checkbox" id="enable-copy">
               <span>开启模拟复制提取</span>
             </label>
-            <button type="button" class="tip-icon" data-tip="建议在电脑闲置时开启，提取更快更准" aria-label="建议在电脑闲置时开启，提取更快更准"><svg class="tip-arrow" width="28.8" height="28.8" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-arrow-drop-down"/></svg><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-info"/></svg></button>
+            <button type="button" class="tip-icon" aria-label="建议在电脑闲置时开启，提取更快更准"><span class="tip" data-tip="建议在电脑闲置时开启，提取更快更准" aria-hidden="true"><svg class="tip-arrow" width="38.4" height="38.4" viewBox="0 0 24 24"><use href="#icon-arrow-drop-down"/></svg></span><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-info"/></svg></button>
           </div>
           <div class="auto-greet-section" id="auto-greet-section">
             <label class="checkbox-label">

@@ -504,8 +504,8 @@ body.is-dragging-source * {
      图标本身仍是 16（§7）。配 margin:-4px 把盒子「缩回」16 的占位，
      于是视觉位置与间距跟从前一模一样，只是四周各多出 4px 的可点区
      —— 与 §7 里 .menu-btn 用负外边距把 32 的悬停底框对回字形中心是同一手法。
-     注意：伪元素绝对定位是相对「内边距盒」算的，盒子一高 8px，
-     气泡与尖角就得各减 4px 才停在原处（见下方两条 bottom） */
+     气泡与尖角不按盒边算、按「中线」算：.tip 锚在 50% / 50%，盒高 8px 的变化由那个 50%
+     自动吸收，子元素只记「相对中线多远」（见下方各条 bottom），不用再做 4px 补偿 */
   width: 24px;
   height: 24px;
   margin: -4px;
@@ -521,67 +521,75 @@ body.is-dragging-source * {
 .tip-icon:hover,
 .tip-icon:focus-visible { color: var(--icon-hover); }
 .tip-icon:active { color: var(--icon-active); }
-/* 气泡本体（::after）与尖角（.tip-arrow 图标）的共用属性：显隐、上浮、填充色写一次，两边同步
-   （显隐必须同步，否则只亮一半）。
-   出现/消失带 2px 上浮——用独立的 translate 属性做，不动负责水平居中的 transform。
-   填充色走 --tip-fill 这个局部变量（气泡取 background、尖角取 color，图标 fill=currentColor），
-   「两边同色」就由这一个取值点保证，改色不会漏掉半边、接缝也不会显出一道边；
-   且颜色不透明：半透明色叠两层必然在重叠处显出更深的方块。 */
-.tip-icon::after,
-.tip-icon .tip-arrow {
+/* 气泡（.tip 的 ::after）与尖角（.tip-arrow 图标）是**同一个淡入淡出组**：显隐、上浮、填充色
+   都写在 .tip 这个零尺寸锚点上，两块一起合成、一起升位。
+   - **分组是必须的**：尖角的上沿要插进气泡底边 2px 盖住接缝（见下）。两块各自带透明度时，
+     重叠的那 2px 会在淡入中叠出更深的一道——早先那套「8×8 方块转 45°、上半截被气泡盖住」
+     就是栽在这上面（菱形整块浮在气泡里）。透明度提到共同祖先上，重叠处先合成再整体透明，
+     叠多少层都是同一个色。
+   - **为什么要插进去**：接缝只有落在整数设备像素上才严实。出现时带 2px 上浮，接缝会扫过一串
+     非整数设备像素，零重叠时每一帧都留下 α(1-α) 的覆盖率缺口、透出底下的白卡片——就是那道
+     白色细缝。尖角上沿插进气泡里之后，接缝中段先被墨迹填满，怎么扫都不漏白；只剩两个角上
+     斜边与气泡下缘都是抗锯齿过渡、留不到 1px 的羽化，肉眼看不出。 */
+.tip {
   --tip-fill: var(--text-secondary); /* 不透明深灰 #475569（原 0.86 半透明 + 模糊；--text-primary 又太黑，取次级字色） */
   position: absolute;
+  left: 50%;
+  bottom: 50%; /* 锚在中线（§7「浮层锚中线」）：零尺寸盒子，左右与底边都落在图标中线上 */
+  width: 0;
+  height: 0;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
+  translate: 0 2px; /* 隐藏时整体低 2px，出现时升到位（极轻的「冒出来」） */
   transition: opacity var(--transition-fast), visibility var(--transition-fast), translate var(--transition-fast);
-  translate: 0 2px; /* 隐藏时整体低 2px，出现时升到位（极轻的“冒出来”） */
+  z-index: var(--z-tooltip);
+}
+/* 气泡与尖角的共同定位：都挂在 .tip 这个零尺寸锚点上，居中方式必须一致——它决定两条腰落在
+   哪一列设备像素上（§7 量过：这个写法让两腰的相位互为镜像，手写 calc() 会让左右不等）。
+   两块分开写的话，谁单独把 left 挪一下，接缝就会悄悄错位，而且只有量才看得出来。 */
+.tip::after,
+.tip .tip-arrow {
+  position: absolute;
+  left: 0;
+  transform: translateX(-50%);
 }
 /* 气泡本体 */
-.tip-icon::after {
+.tip::after {
   content: attr(data-tip);
-  background: var(--tip-fill);
-  left: 50%;
-  /* 锚在**盒子中线**、不是盒子边缘：图标在盒内居中，中线与盒子尺寸无关，
-     于是盒子以后改成 20 / 28 / 32 都不用重算这两个偏移。
-     数值 = 中线往上「图标半高 8 + 间距 8」= 16；气泡下缘正好距图标上沿 8px */
-  bottom: calc(50% + 16px);
-  transform: translateX(-50%);
+  /* 中线往上「图标半高 8 + 间距 8」= 16：气泡下缘正好距图标上沿 8px。
+     数值相对中线记，盒子以后改成 20 / 28 / 32 都不用重算 */
+  bottom: 16px;
   width: max-content;
   max-width: 240px;
   padding: var(--space-2) var(--space-4);
+  background: var(--tip-fill);
   color: var(--bg-card);
   border-radius: var(--radius-md); /* 收敛历史 6px */
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
   text-align: center;
   white-space: normal;
-  z-index: var(--z-tooltip);
   box-shadow: var(--shadow-elevated);
 }
-/* 气泡尖角：朝下的实心三角，用图标库那枚 `arrow_drop_down`（§7；字形几何、以及盒子为什么是 28.8
-   而非档位值，见 docs/design-system.md §7「两处不在表里」）。
-   与气泡**底边严丝合缝地上下相接、零重叠**——为什么不用早先那套「8×8 方块转 45°、上半截被气泡
-   盖住」：两块叠着的时候，淡入过程中重叠处的 alpha 会叠出更深的一块，气泡还没亮到位、菱形那半截
-   先深了，看着就像尖角比气泡「快一步」，两个图层分得开（实测截图能看到菱形整个浮在气泡里）。
-   改成零重叠后，两层叠的始终是同一片底色，淡入淡出完全同步，看着就是一枚连体的气泡。
-   盒子锚中线（§7「浮层锚中线」）：墨迹底尖在盒内距盒底 10.8px，故 bottom = 50% - 0.8px。
-   这条 45° 斜边**别自己画**、以及左右偏差随定位零头变化的实测数据，见 docs/design-system.md §7。 */
-.tip-icon .tip-arrow {
-  left: 50%;
-  /* 与气泡同款居中；上浮走独立的 translate 属性，此处的 transform 空着。
-     这个居中写法（= 偏移 -14.397px）是量过的：两条腰的相位正好互为镜像，左右差 0.00；
-     换成手写 calc(50% - 14.4px) 会差 0.17px。改这里就照 §7 的量法复测。 */
-  transform: translateX(-50%);
-  bottom: calc(50% - 0.8px);
+/* 气泡尖角：朝下的实心三角，用图标库那枚 `arrow_drop_down`（§7；45° 斜边**别自己画**、
+   左右偏差随定位零头变化的实测数据，见 docs/design-system.md §7）。
+   盒内墨迹 16×8（1.6 倍，盒子 38.4）：露出气泡下沿以外的仍是那枚 12×6 的三角，往上多出的
+   2px 藏在气泡里盖住接缝——两侧的 45° 斜边因此是原来那条，视觉上一点没变。
+   盒子锚中线：墨迹底尖在盒内距盒底 14.4px（= 0.375 × 盒高，这枚字形的墨迹下沿就落在盒内
+   3/8 处）、上沿 22.4px；要让底尖停在中线上方 10px、上沿落进气泡 2px，故 bottom = -4.4px。
+   **约束是「埋进 ≥ 1 设备像素」，不是这几个数**：埋进 = 墨迹高 8 − 露出 6 = 2。换箭头字形
+   （墨迹比例一变，0.375 就不再成立）或改盒子尺寸时，38.4 与 -4.4px 要一起重算。 */
+.tip .tip-arrow {
+  bottom: -4.4px;
   color: var(--tip-fill);
-  z-index: calc(var(--z-tooltip) + 1); /* 压过气泡：不压的话气泡的 box-shadow 会罩在尖角上，把它压深一档，接缝处两截颜色对不上 */
+  /* 必须是正层级：气泡是 .tip 的 ::after，在树里排在尖角之后，不给尖角提层的话气泡（连同它的
+     box-shadow）会盖在尖角上，把它压深一档，接缝处两截颜色对不上 */
+  z-index: 1;
 }
-/* 悬停 / 键盘聚焦（焦点落在 ℹ️ 上）同时点亮气泡与尖角 */
-.tip-icon:hover::after,
-.tip-icon:hover .tip-arrow,
-.tip-icon:focus-visible::after,
-.tip-icon:focus-visible .tip-arrow {
+/* 悬停 / 键盘聚焦（焦点落在 ℹ️ 上）整组点亮 */
+.tip-icon:hover .tip,
+.tip-icon:focus-visible .tip {
   opacity: 1;
   visibility: visible;
   translate: 0 0;
