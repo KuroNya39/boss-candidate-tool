@@ -66,7 +66,7 @@ function readClipboard() {
     if (!b64) return { text: '', err: '' };
     return { text: Buffer.from(b64, 'base64').toString('utf8'), err: '' };
   } catch (e) {
-    console.warn(`  ⚠ 读取系统剪贴板失败： ${e.message}`);
+    console.warn(`  ⚠ 读取系统剪贴板失败：${e.message}`);
     return { text: null, err: briefErr(e.message) };
   }
 }
@@ -94,7 +94,7 @@ function setOsClipboard(text) {
     ].join('; ');
     execSync(`powershell -NoProfile -Command "${ps}"`, { encoding: 'utf8', timeout: 15000, windowsHide: true, stdio: 'pipe', input: b64 });
   } catch (e) {
-    console.warn(`  ⚠ 写系统剪贴板失败： ${e.message}`);
+    console.warn(`  ⚠ 写系统剪贴板失败：${e.message}`);
   }
 }
 
@@ -164,11 +164,11 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
       // v1.3.43: WASM canvas 简历复制走系统剪贴板，改为模拟「手动拖拽滚动选中 + Ctrl+C」再从系统剪贴板读取
       const copied = await tryExtractCanvasResumeByDragCopy(targetId, label);
       if (copied) return copied;
-      console.log(`  ${label}🔍 复制提取（真实）： 简历为 WASM canvas 渲染（拖拽复制也未命中），放弃复制直接截图`);
+      console.log(`  ${label}🔍 复制提取（真实）：简历为 WASM canvas 渲染（拖拽复制也未命中），放弃复制直接截图`);
       return null;
     }
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取（真实）： WASM 探测失败 ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取（真实）：WASM 探测失败 ${e.message}`);
   }
 
   // 0) 结构诊断：iframe 里到底有没有可选文字 / 隐藏文字层 / 纯 canvas。
@@ -206,7 +206,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
       } catch(e) { out.err = e.message; }
       return JSON.stringify(out);
     })()`);
-    if (diag && diag.value) console.log(`  ${label}🔍 复制提取结构诊断（iframe）： ${diag.value}`);
+    if (diag && diag.value) console.log(`  ${label}🔍 复制提取结构诊断（iframe）：${diag.value}`);
   } catch {}
   // 外层弹窗结构：简历正文会不会就藏在弹窗容器里
   try {
@@ -216,7 +216,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
       var t = (d.textContent||'').replace(/\\s+/g,' ').trim();
       return JSON.stringify({ len: t.length, hasResumeMark: /工作经历|教育经历|项目经验|期望职位|技能|自我评价/.test(t), preview: t.slice(0,80) });
     })()`);
-    if (od) console.log(`  ${label}🔍 复制提取结构诊断（外层）： ${od}`);
+    if (od) console.log(`  ${label}🔍 复制提取结构诊断（外层）：${od}`);
   } catch {}
 
   // 1) 装监听（iframe 内 + 外层页面），记录每次 copy 事件的目标与文字长度
@@ -237,7 +237,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
       return true;
     })()`);
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取（真实）： 装监听失败 ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取（真实）：装监听失败 ${e.message}`);
     return null;
   }
   try {
@@ -288,7 +288,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
     })()`);
     resA.sel = (s && typeof s.value === 'number') ? s.value : -1;
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取A： ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取A：${e.message}`);
   }
   try {
     await proxyPost(`/keyseq?target=${targetId}`, JSON.stringify({ keys: 'ctrl+a+c' }));
@@ -296,7 +296,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
     const r = await readCopyHooks(targetId, ctx);
     resA.evCtx = r.evCtx; resA.evOuter = r.evOuter; resA.text = r.text;
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取A： 按键失败 ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取A：按键失败 ${e.message}`);
   }
   picks.push(resA);
 
@@ -332,7 +332,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
     })()`);
     resB.sel = typeof s === 'number' ? s : -1;
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取B： ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取B：${e.message}`);
   }
   try {
     await proxyPost(`/keyseq?target=${targetId}`, JSON.stringify({ keys: 'ctrl+a+c' }));
@@ -340,7 +340,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
     const r = await readCopyHooks(targetId, ctx);
     resB.evCtx = r.evCtx; resB.evOuter = r.evOuter; resB.text = r.text;
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取B： 按键失败 ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取B：按键失败 ${e.message}`);
   }
   picks.push(resB);
 
@@ -360,7 +360,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
     })()`);
     resC.sel = typeof s === 'number' ? s : -1;
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取C： ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取C：${e.message}`);
   }
   try {
     await proxyPost(`/keyseq?target=${targetId}`, JSON.stringify({ keys: 'ctrl+a+c' }));
@@ -368,7 +368,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
     const r = await readCopyHooks(targetId, ctx);
     resC.evCtx = r.evCtx; resC.evOuter = r.evOuter; resC.text = r.text;
   } catch (e) {
-    console.warn(`  ${label}🔍 复制提取C： 按键失败 ${e.message}`);
+    console.warn(`  ${label}🔍 复制提取C：按键失败 ${e.message}`);
   }
   picks.push(resC);
 
@@ -379,7 +379,7 @@ export async function tryExtractResumeTextByTrustedCopy(targetId, ctx, label = '
   await cleanupTrustedCopy(targetId, ctx);
 
   for (const p of picks) {
-    console.log(`  ${label}🔍 复制提取（真实）诊断 ${p.tag}： 焦点=${p.focus} 选中=${p.sel} iframe事件[${p.evCtx || ''}] 外层事件[${p.evOuter || ''}] 捕获=${p.text ? p.text.length : 0}字 剪贴板=${osHit ? osClip.length : '未变'}`);
+    console.log(`  ${label}🔍 复制提取（真实）诊断 ${p.tag}：焦点=${p.focus} 选中=${p.sel} iframe事件[${p.evCtx || ''}] 外层事件[${p.evOuter || ''}] 捕获=${p.text ? p.text.length : 0}字 剪贴板=${osHit ? osClip.length : '未变'}`);
   }
 
   // 3) 取最长有效文本（页面监听优先，剪贴板兜底）
@@ -474,7 +474,7 @@ async function runCanvasDragCopy(targetId, label) {
     // —— 自愈唤醒点：请求没按时回来，多半是标签页被切走了，把 Boss 页切回前台让它自己跑完 ——
     // 直接用 ensureTabActive（本文件抽的「可见则不动、被切走才激活」守卫），不再手写一遍
     const kickTimer = setTimeout(async () => {
-      if (await ensureTabActive(targetId)) console.log(`  ${label}🔍 canvas复制： 复制进行中标签页被切换，已自动切回 Boss 页继续…`);
+      if (await ensureTabActive(targetId)) console.log(`  ${label}🔍 canvas复制：复制进行中标签页被切换，已自动切回 Boss 页继续…`);
     }, KICK_AFTER_MS);
 
     let r = null;
@@ -490,7 +490,7 @@ async function runCanvasDragCopy(targetId, label) {
     if (!r || r.error || !r.ok) {
       const errMsg = (r && (r.error || 'unknown')) || '无响应';
       const elapsedTxt = r && r.elapsed ? ` (${(r.elapsed / 1000).toFixed(1)}s)` : '';
-      console.log(`  ${label}🔍 canvas复制： 拖拽复制失败 ${errMsg}${elapsedTxt}`);
+      console.log(`  ${label}🔍 canvas复制：拖拽复制失败 ${errMsg}${elapsedTxt}`);
       return { errCode: r && r.error, elapsed: r && r.elapsed };
     }
     // 端点返回 = Ctrl+C 已发完，但「页面把全文写进系统剪贴板」是异步的：Boss 的复制处理器收到
@@ -510,15 +510,15 @@ async function runCanvasDragCopy(targetId, label) {
     if (goodText(text)) {
       const diag = r.diag ? `，容器SH/CH=${r.diag.outerSH}/${r.diag.outerCH}, iframe内=${r.diag.innerSH}/${r.diag.innerVH}` : '';
       const el = r.elapsed ? `，用时 ${(r.elapsed / 1000).toFixed(1)}s` : '';
-      console.log(`  ✓ 复制提取（canvas拖拽滚动）： ${text.length} 字（滚动 ${r.scrollMax}px，容器 ${r.scrollSel || '?'}${diag}${el}）`);
+      console.log(`  ✓ 复制提取（canvas拖拽滚动）：${text.length} 字（滚动 ${r.scrollMax}px，容器 ${r.scrollSel || '?'}${diag}${el}）`);
       return { text };
     }
-    if (text.length > 0) console.log(`  ${label}🔍 canvas复制： 剪贴板 ${text.length} 字不可用`);
+    if (text.length > 0) console.log(`  ${label}🔍 canvas复制：剪贴板 ${text.length} 字不可用`);
     else {
       // 剪贴板为空 = 页面压根没写；读的时候报错 = 剪贴板被别的进程锁着（页面同样写不进去）。
       // 再叠上页面探针，失败原因就写清楚了
       const locked = readErr ? `，读剪贴板报错「${readErr}」` : '';
-      console.log(`  ${label}🔍 canvas复制： 剪贴板是空的（滚动 ${r.scrollMax}px${locked}，${fmtCopyDiag(r.copyDiag)}）`);
+      console.log(`  ${label}🔍 canvas复制：剪贴板是空的（滚动 ${r.scrollMax}px${locked}，${fmtCopyDiag(r.copyDiag)}）`);
     }
     return { empty: true };
   };
@@ -530,18 +530,18 @@ async function runCanvasDragCopy(targetId, label) {
   // 客户端等满超时（页面卡住）或服务器撞上复制硬上限：重试大概率复现，且客户端超时后再开一次
   // 会和服务器可能还在跑的拖拽在同一页面打架——直接放弃复制走截图，别叠第二份复制的时钟。
   if (a1 && (a1.timeout || a1.errCode === 'copy-timeout')) {
-    console.log(`  ${label}🔍 canvas复制： ${a1.timeout ? '等满超时（页面卡住）' : `复制超时（${(a1.elapsed / 1000).toFixed(1)}s）`}，不再重试，放弃复制直接走截图`);
+    console.log(`  ${label}🔍 canvas复制：${a1.timeout ? '等满超时（页面卡住）' : `复制超时（${(a1.elapsed / 1000).toFixed(1)}s）`}，不再重试，放弃复制直接走截图`);
     return null;
   }
 
   // 其余失败（剪贴板为空/文本不可用/个别服务器瞬时错误）：多半是渲染没缓过来，切回前台再试一次
-  console.log(`  ${label}🔍 canvas复制： 第 1 次未成功，切回 Boss 标签页重试…`);
+  console.log(`  ${label}🔍 canvas复制：第 1 次未成功，切回 Boss 标签页重试…`);
   await ensureTabActive(targetId);
   await sleep(400); // 只走失败重试路径：给渲染器/iframe 一点缓过来的时间，原 800ms 属过保险
   const a2 = await attempt();
   if (a2 && a2.text) return a2.text;
 
-  console.log(`  ${label}🔍 canvas复制： 重试后仍拿不到有效文本，放弃走截图`);
+  console.log(`  ${label}🔍 canvas复制：重试后仍拿不到有效文本，放弃走截图`);
   return null;
 }
 

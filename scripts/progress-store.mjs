@@ -34,7 +34,7 @@ export function saveScanCache(candidateList, outputPath, source) {
     source: source || currentRunSource || undefined, // 记录这批页面真实来源，meta 丢失/被覆盖后仍能从数据本身还原（推荐/搜索/沟通）
     candidates: candidateList,
   }, null, 2), 'utf8');
-  console.log(`扫描缓存已保存： ${cachePath} （${candidateList.length} 人）`);
+  console.log(`扫描缓存已保存：${cachePath} （${candidateList.length} 人）`);
 }
 
 export function loadScanCache(outputPath) {
@@ -42,7 +42,7 @@ export function loadScanCache(outputPath) {
   if (!existsSync(cachePath)) return null;
   try {
     const data = JSON.parse(readFileSync(cachePath, 'utf8'));
-    console.log(`加载扫描缓存： ${data.totalCandidates} 人（扫描于 ${data.scannedAt}）`);
+    console.log(`加载扫描缓存：${data.totalCandidates} 人（扫描于 ${data.scannedAt}）`);
     return data;
   } catch {
     return null;
@@ -84,7 +84,7 @@ export async function flushProgressOnCancel({ processedIds, candidates, outputPa
     saveProgress(processedIds, candidates, outputPath);
     console.log(`  💾 取消前已保存进度（${processedIds.size} 人）`);
   } catch (e) {
-    console.warn(`  ⚠ 取消前保存进度失败： ${e.message}`);
+    console.warn(`  ⚠ 取消前保存进度失败：${e.message}`);
   }
 }
 
@@ -93,7 +93,7 @@ export function loadProgress(outputPath) {
   if (!existsSync(progressPath)) return null;
   try {
     const data = JSON.parse(readFileSync(progressPath, 'utf8'));
-    console.log(`加载提取进度： ${data.processedCount} 人已完成`);
+    console.log(`加载提取进度：${data.processedCount} 人已完成`);
     return data;
   } catch {
     return null;
@@ -148,7 +148,7 @@ export function archiveOldOutput(outputDir, isResume) {
   }
 
   if (moved > 0) {
-    console.log(`已归档 ${moved} 个文件到： ${archivedDir}`);
+    console.log(`已归档 ${moved} 个文件到：${archivedDir}`);
   } else {
     // 全部失败时清理空目录
     try { readdirSync(archivedDir).length === 0 && rmdirSync(archivedDir); } catch {}

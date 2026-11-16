@@ -116,9 +116,45 @@ function setupListeners() {
         `成功打招呼 ${data.success} 人` +
         (data.already > 0 ? `，${data.already} 人已打过招呼` : '') +
         (data.notFound > 0 ? `，${data.notFound} 人不在当前列表中` : '') +
-        (hasRetry ? `，${data.retryable} 人未成功，可点击上方「重试」` : '') +
+        (hasRetry ? `，${data.retryable} 人未成功，可点击「重试」再试` : '') +
         (data.skipped > 0 ? `，${data.skipped} 人当前无打招呼按钮，未打招呼` : '');
       autoGreetEnabled = false;
+    })
+  );
+
+  // 评分发第一个请求前，主进程发现岗位描述缺失（岗位改过名 / 被删 / 没填）会发来请求。
+  // 两种缺口两套口径：名字找不到 → 让用户另选一个岗位；文件在但没内容 → 让用户补描述。
+  // 处理完回一句：picked（另选）/ edited（补好了）/ cancelled（不评了）
+  registerCleanup(
+    window.electronAPI.onJdMissingRequest(async (payload) => {
+      const { reason, jobName } = payload || {};
+      let reply = { action: 'cancelled' };
+      if (reason === 'missing') {
+        const go = await confirmDialog({
+          title: '请重新选择目标岗位',
+          message: `没有找到目标岗位「${jobName}」，请选择已有岗位，或点击「+ 添加新岗位」新建岗位。`,
+          okText: '去选择岗位',
+          cancelText: '取消',
+          swapTo: { overlay: jobPickerOverlay, open: showJobPicker },
+        });
+        if (go) {
+          const picked = await waitForJobPick(); // 选完立即关窗未选（Esc / 点遮罩）都按「没选」
+          if (picked) reply = { action: 'picked', job: picked };
+        }
+      } else {
+        const go = await confirmDialog({
+          title: '缺少岗位描述',
+          message: `目标岗位「${jobName}」尚未填写岗位描述，请补全后再开始 AI 评分。`,
+          okText: '去编辑',
+          cancelText: '取消',
+          swapTo: { overlay: jobDialogOverlay, open: () => showEditJobDialog(jobName, { fromJdCheck: true }) },
+        });
+        if (go) {
+          const done = await waitForJobEditDone();
+          if (done?.saved) reply = { action: 'edited', job: done.job || jobName };
+        }
+      }
+      window.electronAPI.replyJdMissing(reply);
     })
   );
 

@@ -111,11 +111,11 @@ export async function cdpScreenshot(targetId, filePath, clip) {
   const result = await proxyGet(url);
   // 验证文件是否真正保存成功
   if (!existsSync(filePath)) {
-    throw new Error(`截图文件未保存： ${filePath}, proxy响应： ${JSON.stringify(result)}`);
+    throw new Error(`截图文件未保存：${filePath}, proxy响应：${JSON.stringify(result)}`);
   }
   const stat = readFileSync(filePath);
   if (stat.length === 0) {
-    throw new Error(`截图文件为空： ${filePath}`);
+    throw new Error(`截图文件为空：${filePath}`);
   }
   return result;
 }

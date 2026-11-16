@@ -223,8 +223,8 @@ export async function handleCanvasCopy({ q, res, ensureSession, sendCDP, sleep }
   // 候选弹窗实况（多份弹窗时用来确认挑中的是哪一份）
   const logCands = (i) => {
     if (!i) return;
-    if (i.error) console.log(`[canvas-copy] 选弹窗失败： ${i.error}`);
-    else if (i.cands) console.log(`[canvas-copy] 候选弹窗： ${JSON.stringify(i.cands)}`);
+    if (i.error) console.log(`[canvas-copy] 选弹窗失败：${i.error}`);
+    else if (i.cands) console.log(`[canvas-copy] 候选弹窗：${JSON.stringify(i.cands)}`);
   };
   let { info, canvasY } = await pollInfo(4, 500);
   logCands(info);

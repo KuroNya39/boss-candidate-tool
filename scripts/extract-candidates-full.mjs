@@ -54,7 +54,7 @@ async function findChatTab() {
       '然后重试。'
     );
   }
-  console.log(`已附着到用户打开的沟通页： ${tab.url}`);
+  console.log(`已附着到用户打开的沟通页：${tab.url}`);
   return tab.targetId;
 }
 
@@ -252,7 +252,7 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
         const check = await scrollListDown(targetId, true);
         if (check.movedKey !== null || check.scrollHeight > baseSh) {
           noNewCount = Math.max(0, noNewThreshold - 3);
-          console.log(`   ⚡ 滚到底部后又加载了更多候选人： scrollH ${baseSh}→${check.scrollHeight}`);
+          console.log(`   ⚡ 滚到底部后又加载了更多候选人：scrollH ${baseSh}→${check.scrollHeight}`);
           foundMore = true;
           break;
         }
@@ -264,7 +264,7 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
             seenGeekIds.add(item.geekId);
             candidateList.push(item);
             foundMore = true;
-            console.log(`   🔄 底部出现新候选人： ${item.geekId} （${candidateList.length} 人）`);
+            console.log(`   🔄 底部出现新候选人：${item.geekId} （${candidateList.length} 人）`);
           }
         }
         if (foundMore) break;
@@ -287,7 +287,7 @@ async function scanAllCandidateGeekIds(targetId, opts = {}) {
         }
       }
       if (anyNew) {
-        console.log(`   🔄 二次回顶发现新候选人： ${candidateList.length} 人`);
+        console.log(`   🔄 二次回顶发现新候选人：${candidateList.length} 人`);
         noNewCount = 0;
         continue;
       }
@@ -399,7 +399,7 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
         const check = await scrollListDown(targetId, true);
         if (check.movedKey !== null || check.scrollHeight > baseSh) {
           noNewCount = Math.max(0, noNewThreshold - 3);
-          console.log(`   ⚡ 滚到底部后又加载了更多候选人： scrollH ${baseSh}→${check.scrollHeight}`);
+          console.log(`   ⚡ 滚到底部后又加载了更多候选人：scrollH ${baseSh}→${check.scrollHeight}`);
           foundMore = true;
           break;
         }
@@ -411,7 +411,7 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
             seenGeekIds.add(item.geekId);
             candidateList.push(item);
             foundMore = true;
-            console.log(`   🔄 底部出现新候选人： ${item.geekId} （${candidateList.length} 人）`);
+            console.log(`   🔄 底部出现新候选人：${item.geekId} （${candidateList.length} 人）`);
           }
         }
         if (foundMore) break;
@@ -433,7 +433,7 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
         }
       }
       if (anyNew) {
-        console.log(`   🔄 二次回顶发现新候选人： ${candidateList.length} 人`);
+        console.log(`   🔄 二次回顶发现新候选人：${candidateList.length} 人`);
         noNewCount = 0;
         continue;
       }
@@ -785,14 +785,14 @@ async function ensureOnChatList(targetId) {
       const chatUrl = currentUrl.includes('/web/chat')
         ? currentUrl.replace(/\/web\/chat\/.*$/, '/web/chat')
         : 'https://www.zhipin.com/web/chat';
-      console.log(`[页面状态] SPA 导航到： ${chatUrl}`);
+      console.log(`[页面状态] SPA 导航到：${chatUrl}`);
       await cdpEval(targetId, `location.href = '${chatUrl}'`);
       await sleep(5000);
     } catch (e) {
-      console.warn(`[页面状态] SPA 导航失败： ${e.message}，继续`);
+      console.warn(`[页面状态] SPA 导航失败：${e.message}，继续`);
     }
   } catch (e) {
-    console.warn(`[页面状态] 恢复列表状态失败： ${e.message}，继续`);
+    console.warn(`[页面状态] 恢复列表状态失败：${e.message}，继续`);
   }
 }
 
@@ -833,7 +833,7 @@ async function fetchCandidatesFromPage(targetId) {
       return '';
     })()`);
     if (apiUrl) {
-      console.log(`  [API] 从 performance 发现 URL： ${apiUrl.substring(0, 120)}`);
+      console.log(`  [API] 从 performance 发现 URL：${apiUrl.substring(0, 120)}`);
       const raw = await proxyPost(`/eval?target=${targetId}`, `(async function(){
         var resp = await fetch('${apiUrl}', { credentials: 'include' });
         return JSON.stringify({status: resp.status, data: await resp.json()});
@@ -841,25 +841,25 @@ async function fetchCandidatesFromPage(targetId) {
       if (raw && raw.value) {
         try {
           const parsed = JSON.parse(raw.value);
-          console.log(`  [API] 响应状态： ${parsed.status}，数据结构： ${Object.keys(parsed.data||{}).join(',')}`);
+          console.log(`  [API] 响应状态：${parsed.status}，数据结构：${Object.keys(parsed.data||{}).join(',')}`);
           const candidates = parseApiResponse(parsed.data);
           if (candidates && candidates.length > 0) {
-            console.log(`  [API] 解析成功： ${candidates.length} 人`);
+            console.log(`  [API] 解析成功：${candidates.length} 人`);
             return candidates;
           } else {
             console.log(`  [API] 响应中未找到候选人列表`);
           }
         } catch(e) {
-          console.log(`  [API] 解析失败： ${e.message}`);
+          console.log(`  [API] 解析失败：${e.message}`);
         }
       } else {
-        console.log(`  [API] 请求失败： ${JSON.stringify(raw).substring(0, 100)}`);
+        console.log(`  [API] 请求失败：${JSON.stringify(raw).substring(0, 100)}`);
       }
     } else {
       console.log(`  [API] performance 中未找到聊天列表 API`);
     }
   } catch (e) {
-    console.log(`  [API] 策略1异常： ${e.message}`);
+    console.log(`  [API] 策略1异常：${e.message}`);
   }
 
   // 策略 2：尝试常见 API 路径
@@ -870,19 +870,19 @@ async function fetchCandidatesFromPage(targetId) {
   ];
   for (const url of urls) {
     try {
-      console.log(`  [API] 尝试 URL： ${url}`);
+      console.log(`  [API] 尝试 URL：${url}`);
       const raw = await proxyPost(`/eval?target=${targetId}`, `(async function(){
         var resp = await fetch('${url}', { credentials: 'include' });
         return JSON.stringify({status: resp.status, data: await resp.json()});
       })()`);
       if (raw && raw.value) {
         const parsed = JSON.parse(raw.value);
-        console.log(`  [API] ${url} 响应： ${parsed.status}, keys： ${Object.keys(parsed.data||{}).join(',')}`);
+        console.log(`  [API] ${url} 响应：${parsed.status}, keys：${Object.keys(parsed.data||{}).join(',')}`);
         const candidates = parseApiResponse(parsed.data);
         if (candidates && candidates.length > 0) return candidates;
       }
     } catch (e) {
-      console.log(`  [API] ${url} 异常： ${e.message}`);
+      console.log(`  [API] ${url} 异常：${e.message}`);
     }
   }
 
@@ -911,7 +911,7 @@ async function fetchCandidatesFromPage(targetId) {
       return '';
     })()`);
     if (raw && raw.length > 10) {
-      console.log(`  [API] 全局状态找到数据： ${raw.substring(0, 100)}…`);
+      console.log(`  [API] 全局状态找到数据：${raw.substring(0, 100)}…`);
       if (raw.indexOf('GLOBAL:') === 0 || raw.indexOf('WINDOW:') === 0) {
         var parts = raw.split(':');
         var key = parts[1];
@@ -930,7 +930,7 @@ async function fetchCandidatesFromPage(targetId) {
       console.log(`  [API] 全局状态未找到数据`);
     }
   } catch (e) {
-    console.log(`  [API] 策略3异常： ${e.message}`);
+    console.log(`  [API] 策略3异常：${e.message}`);
   }
 
   return null;
@@ -992,9 +992,9 @@ async function extractSingleCandidate(targetId, geekId, listName, globalIndex, t
       const info = JSON.parse(rawInfo);
       candidateData = { ...candidateData, ...info };
       const name = info.basicInfo?.name || displayName;
-      console.log(`  ✓ 基础信息： ${name}`);
+      console.log(`  ✓ 基础信息：${name}`);
     } catch (e) {
-      console.warn(`  ⚠ 基础信息提取失败： ${e.message}`);
+      console.warn(`  ⚠ 基础信息提取失败：${e.message}`);
       await randomDelay(500, 800);
       try {
         await clickCandidateByGeekId(targetId, geekId);
@@ -1012,7 +1012,7 @@ async function extractSingleCandidate(targetId, geekId, listName, globalIndex, t
     const appliedJob = candidateData.positionInfo?.appliedJob || '';
     if (appliedJob && jobDescCache.has(appliedJob)) {
       candidateData.jobDescription = jobDescCache.get(appliedJob);
-      console.log(`  ✓ 岗位描述（缓存）： ${appliedJob}`);
+      console.log(`  ✓ 岗位描述（缓存）：${appliedJob}`);
     } else if (appliedJob) {
       console.log('  → 提取岗位描述…');
       try {
@@ -1020,12 +1020,12 @@ async function extractSingleCandidate(targetId, geekId, listName, globalIndex, t
         if (jd) {
           candidateData.jobDescription = jd;
           jobDescCache.set(appliedJob, jd);
-          console.log(`  ✓ 岗位描述： ${jd.jobName || appliedJob}`);
+          console.log(`  ✓ 岗位描述：${jd.jobName || appliedJob}`);
         } else {
           console.log(' 未找到岗位描述弹窗');
         }
       } catch (e) {
-        console.warn(` 岗位描述提取失败： ${e.message}`);
+        console.warn(` 岗位描述提取失败：${e.message}`);
       }
     }
 
@@ -1051,7 +1051,7 @@ async function extractSingleCandidate(targetId, geekId, listName, globalIndex, t
               if (!exists) cardEdu.push(p);
             }
             if (cardEdu.length > 0) candidateData.educationExperience = cardEdu;
-            console.log('  ✓ 从简历补充教育经历： ' + ocrEdu1.length + ' 段');
+            console.log('  ✓ 从简历补充教育经历：' + ocrEdu1.length + ' 段');
           }
 
           const resumeDir = resolve(dirname(outputPath), 'resumes');
@@ -1091,7 +1091,7 @@ async function extractSingleCandidate(targetId, geekId, listName, globalIndex, t
             const txtPath = resolve(resumeDir, `${sname}-${geekId}.txt`);
             writeFileSync(txtPath, resumeText, 'utf8');
           }).catch(e => {
-            console.warn(`  ⚠ OCR 识别失败： ${e.message}`);
+            console.warn(`  ⚠ OCR 识别失败：${e.message}`);
           });
         }
 
@@ -1100,9 +1100,9 @@ async function extractSingleCandidate(targetId, geekId, listName, globalIndex, t
         try {
           const { readdirSync } = await import('node:fs');
           const ssFiles = readdirSync(tempDir).filter(f => f.startsWith(sname)).map(f => `${f}(${readFileSync(resolve(tempDir, f)).length}B)`).join(',');
-          filesDiag = ssFiles ? ` 已落盘： ${ssFiles}` : ' 无已落盘截图';
+          filesDiag = ssFiles ? ` 已落盘：${ssFiles}` : ' 无已落盘截图';
         } catch {}
-        console.warn(`  ⚠ 简历截图失败： ${e.message}${filesDiag}`);
+        console.warn(`  ⚠ 简历截图失败：${e.message}${filesDiag}`);
       }
 
       // 关闭弹窗（与后台 OCR 并行执行）
@@ -1110,18 +1110,18 @@ async function extractSingleCandidate(targetId, geekId, listName, globalIndex, t
         const closed = await closeResumeDialog(targetId);
         if (!closed) console.warn('  ⚠ 简历弹窗关闭异常');
       } catch (e) {
-        console.warn(`  ⚠ 简历弹窗关闭失败： ${e.message}`);
+        console.warn(`  ⚠ 简历弹窗关闭失败：${e.message}`);
       }
     } else {
       console.log('  ℹ 该候选人无在线简历');
     }
   } catch (err) {
-    console.error(`  ✗ 处理失败： ${err.message}`);
+    console.error(`  ✗ 处理失败：${err.message}`);
     try {
       const closed = await closeResumeDialog(targetId);
       if (!closed) console.warn('  ⚠ 简历弹窗关闭异常');
     } catch (e) {
-      console.warn(`  ⚠ 简历弹窗关闭失败： ${e.message}`);
+      console.warn(`  ⚠ 简历弹窗关闭失败：${e.message}`);
     }
   }
 
@@ -1139,9 +1139,9 @@ async function main() {
 
   const modeLabel = opts.extractAll ? '全部' : `前 ${opts.count} 人`;
   console.log(`\n========== BOSS直聘候选人全量提取（沟通页） ==========`);
-  console.log(`提取模式： ${modeLabel}`);
-  if (opts.resume) console.log('恢复模式： 从上次进度继续');
-  console.log(`输出文件： ${outputPath}\n`);
+  console.log(`提取模式：${modeLabel}`);
+  if (opts.resume) console.log('恢复模式：从上次进度继续');
+  console.log(`输出文件：${outputPath}\n`);
 
   mkdirSync(dirname(outputPath), { recursive: true });
   const tempDir = resolve(dirname(outputPath), '.temp-screenshots');
@@ -1150,7 +1150,7 @@ async function main() {
   // ===== 查找用户已打开的沟通页 tab =====
   console.log('查找已打开的 BOSS直聘沟通页…');
   const targetId = await findChatTab();
-  console.log(`已附着到用户打开的沟通页： ${targetId}\n`);
+  console.log(`已附着到用户打开的沟通页：${targetId}\n`);
 
   // 按实际窗口尺寸设置视口（DPR=2 提升 OCR 清晰度），避免布局塌缩、网页变形
   await prepareTab(targetId);
@@ -1170,30 +1170,30 @@ async function main() {
 
   if (scanCache) {
     candidateList = scanCache.candidates;
-    console.log(`跳过扫描阶段，使用缓存： ${candidateList.length} 人\n`);
+    console.log(`跳过扫描阶段，使用缓存：${candidateList.length} 人\n`);
   } else {
     console.log('等待页面加载…');
     const listCount = await waitForCandidateList(targetId, 15000);
-    console.log(`页面已加载，候选人列表： ${listCount} 项\n`);
+    console.log(`页面已加载，候选人列表：${listCount} 项\n`);
 
     // 不做「未读」自动筛选：按用户当前在沟通页看到的会话列表直接提取
     if (opts.extractAll) {
       console.log('扫描全部候选人 geekId…');
       candidateList = await scanAllCandidateGeekIds(targetId, {
         onProgress: (total, attempt, newCount) => {
-          console.log(`  扫描进度： ${total} 人（第 ${attempt + 1} 次滚动，新增 ${newCount}）`);
+          console.log(`  扫描进度：${total} 人（第 ${attempt + 1} 次滚动，新增 ${newCount}）`);
         },
       });
     } else {
       console.log(`扫描前 ${opts.count} 个候选人 geekId…`);
       candidateList = await scanUpToCandidateGeekIds(targetId, opts.count, {
         onProgress: (total, attempt, newCount) => {
-          console.log(`  扫描进度： ${total}/${opts.count} 人（第 ${attempt + 1} 次滚动，新增 ${newCount}）`);
+          console.log(`  扫描进度：${total}/${opts.count} 人（第 ${attempt + 1} 次滚动，新增 ${newCount}）`);
         },
       });
     }
 
-    console.log(`扫描完成： 发现 ${candidateList.length} 个候选人\n`);
+    console.log(`扫描完成：发现 ${candidateList.length} 个候选人\n`);
 
     if (candidateList.length === 0) {
       console.error('未扫描到候选人，退出');
@@ -1242,7 +1242,7 @@ async function main() {
     workerOpts.langPath = localLangDir;
     workerOpts.gzip = false;        // 本地为未压缩文件；gzip 仅控制文件名后缀，读取后按 magic bytes 判断解压
     workerOpts.cacheMethod = 'none'; // 固定读本地文件，行为确定
-    console.log(`  使用本地语言包： ${localLangDir}/chi_sim.traineddata`);
+    console.log(`  使用本地语言包：${localLangDir}/chi_sim.traineddata`);
   } else {
     console.log('  本地未找到语言包，将从 CDN 下载');
   }
@@ -1260,7 +1260,7 @@ async function main() {
   const prevOcrRef = { current: Promise.resolve() };
   const ctx = { worker, outputPath, tempDir, jobDescCache, processedGeekIds, candidates, prevOcrRef, targetId };
 
-  console.log(`待提取： ${toProcess.length} 人（已完成 ${alreadyDone}，总计 ${totalCount}）\n`);
+  console.log(`待提取：${toProcess.length} 人（已完成 ${alreadyDone}，总计 ${totalCount}）\n`);
 
   if (toProcess.length === 0) {
     console.log('所有候选人已提取完成');
@@ -1317,12 +1317,12 @@ async function main() {
   const withResume = candidates.filter(c => c.resumeText).length;
   const withBasic = candidates.filter(c => c.basicInfo).length;
   console.log(`\n========== 提取结果摘要 ==========`);
-  console.log(`总计： ${candidates.length} 人`);
-  console.log(`有基础信息： ${withBasic} 人`);
-  console.log(`有在线简历： ${withResume} 人`);
-  console.log(`输出文件： ${outputPath}`);
+  console.log(`总计：${candidates.length} 人`);
+  console.log(`有基础信息：${withBasic} 人`);
+  console.log(`有在线简历：${withResume} 人`);
+  console.log(`输出文件：${outputPath}`);
   if (withResume > 0) {
-    console.log(`简历目录： ${resolve(dirname(outputPath), 'resumes')}`);
+    console.log(`简历目录：${resolve(dirname(outputPath), 'resumes')}`);
   }
 
   await reportStats({

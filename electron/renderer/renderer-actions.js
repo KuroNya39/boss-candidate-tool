@@ -84,6 +84,23 @@ btnStart.addEventListener('click', async () => {
     });
     return;
   }
+  // 岗位描述是软件里的文件：没填（或只有几行字）就别开始——空 JD 会让模型自己编一份岗位描述。
+  // 评分发第一个请求前还有一道同样的检查（那时岗位可能已经被改名了），这里拦在提取之前，省得白跑一趟
+  if (sourceNeedsJob) {
+    let jd = null;
+    try { jd = await window.electronAPI.checkJobDescription(selectedJob); } catch {}
+    if (jd && jd.state !== 'ok') {
+      // 去编辑：编辑器从本弹窗互切出来；保存/取消后整条链关掉，回到初始页由用户再点开始
+      await confirmDialog({
+        title: '缺少岗位描述',
+        message: `目标岗位「${selectedJob}」尚未填写岗位描述，请补全后再开始提取分析。`,
+        okText: '去编辑',
+        cancelText: '取消',
+        swapTo: { overlay: jobDialogOverlay, open: () => showEditJobDialog(selectedJob, { fromJdCheck: true }) },
+      });
+      return;
+    }
+  }
 
   resetSteps();
   showState('state-running');

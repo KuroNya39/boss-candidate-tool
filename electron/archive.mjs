@@ -83,6 +83,6 @@ export function restoreHistoryToOutput(dirPath) {
     return { ok: true };
   } catch (err) {
     termLog(`[resume] 还原目录失败： ${err.message}`, 'stderr');
-    return { error: `还原历史目录失败： ${err.message}` };
+    return { error: `还原历史目录失败：${err.message}` };
   }
 }

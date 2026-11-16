@@ -253,18 +253,25 @@ export function restoreScorableCandidates(srcDir, destPath) {
   return { source: data.source, count: data.candidates.length };
 }
 
+// 该提取来源的岗位描述是否来自软件内的 JD 文件（推荐页 / 搜索页）。
+// 沟通页的 JD 从 BOSS 页面读，走另一份提示词模板。流水线（要不要做 JD 检查）与本模块
+// （用哪份模板）共用这一个判据，添新来源时只改这一处。
+export function sourceUsesFileJd(extractSource) {
+  return extractSource !== 'chat';
+}
+
 // 构建某岗位的批量评分 prompt 生成器（含模板/JD 文件加载）。
 // getPoolCandidates: 返回该岗位当前所有已提取候选人（供沟通页无 JD 文件时从简历岗位描述兜底）。
 // 返回 { build }：build(cands) 生成该岗位一批人的评分 prompt。
 export function createPositionPromptBuilder(positionName, extractSource, getPoolCandidates) {
-  const useWithJd = extractSource !== 'chat';
+  const useWithJd = sourceUsesFileJd(extractSource);
   const templateName = useWithJd ? 'scoring-prompt-with-jd.md' : 'scoring-prompt-chat.md';
   const templatePath = resolve(UNPACKED_ROOT, 'config', templateName);
   let template;
   try {
     template = readFileSync(templatePath, 'utf-8');
   } catch {
-    throw new Error(`未找到评分模板： ${templatePath}`);
+    throw new Error(`未找到评分模板：${templatePath}`);
   }
   const dimensionsText = apiConfig.dimensions || '';
   const screeningCriteriaText = apiConfig.screeningCriteria || '';

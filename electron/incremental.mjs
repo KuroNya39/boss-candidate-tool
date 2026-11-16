@@ -143,13 +143,28 @@ async function runIncrementalScoring(ctx) {
   }
 
   // —— 某岗位的 prompt 生成器（懒加载 + 缓存）：{ build } ——
+  // 只在派发那一刻取（pump 里），不在收集批次时取：JD 核对可能把岗位名换成用户当场指认的那个，
+  // 早一步定下生成器，那一批就会按旧名字去读（读不到）JD
+  // 评分时若换过岗位（旧名查不到 JD，用户当场重新指认），整批都按新岗位出题：名字用 override，
+  // 池子仍按数据里记的名字取（那是候选人自己身上的岗位，本就是同一批人）
   function builderFor(job) {
-    let b = promptBuilders.get(job);
+    const name = ctx.jobNameOverride || job;
+    let b = promptBuilders.get(name);
     if (!b) {
-      b = createPositionPromptBuilder(job, source, () => seenForJob(job));
-      promptBuilders.set(job, b);
+      b = createPositionPromptBuilder(name, source, () => seenForJob(job));
+      promptBuilders.set(name, b);
     }
     return b;
+  }
+
+  // —— 岗位描述核对：整轮只做一次，且在第一批请求真正发出去之前 ——
+  // 不能挪到流水线开头：提取要跑很久，岗位改名恰恰可能发生在提取途中。
+  // 核对不过（用户取消）时 ctx.ensureJd 抛错，评分整轮停下，交给 pipeline 收尾
+  let jdChecked = false;
+  async function ensureJdOnce() {
+    if (jdChecked || !ctx.ensureJd) return;
+    jdChecked = true;
+    await ctx.ensureJd();
   }
 
   // 该候选人已进批次队列：防重复收集；入队时刻已无用（派发过的人不会再出现在尾巴里），顺手删掉免得越攒越多
@@ -177,7 +192,7 @@ async function runIncrementalScoring(ctx) {
       for (let i = 0; i < fullCount; i += BATCH_SIZE) {
         const batch = list.slice(i, i + BATCH_SIZE);
         for (const { key } of batch) markDispatched(key);
-        entries.push({ cands: batch.map((e) => e.c), ...builderFor(job) });
+        entries.push({ cands: batch.map((e) => e.c), job });
       }
       // 尾巴（不满一批）：队首那位（按入队顺序，即等最久的）等满 FLUSH_TIMEOUT 才整条放行。
       // 按人计时，不按「岗位的尾巴队列存在多久」——后者在队列一直不空时永不重置，
@@ -191,7 +206,7 @@ async function runIncrementalScoring(ctx) {
       // v1.8.3：用户点「暂停」时 tailFlushRequested 置位，零头立刻放行，让评分进度在暂停期间跟上提取的人数
       if (tailFlushRequested || now - headSince >= FLUSH_TIMEOUT) {
         for (const { key } of tail) markDispatched(key);
-        entries.push({ cands: tail.map((e) => e.c), ...builderFor(job) });
+        entries.push({ cands: tail.map((e) => e.c), job });
       }
     }
     return entries;
@@ -202,9 +217,10 @@ async function runIncrementalScoring(ctx) {
     while (dispatchQueue.length > 0 && executing.size < SCORE_CONCURRENCY) {
       if (cancelled) return;
       const entry = dispatchQueue.shift();
+      const { build } = builderFor(entry.job); // JD 核对已在这一轮派发前做完（岗位名已定稿）
       const run = {
         signal,
-        buildBatchPrompt: entry.build,
+        buildBatchPrompt: build,
         onBatchDone(batch) {
           for (const c of batch) scoredRefs.set(candidateKeyOf(c), c);
           reportProgress();
@@ -234,14 +250,6 @@ async function runIncrementalScoring(ctx) {
     const candidates = Array.isArray(raw.candidates) ? raw.candidates : raw;
     const extractSource = raw.source || source || 'chat';
 
-    // 步骤2 收尾总览：共 X 人，分布在 Y 个岗位。
-    // 总览与「已评 x/y 人」合成一条提示：收尾阶段剩下的往往只有一两人（增量阶段已评掉绝大部分），
-    // 总览若单独占一条，它会在补评那次 API 调用期间一直挂着（十几秒到几十秒）、进度条也停在原地，
-    // 看着就像「只显示共X人X个岗位、后面没有进度了」（2026-10-10 实测：跳过提取 27 人只补评 2 人，
-    // 总览挂满整段补评，之后唯一一条 100% 立刻被「AI 评分完成」顶掉）。合起来后两者兼得。
-    const jobCount = new Set(candidates.map(c => c.positionInfo?.appliedJob || '未知岗位')).size;
-    const overview = `共 ${candidates.length} 人，${jobCount} 个岗位`;
-
     // 1) 合并增量阶段已评的分数（快照对象 → 最终对象）
     let merged = 0;
     for (let i = 0; i < candidates.length; i++) {
@@ -256,6 +264,27 @@ async function runIncrementalScoring(ctx) {
     }
     termLog(`[AI评分] 收尾合并已评 ${merged}/${candidates.length} 人`);
 
+    // 2) 补评差集（增量阶段没评到的，含提取结束时最后几个候选人）。
+    // 有批要发 → 先核对岗位描述：放弃提取直接评分时，第一批请求就出在这里
+    const unscored = candidates.filter(c => typeof c.jobRelevanceScore !== 'number');
+    if (unscored.length > 0) await ensureJdOnce();
+
+    // 评分时换了岗位（旧名查不到 JD，用户当场重新指认）：把这批人的岗位名统一改成实际用的那份
+    // JD 的名字。必须在补评出题之前改——补评按岗位名分组取 JD；改完后结果页/Excel/索引口径一致
+    if (ctx.jobNameOverride) {
+      for (const c of candidates) {
+        c.positionInfo = { ...(c.positionInfo || {}), appliedJob: ctx.jobNameOverride };
+      }
+    }
+
+    // 步骤2 收尾总览：共 X 人，分布在 Y 个岗位。
+    // 总览与「已评 x/y 人」合成一条提示：收尾阶段剩下的往往只有一两人（增量阶段已评掉绝大部分），
+    // 总览若单独占一条，它会在补评那次 API 调用期间一直挂着（十几秒到几十秒）、进度条也停在原地，
+    // 看着就像「只显示共X人X个岗位、后面没有进度了」（2026-10-10 实测：跳过提取 27 人只补评 2 人，
+    // 总览挂满整段补评，之后唯一一条 100% 立刻被「AI 评分完成」顶掉）。合起来后两者兼得。
+    const jobCount = new Set(candidates.map(c => c.positionInfo?.appliedJob || '未知岗位')).size;
+    const overview = `共 ${candidates.length} 人，${jobCount} 个岗位`;
+
     // 收尾进度上报：合并后立刻报一次（进度条与人数马上反映真实状态，不必等第一批补评回来），
     // 之后每完成一批补评再报一次。已全部评完时这里就是 100%，补评分支自然跳过。
     const reportFinalProgress = () => {
@@ -265,8 +294,6 @@ async function runIncrementalScoring(ctx) {
     };
     reportFinalProgress();
 
-    // 2) 补评差集（增量阶段没评到的，含提取结束时最后几个候选人）
-    const unscored = candidates.filter(c => typeof c.jobRelevanceScore !== 'number');
     if (unscored.length > 0) {
       termLog(`[AI评分] 收尾补评 ${unscored.length} 人`);
       await scoreCandidateList(unscored, extractSource, { signal, onBatchDone: reportFinalProgress });
@@ -320,7 +347,10 @@ async function runIncrementalScoring(ctx) {
 
       // 提取已结束（成功）：先把手头排队/在飞的批跑完，再收尾
       if (ctx.extractResult?.ok) {
-        if (dispatchQueue.length > 0) pump();
+        if (dispatchQueue.length > 0) {
+          await ensureJdOnce();
+          pump();
+        }
         if (executing.size > 0) {
           await Promise.allSettled([...executing]);
           continue;
@@ -363,6 +393,7 @@ async function runIncrementalScoring(ctx) {
         }
         setTailFlushRequested(false);
       }
+      if (dispatchQueue.length > 0) await ensureJdOnce();
       pump();
 
       // 等待：任一在飞批完成（好腾出并发位）或轮询时间到

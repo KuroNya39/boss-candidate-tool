@@ -76,7 +76,7 @@ function parseArgs() {
     if (args[i] === '--retry' && args[i + 1]) opts.retry = args[++i]; // 重试名单路径
   }
   if (!opts.input && !opts.retry) {
-    fatal('缺少 --input 或 --retry 参数。\nUsage： node greet-candidates.mjs --input <scored-candidates.json> --level <5|4|3|2|0> --source <recommend|search> | --retry <greet-retry.json>');
+    fatal('缺少 --input 或 --retry 参数。\nUsage：node greet-candidates.mjs --input <scored-candidates.json> --level <5|4|3|2|0> --source <recommend|search> | --retry <greet-retry.json>');
   }
   return opts;
 }
@@ -107,7 +107,7 @@ function writeRetryFile(path, retryList) {
       writeFileSync(path, JSON.stringify(retryList, null, 2), 'utf-8');
     }
   } catch (err) {
-    console.log(`[greet] 写入可重试名单失败： ${err.message}`);
+    console.log(`[greet] 写入可重试名单失败：${err.message}`);
   }
 }
 
@@ -149,7 +149,7 @@ async function iframeEval(targetId, expr, source = 'recommend') {
   })()`;
   const raw = await cdpEval(targetId, wrapped);
   const parsed = JSON.parse(raw);
-  if (parsed.error) throw new Error(`iframe 操作失败： ${parsed.error}`);
+  if (parsed.error) throw new Error(`iframe 操作失败：${parsed.error}`);
   return parsed.value;
 }
 
@@ -261,7 +261,7 @@ async function greetCandidate(targetId, geekId, name, source = 'recommend') {
 
   if (prep.status === 'no-iframe' || prep.status === 'cross-origin') {
     // 整个页面结构不对，不是这一个候选人的问题：抛出去让人看见，别静默算成 skip
-    throw new Error(`iframe 操作失败： ${prep.status}`);
+    throw new Error(`iframe 操作失败：${prep.status}`);
   }
   if (prep.status === 'not-found') {
     console.log(`GREET_STATUS:${name}|${geekId}|not-found|页面中未找到该候选人`);
@@ -324,13 +324,13 @@ async function main() {
   let sourceInfo;
   if (retryMode) {
     if (!rPath || !existsSync(rPath)) {
-      fatal(`未找到可重试名单： ${rPath || '未知路径'}`);
+      fatal(`未找到可重试名单：${rPath || '未知路径'}`);
     }
     let list;
     try {
       list = JSON.parse(readFileSync(rPath, 'utf-8'));
     } catch (err) {
-      fatal(`读取可重试名单失败： ${err.message}`);
+      fatal(`读取可重试名单失败：${err.message}`);
     }
     if (!Array.isArray(list) || list.length === 0) {
       console.log('GREET_DONE:0|0|0|0|0'); // 名单已空：无事可做，干净收尾
@@ -348,7 +348,7 @@ async function main() {
 
     // 1. 读取评分数据
     if (!existsSync(opts.input)) {
-      fatal(`未找到文件： ${opts.input}`);
+      fatal(`未找到文件：${opts.input}`);
     }
     const raw = JSON.parse(readFileSync(opts.input, 'utf-8'));
     const candidates = raw.candidates || raw;
@@ -359,7 +359,7 @@ async function main() {
     // 2. 按等级阈值过滤
     const threshold = TIER_THRESHOLDS[opts.level];
     if (threshold === undefined) {
-      fatal(`无效的等级： ${opts.level}，可用值： 5, 4, 3, 2, 0`);
+      fatal(`无效的等级：${opts.level}，可用值：5, 4, 3, 2, 0`);
     }
 
     const matched = candidates.filter(c => {
@@ -386,7 +386,7 @@ async function main() {
   // 3. 连接 CDP，找到对应 tab
   const targetId = await findTab(opts.source);
   const pageName = opts.source === 'search' ? '搜索页' : '推荐牛人页';
-  console.log(`已找到${pageName}标签页： ${targetId}\n`);
+  console.log(`已找到${pageName}标签页：${targetId}\n`);
 
   // 4. 逐人打招呼（每人 30 秒超时，防止单个人卡死整个流程）
   const PER_CANDIDATE_TIMEOUT = 30000;
@@ -433,7 +433,7 @@ async function main() {
         stopSignal.then(() => 'cancelled'),
       ]);
     } catch (err) {
-      console.log(`[greet] ${name} 异常： ${err.message}`);
+      console.log(`[greet] ${name} 异常：${err.message}`);
       result = 'error';
     } finally {
       clearTimeout(perCandidateTimer); // 胜负已分：超时定时器作废，别留它吊着进程

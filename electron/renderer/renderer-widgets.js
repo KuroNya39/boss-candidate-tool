@@ -572,6 +572,25 @@ function bindDialogWheelGuard(overlay, scrollEl) {
   }, { passive: false });
 }
 
+// ===== 弹窗的一次性等待 =====
+// 弹窗侧只负责把结果递过去（settle），流程侧 await wait()。
+// 同一时刻只认一个等待方（一次只跑一条链）；没有等待方时 settle 是空操作，
+// 先清空再 resolve，重复结算不会把同一个结果递两次。岗位选择 / 岗位编辑各持一个。
+function createDialogWaiter() {
+  let pending = null;
+  return {
+    wait() {
+      return new Promise((resolve) => { pending = { resolve }; });
+    },
+    settle(result) {
+      if (!pending) return;
+      const { resolve } = pending;
+      pending = null;
+      resolve(result);
+    },
+  };
+}
+
 // ===== 通用确认弹窗（替代原生 confirm/alert）=====
 // 确认弹窗此刻是否正开着：全局 Escape 链（要先让路）与「运行中关窗」请求（不叠第二个）共用这一条判断
 function isConfirmDialogOpen() {

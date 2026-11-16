@@ -53,6 +53,12 @@ function safeJdName(jobName) {
   })[c]);
 }
 
+// JD 文件路径：文件名即岗位名。六个读写/改名/删除入口共用这一处，
+// 改映射只动 safeJdName 与这里（评分侧 scoring.mjs 另有一份同映射，见上）
+function jdFilePath(jobName) {
+  return resolve(JD_DIR, safeJdName(jobName) + '.txt');
+}
+
 // 读取推荐牛人页岗位列表（从 jd-descriptions/ 目录的 .txt 文件名反解）
 export function listRecommendJobs() {
   const dir = JD_DIR;
@@ -68,10 +74,9 @@ export function listRecommendJobs() {
 // 添加新岗位：创建对应的 .txt 文件并写入 JD 描述
 export function addRecommendJob(jobName, jobDesc) {
   if (!jobName || typeof jobName !== 'string') throw new Error('岗位名不能为空');
-  const safeName = safeJdName(jobName);
   const dir = JD_DIR;
   mkdirSync(dir, { recursive: true });
-  const filePath = resolve(dir, safeName + '.txt');
+  const filePath = jdFilePath(jobName);
   if (existsSync(filePath)) throw new Error(`岗位「${jobName}」已存在`);
   writeFileSync(filePath, jobDesc || '', 'utf-8');
   termLog(`[config] 已添加新岗位： ${jobName}`);
@@ -81,17 +86,35 @@ export function addRecommendJob(jobName, jobDesc) {
 // 读取岗位 JD 描述
 export function getRecommendJobDesc(jobName) {
   if (!jobName) return '';
-  const safeName = safeJdName(jobName);
-  const filePath = resolve(JD_DIR, safeName + '.txt');
+  const filePath = jdFilePath(jobName);
   if (!existsSync(filePath)) return '';
   return readFileSync(filePath, 'utf-8');
+}
+
+// 岗位描述够不够用：文件不在 / 内容为空 / 太短，都算「没有可用的 JD」。
+// 评分时读不到 JD 会被静默吞掉（提示词里的维度与筛选项变成空槽），模型就自己编一份岗位描述——
+// 所以「开始提取前」与「评分发第一个请求前」都按这同一个口径拦下。
+// 30 字是人为下限，标题行也算在内：一份真 JD 的结构化段落远不止这些。
+// 三态：missing（文件不在 / 读不出来）与 short（在，但空或不够长）——两个消费方都只需要
+// 「文件有没有」和「能不能用」这一层区分，空文件与太短在处置上相同（请用户补内容）
+const JD_MIN_LENGTH = 30;
+export function inspectJobDescription(jobName) {
+  if (!jobName) return { state: 'missing' };
+  const filePath = jdFilePath(jobName);
+  let raw;
+  try {
+    if (!existsSync(filePath)) return { state: 'missing' };
+    raw = readFileSync(filePath, 'utf-8');
+  } catch {
+    return { state: 'missing' }; // 读不出来（被占用/权限）与不存在同样处理：不能拿它去评分
+  }
+  return raw.trim().length >= JD_MIN_LENGTH ? { state: 'ok' } : { state: 'short' };
 }
 
 // 更新岗位描述（岗位名不可改，只更新 .txt 内容）
 export function updateRecommendJob(jobName, jobDesc) {
   if (!jobName || typeof jobName !== 'string') throw new Error('岗位名不能为空');
-  const safeName = safeJdName(jobName);
-  const filePath = resolve(JD_DIR, safeName + '.txt');
+  const filePath = jdFilePath(jobName);
   if (!existsSync(filePath)) throw new Error(`岗位「${jobName}」不存在`);
   writeFileSync(filePath, jobDesc || '', 'utf-8');
   termLog(`[config] 已更新岗位描述： ${jobName}`);
@@ -103,10 +126,8 @@ export function updateRecommendJob(jobName, jobDesc) {
 export function renameRecommendJob(oldName, newName) {
   if (!oldName || typeof oldName !== 'string') throw new Error('原岗位名不能为空');
   if (!newName || typeof newName !== 'string') throw new Error('岗位名不能为空');
-  const oldSafe = safeJdName(oldName);
-  const newSafe = safeJdName(newName);
-  const oldPath = resolve(JD_DIR, oldSafe + '.txt');
-  const newPath = resolve(JD_DIR, newSafe + '.txt');
+  const oldPath = jdFilePath(oldName);
+  const newPath = jdFilePath(newName);
   if (!existsSync(oldPath)) throw new Error(`岗位「${oldName}」不存在`);
   if (existsSync(newPath)) throw new Error(`岗位「${newName}」已存在`);
   mkdirSync(JD_DIR, { recursive: true });
@@ -118,8 +139,7 @@ export function renameRecommendJob(oldName, newName) {
 // 删除岗位
 export function deleteRecommendJob(jobName) {
   if (!jobName) throw new Error('岗位名不能为空');
-  const safeName = safeJdName(jobName);
-  const filePath = resolve(JD_DIR, safeName + '.txt');
+  const filePath = jdFilePath(jobName);
   if (!existsSync(filePath)) throw new Error(`岗位「${jobName}」不存在`);
   unlinkSync(filePath);
   termLog(`[config] 已删除岗位： ${jobName}`);

@@ -4,12 +4,12 @@ import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 
 import { powerSaveBlocker } from 'electron';
 import { archiveOldOutput, cleanupCacheFiles } from '../scripts/progress-store.mjs';
 import { termLog } from './util.mjs';
-import { OUTPUT_DIR, apiConfig, cancelled, setCancelled, skipRecovered, setSkipRecovered, skipToScoring, setSkipToScoring, setExportMailResult, exportMailResult, actualExportPath, setRunActive } from './state.mjs';
-import { sendProgress, sendDone, sendError } from './window.mjs';
+import { OUTPUT_DIR, apiConfig, cancelled, setCancelled, skipRecovered, setSkipRecovered, skipToScoring, setSkipToScoring, setExportMailResult, exportMailResult, actualExportPath, setRunActive, currentProcess, sendStdinSignal } from './state.mjs';
+import { sendProgress, sendDone, sendError, requestJdDecision } from './window.mjs';
 import { readRunMeta, resolveBatchSource } from './archive.mjs';
-import { hasScorableCandidates, restoreScorableCandidates } from './scoring.mjs';
+import { hasScorableCandidates, restoreScorableCandidates, nonEmptyCandidates, sourceUsesFileJd } from './scoring.mjs';
 import { runIncrementalScoring, cleanupTempFiles } from './incremental.mjs';
-import { CONFIG_DIR } from './config.mjs';
+import { CONFIG_DIR, inspectJobDescription } from './config.mjs';
 import { runScript, parseExtractProgress, parseExportProgress } from './runner.mjs';
 import { isChromeRunning, getSourcePageUrl, launchChrome, buildPageNotOpenMessage, openUrlInChrome } from './chrome.mjs';
 
@@ -37,6 +37,59 @@ function findRecentArchiveWithScorable() {
     }
   } catch {}
   return null;
+}
+
+// ===== 岗位描述（JD）缺失拦截 =====
+// 推荐页 / 搜索页的 JD 来自软件内岗位文件（文件名即岗位名）。把岗位改了名之后，数据里记的旧名字
+// 查不到文件了，而评分侧读 JD 失败是被静默吞掉的：提示词里的维度与筛选项变成空槽，模型自己编一份 JD。
+// 所以评分真正发第一个请求之前再查一次（开始前的预检在 renderer-actions.js），缺了就弹窗问用户：
+// 补描述 / 另选岗位 / 不评了。用户取消时这条流水线停在「步骤 2 失败」态，已提取的数据原样保留。
+
+// 数据里记的岗位名：提取结果优先，进度与评分结果兜底（推荐/搜索页整批只有一个岗位）。
+// 用数据里的名字而不是界面传的名字——评分器是按候选人身上记的岗位名去找 JD 的
+function readDataJobName(dir) {
+  for (const file of ['zhipin-candidates.json', '.extract-progress.json', 'scored-candidates.json']) {
+    try {
+      const raw = JSON.parse(readFileSync(resolve(dir, file), 'utf-8'));
+      const list = nonEmptyCandidates(raw) || [];
+      for (const c of list) {
+        const name = c?.positionInfo?.appliedJob || c?.appliedJob || '';
+        if (name) return name;
+      }
+    } catch {}
+  }
+  return '';
+}
+
+// 换了岗位 JD 之后改写批次元数据里的岗位名：否则下次「重新评分」还按旧名字去查，接着找不到
+function writeMetaJob(dir, jobName) {
+  try {
+    const meta = readRunMeta(dir) || {};
+    meta.job = jobName;
+    writeFileSync(resolve(dir, '.run-meta.json'), JSON.stringify(meta, null, 2), 'utf-8');
+  } catch (e) {
+    termLog(`[main] 改写 .run-meta.json 岗位名失败： ${e.message}`, 'stderr');
+  }
+}
+
+// 问用户把岗位描述落实一下，返回 { ok: true, name } 或 { ok: false, reason, jobName }。
+// 循环的三种出口：核对通过 / 用户补完描述（内容已非空就算数）/ 用户取消（或关掉弹窗）
+async function resolveJobDescription(jobName) {
+  let current = jobName;
+  for (;;) {
+    const info = inspectJobDescription(current);
+    if (info.state === 'ok') return { ok: true, name: current };
+    const reason = info.state; // 'missing' | 'short'：弹窗按这两种缺口各说各的
+    const reply = await requestJdDecision({ reason, jobName: current });
+    const action = reply?.action;
+    if (action !== 'picked' && action !== 'edited') return { ok: false, reason, jobName: current };
+    const next = (typeof reply.job === 'string' ? reply.job.trim() : '') || current;
+    // 刚在编辑框里存过内容、名字也没变：哪怕不到 30 字也照用——文件里有内容，模型就不会自己编
+    if (action === 'edited' && next === current && inspectJobDescription(current).state !== 'missing') {
+      return { ok: true, name: current };
+    }
+    current = next;
+  }
 }
 
 async function runPipeline(count, skipExtract = false, extractAll = false, source = 'chat', job = '', enableCopy = true, resume = false, retry = false) {
@@ -115,24 +168,32 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
 
     const isRecommendMode = source === 'recommend' || source === 'recommend-attach';
     const isSearchMode = source === 'search';
+    // 推荐页 / 搜索页的岗位描述来自软件内文件；沟通页的 JD 从 BOSS 页面读，不走这套检查。
+    // 与评分侧（提示词模板选型）共用同一个判据，别在这里另写一份
+    const usesFileJd = sourceUsesFileJd(source);
+    // 非空 = 岗位描述没落实，评分不开始（随后按步骤 2 失败收尾，数据原样保留）
+    let jdAbort = null;
 
     // ===== 步骤 1 + 2 并行 =====
     // v1.5.12：提取子进程跑步骤1的同时，评分器轮询 .extract-progress.json 边提取边评分；
     // 提取结束（成功/失败/跳过）后由评分器统一收尾（成功写 scored-candidates.json，失败不写）。
     let extractError = null; // 提取失败原因（先让评分器退出，再抛出）
 
+    // pageLabel 自带「页」字（拼消息时不再补），且只按用户看到的三个来源取名：
+    // recommend 与 recommend-attach 是同一个「推荐牛人页」（前者脚本自己开页面，只在命令行用），
+    // 界面上不区分，提示语里也不必提「手动筛选」
     let scriptName;
     let pageLabel;
     const isAttach = source === 'recommend-attach' || source === 'search';
     if (isSearchMode) {
       scriptName = 'extract-search-candidates.mjs';
-      pageLabel = '搜索';
+      pageLabel = '搜索页';
     } else if (isRecommendMode) {
       scriptName = 'extract-recommend-candidates.mjs';
-      pageLabel = isAttach ? '推荐牛人页（手动筛选）' : '推荐牛人';
+      pageLabel = '推荐牛人页';
     } else {
       scriptName = 'extract-candidates-full.mjs';
-      pageLabel = '沟通';
+      pageLabel = '沟通页';
     }
 
     // v1.4.6: Chrome 未运行时，自动启动 Chrome 并打开对应页面，
@@ -142,9 +203,9 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       const openUrl = getSourcePageUrl(source);
       const launchRes = await launchChrome({ openUrl });
       if (launchRes.ok) {
-        termLog(`[main] Chrome 未运行，已自动启动并打开 ${pageLabel}页： ${openUrl}`);
+        termLog(`[main] Chrome 未运行，已自动启动并打开 ${pageLabel}： ${openUrl}`);
         sendProgress(1, 'idle', 0,
-          `检测到 Chrome 未运行，已自动启动并打开${pageLabel}页。`
+          `检测到 Chrome 未运行，已自动启动并打开${pageLabel}。`
           + '请等待页面加载、登录 BOSS直聘并设置好筛选条件后，再次点击「开始提取分析」。');
         return;
       }
@@ -160,7 +221,39 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       seedScores: resume,           // 继续提取 → 用上次评分播种，只补评新增候选人
       indexDir: CONFIG_DIR,         // 候选人查询索引：收尾时记录本次评过的人
       scoringError: null,
+      // 评分时换了岗位（旧名查不到 JD，用户当场重新指认）：整批都按新岗位的 JD 出题，
+      // 结果里的岗位名也一并改成它（收尾时改写，见 incremental.mjs 的 finalizeScoring）
+      jobNameOverride: '',
+      // 评分器在发出第一批请求之前调一次：核对岗位描述。缺 → 弹窗问用户；取消 → 抛错停下整轮。
+      // 放在这里而不是流水线开头，是因为提取要跑很久：改名可能发生在提取途中
+      ensureJd: null,
     };
+    if (usesFileJd) {
+      scoreCtx.ensureJd = async () => {
+        // 岗位名取数据里记的那个（评分器就是按它找 JD 的）；数据还没写出来才退回界面传的
+        const initialName = readDataJobName(OUTPUT_DIR) || job || '';
+        if (!initialName) {
+          termLog('[AI评分] ⚠ 数据里没有记录岗位名，跳过岗位描述检查', 'stderr');
+          return;
+        }
+        const resolved = await resolveJobDescription(initialName);
+        if (!resolved.ok) {
+          const message = resolved.reason === 'missing'
+            ? `未找到目标岗位「${resolved.jobName}」的岗位描述，本次未开始评分。`
+            : `目标岗位「${resolved.jobName}」缺少岗位描述，本次未开始评分。`;
+          // 存 Error 本身：下面收尾时还要拿它当「步骤 2 失败」的原因，不必再从字符串重新包一遍
+          jdAbort = new Error(message);
+          // 提取还在跑就一并停下：评分已经被拦下，让提取再空跑一小时毫无意义
+          if (currentProcess?._taskType === 'extract') sendStdinSignal('CANCEL');
+          throw jdAbort;
+        }
+        if (resolved.name !== initialName) {
+          termLog(`[AI评分] 岗位描述改用「${resolved.name}」（数据里记的是「${initialName}」）`);
+          scoreCtx.jobNameOverride = resolved.name;
+          writeMetaJob(OUTPUT_DIR, resolved.name);
+        }
+      };
+    }
     const scoringPromise = exportOnly ? Promise.resolve() : runIncrementalScoring(scoreCtx).catch((err) => {
       scoreCtx.scoringError = err;
     });
@@ -170,7 +263,8 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       // 免得重试时卡片停在「等待中」、看着像跳过了这一步（步骤 2 下面统一报）
       sendProgress(1, 'done', 100, '候选人信息提取完成');
     } else if (!skipExtract) {
-      sendProgress(1, 'running', 0, extractAll ? `正在扫描候选人列表（${pageLabel}页）…` : '正在扫描候选人列表…');
+      // 两种数量模式同一句话：消息里只报「在哪个页面扫」，勾不勾「提取全部」看不出差别
+      sendProgress(1, 'running', 0, `正在扫描候选人列表（${pageLabel}）…`);
       const extractArgs = extractAll
         ? ['--all', '--output', resolve(OUTPUT_DIR, 'zhipin-candidates.json')]
         : ['--count', String(count), '--output', resolve(OUTPUT_DIR, 'zhipin-candidates.json')];
@@ -237,6 +331,15 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
         }
       }
 
+      // 岗位描述没落实（评分器在发第一批请求前被拦下，提取已被叫停）：
+      // 按「步骤 2 失败」收尾。lastFailedStep=2 → 点「重试」跳过提取、直接重新走一遍检查
+      if (jdAbort) {
+        lastFailedStep = 2;
+        scoreCtx.extractResult = { ok: false, error: jdAbort };
+        await scoringPromise;
+        throw jdAbort;
+      }
+
       if (cancelled) {
         scoreCtx.extractResult = { ok: false, error: '已取消' };
         await scoringPromise;
@@ -250,7 +353,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
       lastFailedStep = 2; // 提取已成功：之后再出错都算步骤 2
       if (scoreCtx.scoringError) throw scoreCtx.scoringError;
     } else {
-      // v1.4.8: 「跳过提取，直接用已有数据评分」——若当前输出目录没有完整的候选人文件，
+      // v1.4.8: 「已跳过提取，直接使用已有数据进行评分」——若当前输出目录没有完整的候选人文件，
       // 依次从当前目录的进度/评分数据、最近一次历史归档里恢复（含只提取了一半就取消的数据）
       const candidatesPath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
       if (!existsSync(candidatesPath)) {
@@ -274,7 +377,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
           throw new Error('未找到已提取的候选人数据。请先点击「开始提取分析」进行提取，或使用上次已提取的数据进行评分。');
         }
       }
-      sendProgress(1, 'done', 100, '已跳过提取，直接用已有数据评分');
+      sendProgress(1, 'done', 100, '已跳过提取，直接使用已有数据进行评分');
       scoreCtx.extractResult = { ok: true };
       await scoringPromise;
       if (cancelled) throw new Error('已取消');
@@ -286,7 +389,7 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     sendProgress(2, 'done', 100, 'AI 评分完成');
     sendProgress(3, 'running', 0, '正在导出 Excel…');
     const scoredPath = resolve(OUTPUT_DIR, 'scored-candidates.json');
-    if (!existsSync(scoredPath)) throw new Error(`未找到评分结果文件： ${scoredPath}`);
+    if (!existsSync(scoredPath)) throw new Error(`未找到评分结果文件：${scoredPath}`);
     lastFailedStep = 3; // 评分结果已在，之后出错都能直接重导出
 
     // v1.9.3 自愈：这轮跑到评分完成，确保当前目录一定留有 .run-meta.json。

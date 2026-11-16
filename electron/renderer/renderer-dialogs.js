@@ -294,6 +294,9 @@ function showJobPicker() {
 }
 
 function hideJobPicker() {
+  // Esc / 点遮罩 / 选中之外的任何关闭路径都算「这次没给出岗位」；
+  // 正常选中的路径会先 settleJobPick(job)，到这里已是空操作
+  settleJobPick(null);
   closeDialog(jobPickerOverlay, { animate: true });
 }
 
@@ -484,9 +487,19 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) repinSourcePill();
 });
 
+// 补 JD 流程（renderer-ipc.js 的评分前检查）等「编辑弹窗的结局」：
+// 保存了 = 描述补好了，取消 / Esc = 没补。平时从岗位列表打开编辑弹窗没有等待方，settle 是空操作。
+const jobEditWaiter = createDialogWaiter();
+const waitForJobEditDone = () => jobEditWaiter.wait();
+const settleJobEdit = (result) => jobEditWaiter.settle(result);
+// 这个编辑弹窗是「补 JD」流程打开的：保存/取消后整条弹窗链一起关掉、回到运行页，
+// 而不是像平时那样互切回「目标岗位」列表——用户此刻要处理的是评分，不是挑岗位
+let jobDialogFromJdCheck = false;
+
 // 添加/编辑岗位弹窗
 function showAddJobDialog() {
   editJobName = '';
+  jobDialogFromJdCheck = false;
   dialogJobName.value = '';
   // 名称框不再是只读态（v1.10.2 起可改），原先这里复位 readOnly / input-readonly 的两行已删
   dialogJobDesc.value = '';
@@ -495,8 +508,9 @@ function showAddJobDialog() {
   openDialog(jobDialogOverlay, dialogJobName);
 }
 
-async function showEditJobDialog(jobName) {
+async function showEditJobDialog(jobName, { fromJdCheck = false } = {}) {
   editJobName = jobName;
+  jobDialogFromJdCheck = fromJdCheck;
   // 岗位描述是本地文件读取（很快，几毫秒），先读好再弹窗，弹出来就是填好的，
   // 不会出现「先弹个空框、内容再突然塞进去」的突兀感
   let desc;
@@ -511,6 +525,8 @@ async function showEditJobDialog(jobName) {
   // 读不出原描述就**不开编辑器**：打开一个空框让用户保存，会把原岗位描述整份覆盖掉
   if (readErr) {
     editJobName = '';
+    jobDialogFromJdCheck = false;
+    settleJobEdit({ saved: false }); // 补 JD 流程在等这个结局：弹窗没开成，按「没补」收尾
     showToast('读取岗位描述失败，本次编辑已取消：' + (readErr?.message || readErr), 'error', 5000);
     return;
   }
@@ -611,8 +627,16 @@ async function closeJobDialog({ ask = true } = {}) {
   // 退场期间这层遮罩是 pointer-events:none，点不到，所以只可能是 Esc 走到这里
   if (isSwappingOut(jobDialogOverlay)) return;
   if (ask && !(await confirmDiscardJobEdits())) return;
+  const fromJdCheck = jobDialogFromJdCheck;
+  jobDialogFromJdCheck = false;
+  settleJobEdit({ saved: false }); // 保存路径会先 settle(true)，到这里已是空操作
   jobDialogSnapshot = null;
   editJobName = '';
+  // 补 JD 流程打开的编辑器：整条链关掉回运行页；平时则互切回岗位列表接着挑
+  if (fromJdCheck) {
+    closeDialog(jobDialogOverlay, { animate: true });
+    return;
+  }
   swapDialogs(jobDialogOverlay, jobPickerOverlay, showJobPicker);
 }
 
@@ -707,6 +731,8 @@ btnDialogSave.addEventListener('click', async () => {
       await window.electronAPI.addRecommendJob(jobName, jobDesc);
       selectedJob = jobName;
     }
+    // 等编辑结局的补 JD 流程：保存 = 描述已补好（可能还顺手改了名，一并带回去）
+    if (editing) settleJobEdit({ saved: true, job: jobName });
     // 只改描述时名称与选中都没动，列表内容没变，不必再拉一遍列表重画
     if (!editing || jobName !== editing) await loadJobList();
     // 内容已落盘，ask:false 不再问「放弃修改」

@@ -19,6 +19,12 @@ body {
      窗口有原生标题栏可拖拽；body 级 drag 区域会干扰原生 <select> 弹层打开（批量打招呼下拉框点了没反应）。 */
 }
 
+/* ===== 文本选中高亮 =====
+   默认的 Chromium 蓝太跳，全站统一换成 tokens.css 的浅水青；
+   字色不动（只改底），Chromium 与 Firefox 两条各写一份。 */
+::selection { background: var(--bg-selection); }
+::-moz-selection { background: var(--bg-selection); }
+
 /* ===== 滚动条策略 =====
    主界面整页（内容高于窗口时）的滚动条直接隐藏——滚轮 / 键盘仍可滚动，
    只是不显示那条「备用」的条；

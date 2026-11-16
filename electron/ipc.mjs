@@ -18,7 +18,7 @@ import {
   apiConfig, setApiConfig,
   cdpStatus, setCdpStatus,
 } from './state.mjs';
-import { CONFIG_DIR, saveApiConfig, listRecommendJobs, addRecommendJob, getRecommendJobDesc, updateRecommendJob, renameRecommendJob, deleteRecommendJob } from './config.mjs';
+import { CONFIG_DIR, saveApiConfig, listRecommendJobs, addRecommendJob, getRecommendJobDesc, inspectJobDescription, updateRecommendJob, renameRecommendJob, deleteRecommendJob } from './config.mjs';
 import { archiveDirNameMatches, isHistoryDir, readRunMeta, resolveBatchSource, restoreHistoryToOutput } from './archive.mjs';
 import { searchCandidateIndex, clearCandidateIndex } from './candidate-index.mjs';
 import { nonEmptyCandidates, restoreScorableCandidates } from './scoring.mjs';
@@ -276,7 +276,7 @@ function registerIPC() {
         }
       }
     } catch (err) {
-      return { error: `读取目录失败： ${err.message}` };
+      return { error: `读取目录失败：${err.message}` };
     }
 
     termLog(`[clear-history] 匹配到的目录： ${JSON.stringify(matchedDirs)}`);
@@ -389,7 +389,7 @@ function registerIPC() {
       });
       return { ok: true, list };
     } catch (err) {
-      return { error: `读取历史记录失败： ${err.message}` };
+      return { error: `读取历史记录失败：${err.message}` };
     }
   });
 
@@ -418,7 +418,9 @@ function registerIPC() {
       termLog(`[delete-history] 已删除： ${dirPath}`);
       return { ok: true };
     } catch (err) {
-      return { error: `删除失败： ${err.message}` };
+      // 只回原因：渲染进程的 Toast 已经是「删除失败：」开头（renderer-history.js），
+      // 这里再带一次前缀会显示成「删除失败：删除失败：EPERM…」
+      return { error: err.message };
     }
   });
 
@@ -481,7 +483,7 @@ function registerIPC() {
       if (!restored) return { error: '该批次没有可评分的数据（既无提取数据，也无评分结果）' };
       termLog(`[rescore] 已从历史批次恢复可评分数据： ${dirPath}`);
     } catch (err) {
-      return { error: `恢复数据失败： ${err.message}` };
+      return { error: `恢复数据失败：${err.message}` };
     }
     const meta = readRunMeta(dirPath);
     // 来源取「该批次 meta 明确写的页面，否则数据文件写明的页面」
@@ -549,6 +551,9 @@ function registerIPC() {
   ipcMain.handle('add-recommend-job', (_event, jobName, jobDesc) => addRecommendJob(jobName, jobDesc));
 
   ipcMain.handle('get-recommend-job-desc', (_event, jobName) => getRecommendJobDesc(jobName));
+
+  // 岗位描述够不够用（开始提取前预检）：返回 { state: 'ok' | 'missing' | 'short' }
+  ipcMain.handle('check-job-description', (_event, jobName) => inspectJobDescription(jobName));
 
   ipcMain.handle('update-recommend-job', (_event, jobName, jobDesc) => updateRecommendJob(jobName, jobDesc));
 

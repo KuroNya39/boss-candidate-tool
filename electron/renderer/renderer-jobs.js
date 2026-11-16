@@ -1,5 +1,12 @@
 // renderer-jobs.js —— 由原 renderer.js 第 1244–1351 行按顺序拆分；加载顺序即文件排列顺序，请勿调整
 //
+// 评分前「重新选岗」的等待：主进程发现数据里的岗位名已经找不到 JD 文件（多半是岗位改了名），
+// 弹窗请用户指认一个岗位。这里只提供「选完了 / 放开了」的通知；
+// 平时从「目标岗位」按钮打开列表没有等待方，settle 是空操作。
+const jobPickWaiter = createDialogWaiter();
+const waitForJobPick = () => jobPickWaiter.wait();
+const settleJobPick = (job) => jobPickWaiter.settle(job || null); // 没选（Esc / 点遮罩）按 null 收
+
 function updateJobDisplay() {
   if (selectedJob) {
     jobDisplay.textContent = selectedJob;
@@ -81,6 +88,7 @@ function renderJobPicker() {
       item.classList.add('selected');
       selectedJob = job;
       updateJobDisplay();
+      settleJobPick(job); // 先给等待方答复，再关弹窗（关闭路径会以「没选」收尾）
       hideJobPicker();
     });
     item.appendChild(nameBtn);

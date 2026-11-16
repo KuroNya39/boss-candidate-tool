@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 推荐牛人页岗位列表（含每条的「可搜索文本」，供搜索匹配拼音首字母）
   getRecommendJobs: () => ipcRenderer.invoke('get-recommend-jobs'),
   getRecommendJobDesc: (jobName) => ipcRenderer.invoke('get-recommend-job-desc', jobName),
+  // 岗位描述够不够用（开始提取前预检）：{ state: 'ok' | 'missing' | 'short' }
+  checkJobDescription: (jobName) => ipcRenderer.invoke('check-job-description', jobName),
   addRecommendJob: (jobName, jobDesc) => ipcRenderer.invoke('add-recommend-job', jobName, jobDesc),
   updateRecommendJob: (jobName, jobDesc) => ipcRenderer.invoke('update-recommend-job', jobName, jobDesc),
   renameRecommendJob: (oldName, newName) => ipcRenderer.invoke('rename-recommend-job', oldName, newName),
@@ -93,6 +95,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('greet-error', handler);
     return () => ipcRenderer.removeListener('greet-error', handler);
   },
+
+  // 评分前岗位描述缺失：主进程发请求，渲染进程弹窗（补描述 / 另选岗位 / 取消），
+  // 用户处理完回一句 { action: 'picked' | 'edited' | 'cancelled', job? }
+  onJdMissingRequest: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on('jd-missing-request', handler);
+    return () => ipcRenderer.removeListener('jd-missing-request', handler);
+  },
+  replyJdMissing: (reply) => ipcRenderer.send('jd-missing-response', reply),
 
   // 运行中关闭窗口的确认：主进程拦下 close 发请求，渲染进程弹 confirmDialog 后回结果。
   // 事件本身不带数据，回调不需要转发参数（与上面几条带 data 的监听不同）

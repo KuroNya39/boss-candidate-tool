@@ -26,7 +26,7 @@ import { setRunSource } from './progress-store.mjs';
  * 本脚本是不是「被直接执行」的那个（而不是被别的模块 import 进来）。
  * 提取/打招呼/导出脚本都拿它守卫 main()：一旦被 import（哪怕只是加载），
  * 绝不能自动开跑 —— 那些脚本会真的去点浏览器、开简历弹窗、占用系统剪贴板。
- * 用法： if (isMainModule(import.meta.url)) { main().catch(...); }
+ * 用法：if (isMainModule(import.meta.url)) { main().catch(...); }
  */
 export function isMainModule(moduleUrl) {
   return !!process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(moduleUrl));
@@ -130,7 +130,7 @@ export async function clickOnlineResume(targetId) {
             // 内容就绪检测：DOM #resume 或 canvas 已加载即视为就绪（替代固定 2-4s 等待）
             const contentReady = await waitForResumeContentLoaded(targetId, 2000);
             const sizeWarn = sizeOk ? '' : ' ⚠尺寸偏小';
-            console.log(`    弹窗尺寸稳定： ${state.width}x${state.height}, iframe=${state.hasIframe}, resume=${state.hasResume}, canvas=${state.hasCanvas}，内容${contentReady ? '就绪' : '未就绪'}${sizeWarn}`);
+            console.log(`    弹窗尺寸稳定：${state.width}x${state.height}, iframe=${state.hasIframe}, resume=${state.hasResume}, canvas=${state.hasCanvas}，内容${contentReady ? '就绪' : '未就绪'}${sizeWarn}`);
             await sleep(contentReady ? 300 : 800);
             return true;
           }
@@ -416,10 +416,10 @@ export async function captureResumeScreenshots(targetId, safename, tempDir) {
 
   const clip = await getDialogClip(targetId);
   if (clip) {
-    console.log(`    弹窗区域： x=${clip.x}, y=${clip.y}, ${clip.width}x${clip.height} （source=${clip.source}${clip.detailWidth ? ', detailW=' + clip.detailWidth : ''}）`);
+    console.log(`    弹窗区域：x=${clip.x}, y=${clip.y}, ${clip.width}x${clip.height} （source=${clip.source}${clip.detailWidth ? ', detailW=' + clip.detailWidth : ''}）`);
   }
-  console.log(`    检测源： ${source || 'unknown'}${canvasSize ? ', Canvas: ' + canvasSize : ''}${info.heights ? ', ' + info.heights : ''}${info.debug ? ', debug: ' + info.debug : ''}`);
-  console.log(`    简历高度： ${scrollHeight}px，可视： ${clientHeight}px，步进： ${step}px，需截 ${pages} 页`);
+  console.log(`    检测源：${source || 'unknown'}${canvasSize ? ', Canvas: ' + canvasSize : ''}${info.heights ? ', ' + info.heights : ''}${info.debug ? ', debug: ' + info.debug : ''}`);
+  console.log(`    简历高度：${scrollHeight}px，可视：${clientHeight}px，步进：${step}px，需截 ${pages} 页`);
 
   let prevActualTop = -1;
   for (let page = 0; page < pages; page++) {
@@ -427,7 +427,7 @@ export async function captureResumeScreenshots(targetId, safename, tempDir) {
     await scrollResume(targetId, scrollTop);
 
     const actualScrollTop = parseInt(await cdpEval(targetId, `document.querySelector('.resume-detail').scrollTop`)) || 0;
-    console.log(`    第${page + 1}页： 目标=${scrollTop}，实际=${actualScrollTop}`);
+    console.log(`    第${page + 1}页：目标=${scrollTop}，实际=${actualScrollTop}`);
 
     if (page > 0 && actualScrollTop <= prevActualTop) {
       console.log(`    ⚡ 已到达底部（滚动停滞在 ${actualScrollTop}），跳过剩余 ${pages - page} 页`);
@@ -445,7 +445,7 @@ export async function captureResumeScreenshots(targetId, safename, tempDir) {
         success = true;
         break;
       } catch (e) {
-        console.warn(`    ⚠ 截图第 ${page + 1}/${pages} 页失败（${retry + 1}/3）： ${e.message}`);
+        console.warn(`    ⚠ 截图第 ${page + 1}/${pages} 页失败（${retry + 1}/3）：${e.message}`);
         if (retry < 2) {
           // 失败多半是内容未渲染完：等待更久 + 重新滚动定位，再重试
           // v1.3.12: 拉长等待给 OOPIF 简历弹窗 iframe 更多渲染时间
@@ -667,35 +667,35 @@ export async function diagnoseResumeIframeDom(targetId, nestedSrc, label = 'DOM'
   try {
     const framesResp = await proxyGet(`/frames?target=${targetId}`);
     if (!framesResp.frameTree) {
-      console.warn(`  ${label}🔍 DOM诊断： /frames 未返回 frameTree`);
+      console.warn(`  ${label}🔍 DOM诊断：/frames 未返回 frameTree`);
       return null;
     }
     // 1) frame 匹配
     const targetFrame = findFrameInTree(framesResp.frameTree, nestedSrc);
     if (!targetFrame) {
-      console.warn(`  ${label}🔍 DOM诊断： frameTree 未匹配到嵌套Src=${(nestedSrc || '').slice(0, 80)}`);
+      console.warn(`  ${label}🔍 DOM诊断：frameTree 未匹配到嵌套Src=${(nestedSrc || '').slice(0, 80)}`);
       (function dump(node, depth) {
         if (!node) return;
         const f = node.frame;
-        if (f) console.warn(`  ${label}🔍 DOM诊断：   frame[${depth}] url=${(f.url || '').slice(0, 100)}`);
+        if (f) console.warn(`  ${label}🔍 DOM诊断：frame[${depth}] url=${(f.url || '').slice(0, 100)}`);
         if (node.childFrames) node.childFrames.forEach((c) => dump(c, depth + 1));
       })(framesResp.frameTree);
       return null;
     }
-    console.warn(`  ${label}🔍 DOM诊断： 匹配到 frame id=${targetFrame.id} url=${(targetFrame.url || '').slice(0, 100)}`);
+    console.warn(`  ${label}🔍 DOM诊断：匹配到 frame id=${targetFrame.id} url=${(targetFrame.url || '').slice(0, 100)}`);
     // 2) createIsolatedWorld
     let ctx = null;
     try {
       const iw = await proxyGet(`/isolated-world?target=${targetId}&frame=${encodeURIComponent(targetFrame.id)}`);
       if (iw && iw.executionContextId) {
         ctx = { id: iw.executionContextId };
-        console.warn(`  ${label}🔍 DOM诊断： createIsolatedWorld OK contextId=${iw.executionContextId}`);
+        console.warn(`  ${label}🔍 DOM诊断：createIsolatedWorld OK contextId=${iw.executionContextId}`);
       } else {
-        console.warn(`  ${label}🔍 DOM诊断： createIsolatedWorld 失败： ${JSON.stringify(iw)}`);
+        console.warn(`  ${label}🔍 DOM诊断：createIsolatedWorld 失败：${JSON.stringify(iw)}`);
         return null;
       }
     } catch (e) {
-      console.warn(`  ${label}🔍 DOM诊断： createIsolatedWorld 异常： ${e.message}`);
+      console.warn(`  ${label}🔍 DOM诊断：createIsolatedWorld 异常：${e.message}`);
       return null;
     }
     // 3) iframe 内 #resume 文本长度 + canvas 探测（判断是图片简历还是 HTML 简历）
@@ -717,14 +717,14 @@ export async function diagnoseResumeIframeDom(targetId, nestedSrc, label = 'DOM'
           docReady: document.readyState
         };
       })()`);
-      console.warn(`  ${label}🔍 DOM诊断： iframe内探测结果=${JSON.stringify(probe && probe.value ? probe.value : probe)}`);
+      console.warn(`  ${label}🔍 DOM诊断：iframe内探测结果=${JSON.stringify(probe && probe.value ? probe.value : probe)}`);
       return probe && probe.value ? probe.value : null;
     } catch (e) {
-      console.warn(`  ${label}🔍 DOM诊断： eval 异常： ${e.message}`);
+      console.warn(`  ${label}🔍 DOM诊断：eval 异常：${e.message}`);
       return null;
     }
   } catch (e) {
-    console.warn(`  ${label}🔍 DOM诊断： 异常： ${e.message}`);
+    console.warn(`  ${label}🔍 DOM诊断：异常：${e.message}`);
     return null;
   }
 }
@@ -822,7 +822,7 @@ export async function tryExtractResumeTextFromDOM(targetId) {
       return iframe.src || iframe.getAttribute('src') || '';
     })()`);
   } catch (e) {
-    console.warn(`  🔍 DOM提取诊断： 读取 iframe src 失败： ${e.message}`);
+    console.warn(`  🔍 DOM提取诊断：读取 iframe src 失败：${e.message}`);
     return null;
   }
   if (!iframeSrc) return null; // 弹窗无 iframe，交给调用方走方式二/截图
@@ -832,12 +832,12 @@ export async function tryExtractResumeTextFromDOM(targetId) {
   try {
     framesResp = await proxyGet(`/frames?target=${targetId}`);
   } catch (e) {
-    console.warn(`  🔍 DOM提取诊断： /frames 请求失败： ${e.message}`);
+    console.warn(`  🔍 DOM提取诊断：/frames 请求失败：${e.message}`);
     await diagnoseResumeIframeDom(targetId, iframeSrc);
     return null;
   }
   if (!framesResp || !framesResp.frameTree) {
-    console.warn(`  🔍 DOM提取诊断： /frames 未返回 frameTree`);
+    console.warn(`  🔍 DOM提取诊断：/frames 未返回 frameTree`);
     await diagnoseResumeIframeDom(targetId, iframeSrc);
     return null;
   }
@@ -845,7 +845,7 @@ export async function tryExtractResumeTextFromDOM(targetId) {
   // 在 frame 树中匹配简历 iframe
   const targetFrame = findFrameInTree(framesResp.frameTree, iframeSrc);
   if (!targetFrame || !targetFrame.id) {
-    console.warn(`  🔍 DOM提取诊断： frameTree 未匹配到 iframe src=${(iframeSrc || '').slice(0, 80)}`);
+    console.warn(`  🔍 DOM提取诊断：frameTree 未匹配到 iframe src=${(iframeSrc || '').slice(0, 80)}`);
     await diagnoseResumeIframeDom(targetId, iframeSrc);
     return null;
   }
@@ -856,9 +856,9 @@ export async function tryExtractResumeTextFromDOM(targetId) {
     try {
       const iw = await proxyGet(`/isolated-world?target=${targetId}&frame=${encodeURIComponent(targetFrame.id)}`);
       if (iw && iw.executionContextId) ctx = { id: iw.executionContextId };
-      else console.warn(`  🔍 DOM提取诊断： createIsolatedWorld 未返回 contextId： ${JSON.stringify(iw)}`);
+      else console.warn(`  🔍 DOM提取诊断：createIsolatedWorld 未返回 contextId：${JSON.stringify(iw)}`);
     } catch (e) {
-      console.warn(`  🔍 DOM提取诊断： createIsolatedWorld 异常： ${e.message}`);
+      console.warn(`  🔍 DOM提取诊断：createIsolatedWorld 异常：${e.message}`);
     }
   }
   if (!ctx) {
@@ -887,7 +887,7 @@ export async function tryExtractResumeTextFromDOM(targetId) {
         return null;
       })()`);
     } catch (e) {
-      console.warn(`  🔍 DOM提取诊断： eval-context 异常： ${e.message}`);
+      console.warn(`  🔍 DOM提取诊断：eval-context 异常：${e.message}`);
       break;
     }
     if (result && result.value === '__WASM_CANVAS_RESUME__') {
@@ -915,7 +915,7 @@ export async function tryExtractResumeTextFromDOM(targetId) {
   const deepText = await probeFramesForResumeText(targetId, iframeSrc);
   if (deepText) return deepText;
   // 有 context 但文本不足阈值：探测是否 canvas 图片简历
-  console.warn(`  🔍 DOM提取诊断： 有 context 但文本不足 ${DOM_MIN_TEXT_LEN} 字，探测简历渲染方式`);
+  console.warn(`  🔍 DOM提取诊断：有 context 但文本不足 ${DOM_MIN_TEXT_LEN} 字，探测简历渲染方式`);
   await diagnoseResumeIframeDom(targetId, iframeSrc);
   return null;
 }

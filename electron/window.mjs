@@ -47,6 +47,29 @@ function lockAspectRatio() {
   mainWindow.setAspectRatio(aspect);
 }
 
+// ===== 评分前「岗位描述缺失」的问询 =====
+// 主进程在评分真正发请求前发现 JD 不在（岗位改过名 / 被删 / 没填），必须让用户当场处理：
+// 补描述、另选岗位，或者不评了。渲染进程用 confirmDialog 弹窗，回一句 jd-missing-response。
+// 与「运行中关窗口」同一套请求-回应写法：监听只在主进程注册一次，回包给当前等待者。
+let pendingJdRequest = null;
+// 收尾等待者：回包、窗口关闭、以及「来不及问」三种结局都汇到这里。
+// 默认按「不评了」处理——没人回答时评分流程不能悬着
+function settleJd(reply = { action: 'cancelled' }) {
+  const pending = pendingJdRequest;
+  pendingJdRequest = null;
+  if (pending) pending.resolve(reply);
+}
+export function requestJdDecision(payload) {
+  return new Promise((resolve) => {
+    if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+      resolve({ action: 'cancelled' }); // 没人能回答：当作不评了，别让流水线悬着
+      return;
+    }
+    pendingJdRequest = { resolve };
+    mainWindow.webContents.send('jd-missing-request', payload);
+  });
+}
+
 export function createWindow() {
   // 启动尺寸：以光标所在显示器工作区为准，等比放大到设计稿并留出边距
   const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
@@ -94,8 +117,18 @@ export function createWindow() {
     if (confirmed && mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy();
   };
   ipcMain.on('close-confirm-response', onCloseResponse);
+
+  // 评分前岗位描述缺失：渲染进程回包 → 唤醒正在等待的那次评分
+  const onJdResponse = (_event, reply) => settleJd(reply || { action: 'cancelled' });
+  ipcMain.on('jd-missing-response', onJdResponse);
+
   // 窗口重建时别留下旧监听（macOS 的 activate 会再 createWindow 一次）
-  mainWindow.on('closed', () => ipcMain.removeListener('close-confirm-response', onCloseResponse));
+  mainWindow.on('closed', () => {
+    ipcMain.removeListener('close-confirm-response', onCloseResponse);
+    ipcMain.removeListener('jd-missing-response', onJdResponse);
+    // 窗口没了，等着的问询没人能回答：放它走（按「不评了」处理），别让评分流程悬在那里
+    settleJd();
+  });
 
   // 拖动改窗口大小时，系统会先按"下一次有效尺寸"分步触发 resize；
   // 如果每一条 resize 都立即 fitZoom，偶发会在某个中间帧读到临时的小内容区
