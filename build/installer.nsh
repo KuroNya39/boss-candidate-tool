@@ -81,36 +81,66 @@ ManifestDPIAwareness PerMonitorV2
     ${EndIf}
     Call instFilesPre
 
-    ; 目录不存在时先建出来再试写（FileOpen 不会自动建父目录）；
-    ; 记下是不是这次建的，写失败时把空目录撤掉，别在人家盘上留个空文件夹。
-    StrCpy $R1 1
-    IfFileExists "$INSTDIR\*.*" 0 app.installPathProbe
-      StrCpy $R1 0
-    app.installPathProbe:
-    ClearErrors
-    CreateDirectory "$INSTDIR"
-    FileOpen $0 "$INSTDIR\.install-write-test" w
-    ${If} ${Errors}
-      ${If} $R1 == 1
+    ; 先记下目录是不是本来就有：试写时会把目录建出来，失败时别在人家盘上留个空文件夹
+    StrCpy $R3 "0"
+    ${If} ${FileExists} "$INSTDIR\*.*"
+      StrCpy $R3 "1"
+    ${EndIf}
+    StrCpy $R0 "$INSTDIR"
+    Call app.dirWritable
+    ${If} $R2 != "1"
+      ${If} $R3 == "0"
         RMDir "$INSTDIR"
       ${EndIf}
       MessageBox MB_ICONEXCLAMATION|MB_OK "无法写入所选位置：$\r$\n$INSTDIR$\r$\n$\r$\n请点「上一步」换一个文件夹。"
       Abort
     ${EndIf}
-    FileClose $0
-    Delete "$INSTDIR\.install-write-test"
   FunctionEnd
 !macroend
 !endif
-!macro customInit
-  ; 已经有安装位置（老版本装过）就尊重它，不把人家的程序挪走
-  ReadRegStr $0 HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation
-  StrCmp $0 "" 0 initDone
+
+; 「这个目录能不能装」的唯一判定：建得出目录、写得进临时文件。
+; 初始默认位置（customInit）与安装位置页共用。入 $R0，出 $R2 = "1" / "0"。
+; 用 IfErrors 而不是 LogicLib：函数在宏外，解析时 LogicLib 还没 include。
+!ifndef BUILD_UNINSTALLER
+Function app.dirWritable
   ClearErrors
-  CreateDirectory "${BOSS_APP_DIR}"
-  IfErrors initDone
-  WriteRegExpandStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "${BOSS_APP_DIR}"
-  initDone:
+  CreateDirectory "$R0"
+  FileOpen $R1 "$R0\.install-write-test" w
+  IfErrors 0 app.dirWritableOk
+  StrCpy $R2 "0"
+  Return
+  app.dirWritableOk:
+  FileClose $R1
+  Delete "$R0\.install-write-test"
+  StrCpy $R2 "1"
+FunctionEnd
+!endif
+
+!macro customInit
+  ; 记住的安装位置能用就沿用；不能用（Program Files、只读盘、盘没挂上）就重新定一个。
+  ; 判定与安装位置页共用 app.dirWritable，$R2 保存探测结果。
+  StrCpy $R2 "0"
+  ${If} $perUserInstallationFolder != ""
+    StrCpy $R0 "$perUserInstallationFolder"
+    Call app.dirWritable
+  ${EndIf}
+  ${If} $R2 != "1"
+    ; 没有可用记录：默认位置写进注册表，模式页离场时据此定下 $INSTDIR；
+    ; D 盘不可用就删掉过期记录，退回系统默认位置，免得旧记录把人带到写不进去的目录
+    StrCpy $R0 "${BOSS_APP_DIR}"
+    Call app.dirWritable
+    ${If} $R2 == "1"
+      WriteRegExpandStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "${BOSS_APP_DIR}"
+    ${Else}
+      DeleteRegValue HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation
+    ${EndIf}
+  ${EndIf}
+  ; 模式页不显示「已经存在一个安装到当前用户的安装…即将重新安装/升级」：置 0 后按
+  ; 「首次安装」显示。连带清空路径变量，保持模板里「有路径记录 ⟺ 已装过」这对状态一致
+  ; （$INSTDIR 已由 initMultiUser 定过，模式页离场时仍会按注册表重新读）
+  StrCpy $hasPerUserInstallation "0"
+  StrCpy $perUserInstallationFolder ""
 !macroend
 
 ; ===== 卸载时可以选择是否删除用户数据 =====

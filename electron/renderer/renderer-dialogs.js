@@ -247,14 +247,24 @@ document.addEventListener('pointerdown', (e) => {
 window.addEventListener('resize', () => closeMenu({ restoreFocus: true }));
 
 // ===== 设置弹窗 =====
+// 未保存检查：取 CONFIG_FIELDS 里的输入框（renderer-ipc.js），打开时记快照、关闭时比对。
+// 输出目录不参与——它是点文件夹当场保存的。
+const settingsSnapshot = createFieldSnapshot(CONFIG_FIELDS.map(([, input]) => input), { trim: true });
 function openSettingsDialog() {
   // 每次打开都把密码框复位成隐藏态：上一次点开的明文不该关了弹窗还留在屏幕上。
   // 邮箱密码框「能不能填」不在这里重算 —— 值只可能从设置弹窗里改，改的时候
   // renderer-ipc.js 的 input 监听已经同步过状态，启动时 loadApiConfig 也定过一次
   resetPasswordToggles();
+  settingsSnapshot.capture(); // 记下这次的起点，关闭时据此判断有没有没保存的修改
   openDialog(settingsOverlay, apiUrlInput);
 }
-function closeSettingsDialog() {
+// 关闭前先问一句：改过内容又没点保存的，别让这些修改悄悄丢掉。
+// 「放弃」把输入框恢复成打开时的值，不重新读配置——快照就是那份已保存的值。
+async function closeSettingsDialog() {
+  if (settingsSnapshot.isDirty()) {
+    if (!(await confirmDiscardChanges())) return;
+    settingsSnapshot.restore();
+  }
   closeDialog(settingsOverlay, { animate: true });
 }
 btnOpenSettings.addEventListener('click', () => {
@@ -504,7 +514,7 @@ function showAddJobDialog() {
   // 名称框不再是只读态（v1.10.2 起可改），原先这里复位 readOnly / input-readonly 的两行已删
   dialogJobDesc.value = '';
   document.getElementById('job-dialog-title').textContent = '添加新岗位';
-  captureJobSnapshot();
+  jobSnapshot.capture();
   openDialog(jobDialogOverlay, dialogJobName);
 }
 
@@ -534,7 +544,7 @@ async function showEditJobDialog(jobName, { fromJdCheck = false } = {}) {
   dialogJobName.value = jobName;
   dialogJobDesc.value = desc;
   document.getElementById('job-dialog-title').textContent = '编辑岗位';
-  captureJobSnapshot();
+  jobSnapshot.capture();
   openDialog(jobDialogOverlay, dialogJobDesc);
 }
 
@@ -598,24 +608,10 @@ function swapDialogs(fromOpen, toOpen, openFn) {
 // 打开弹窗时记一份原始内容：关闭 / 取消时若改过就问一句，别让手滑丢掉刚粘进来的岗位描述。
 // 快照取的是**打开那一刻**的输入框值（添加模式为空、编辑模式为已读好的描述），
 // 只在两个打开函数里录、由 closeJobDialog 统一清
-let jobDialogSnapshot = null;
-function captureJobSnapshot() {
-  jobDialogSnapshot = [dialogJobName.value, dialogJobDesc.value];
-}
-function jobDialogDirty() {
-  // 快照已清空（弹窗正在关闭）时不算改过
-  if (!jobDialogSnapshot) return false;
-  return dialogJobName.value !== jobDialogSnapshot[0] || dialogJobDesc.value !== jobDialogSnapshot[1];
-}
+const jobSnapshot = createFieldSnapshot([dialogJobName, dialogJobDesc]);
 async function confirmDiscardJobEdits() {
-  if (!jobDialogDirty()) return true;
-  return confirmDialog({
-    title: '放弃未保存的更改？',
-    message: '有未保存的更改，关闭后会丢失。',
-    okText: '放弃',
-    cancelText: '取消',
-    danger: true,
-  });
+  if (!jobSnapshot.isDirty()) return true;
+  return confirmDiscardChanges();
 }
 
 // 关闭添加/编辑弹窗的**唯一出口**（Esc / 点遮罩空白 / 取消 / 保存成功都走它）。
@@ -630,7 +626,7 @@ async function closeJobDialog({ ask = true } = {}) {
   const fromJdCheck = jobDialogFromJdCheck;
   jobDialogFromJdCheck = false;
   settleJobEdit({ saved: false }); // 保存路径会先 settle(true)，到这里已是空操作
-  jobDialogSnapshot = null;
+  jobSnapshot.clear();
   editJobName = '';
   // 补 JD 流程打开的编辑器：整条链关掉回运行页；平时则互切回岗位列表接着挑
   if (fromJdCheck) {

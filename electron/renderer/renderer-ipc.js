@@ -192,14 +192,19 @@ function setupListeners() {
 }
 
 // ===== API 配置 =====
+// 设置弹窗里会提交的字段：加载时按它回填，未保存检查也按它取快照（见 renderer-dialogs.js）。
+// 加字段时这里补一行即可，别在别处再手写一遍输入框清单。
+const CONFIG_FIELDS = [
+  ['url', apiUrlInput],
+  ['key', apiKeyInput],
+  ['model', apiModelInput],
+  ['emailPrefix', emailPrefixInput],
+  ['smtpPass', smtpPassInput],
+];
 async function loadApiConfig() {
   try {
     const config = await window.electronAPI.getApiConfig();
-    if (config.url) apiUrlInput.value = config.url;
-    if (config.key) apiKeyInput.value = config.key;
-    if (config.model) apiModelInput.value = config.model;
-    if (config.emailPrefix) emailPrefixInput.value = config.emailPrefix;
-    if (config.smtpPass) smtpPassInput.value = config.smtpPass;
+    for (const [key, input] of CONFIG_FIELDS) input.value = config[key] || '';
   } catch {}
   updateSmtpPassState(); // 值填完再定密码框的状态，否则会先按空值禁用一次
   updateConfigStatus();
@@ -262,6 +267,7 @@ btnSaveConfig.addEventListener('click', async () => {
       emailPrefix: emailVal,
       smtpPass: smtpPassInput.value.trim(),
     });
+    settingsSnapshot.capture(); // 存过之后，关闭设置就不该再提示「有未保存的更改」
     showToast('设置已保存', 'success', 3000);
     updateConfigStatus();
   } catch (err) {

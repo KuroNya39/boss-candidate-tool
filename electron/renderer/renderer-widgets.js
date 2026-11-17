@@ -674,6 +674,34 @@ function confirmDialog({ title, message, okText = '确定', cancelText = '取消
   });
 }
 
+// ===== 未保存更改：两个可编辑弹窗共用 =====
+// 确认放弃的文案只写一份（设置弹窗与岗位编辑弹窗都走它），改文案只改这里
+function confirmDiscardChanges() {
+  return confirmDialog({
+    title: '放弃未保存的更改？',
+    message: '有未保存的更改，关闭后会丢失。',
+    okText: '放弃',
+    cancelText: '取消',
+    danger: true,
+  });
+}
+
+// 表单快照：capture() 记下当前值，isDirty() 比对，restore() 写回，clear() 作废本次快照。
+// trim=true 时按去空格后的值比对（设置里「只多了个空格」不算改动）。
+function createFieldSnapshot(inputs, { trim = false } = {}) {
+  const read = () => inputs.map((input) => (trim ? input.value.trim() : input.value));
+  let saved = null;
+  return {
+    capture() { saved = read(); },
+    clear() { saved = null; },
+    isDirty() { return saved !== null && read().some((value, i) => value !== saved[i]); },
+    restore() {
+      if (!saved) return;
+      inputs.forEach((input, i) => { input.value = saved[i]; });
+    },
+  };
+}
+
 // ===== 按钮加载态（spinner + aria-busy + 禁用）=====
 // 加载中把按钮挂成真正的 disabled（置灰、鼠标键盘都点不动），结束后恢复成加载前的状态——
 // 这样能跟其它「按条件禁用」的逻辑叠加：加载完不会把一个本就该禁用的按钮错误放开。
