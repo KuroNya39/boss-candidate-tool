@@ -55,9 +55,7 @@ win:
         - x64
 nsis:
   oneClick: false
-  # 目录选择由 build/installer.nsh 自绘的「安装位置」页负责（要边选边补 boss-candidate-tool），
-  # 关掉模板自带的目录页；installUtil 的快捷方式保留逻辑也随之按「目录不可选」处理
-  allowToChangeInstallationDirectory: false
+  allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   shortcutName: BOSS直聘候选人AI评分助手
   deleteAppDataOnUninstall: false
