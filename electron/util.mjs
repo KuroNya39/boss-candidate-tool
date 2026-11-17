@@ -8,6 +8,14 @@ import iconv from 'iconv-lite';
 // 本文件所在目录（electron/）。注：不导出 __dirname 这个裸名字（易与局部变量遮蔽），统一叫 ELECTRON_DIR。
 export const ELECTRON_DIR = dirname(fileURLToPath(import.meta.url));
 export const APP_ROOT = resolve(ELECTRON_DIR, '..');
+// 输出目录的中间层文件夹名：<用户选的文件夹>/boss-candidate-tool/output。
+// 这是工具自己的数据（简历 / 截图 / Excel），名字用仓库名，桌面上一眼能对上。
+// 别跟 web-access 混：那个指「程序经 CDP 控制真实浏览器」这一层（package.json 的 name、
+// userData 的 %AppData%\web-access，见 config.mjs 的 CONFIG_DIR），与输出文件夹是两回事。
+export const OUTPUT_FOLDER = 'boss-candidate-tool';
+// 用户在设置里选的文件夹 → 实际输出目录（<所选>/boss-candidate-tool/output）。
+// 启动加载配置与选目录两个入口共用这一处，省得读写两侧各拼一遍、哪天只改了一边
+export const outputDirUnder = (root) => resolve(root, OUTPUT_FOLDER, 'output');
 
 // 打包后 scripts/config/ocr-lang 在 asarUnpack 目录，子进程通过真实路径访问
 export const UNPACKED_ROOT = app.isPackaged
@@ -16,6 +24,7 @@ export const UNPACKED_ROOT = app.isPackaged
 
 // ===== 终端日志 GBK 编码 =====
 // 所有日志（含子脚本 stdout/stderr）同时写入日志文件，方便排查
+// userData 的子目录：配置 / JD / 索引 / 日志都在这（沿用应用包名 web-access，与上面输出目录不是一件事）
 const LOG_DIR = resolve(app.getPath('userData'), 'web-access');
 const LOG_PATH = resolve(LOG_DIR, 'app.log');
 try { mkdirSync(LOG_DIR, { recursive: true }); } catch {}

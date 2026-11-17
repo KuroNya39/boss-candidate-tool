@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // v1.20.0: 候选人查询（跨批次评价索引，按姓名/拼音检索）
   searchCandidateIndex: (query) => ipcRenderer.invoke('search-candidate-index', query),
   clearCandidateIndex: () => ipcRenderer.invoke('clear-candidate-index'),
+  // 某一边数据占多少字节（「清空……」按钮旁的占用提示）：kind = 'history' | 'candidate'
+  getDataUsage: (kind) => ipcRenderer.invoke('get-data-usage', kind),
 
   // 推荐牛人页岗位列表（含每条的「可搜索文本」，供搜索匹配拼音首字母）
   getRecommendJobs: () => ipcRenderer.invoke('get-recommend-jobs'),

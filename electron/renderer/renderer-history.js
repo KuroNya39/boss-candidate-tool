@@ -43,6 +43,9 @@ function showHistoryEmpty(text) {
 }
 
 async function loadHistory() {
+  // 占用提示跟着列表一起刷（删除单条 / 清空后都会再走这里）：不 await——
+  // 统计要递归扫归档目录，等它会把弹窗的打开拖慢，先让列表出来、数字随后补上
+  refreshDataUsage(historyUsage, 'history');
   let data;
   try {
     data = await window.electronAPI.listHistory();

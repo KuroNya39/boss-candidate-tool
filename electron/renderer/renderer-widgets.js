@@ -694,6 +694,28 @@ function setLoading(btn, loading) {
   }
 }
 
+// ===== 「清空……」按钮旁的占用提示 =====
+// 字节数 → 人看的大小（历史记录里有成百上千张截图，几十 MB 到几个 GB 都可能）：
+// 粗粒度就够，用来判断「要不要清」，不提供精确字节。
+function formatDataSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
+  const gb = bytes / 1073741824;
+  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  const mb = bytes / 1048576;
+  if (mb >= 1) return `${Math.round(mb)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+// 填「已用 X」到指定 span。kind 原样传给主进程（'history' | 'candidate'），
+// 只算这个弹窗关心的那一边；失败就留空——一句占位提示不值得弹错误打扰。
+async function refreshDataUsage(el, kind) {
+  if (!el) return;
+  try {
+    const bytes = await window.electronAPI.getDataUsage(kind);
+    if (Number.isFinite(bytes)) el.textContent = `已用 ${formatDataSize(bytes)}`;
+  } catch {}
+}
+
 // ===== 浮层退场时长 =====
 // 读元素当前 CSS 动画时长，换算成「等它播完再收尾」的毫秒数（+30ms 兜住尾帧）。
 // 弹窗淡出、下拉收起、菜单收起共用同一套「出快于入」的时序，档位只在 CSS 里定义一次：

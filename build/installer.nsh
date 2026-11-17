@@ -18,3 +18,26 @@
 ; ② 它**不能**解决上面说的「小一圈」，单屏 140% 下与只写第一行观感基本一致。
 ManifestDPIAware true
 ManifestDPIAwareness PerMonitorV2
+
+; 默认装在非系统盘：D:\boss-candidate-tool（装完默认输出目录就在它下面的 output）。
+; electron-builder 的 per-user 安装默认放到 %LOCALAPPDATA%\Programs\...，
+; 选目录前它会先读 HKCU\Software\{APP_GUID}\InstallLocation，有值就用那个当默认安装位置——
+; 所以在 .onInit 最早阶段（preInit）把这个键写上即可，用户仍可在安装界面改路径。
+; HKCU\Software 不受 WOW64 注册表重定向影响（被重定向的是 HKLM\Software 与 HKCU\Software\Classes），
+; 所以只写一次，不必分 32 / 64 视图各写一遍。
+; D 盘不存在或建不了目录（比如没这个盘）就不写，回落到默认位置。
+; 打包时 electron-builder 还会用同一份脚本编译一次「生成卸载器」的版本（BUILD_UNINSTALLER），
+; 那次不该在构建机上建目录、写安装记录，用编译期判断挡掉。
+!define BOSS_APP_DIR "D:\boss-candidate-tool"
+!macro preInit
+  !ifndef BUILD_UNINSTALLER
+    ; 已经有安装位置（老版本装过）就尊重它，不把人家的程序挪走
+    ReadRegStr $0 HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation
+    StrCmp $0 "" 0 preInitDone
+    ClearErrors
+    CreateDirectory "${BOSS_APP_DIR}"
+    IfErrors preInitDone
+    WriteRegExpandStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "${BOSS_APP_DIR}"
+    preInitDone:
+  !endif
+!macroend

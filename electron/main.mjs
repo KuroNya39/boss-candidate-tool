@@ -6,6 +6,7 @@
 //   runner.mjs     子进程脚本执行         chrome.mjs      Chrome/CDP proxy
 //   incremental.mjs 增量评分器           pipeline.mjs    主流程编排
 //   greet.mjs      批量打招呼             ipc.mjs         IPC handler
+//   data-usage.mjs 清空按钮旁的占用统计
 import { app, BrowserWindow } from 'electron';
 import { mkdirSync } from 'node:fs';
 import { termLog } from './util.mjs';

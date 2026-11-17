@@ -448,6 +448,8 @@
       <div class="history-list" id="history-list" role="list"></div>
       <div class="empty-state history-empty" id="history-empty" style="display:none;">暂无历史记录</div>
       <div class="history-footer">
+        <!-- 已占用的空间：清空动作会删掉多少，就在按钮左边写多少（数字由 refreshDataUsage 填） -->
+        <span class="data-usage" id="history-usage"></span>
         <button id="btn-history-clear-all" class="btn btn--link btn--danger-ghost">清空历史记录</button>
       </div>
     </div>
@@ -469,6 +471,8 @@
         <div class="results-list" id="candidate-query-list" role="list" aria-live="polite"></div>
       </div>
       <div class="dialog-actions">
+        <!-- 同上：这句只统计候选人索引文件本身 -->
+        <span class="data-usage" id="candidate-usage"></span>
         <button id="btn-candidate-query-clear" class="btn btn--link btn--danger-ghost">清空候选人数据</button>
       </div>
     </div>

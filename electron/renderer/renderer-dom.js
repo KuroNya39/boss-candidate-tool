@@ -43,6 +43,8 @@ const historyDrawer = document.getElementById('history-drawer');
 const historyList = document.getElementById('history-list');
 const historyEmpty = document.getElementById('history-empty');
 const btnHistoryClearAll = document.getElementById('btn-history-clear-all');
+// 「清空……」按钮左边的占用提示（文本由 renderer-widgets.js 的 refreshDataUsage 填）
+const historyUsage = document.getElementById('history-usage');
 // v1.20.0 候选人查询（跨批次评价索引）与历史批次详情（从历史记录某一行打开，
 // 与历史弹窗互切）。函数在 renderer-candidate-query.js
 const btnCandidateQuery = document.getElementById('btn-candidate-query');
@@ -53,6 +55,7 @@ const candidateQueryResults = document.getElementById('candidate-query-results')
 const candidateQueryList = document.getElementById('candidate-query-list');
 const candidateQueryHint = document.getElementById('candidate-query-hint');
 const btnCandidateQueryClear = document.getElementById('btn-candidate-query-clear');
+const candidateUsage = document.getElementById('candidate-usage');
 const batchDetailOverlay = document.getElementById('batch-detail-overlay');
 const batchDetailBox = document.getElementById('batch-detail-box');
 const batchDetailSub = document.getElementById('batch-detail-sub');

@@ -10,6 +10,21 @@ export function archiveDirNameMatches(name) {
   return new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-\\d{8}-\\d{4}$`).test(name);
 }
 
+// 当前输出目录同级的归档目录名单（[{ name, path }]），按名字形如 {输出目录名}-YYYYMMDD-HHMM 认。
+// 「占用统计」这类只要名单的地方走这一处；归档命名规则改了也只改 archiveDirNameMatches。
+export function listArchiveDirs() {
+  const parentDir = dirname(OUTPUT_DIR);
+  let entries = [];
+  try {
+    entries = readdirSync(parentDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry.isDirectory() && archiveDirNameMatches(entry.name))
+    .map((entry) => ({ name: entry.name, path: resolve(parentDir, entry.name) }));
+}
+
 // 路径校验：dirPath 是否指向「当前输出目录」或一个合法的历史归档目录（输出目录的同级、
 // 名字形如 output-YYYYMMDD-HHMM）。继续提取 / 重新评分 / 批次详情 / 删除批次都走这一条，
 // 免得每个 handler 各写一遍 basename + resolve(parent, name) 的比对。

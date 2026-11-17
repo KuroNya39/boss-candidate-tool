@@ -5,7 +5,7 @@ import { mkdirSync, existsSync, readFileSync, readdirSync, rmSync, statSync } fr
 import { TIER_THRESHOLDS } from '../scripts/score-tiers.mjs';
 import { summarizeScoredCandidate } from '../scripts/scored-candidate.mjs';
 import { commentToHtml, formatComment } from '../scripts/format-comment.mjs';
-import { termLog, sleep } from './util.mjs';
+import { termLog, sleep, outputDirUnder } from './util.mjs';
 import { pinyinSearchText } from './pinyin.mjs';
 import {
   hasRunningTask, isRunActive, sendStdinSignal, scheduleForceKill,
@@ -21,6 +21,7 @@ import {
 import { CONFIG_DIR, saveApiConfig, listRecommendJobs, addRecommendJob, getRecommendJobDesc, inspectJobDescription, updateRecommendJob, renameRecommendJob, deleteRecommendJob } from './config.mjs';
 import { archiveDirNameMatches, isHistoryDir, readRunMeta, resolveBatchSource, restoreHistoryToOutput } from './archive.mjs';
 import { searchCandidateIndex, clearCandidateIndex } from './candidate-index.mjs';
+import { historyUsageBytes, candidateUsageBytes } from './data-usage.mjs';
 import { nonEmptyCandidates, restoreScorableCandidates } from './scoring.mjs';
 import { launchChrome, startCdpProxy } from './chrome.mjs';
 import { runPipeline } from './pipeline.mjs';
@@ -210,7 +211,9 @@ function registerIPC() {
     if (result.canceled || !result.filePaths.length) return { canceled: true };
 
     const parentDir = result.filePaths[0];
-    const newDir = resolve(parentDir, 'output');
+    // 中间多一层软件名文件夹（<所选>/boss-candidate-tool/output）：选的是桌面/文档，数据也只进
+    // 那个软件自己的文件夹，不在根目录摊一个 output。层级与 config.mjs 加载时保持一致
+    const newDir = outputDirUnder(parentDir);
     mkdirSync(newDir, { recursive: true });
     setOutputDir(newDir);
     apiConfig.outputDir = parentDir;
@@ -442,6 +445,13 @@ function registerIPC() {
     return res;
   });
   ipcMain.handle('clear-candidate-index', () => clearCandidateIndex(CONFIG_DIR));
+
+  // 「清空……」按钮左边的占用提示（历史记录 / 候选人查询两个弹窗共用）：
+  // 打开弹窗、删除 / 清空之后各算一次，数字与两个清空动作删掉的东西同口径（见 data-usage.mjs）。
+  // kind 决定算哪一边：历史记录要递归扫全部归档，候选人数据只 stat 一个文件，别互相带累
+  ipcMain.handle('get-data-usage', (_event, kind) => (
+    kind === 'candidate' ? candidateUsageBytes() : historyUsageBytes()
+  ));
 
   // v1.5.0: 继续提取 —— 还原历史批次为输出目录，用 --resume 续跑，跳过已提取项
   ipcMain.handle('resume-extraction', (_event, opts) => {

@@ -2,15 +2,20 @@
 // 约定：读取用活绑定（import { OUTPUT_DIR } 等，ESM 活绑定自动跟随最新值）；
 // 重新赋值一律走 setter（imported binding 不可重绑，会抛错）。跨模块迁移时代码改动只落在赋值处。
 import { app } from 'electron';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
 import { APP_ROOT } from './util.mjs';
 // 取消/跳过时子进程等 OCR 收尾的上限，与提取脚本共用同一个常量（见 flushProgressOnCancel）
 import { CLEANUP_OCR_GRACE_MS } from '../scripts/progress-store.mjs';
 
+// 默认输出目录：安装目录下的 output（绿色版就是解压目录；开发时是仓库根）。
+// 安装目录本身已经叫 boss-candidate-tool（或产品名），这里不再套一层同名文件夹——
+// 装在 D:\boss-candidate-tool 时输出就是 D:\boss-candidate-tool\output。
+// 只有用户在设置里另选文件夹时，才在所选文件夹下建 boss-candidate-tool\output。
+// 注意：装到 Program Files 这类需要管理员权限的位置时写不进去，覆盖安装也可能清掉
+// 安装目录里的数据——那种情况请在设置里另选一个目录。
 function getDefaultOutputDir() {
-  return app.isPackaged
-    ? resolve(app.getPath('documents'), 'output')
-    : resolve(APP_ROOT, 'output');
+  const root = app.isPackaged ? dirname(app.getPath('exe')) : APP_ROOT;
+  return resolve(root, 'output');
 }
 
 export let OUTPUT_DIR = getDefaultOutputDir();

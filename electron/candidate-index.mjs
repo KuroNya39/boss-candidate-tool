@@ -18,7 +18,8 @@ import { summarizeScoredCandidate } from '../scripts/scored-candidate.mjs';
 // 索引文件放在 userData 配置目录（调用方传入 CONFIG_DIR，见 config.mjs）。
 // 目录由调用方给、本模块不碰 electron：这样整个文件在纯 Node 下也能直接跑（便于验证/重算）
 const INDEX_FILENAME = 'candidate-index.jsonl';
-const indexPathIn = (dir) => resolve(dir, INDEX_FILENAME);
+// 索引文件的完整路径（文件名与所在目录只在本模块定义）；data-usage.mjs 算占用时也走它
+export const candidateIndexPath = (dir) => resolve(dir, INDEX_FILENAME);
 
 // 查询结果上限：一个字（如「王」）可能命中几百人，全返回既慢又没法看。
 // 100 人 × 每人 20 条足以覆盖「翻某个人旧账」这个用法，超出的在界面上提示再多输几个字。
@@ -56,7 +57,7 @@ export function appendCandidateIndex(dir, candidates) {
   }
 
   mkdirSync(dir, { recursive: true }); // 首次运行、配置还没保存过时兜底
-  appendFileSync(indexPathIn(dir), lines.join('\n') + '\n', 'utf-8');
+  appendFileSync(candidateIndexPath(dir), lines.join('\n') + '\n', 'utf-8');
   return lines.length;
 }
 
@@ -65,7 +66,7 @@ export function appendCandidateIndex(dir, candidates) {
 // （与「目标岗位」列表同一套规则，见 name-sort.mjs），同一个人的多条评价在列表里相邻。
 export async function searchCandidateIndex(dir, query) {
   const q = String(query ?? '').trim().toLowerCase();
-  const indexPath = indexPathIn(dir);
+  const indexPath = candidateIndexPath(dir);
   if (!q || !existsSync(indexPath)) return { candidates: [] };
 
   const groups = new Map();
@@ -115,7 +116,7 @@ export async function searchCandidateIndex(dir, query) {
 // 清空索引（只删这个文件，历史批次与 Excel 一个都不动）。
 // cleared 区分「真删了东西」与「本来就没有数据」：界面据此给完成提示或中性提示
 export function clearCandidateIndex(dir) {
-  const indexPath = indexPathIn(dir);
+  const indexPath = candidateIndexPath(dir);
   if (!existsSync(indexPath)) return { cleared: false };
   let cleared = true;
   try {

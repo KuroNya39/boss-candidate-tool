@@ -151,6 +151,7 @@
 .textarea-resize-handle:active { color: var(--icon-active); }
 .dialog-actions {
   display: flex;
+  align-items: center; /* 与小字提示 / 按钮混排时按中线对齐，别让文字贴行顶 */
   gap: var(--space-2);
   justify-content: flex-end;
   margin-top: var(--space-4);
@@ -717,6 +718,15 @@
 /* 两个图标钮：框距收到 0（4 - 4），墨迹之间正好留出与上面那条相等的空隙 */
 .history-item-actions .btn--icon + .btn--icon {
   margin-left: calc(-1 * var(--space-1));
+}
+/* 「清空……」按钮左边那句占用提示（历史记录 / 候选人查询两处共用）：
+   常驻的次要信息，字号与字色各降一档；数字用等宽，删掉几批后位数变化不左右跳。
+   两处底栏都是 flex-end + 垂直居中 + --space-2 间距，这里只把与按钮的间距加到 12px */
+.data-usage {
+  margin-right: var(--space-1); /* 8 + 4：小字贴着字钮，8 看着挤 */
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 /* 底部「清空历史记录」区：不再有上分割线（用户要求删掉）。
    与列表的分隔改由留白承担——列表自带 8px 底部内距，这里补 16px，

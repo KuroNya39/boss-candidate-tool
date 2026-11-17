@@ -2,11 +2,13 @@
 import { app } from 'electron';
 import { resolve } from 'node:path';
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, renameSync, unlinkSync } from 'node:fs';
-import { termLog } from './util.mjs';
+import { termLog, outputDirUnder } from './util.mjs';
 import { setApiConfig, setOutputDir } from './state.mjs';
 import { compareNames } from './name-sort.mjs';
 
-// 用户数据目录（= userData/web-access）：配置、JD、候选人评分索引都放这里
+// 用户数据目录（= userData/web-access）：配置、JD、候选人评分索引都放这里。
+// 这里的 web-access 是应用包名（package.json 的 name，也是 %AppData%\web-access），
+// 指「经 CDP 控制真实浏览器」那层底子；与输出目录的 OUTPUT_FOLDER 是两件事，别合并
 export const CONFIG_DIR = resolve(app.getPath('userData'), 'web-access');
 const CONFIG_PATH = resolve(CONFIG_DIR, 'api-config.json');
 // 岗位描述统一存 userData（开发/打包一致）：重新安装/升级不丢，且各电脑独立。
@@ -22,10 +24,12 @@ export function loadApiConfig() {
         setApiConfig(saved);
         termLog(`[config] 已加载持久化配置： url=${saved.url}, model=${saved.model}`);
       }
-      // outputDir 独立于 API 配置加载
+      // outputDir 独立于 API 配置加载。存的是用户选的文件夹，实际输出目录在
+      // <所选文件夹>/boss-candidate-tool/output（与 select-output-dir 用同一套层级）
       if (saved.outputDir) {
-        setOutputDir(resolve(saved.outputDir, 'output'));
-        termLog(`[config] 输出目录： ${resolve(saved.outputDir, 'output')}`);
+        const outDir = outputDirUnder(saved.outputDir);
+        setOutputDir(outDir);
+        termLog(`[config] 输出目录： ${outDir}`);
       }
     }
   } catch (err) {

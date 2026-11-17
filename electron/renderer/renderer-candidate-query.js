@@ -39,6 +39,7 @@ function openCandidateQuery() {
   // 同「设置 / 历史记录」：先把菜单收起、焦点交还 ☰，openDialog 才记得住正确的归处
   closeMenu({ restoreFocus: true });
   resetCandidateQueryView();
+  refreshDataUsage(candidateUsage, 'candidate'); // 与历史记录同一句提示，统计的是索引文件本身
   openDialog(candidateQueryOverlay, candidateQueryInput);
 }
 
@@ -136,6 +137,7 @@ btnCandidateQueryClear.addEventListener('click', async () => {
       if (res?.cleared) showToast('已清空候选人数据', 'success', 2000);
       else showToast('没有找到候选人数据', 'info', 2000);
       resetCandidateQueryView();
+      refreshDataUsage(candidateUsage, 'candidate'); // 清完立刻变成 0 MB，不必等重开弹窗
     }
   } catch (err) {
     showToast('清空失败：' + (err?.message || err), 'error');
