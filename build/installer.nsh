@@ -41,6 +41,67 @@ ManifestDPIAwareness PerMonitorV2
 ; D 盘不存在或建不了目录（比如没这个盘）就不写，回落到默认位置。
 ; customInit 只在安装包那一次编译里有插入点（uninstaller 侧没有），构建时不会动到本机。
 !define BOSS_APP_DIR "D:\${BOSS_FOLDER}"
+
+; 目录页之后补一个「确认安装位置」页：
+; ① 目录页上永远只显示用户选的那个文件夹——补子文件夹是模板在「安装文件」页之前
+;    （instFilesPre）做的，页面上看不到，所以在这里把最终路径亮出来；
+; ② 离开这页时试写一次。安装包是「仅为我安装」（无管理员权限），选 C:\Program Files 这类目录
+;    写不进去，原先会装到一半弹「不能打开要写入的文件」卡住；这里提前拦下、不许离开这页。
+; 补子文件夹只调模板自己的 instFilesPre（幂等），不在这里抄一份规则，免得显示与实际安装分叉。
+; 整页与方法都套在 allowToChangeInstallationDirectory 里：没有目录页时这一页也无处可退。
+!ifdef allowToChangeInstallationDirectory
+!macro customPageAfterChangeDir
+  Page custom app.installPathPageShow app.installPathPageLeave
+
+  Function app.installPathPageShow
+    ${If} ${Silent}
+      Abort ; 静默安装不弹页面
+    ${EndIf}
+    ${If} ${isUpdated}
+      Abort ; 覆盖安装不经过目录页，这一页也一并跳过
+    ${EndIf}
+    Call instFilesPre
+
+    !insertmacro MUI_HEADER_TEXT "确认安装位置" "程序将安装到下面的位置。"
+    nsDialogs::Create 1018
+    Pop $0
+    ${If} $0 == error
+      Abort
+    ${EndIf}
+    ${NSD_CreateLabel} 0 0 100% 32u "安装位置：$\r$\n$INSTDIR"
+    Pop $0
+    nsDialogs::Show
+  FunctionEnd
+
+  ; 校验写在 leave 而不是 show：show 里的 Abort 是「跳过本页继续往下装」，
+  ; leave 里的 Abort 才是「留在本页」，写不进去时用户能点「上一步」换目录。
+  Function app.installPathPageLeave
+    ${If} ${Silent}
+      Return
+    ${EndIf}
+    Call instFilesPre
+
+    ; 目录不存在时先建出来再试写（FileOpen 不会自动建父目录）；
+    ; 记下是不是这次建的，写失败时把空目录撤掉，别在人家盘上留个空文件夹。
+    StrCpy $R1 1
+    IfFileExists "$INSTDIR\*.*" 0 app.installPathProbe
+      StrCpy $R1 0
+    app.installPathProbe:
+    ClearErrors
+    CreateDirectory "$INSTDIR"
+    FileOpen $0 "$INSTDIR\.install-write-test" w
+    ${If} ${Errors}
+      ${If} $R1 == 1
+        RMDir "$INSTDIR"
+      ${EndIf}
+      MessageBox MB_ICONEXCLAMATION|MB_OK "无法写入所选位置：$\r$\n$INSTDIR$\r$\n$\r$\n请点「上一步」换一个文件夹。"
+      Abort
+    ${EndIf}
+    FileClose $0
+    Delete "$INSTDIR\.install-write-test"
+  FunctionEnd
+!macroend
+!endif
 !macro customInit
   ; 已经有安装位置（老版本装过）就尊重它，不把人家的程序挪走
   ReadRegStr $0 HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation
