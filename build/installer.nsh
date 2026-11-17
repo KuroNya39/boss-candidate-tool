@@ -42,75 +42,139 @@ ManifestDPIAwareness PerMonitorV2
 ; customInit 只在安装包那一次编译里有插入点（uninstaller 侧没有），构建时不会动到本机。
 !define BOSS_APP_DIR "D:\${BOSS_FOLDER}"
 
-; 目录页之后补一个「确认安装位置」页：
-; ① 目录页上永远只显示用户选的那个文件夹——补子文件夹是模板在「安装文件」页之前
-;    （instFilesPre）做的，页面上看不到，所以在这里把最终路径亮出来；
-; ② 离开这页时试写一次。安装包是「仅为我安装」（无管理员权限），选 C:\Program Files 这类目录
-;    写不进去，原先会装到一半弹「不能打开要写入的文件」卡住；这里提前拦下、不许离开这页。
-; 补子文件夹只调模板自己的 instFilesPre（幂等），不在这里抄一份规则，免得显示与实际安装分叉。
-; 整页与方法都套在 allowToChangeInstallationDirectory 里：没有目录页时这一页也无处可退。
-!ifdef allowToChangeInstallationDirectory
-!macro customPageAfterChangeDir
-  Page custom app.installPathPageShow app.installPathPageLeave
+; 只支持「仅为我安装」：把「当前用户 / 所有用户」那一页直接跳过。
+; ① 它会把上一次安装的记录摊在界面上（「已经存在一个安装到当前用户的安装…即将重新安装/升级」），
+;    日常安装用不到；
+; ② 「所有用户」会装进 Program Files，而本程序的默认输出目录就在安装目录下，照样写不进去。
+; customInstallMode 是 multiUserUi 自己的钩子：置 isForceCurrentInstall 后，模式页 PRE
+; 会设成当前用户并 Abort，页面不显示。
+!macro customInstallMode
+  StrCpy $isForceCurrentInstall "1"
+!macroend
 
-  Function app.installPathPageShow
+; ===== 安装位置页（替换模板的目录页）=====
+; 模板的目录页只显示用户选的那层文件夹，补 boss-candidate-tool 要等点「下一步」之后，
+; 页面上看不到。这里自己做一页：浏览选完文件夹就地把项目文件夹补上、写回输入框；
+; 离开时试写一次，没权限就留在本页。
+; 模板的目录页已在 electron-builder.yml 里关掉（allowToChangeInstallationDirectory: false），
+; 它的 instFilesPre 也不再插入，补文件夹只有本页这一处实现。
+
+!macro customPageAfterChangeDir
+  Var /GLOBAL app.installDirEdit
+  Page custom app.installDirPageShow app.installDirPageLeave
+
+  Function app.installDirPageShow
     ${If} ${Silent}
       Abort ; 静默安装不弹页面
     ${EndIf}
     ${If} ${isUpdated}
-      Abort ; 覆盖安装不经过目录页，这一页也一并跳过
+      Abort ; 覆盖安装沿用原安装目录，不经过这一页
     ${EndIf}
-    Call instFilesPre
-
-    !insertmacro MUI_HEADER_TEXT "确认安装位置" "程序将安装到下面的位置。"
+    !insertmacro MUI_HEADER_TEXT "选择安装位置" "程序会安装到所选文件夹下的 ${BOSS_FOLDER} 文件夹。"
     nsDialogs::Create 1018
     Pop $0
     ${If} $0 == error
       Abort
     ${EndIf}
-    ${NSD_CreateLabel} 0 0 100% 32u "安装位置：$\r$\n$INSTDIR"
+    ${NSD_CreateLabel} 0 0 100% 12u "安装位置（选完文件夹会自动补上 ${BOSS_FOLDER}）："
     Pop $0
+    ${NSD_CreateText} 0 14u -16u 12u "$INSTDIR"
+    Pop $app.installDirEdit
+    ${NSD_CreateBrowseButton} -15u 14u 14u 12u "浏览…"
+    Pop $0
+    ${NSD_OnClick} $0 app.installDirBrowse
     nsDialogs::Show
   FunctionEnd
 
+  Function app.installDirBrowse
+    Pop $0 ; 按钮句柄（OnClick 回调会把它压栈）
+    ${NSD_GetText} $app.installDirEdit $R4
+    nsDialogs::SelectFolderDialog "选择安装位置" "$R4"
+    Pop $0
+    ${If} $0 == error
+      Return ; 取消选择：保持原样
+    ${EndIf}
+    StrCpy $R4 "$0"
+    Call app.normalizeInstallDir
+    ${NSD_SetText} $app.installDirEdit "$R4"
+  FunctionEnd
+
+  ; 去掉末尾反斜杠，末尾不是项目文件夹名就补上。入/出都用 $R4。
+  Function app.normalizeInstallDir
+    ${If} $R4 == ""
+      StrCpy $R4 "${BOSS_APP_DIR}"
+      Return
+    ${EndIf}
+    StrCpy $R5 "$R4" 1 -1
+    ${If} $R5 == "\"
+      StrCpy $R4 "$R4" -1
+    ${EndIf}
+    ${GetFileName} $R5 "$R4"
+    ${If} $R5 != "${BOSS_FOLDER}"
+      StrCpy $R4 "$R4\${BOSS_FOLDER}"
+    ${EndIf}
+  FunctionEnd
+
   ; 校验写在 leave 而不是 show：show 里的 Abort 是「跳过本页继续往下装」，
-  ; leave 里的 Abort 才是「留在本页」，写不进去时用户能点「上一步」换目录。
-  Function app.installPathPageLeave
+  ; leave 里的 Abort 才是「留在本页」，写不进去时能当场换目录。
+  Function app.installDirPageLeave
     ${If} ${Silent}
       Return
     ${EndIf}
-    Call instFilesPre
-
-    ; 目录不存在时先建出来再试写（FileOpen 不会自动建父目录）；
-    ; 记下是不是这次建的，写失败时把空目录撤掉，别在人家盘上留个空文件夹。
-    StrCpy $R1 1
-    IfFileExists "$INSTDIR\*.*" 0 app.installPathProbe
-      StrCpy $R1 0
-    app.installPathProbe:
-    ClearErrors
-    CreateDirectory "$INSTDIR"
-    FileOpen $0 "$INSTDIR\.install-write-test" w
-    ${If} ${Errors}
-      ${If} $R1 == 1
-        RMDir "$INSTDIR"
-      ${EndIf}
-      MessageBox MB_ICONEXCLAMATION|MB_OK "无法写入所选位置：$\r$\n$INSTDIR$\r$\n$\r$\n请点「上一步」换一个文件夹。"
+    ${NSD_GetText} $app.installDirEdit $R4
+    Call app.normalizeInstallDir
+    StrCpy $INSTDIR "$R4"
+    StrCpy $R0 "$INSTDIR"
+    Call app.installDirWritable
+    ${If} $R2 != "1"
+      MessageBox MB_ICONEXCLAMATION|MB_OK "无法写入该位置：$\r$\n$INSTDIR$\r$\n$\r$\n请换一个文件夹（例如默认的 ${BOSS_APP_DIR}）。"
       Abort
     ${EndIf}
-    FileClose $0
-    Delete "$INSTDIR\.install-write-test"
   FunctionEnd
 !macroend
-!endif
-!macro customInit
-  ; 已经有安装位置（老版本装过）就尊重它，不把人家的程序挪走
-  ReadRegStr $0 HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation
-  StrCmp $0 "" 0 initDone
+
+; 「这个目录能不能装」的唯一判定：建得出目录、写得进临时文件。
+; 初始默认位置（customInit）与安装位置页共用，别处不要再各写一套。
+; 入 $R0，出 $R2 = "1" / "0"。用 IfErrors 而不是 LogicLib：本函数在宏外，
+; 解析时 LogicLib / MUI 还没 include。
+; 只在安装包里定义：卸载器编译时没有调用方，白放着会触发 6010（警告当错误）
+!ifndef BUILD_UNINSTALLER
+Function app.installDirWritable
   ClearErrors
-  CreateDirectory "${BOSS_APP_DIR}"
-  IfErrors initDone
-  WriteRegExpandStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "${BOSS_APP_DIR}"
-  initDone:
+  CreateDirectory "$R0"
+  FileOpen $R1 "$R0\.install-write-test" w
+  IfErrors 0 app.installDirWritableOk
+  StrCpy $R2 "0"
+  Return
+  app.installDirWritableOk:
+  FileClose $R1
+  Delete "$R0\.install-write-test"
+  StrCpy $R2 "1"
+FunctionEnd
+!endif
+
+!macro customInit
+  ; 记住的安装位置能用就沿用；不能用（Program Files、只读盘、盘没挂上）就回到默认位置。
+  ; 判定与安装位置页共用 app.installDirWritable，不再按路径前缀猜。
+  StrCpy $R0 "$perUserInstallationFolder"
+  ${If} $R0 != ""
+    Call app.installDirWritable
+    ${If} $R2 != "1"
+      StrCpy $R0 ""
+    ${EndIf}
+  ${EndIf}
+  ${If} $R0 == ""
+    StrCpy $R0 "${BOSS_APP_DIR}"
+    ClearErrors
+    CreateDirectory "$R0"
+    ${IfNot} ${Errors}
+      WriteRegExpandStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "$R0"
+    ${EndIf}
+  ${EndIf}
+  ; 只支持「仅为我安装」。在这里定下来而不是只靠模式页回调：静默安装不跑页面回调，
+  ; 只在页面里拦会漏掉 /S 和带 /allusers 的调用。
+  StrCpy $hasPerMachineInstallation "0"
+  !insertmacro setInstallModePerUser
 !macroend
 
 ; ===== 卸载时可以选择是否删除用户数据 =====
