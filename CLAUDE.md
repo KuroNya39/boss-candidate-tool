@@ -322,6 +322,17 @@ config/scoring-prompt-chat.md       ← 评分提示词（沟通页）
   用户要求），关掉退回历史记录、焦点回到刚才那条。Esc 链必须先判批次详情、再判历史记录——互切动画期间两者
   `display` 都是 `flex`，否则一次 Esc 关两层。`openDialog`/`closeDialog` 的焦点按层栈（`dialogFocusStack`）
   管理保留，供确认弹窗这类真正的叠层使用。
+- **历史批次「评分」要连批次元数据一起还原**（`ipc.mjs` 的 `rescore-from-history`）：它只把候选人数据搬回
+  输出目录，`.run-meta.json` 仍是当前批次那份；流水线按输出目录的 meta 判断来源，沟通页批次会被误当成
+  推荐/搜索批次去做 JD 核对（沟通页数据里的岗位名是候选人投的岗位，不一定是软件里的岗位文件名），于是弹
+  「请重新选择目标岗位」、还可能换错提示词模板。恢复数据后要把该批次的 `.run-meta.json` 一并写回
+  （没有就按解析出的来源/岗位补一份）。这一轮评分 + 导出都成功后，`runPipeline` 的 `rescoreDir`
+  参数负责把新的 `scored-candidates.json`、`candidates.xlsx` 和 meta 覆盖回原批次目录——不写回的话，
+  历史批次永远停在上一次的分数上。
+  输出目录那份「重评工作副本」不该在历史记录里再占一条（否则出现两份看起来一样、分数不同的记录）：
+  恢复数据时在输出目录 meta 里写 `rescoredFrom`（存原批次目录名，不存绝对路径），`list-history` 据此收起它——
+  跑的时候仍显示（蓝「进行中」），跑完且结果落盘后收起；被下一次运行顺手归档进去的那份则直接跳过。
+  写回时 `runPipeline` 只给没有 meta 的老批次补一份（有就保持原样），`rescoredFrom` 不会进原批次 meta。
 - **目标岗位搜索支持拼音**（`xsqd` → 显示驱动工程师，`neihe`/`neih` → 内核）：`electron/pinyin.mjs` 用
   **pinyin-pro** 取两串——首字母串（按词判多音字：重庆→cq、长沙→cs；覆盖次常用字：深圳→sz、东莞→dg）
   与全拼串（内核→neihe）。渲染进程拿不到 Node 模块，故由主进程 `get-recommend-jobs` 通道**随岗位列表一起**
@@ -343,6 +354,8 @@ config/scoring-prompt-chat.md       ← 评分提示词（沟通页）
 ### 基础设施
 
 - **自动归档**：每次新运行前把旧输出目录里的文件搬进 `output/archive/YYYYMMDD-HHMM/`（在主进程做，逐个文件搬，避开 Windows EBUSY）。
+  「这一批有没有真实数据、要不要归档」统一走 `progress-store` 的 `hasBatchData()`（只剩 `.run-meta.json` 不算）；
+  `.run-meta.json` 的读写统一走 `archive.mjs` 的 `readRunMeta()` / `writeRunMeta()`，别各处手写路径与 `JSON.stringify`。
 - **Windows GBK**：`termLog()` 与 `decodeBuffer()` 处理 stdout/stderr 的 GBK 解码。
 - **CDP 代理**（`scripts/cdp-proxy.mjs`，核心依赖）：
   - 自动发现 Chrome 调试端口（读 `DevToolsActivePort` 文件，或扫 9222/9229/9333），失败重试（`connectWithRetry`）。

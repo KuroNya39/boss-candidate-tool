@@ -1,9 +1,9 @@
 // electron/archive.mjs — 历史归档目录的元数据读取与还原（叶模块，供评分/主流程/IPC 共用）。
 import { resolve, basename, dirname } from 'node:path';
-import { existsSync, readFileSync, readdirSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { termLog } from './util.mjs';
 import { OUTPUT_DIR } from './state.mjs';
-import { ARCHIVE_DIR_NAME, ARCHIVE_NAME_RE, archiveRootFor, archiveOldOutput, moveDirContents } from '../scripts/progress-store.mjs';
+import { ARCHIVE_DIR_NAME, ARCHIVE_NAME_RE, archiveRootFor, archiveOldOutput, hasBatchData, moveDirContents } from '../scripts/progress-store.mjs';
 
 // 历史归档目录名校验：归档都放在 <输出目录>/archive/ 下，名字形如 YYYYMMDD-HHMM，
 // 防止误删/误操作任意目录。规则本身在 progress-store（子进程归档也用同一套）。
@@ -46,6 +46,11 @@ export function readRunMeta(dir) {
   return null;
 }
 
+// 写入批次元数据（readRunMeta 的反向操作）：文件名与缩进只在这里定，别各处手写 JSON.stringify
+export function writeRunMeta(dir, meta) {
+  writeFileSync(resolve(dir, '.run-meta.json'), JSON.stringify(meta, null, 2), 'utf-8');
+}
+
 // 读取某目录批次的「数据自带页面证据」：提取子进程已把 --source 写进扫描缓存/进度/结果文件，
 // 这些文件只会由「真正跑过该页面的那次提取」生成。而 .run-meta.json 可能因评分流程/旧版 bug
 // 丢失或被覆盖成 chat，评分兜底还可能把错误的 chat 一路写进结果文件——
@@ -85,8 +90,9 @@ export function resolveBatchSource(dir, meta) {
 // 返回 { ok } 或 { error }。
 export function restoreHistoryToOutput(dirPath) {
   try {
-    // 当前批次先归档：archiveOldOutput 自己判断有没有真实数据、跳过被锁文件，这里不再预读一遍目录
-    archiveOldOutput(OUTPUT_DIR, false);
+    // 当前批次先归档：只有真实数据才归档（只剩 meta 的残留不建空批次，口径见 hasBatchData），
+    // 被锁文件由 archiveOldOutput 跳过
+    if (hasBatchData(OUTPUT_DIR)) archiveOldOutput(OUTPUT_DIR, false);
     mkdirSync(OUTPUT_DIR, { recursive: true });
     moveDirContents(dirPath, OUTPUT_DIR, {
       skip: (name) => name === ARCHIVE_DIR_NAME, // 归档批次里不该再有 archive，防一手

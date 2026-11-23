@@ -122,6 +122,17 @@ export function archiveRootFor(outputDir) { return resolve(outputDir, ARCHIVE_DI
 // 二十多个历史批次当成「这一批有数据」，或者反过来把归档目录装进自己。
 export const isBatchEntry = (name) => name !== ARCHIVE_DIR_NAME;
 
+// 输出目录里是否有「这一批的真实数据」：只剩 .run-meta.json 之类的残留不算，
+// 拿它决定归档不归档，避免产生空批次文件夹。pipeline 的归档步骤、重评准备、
+// 历史还原三处共用这一份口径，别各自手写一遍。
+export function hasBatchData(dir) {
+  try {
+    return readdirSync(dir).some((n) => n !== '.run-meta.json' && isBatchEntry(n));
+  } catch {
+    return false;
+  }
+}
+
 export function archiveStamp() {
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');

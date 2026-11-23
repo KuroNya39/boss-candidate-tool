@@ -1,12 +1,12 @@
 // electron/pipeline.mjs — 主流程编排：归档→提取×评分并行→导出，含最近归档扫描与自愈补写 meta。
 import { resolve } from 'node:path';
-import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { powerSaveBlocker } from 'electron';
-import { archiveOldOutput, cleanupCacheFiles, isBatchEntry } from '../scripts/progress-store.mjs';
+import { archiveOldOutput, cleanupCacheFiles, hasBatchData } from '../scripts/progress-store.mjs';
 import { termLog } from './util.mjs';
 import { OUTPUT_DIR, apiConfig, cancelled, setCancelled, skipRecovered, setSkipRecovered, skipToScoring, setSkipToScoring, setExportMailResult, exportMailResult, actualExportPath, setRunActive, currentProcess, sendStdinSignal } from './state.mjs';
 import { sendProgress, sendDone, sendError, requestJdDecision } from './window.mjs';
-import { readRunMeta, resolveBatchSource, listArchiveDirs } from './archive.mjs';
+import { readRunMeta, writeRunMeta, resolveBatchSource, listArchiveDirs } from './archive.mjs';
 import { hasScorableCandidates, restoreScorableCandidates, nonEmptyCandidates, sourceUsesFileJd } from './scoring.mjs';
 import { runIncrementalScoring, cleanupTempFiles } from './incremental.mjs';
 import { CONFIG_DIR, inspectJobDescription } from './config.mjs';
@@ -83,7 +83,7 @@ async function resolveJobDescription(jobName) {
   }
 }
 
-async function runPipeline(count, skipExtract = false, extractAll = false, source = 'chat', job = '', enableCopy = true, resume = false, retry = false) {
+async function runPipeline(count, skipExtract = false, extractAll = false, source = 'chat', job = '', enableCopy = true, resume = false, retry = false, rescoreDir = '') {
   setCancelled(false);
   setSkipRecovered(false);
 
@@ -116,10 +116,8 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     // 导致旧一批的 .extract-progress.json 留在原地——评分器一开跑就把上一轮的历史简历抢先开评。
     if (!skipExtract && !resume && existsSync(OUTPUT_DIR)) {
       try {
-        const entries = readdirSync(OUTPUT_DIR);
-        // archive 目录是历史批次的家，不算「这一批有数据」
-        const hasRealData = entries.some((n) => n !== '.run-meta.json' && isBatchEntry(n));
-        if (hasRealData) {
+        // archive 目录是历史批次的家，不算「这一批有数据」；只剩 meta 的空目录也不归档
+        if (hasBatchData(OUTPUT_DIR)) {
           archiveOldOutput(OUTPUT_DIR, false); // 跳过被锁文件，其余照常归档，日志随主进程走 console
         }
       } catch (e) {
@@ -452,12 +450,37 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     // 清理临时文件（保留 scored-candidates.json 和 candidates.xlsx）
     cleanupTempFiles();
 
+    // 导出可能因文件被占用改用带时间戳的文件名，后面的写回与完成页都用这一份
+    const excelPath = actualExportPath || resolve(OUTPUT_DIR, 'candidates.xlsx');
+
+    // 历史批次「重新评分」：把这一轮的结果与 Excel 写回原批次目录，覆盖它上次的分数。
+    // 不写回的话，重新评分只在输出目录多出一批，原批次永远停在上一次的分数上。
+    // 只在这一轮完整跑完（评分 + 导出都成功）时写，半路失败保持原样。
+    if (rescoreDir) {
+      try {
+        copyFileSync(scoredPath, resolve(rescoreDir, 'scored-candidates.json'));
+        if (existsSync(excelPath)) copyFileSync(excelPath, resolve(rescoreDir, 'candidates.xlsx'));
+        // 原批次没有 meta（老批次）才补一份：有就保持它自己那份，别把工作副本的标记顺回来
+        if (!existsSync(resolve(rescoreDir, '.run-meta.json'))) {
+          const metaJson = readRunMeta(OUTPUT_DIR);
+          if (metaJson) {
+            delete metaJson.rescoredFrom;
+            writeRunMeta(rescoreDir, metaJson);
+          }
+        }
+        termLog(`[rescore] 新评分结果已写回批次目录： ${rescoreDir}`);
+      } catch (e) {
+        // 写回失败不影响本次结果（输出目录里仍是完整的一份），只记日志
+        termLog(`[rescore] 写回批次目录失败：${e.message}`, 'stderr');
+      }
+    }
+
     // 邮件是否真的发出去了以脚本标记为准：只有 MAIL_OK 才算已发送，
     // 认证失败等情况下不再误报「邮件已发送至」
     const emailSent = exportMailResult.status === 'ok';
     sendDone({
       outputDir: OUTPUT_DIR,
-      excelPath: actualExportPath || resolve(OUTPUT_DIR, 'candidates.xlsx'),
+      excelPath,
       emailTo: emailSent ? exportMailResult.to : null,
       emailError: exportMailResult.status === 'fail' ? exportMailResult.error : '',
     });

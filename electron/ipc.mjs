@@ -19,11 +19,11 @@ import {
   cdpStatus, setCdpStatus,
 } from './state.mjs';
 import { CONFIG_DIR, saveApiConfig, listRecommendJobs, addRecommendJob, getRecommendJobDesc, inspectJobDescription, updateRecommendJob, renameRecommendJob, deleteRecommendJob } from './config.mjs';
-import { isHistoryDir, listArchiveDirs, readRunMeta, resolveBatchSource, restoreHistoryToOutput } from './archive.mjs';
-import { archiveRootFor, parseArchiveStamp } from '../scripts/progress-store.mjs';
+import { isHistoryDir, listArchiveDirs, readRunMeta, resolveBatchSource, restoreHistoryToOutput, writeRunMeta } from './archive.mjs';
+import { archiveRootFor, archiveOldOutput, hasBatchData, parseArchiveStamp } from '../scripts/progress-store.mjs';
 import { searchCandidateIndex, clearCandidateIndex } from './candidate-index.mjs';
 import { historyUsageBytes, candidateUsageBytes } from './data-usage.mjs';
-import { nonEmptyCandidates, restoreScorableCandidates } from './scoring.mjs';
+import { hasScorableCandidates, nonEmptyCandidates, restoreScorableCandidates } from './scoring.mjs';
 import { launchChrome, startCdpProxy } from './chrome.mjs';
 import { runPipeline } from './pipeline.mjs';
 import { runGreeting } from './greet.mjs';
@@ -98,6 +98,9 @@ async function openDirectory(dirPath) {
   const openErr = await shell.openPath(dirPath);
   return openErr ? { error: openErr } : { ok: true };
 }
+
+// 路径是不是「当前输出目录」：继续提取 / 重新评分两个 handler 共用，别各写一遍 resolve 比对
+const isOutputDir = (dirPath) => resolve(dirPath) === resolve(OUTPUT_DIR);
 
 // ===== IPC 注册 =====
 function registerIPC() {
@@ -292,12 +295,23 @@ function registerIPC() {
           isRunning: isCurrent && isRunActive(),
         };
         const meta = readRunMeta(dir);
+        // 重评工作副本不是独立批次：原批次跑完会被原地覆盖，这份副本（无论还留在输出目录，
+        // 还是下一次运行被顺手归档成新批次）都不该在历史里再占一条，否则出现两份看起来一样、
+        // 分数却不同的记录。跑的时候仍显示（蓝「进行中」），结果落盘后才收起。
+        // 放在人数统计之前：那一步会 JSON.parse 几 MB 的评分结果，白白解析一份要丢弃的行。
+        if (meta?.rescoredFrom) {
+          if (!info.isCurrent) continue;
+          if (!info.isRunning && (info.hasScored || info.hasExcel)) continue;
+        }
         // 来源标签：meta 明确写的页面优先，其次数据文件写明的页面（meta 丢失/被盖成 chat 也能还原），
         // 都只是 chat/缺失才默认沟通页——避免推荐批次误标沟通，也避免沟通批次显示「未知来源」。
         info.meta = { ...(meta || {}), source: resolveBatchSource(dir, meta) };
         // 显示时间：归档名带 YYYYMMDD-HHMM；当前目录用元数据的 startedAt
         // （没有元数据时退回批次里最新数据文件的修改时间，避免显示「时间未知」）
-        const stamp = parseArchiveStamp(name);
+        // 重评工作副本改用原批次归档名里的时间：meta.startedAt 是这一批最初开跑的时间，
+        // 与归档名（归档那一刻）常常不同，同一批在列表里会前后显示两个时间。
+        // rescoredFrom 存的是目录名；老数据可能存了绝对路径，统一过一层 basename
+        const stamp = parseArchiveStamp(name) || parseArchiveStamp(basename(meta?.rescoredFrom ?? ''));
         if (stamp) {
           const { ymd, hm } = stamp;
           info.time = `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)} ${hm.slice(0, 2)}:${hm.slice(2, 4)}`;
@@ -410,7 +424,7 @@ function registerIPC() {
     const dirPath = opts?.archiveDir;
     if (!dirPath) return { error: '缺少参数' };
     if (!isHistoryDir(dirPath)) return { error: '目标不是历史归档目录，无法继续提取' };
-    const isCurrent = resolve(dirPath) === resolve(OUTPUT_DIR);
+    const isCurrent = isOutputDir(dirPath);
     if (!existsSync(resolve(dirPath, '.extract-progress.json')) && !existsSync(resolve(dirPath, 'zhipin-candidates.json'))) {
       return { error: '该批次没有可继续的提取进度' };
     }
@@ -437,11 +451,27 @@ function registerIPC() {
     const dirPath = opts?.archiveDir;
     if (!dirPath) return { error: '缺少参数' };
     if (!isHistoryDir(dirPath)) return { error: '目标不是历史归档目录，无法重新评分' };
-    // 该批次只要有简历数据（完整提取 / 提了一半的进度 / 已评分结果）就能重新评分
+    // 该批次只要有简历数据（完整提取 / 提了一半的进度 / 已评分结果）就能重新评分。
+    // 先确认有数据再归档当前批次——否则归档完才发现没得评分，当前批次就白挪走了
+    const noScorableError = '该批次没有可评分的数据（既无提取数据，也无评分结果）';
+    if (!hasScorableCandidates(dirPath)) return { error: noScorableError };
+    const isCurrent = isOutputDir(dirPath);
+    // 输出目录里还躺着当前批次的结果 / 进度 / 扫描缓存。只把目标批次的数据塞进去会让两批文件混在
+    // 一起：流水线按残留文件判断来源，沟通页批次会被误当成推荐/搜索批次去做 JD 核对（沟通页数据
+    // 里的岗位名是候选人投的岗位，不一定是软件里的岗位文件名），于是弹「请重新选择目标岗位」，
+    // 还会换错提示词模板。先照常归档当前批次，输出目录里就只剩下面还原的这一批。
+    if (!isCurrent) {
+      try {
+        // 只有真实数据才归档（口径见 progress-store 的 hasBatchData）：只剩 meta 的空目录不值得单独建一批
+        if (hasBatchData(OUTPUT_DIR)) archiveOldOutput(OUTPUT_DIR, false);
+      } catch (err) {
+        termLog(`[rescore] 归档当前批次失败：${err.message}`, 'stderr');
+      }
+    }
     try {
       const targetPath = resolve(OUTPUT_DIR, 'zhipin-candidates.json');
       const restored = restoreScorableCandidates(dirPath, targetPath);
-      if (!restored) return { error: '该批次没有可评分的数据（既无提取数据，也无评分结果）' };
+      if (!restored) return { error: noScorableError };
       termLog(`[rescore] 已从历史批次恢复可评分数据： ${dirPath}`);
     } catch (err) {
       return { error: `恢复数据失败：${err.message}` };
@@ -452,7 +482,22 @@ function registerIPC() {
     const job = meta?.job || '';
     const extractAll = meta ? meta.extractAll !== false : true;
     const count = meta?.count || 0;
-    runPipeline(count, true, extractAll, source, job, true, false); // skipExtract=true
+    // 批次元数据也一起还原：流水线按输出目录的 .run-meta.json 判断来源与岗位，缺了它又会退回
+    // 当前批次的口径。旧批次没有 meta 时按解析出的来源/岗位补一份。
+    if (!isCurrent) {
+      try {
+        const base = meta || { source, job, count, extractAll, startedAt: new Date().toISOString() };
+        // rescoredFrom 标记「当前目录里这份是某个历史批次的重评工作副本」：跑完原批次会被原地覆盖，
+        // 这份副本不该在历史记录里再占一条（否则出现两份看起来一样、分数却不同的记录）。
+        // 存目录名而不是绝对路径：只用到「这是哪一批」和名字里的时间，换输出目录后路径会失效。
+        // 只写在输出目录的 meta 里，写回原批次时会被 pipeline 摘掉。
+        writeRunMeta(OUTPUT_DIR, { ...base, rescoredFrom: basename(dirPath) });
+      } catch (err) {
+        termLog(`[rescore] 还原批次元数据失败：${err.message}`, 'stderr');
+      }
+    }
+    // skipExtract=true；rescoreDir 让这轮结束后把结果写回原批次目录（覆盖旧评分）
+    runPipeline(count, true, extractAll, source, job, true, false, isCurrent ? '' : dirPath);
     return { ok: true };
   });
 
