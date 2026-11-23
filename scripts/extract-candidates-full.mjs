@@ -74,26 +74,28 @@ async function waitForCandidateList(targetId, maxWait = 15000) {
 
 // ===== 候选人列表扫描（支持虚拟滚动） =====
 
+// 从一张 .geek-item 上取 geekId：id / data-id / data-geek-id 的前缀，取不到再从链接 href 的
+// geekId= 里抠。扫描（读列表）与点击（找目标）必须同一套规则——两份各写一份，迟早漂移成
+// 「扫描得到却点不中」。依赖外部变量 it，gid 由调用处接。
+const GEEK_ID_FROM_ITEM_JS = `
+      var gid = (it.id || it.getAttribute('data-id') || it.getAttribute('data-geek-id') || '').split('-')[0] || '';
+      if (!gid) {
+        var link = it.querySelector('a');
+        var href = link ? (link.getAttribute('href') || '') : '';
+        var m = href.match(/geekId=([^&]+)/);
+        if (m) gid = m[1];
+      }`;
+
 async function readVisibleGeekItems(targetId) {
   const raw = await cdpEval(targetId, `(function(){
     var items = document.querySelectorAll('.geek-item');
     var result = [];
     for (var i = 0; i < items.length; i++) {
-      var el = items[i];
-      var id = el.id || el.getAttribute('data-id') || el.getAttribute('data-geek-id') || '';
-      var geekId = id.split('-')[0] || '';
-      if (!geekId) {
-        // 尝试从 href 或 onclick 属性提取
-        var link = el.querySelector('a');
-        if (link) {
-          var href = link.getAttribute('href') || '';
-          var match = href.match(/geekId=([^&]+)/);
-          if (match) geekId = match[1];
-        }
-      }
-      var nameEl = el.querySelector('.name') || el.querySelector('.geek-name') || el.querySelector('[class*=name]');
+      var it = items[i];
+      ${GEEK_ID_FROM_ITEM_JS}
+      var nameEl = it.querySelector('.name') || it.querySelector('.geek-name') || it.querySelector('[class*=name]');
       var name = nameEl ? nameEl.textContent.trim() : '';
-      result.push({ geekId: geekId, listName: name });
+      result.push({ geekId: gid, listName: name });
     }
     return JSON.stringify(result);
   })()`);
@@ -136,21 +138,6 @@ async function scrollListDown(targetId, aggressive = false) {
     scrollHeight: data.scrollHeight,
     raw: data
   };
-}
-
-/**
- * 向上滚动候选人列表（与 scrollListDown 用同一容器检测方式）
- */
-async function scrollListUp(targetId) {
-  const raw = await cdpEval(targetId, `(function(){
-    ${FIND_LIST_CONTAINER_JS}
-    var before = el.scrollTop;
-    el.scrollTop = Math.max(0, el.scrollTop - Math.floor(el.clientHeight * 0.7));
-    var after = el.scrollTop;
-    return JSON.stringify({ok: true, scrolled: after !== before, scrollTop: after});
-  })()`);
-  const data = JSON.parse(raw);
-  return { ok: true, movedKey: data.scrolled ? 'up' : null, raw: data, scrolled: data.scrolled };
 }
 
 async function scrollListToTop(targetId) {
@@ -472,59 +459,80 @@ async function scanUpToCandidateGeekIds(targetId, count, opts = {}) {
   return candidateList;
 }
 
-async function clickCandidateByGeekId(targetId, geekId) {
-  const clickExpr = `(function(){
+// 找候选卡片的表达式：先认 id / data-id；都不中时按扫描时的同一套规则遍历 .geek-item
+// （有些会话卡片没有 id，geekId 只在 href 里）——只认 [id^=] 会让这类人永远找不到。
+function buildClickExpr(geekId) {
+  return `(function(){
     var el = document.querySelector('[id^="${geekId}-"]');
     if (el) { el.click(); return 'ok-by-id'; }
     el = document.querySelector('[data-id^="${geekId}-"]');
     if (el) { el.click(); return 'ok-by-data-id'; }
+    var items = document.querySelectorAll('.geek-item');
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      ${GEEK_ID_FROM_ITEM_JS}
+      if (gid === '${geekId}') { it.click(); return 'ok-by-item'; }
+    }
     return 'not-found';
   })()`;
+}
 
-  let result;
+async function tryClickCandidate(targetId, clickExpr) {
   try {
-    result = await cdpEval(targetId, clickExpr);
+    return await cdpEval(targetId, clickExpr);
   } catch {
-    result = 'error';
+    return 'error';
+  }
+}
+
+// 逐屏滚动找人的步数上限，只作死循环保险。别写成「20 步」这种小数字：
+// 沟通页列表是虚拟滚动，一屏只渲染 7~8 个人，20 步≈130~150 人，超过这个数的人永远找不到
+// （实测：147 人的批次，后 11 人全部「无法定位候选人」）。
+const MAX_SCROLL_STEPS = 2000;
+
+// 逐屏往下滚，命中即点。滚到头（不再移动）返回 null。
+async function scrollAndClick(targetId, clickExpr) {
+  for (let step = 0; step < MAX_SCROLL_STEPS; step++) {
+    const scroll = await scrollListDown(targetId);
+    if (!scroll.ok) return null;
+    await randomDelay(400, 700);
+    const result = await tryClickCandidate(targetId, clickExpr);
+    if (result !== 'not-found' && result !== 'error') {
+      if (step >= 5) console.log(`  ↕ 列表向下滚了 ${step + 1} 屏才找到（虚拟列表回收了目标卡片）`);
+      return result;
+    }
+    if (!scroll.movedKey) return null; // 已经到底，没有更多可找
+  }
+  return null;
+}
+
+// 当前屏幕里找目标并点击；没有就顺着往下滚着找（滚到底仍没有返回 null）
+async function clickHereOrBelow(targetId, clickExpr) {
+  const result = await tryClickCandidate(targetId, clickExpr);
+  return (result === 'not-found' || result === 'error')
+    ? await scrollAndClick(targetId, clickExpr)
+    : result;
+}
+
+async function clickCandidateByGeekId(targetId, geekId) {
+  const clickExpr = buildClickExpr(geekId);
+
+  // 1) 当前屏幕 → 顺着提取方向往下找。提取顺序与列表顺序一致，一般一两屏就命中；
+  //    不走「先回顶部再往下扫」——那是早期为了确定性做的，白白多滚一遍整张列表
+  let result = await clickHereOrBelow(targetId, clickExpr);
+
+  // 2) 一路到底还没有：说明目标在当前已扫过的上半段（列表顺序变了），回顶部从头再扫
+  if (!result) {
+    await scrollListToTop(targetId); // 内部已等列表稳定
+    result = await clickHereOrBelow(targetId, clickExpr);
   }
 
-  if (result !== 'not-found' && result !== 'error') {
+  if (result) {
     await randomDelay(800, 1200);
     return result;
   }
 
-  await scrollListToTop(targetId);
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const scroll = await scrollListDown(targetId);
-    await randomDelay(500, 800);
-    try {
-      result = await cdpEval(targetId, clickExpr);
-    } catch {
-      result = 'error';
-    }
-    if (result !== 'not-found' && result !== 'error') {
-      await randomDelay(800, 1200);
-      return result;
-    }
-    if (!scroll.ok || !scroll.movedKey) break;
-  }
-
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const scroll = await scrollListUp(targetId);
-    await randomDelay(500, 800);
-    try {
-      result = await cdpEval(targetId, clickExpr);
-    } catch {
-      result = 'error';
-    }
-    if (result !== 'not-found' && result !== 'error') {
-      await randomDelay(800, 1200);
-      return result;
-    }
-    if (!scroll.ok || !scroll.movedKey) break;
-  }
-
-  throw new Error(`无法定位候选人 geekId=${geekId}`);
+  throw new Error(`无法定位候选人 geekId=${geekId}（已顺着列表滚到底、再从头扫到底仍未找到）`);
 }
 
 // ===== 基础信息提取脚本 =====

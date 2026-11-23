@@ -29,7 +29,7 @@ async function dirSize(dir) {
   return sizes.reduce((sum, n) => sum + n, 0);
 }
 
-// 历史记录占用：只算「输出目录同级、名字形如 {输出目录名}-YYYYMMDD-HHMM」的归档目录。
+// 历史记录占用：只算 <输出目录>/archive/ 下名字形如 YYYYMMDD-HHMM 的归档目录。
 // 当前输出目录（正在跑 / 待继续的那批）清空动作不动它，这里也不算。
 export async function historyUsageBytes() {
   const dirs = listArchiveDirs();

@@ -1,6 +1,6 @@
 // electron/candidate-index.mjs — 「候选人查询」用的评分索引。
 //
-// 与历史批次（output-*/ 目录）刻意解耦：每批评分完成后，把「一人一条评价」追加进
+// 与历史批次（output/archive/*/ 目录）刻意解耦：每批评分完成后，把「一人一条评价」追加进
 // %AppData%\web-access\web-access\candidate-index.jsonl，删历史批次不会删掉它。
 //
 // 用 JSONL（一行一条 JSON）而不是一个大数组：每批只追加、不必整文件重写；查询时也能

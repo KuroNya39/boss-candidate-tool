@@ -15,7 +15,8 @@ import { registerIPC } from './ipc.mjs';
 import { createWindow } from './window.mjs';
 import { startCdpProxy } from './chrome.mjs';
 import { runPipeline } from './pipeline.mjs';
-import { currentProcess, setCurrentProcess, cdpProxyProcess, setCdpProxyProcess } from './state.mjs';
+import { currentProcess, setCurrentProcess, cdpProxyProcess, setCdpProxyProcess, OUTPUT_DIR } from './state.mjs';
+import { migrateLegacyArchives } from '../scripts/progress-store.mjs';
 
 // ===== 应用生命周期 =====
 app.whenReady().then(() => {
@@ -23,6 +24,10 @@ app.whenReady().then(() => {
   // 作用是留下署名痕迹（署名 + 仓库 + 许可协议），别指望它拦住想抄的人。
   termLog(`[main] BOSS直聘候选人AI评分助手 v${app.getVersion()} · © 2026 KuroNya39 · github.com/KuroNya39 · PolyForm Noncommercial 1.0.0`);
   loadApiConfig();
+  // 旧版把历史批次摊在输出目录同级（output-YYYYMMDD-HHMM），现在统一收进 <输出目录>/archive/。
+  // 启动时搬一次即可；被占用的目录跳过，不阻断启动。
+  const migrated = migrateLegacyArchives(OUTPUT_DIR);
+  if (migrated > 0) termLog(`[main] 已把 ${migrated} 个旧归档目录搬进 archive/`);
   mkdirSync(JD_DIR, { recursive: true });
   registerIPC();
 

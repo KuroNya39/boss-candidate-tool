@@ -342,7 +342,7 @@ config/scoring-prompt-chat.md       ← 评分提示词（沟通页）
 
 ### 基础设施
 
-- **自动归档**：每次新运行前把旧输出目录改名 `output-YYYYMMDD-HHMM`（在主进程做，避开 Windows EBUSY）。
+- **自动归档**：每次新运行前把旧输出目录里的文件搬进 `output/archive/YYYYMMDD-HHMM/`（在主进程做，逐个文件搬，避开 Windows EBUSY）。
 - **Windows GBK**：`termLog()` 与 `decodeBuffer()` 处理 stdout/stderr 的 GBK 解码。
 - **CDP 代理**（`scripts/cdp-proxy.mjs`，核心依赖）：
   - 自动发现 Chrome 调试端口（读 `DevToolsActivePort` 文件，或扫 9222/9229/9333），失败重试（`connectWithRetry`）。
@@ -396,4 +396,4 @@ build.mjs 会校验：目标版本 tag 若已存在则拒绝打包。发布说�
 - Chrome 须开远程调试（`chrome://inspect/#remote-debugging`）；OCR 语言包在 `ocr-lang/chi_sim.traineddata.gz`。
 - SMTP 默认 `smtp.mxhichina.com:25`（可在 API 配置界面覆盖）。
 - 评分提示词模板占位符：`{dimensions}`、`{screeningCriteria}`、`{resumeText}`。
-- `output/` 已 gitignore；旧结果自动归档成 `output-YYYYMMDD-HHMM/`。
+- `output/` 已 gitignore；旧结果自动归档到 `output/archive/YYYYMMDD-HHMM/`。

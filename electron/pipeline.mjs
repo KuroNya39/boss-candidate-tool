@@ -1,12 +1,12 @@
 // electron/pipeline.mjs — 主流程编排：归档→提取×评分并行→导出，含最近归档扫描与自愈补写 meta。
-import { resolve, dirname, basename } from 'node:path';
+import { resolve } from 'node:path';
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { powerSaveBlocker } from 'electron';
-import { archiveOldOutput, cleanupCacheFiles } from '../scripts/progress-store.mjs';
+import { archiveOldOutput, cleanupCacheFiles, isBatchEntry } from '../scripts/progress-store.mjs';
 import { termLog } from './util.mjs';
 import { OUTPUT_DIR, apiConfig, cancelled, setCancelled, skipRecovered, setSkipRecovered, skipToScoring, setSkipToScoring, setExportMailResult, exportMailResult, actualExportPath, setRunActive, currentProcess, sendStdinSignal } from './state.mjs';
 import { sendProgress, sendDone, sendError, requestJdDecision } from './window.mjs';
-import { readRunMeta, resolveBatchSource } from './archive.mjs';
+import { readRunMeta, resolveBatchSource, listArchiveDirs } from './archive.mjs';
 import { hasScorableCandidates, restoreScorableCandidates, nonEmptyCandidates, sourceUsesFileJd } from './scoring.mjs';
 import { runIncrementalScoring, cleanupTempFiles } from './incremental.mjs';
 import { CONFIG_DIR, inspectJobDescription } from './config.mjs';
@@ -19,23 +19,14 @@ import { isChromeRunning, getSourcePageUrl, launchChrome, buildPageNotOpenMessag
 // 运行中直接在这一格上推进（每过一个里程碑改一次），不另设局部镜像。
 let lastFailedStep = 0;
 
-// 在历史归档目录（output-YYYYMMDD-HHMM）里找最近一份含「可评分数据」的目录
+// 在历史归档目录（<输出目录>/archive/YYYYMMDD-HHMM）里找最近一份含「可评分数据」的目录
 // （完整提取数据 / 提取到一半的进度 / 已评分结果都算）。
 // 用于「跳过提取 / 历史记录评分」：数据被归档后仍能恢复出来直接重新评分，无需重新提取。
 function findRecentArchiveWithScorable() {
-  try {
-    const parentDir = dirname(OUTPUT_DIR);
-    const prefix = basename(OUTPUT_DIR) + '-';
-    const dirs = readdirSync(parentDir)
-      .filter((n) => n.startsWith(prefix))
-      .sort() // 时间戳命名，字典序即时间序
-      .reverse();
-    for (const d of dirs) {
-      if (hasScorableCandidates(resolve(parentDir, d))) {
-        return { archiveDir: resolve(parentDir, d) };
-      }
-    }
-  } catch {}
+  const dirs = listArchiveDirs().sort((a, b) => b.name.localeCompare(a.name)); // 时间戳命名，字典序即时间序
+  for (const d of dirs) {
+    if (hasScorableCandidates(d.path)) return { archiveDir: d.path };
+  }
   return null;
 }
 
@@ -126,7 +117,8 @@ async function runPipeline(count, skipExtract = false, extractAll = false, sourc
     if (!skipExtract && !resume && existsSync(OUTPUT_DIR)) {
       try {
         const entries = readdirSync(OUTPUT_DIR);
-        const hasRealData = entries.some((n) => n !== '.run-meta.json');
+        // archive 目录是历史批次的家，不算「这一批有数据」
+        const hasRealData = entries.some((n) => n !== '.run-meta.json' && isBatchEntry(n));
         if (hasRealData) {
           archiveOldOutput(OUTPUT_DIR, false); // 跳过被锁文件，其余照常归档，日志随主进程走 console
         }

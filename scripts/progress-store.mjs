@@ -1,7 +1,7 @@
 // scripts/progress-store.mjs — 提取进度与扫描缓存的存取（.scan-cache.json / .extract-progress.json）
 // 只碰文件系统，不碰页面：三个提取脚本、取消清理、输出目录归档共用这一份。
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync, readdirSync, renameSync, rmdirSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, basename } from 'node:path';
 import { sleep } from './cdp-base.mjs';
 
 // 取消/跳过时等当前那位候选人 OCR 收尾的上限（见 flushProgressOnCancel）。
@@ -109,6 +109,57 @@ export function cleanupCacheFiles(outputPath) {
   }
 }
 
+// ===== 历史归档 =====
+// 当前批次的文件直接放在输出目录根部，历史批次统一收进 <输出目录>/archive/<YYYYMMDD-HHMM>。
+// 归档目录名不再带 output- 前缀：父目录已经叫 archive，前缀只是重复。
+// 主进程（历史记录/占用统计/继续提取）与子进程（提取脚本开跑前归档）共用这一套规则。
+export const ARCHIVE_DIR_NAME = 'archive';
+export const ARCHIVE_NAME_RE = /^\d{8}-\d{4}$/;
+export function archiveRootFor(outputDir) { return resolve(outputDir, ARCHIVE_DIR_NAME); }
+
+// 输出目录根部的「批次条目」判定：archive/ 是归档容器，不算这一批的内容。
+// 枚举输出目录根部的地方都走它，别各自写 n !== ARCHIVE_DIR_NAME——漏一处就会把
+// 二十多个历史批次当成「这一批有数据」，或者反过来把归档目录装进自己。
+export const isBatchEntry = (name) => name !== ARCHIVE_DIR_NAME;
+
+export function archiveStamp() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+}
+
+// 「YYYYMMDD-HHMM」→ { ymd: 'YYYYMMDD', hm: 'HHMM' }（历史记录据此显示时间）；不匹配返回 null
+export function parseArchiveStamp(name) {
+  if (!ARCHIVE_NAME_RE.test(name)) return null;
+  return { ymd: name.slice(0, 8), hm: name.slice(9) };
+}
+
+// 把 srcDir 顶层的条目逐个搬进 dstDir（同盘 rename）。Windows 下目录里任一文件被占用时
+// 整目录改名会 EPERM，所以只能逐个搬、搬不动的留着。
+//   - skip(name)：返回 true 的名字不搬
+//   - onSkip(name)：目标里已有同名项时回调（调用方决定要不要记日志）
+//   - strict：搬不动就抛错（还原历史用：搬不干净不能假装成功）
+// 搬完把空了的源目录删掉；没搬干净（被占用/同名冲突）时源目录留着。
+export function moveDirContents(srcDir, dstDir, { skip, onSkip, strict = false } = {}) {
+  let moved = 0;
+  for (const name of readdirSync(srcDir)) {
+    if (skip && skip(name)) continue;
+    const dst = resolve(dstDir, name);
+    if (existsSync(dst)) {
+      if (onSkip) onSkip(name);
+      continue;
+    }
+    try {
+      renameSync(resolve(srcDir, name), dst);
+      moved++;
+    } catch (err) {
+      if (strict) throw err;
+    }
+  }
+  try { rmdirSync(srcDir); } catch {}
+  return { moved };
+}
+
 export function archiveOldOutput(outputDir, isResume) {
   if (isResume) {
     console.log('恢复模式：保留现有 output 目录');
@@ -126,13 +177,12 @@ export function archiveOldOutput(outputDir, isResume) {
   } catch {
     return;
   }
+  // archive 目录本身不参与归档，否则会把自己装进自己
+  entries = entries.filter(isBatchEntry);
   if (entries.length === 0) return;
 
   // 逐个文件归档，跳过被锁的文件，避免 Windows 目录重命名 EPERM
-  const now = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
-  const archivedDir = `${outputDir}-${stamp}`;
+  const archivedDir = resolve(archiveRootFor(outputDir), archiveStamp());
   mkdirSync(archivedDir, { recursive: true });
 
   let moved = 0;
@@ -153,4 +203,33 @@ export function archiveOldOutput(outputDir, isResume) {
     // 全部失败时清理空目录
     try { readdirSync(archivedDir).length === 0 && rmdirSync(archivedDir); } catch {}
   }
+}
+
+// 旧版把归档摊在输出目录同级：<父目录>/output-YYYYMMDD-HHMM。升级后统一收进 <输出目录>/archive。
+// 只搬本工具自己的目录（名字 = 输出目录名 + -YYYYMMDD-HHMM），内容原样不动；
+// 同名文件不覆盖，被占用的跳过，搬空的旧目录才删。返回搬动的批次个数。
+export function migrateLegacyArchives(outputDir) {
+  const parentDir = dirname(outputDir);
+  const base = basename(outputDir).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const legacyRe = new RegExp(`^${base}-(\\d{8}-\\d{4})$`);
+  let entries;
+  try {
+    entries = readdirSync(parentDir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  const root = archiveRootFor(outputDir);
+  let migrated = 0;
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const match = entry.name.match(legacyRe);
+    if (!match) continue;
+    const src = resolve(parentDir, entry.name);
+    const dst = resolve(root, match[1]);
+    try {
+      mkdirSync(dst, { recursive: true });
+      if (moveDirContents(src, dst).moved > 0) migrated++;
+    } catch {}
+  }
+  return migrated;
 }

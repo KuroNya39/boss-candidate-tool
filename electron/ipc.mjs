@@ -1,7 +1,7 @@
 // electron/ipc.mjs — 全部 IPC handler：启动/取消提取、打招呼、评分结果、历史归档、输出目录、CDP 状态、岗位增删改查。
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
-import { resolve, dirname, basename } from 'node:path';
-import { mkdirSync, existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { resolve, basename } from 'node:path';
+import { mkdirSync, existsSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { TIER_THRESHOLDS } from '../scripts/score-tiers.mjs';
 import { summarizeScoredCandidate } from '../scripts/scored-candidate.mjs';
 import { commentToHtml, formatComment } from '../scripts/format-comment.mjs';
@@ -19,7 +19,8 @@ import {
   cdpStatus, setCdpStatus,
 } from './state.mjs';
 import { CONFIG_DIR, saveApiConfig, listRecommendJobs, addRecommendJob, getRecommendJobDesc, inspectJobDescription, updateRecommendJob, renameRecommendJob, deleteRecommendJob } from './config.mjs';
-import { archiveDirNameMatches, isHistoryDir, readRunMeta, resolveBatchSource, restoreHistoryToOutput } from './archive.mjs';
+import { isHistoryDir, listArchiveDirs, readRunMeta, resolveBatchSource, restoreHistoryToOutput } from './archive.mjs';
+import { archiveRootFor, parseArchiveStamp } from '../scripts/progress-store.mjs';
 import { searchCandidateIndex, clearCandidateIndex } from './candidate-index.mjs';
 import { historyUsageBytes, candidateUsageBytes } from './data-usage.mjs';
 import { nonEmptyCandidates, restoreScorableCandidates } from './scoring.mjs';
@@ -222,117 +223,67 @@ function registerIPC() {
     return { path: newDir };
   });
 
-  // 清空输出目录下的历史归档数据
+  // 清空历史归档数据（<输出目录>/archive 下的全部批次目录）。
+  // 扫哪些目录交给 listArchiveDirs()：归档目录的命名规则只在 progress-store 定义一次，
+  // 这里不再自己 readdir + 校验名字。
   ipcMain.handle('clear-history', async () => {
-    const parentDir = dirname(OUTPUT_DIR);
-    const baseName = basename(OUTPUT_DIR);
-    // 校验：baseName 必须只包含合法字符，避免误删
-    if (!/^[a-zA-Z0-9_一-龥-]+$/.test(baseName)) {
-      return { error: `输出目录名「${baseName}」包含非法字符，拒绝操作` };
-    }
-
+    const archiveRoot = archiveRootFor(OUTPUT_DIR);
     let deletedCount = 0;
     let errorCount = 0;
-    const matchedDirs = [];
-    const skippedDirs = [];
 
-    try {
-      const entries = readdirSync(parentDir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory()) {
-          termLog(`[clear-history] 跳过非目录： ${entry.name}`);
-          continue;
-        }
-        // 归档目录名须形如 {输出目录名}-YYYYMMDD-HHMM（复用 archiveDirNameMatches，防止误删任意目录）
-        if (!archiveDirNameMatches(entry.name)) {
-          termLog(`[clear-history] 不匹配归档模式： ${entry.name}`);
-          skippedDirs.push(entry.name);
-          continue;
-        }
-
-        matchedDirs.push(entry.name);
-        const fullPath = resolve(parentDir, entry.name);
-        try {
-          // Windows 文件锁问题：重试最多 3 次，每次等待 500ms
-          let retries = 3;
-          let lastErr = null;
-          while (retries > 0) {
-            try {
-              rmSync(fullPath, { recursive: true, force: true });
-              lastErr = null;
-              break;
-            } catch (e) {
-              lastErr = e;
-              retries--;
-              if (retries > 0) {
-                termLog(`[clear-history] ${entry.name} 删除失败，${retries} 次重试…`, 'stderr');
-                await sleep(500);
-              }
-            }
+    for (const { name, path } of listArchiveDirs()) {
+      try {
+        // Windows 文件锁问题：重试最多 3 次，每次等待 500ms
+        let retries = 3;
+        while (retries > 0) {
+          try {
+            rmSync(path, { recursive: true, force: true });
+            break;
+          } catch (e) {
+            retries--;
+            if (retries === 0) throw e;
+            termLog(`[clear-history] ${name} 删除失败，${retries} 次重试…`, 'stderr');
+            await sleep(500);
           }
-          if (lastErr) throw lastErr;
-          termLog(`[clear-history] 已删除： ${entry.name}`);
-          deletedCount++;
-        } catch (err) {
-          termLog(`[clear-history] 删除失败 ${entry.name}： ${err.message}`, 'stderr');
-          errorCount++;
         }
+        termLog(`[clear-history] 已删除： ${name}`);
+        deletedCount++;
+      } catch (err) {
+        termLog(`[clear-history] 删除失败 ${name}： ${err.message}`, 'stderr');
+        errorCount++;
       }
-    } catch (err) {
-      return { error: `读取目录失败：${err.message}` };
     }
 
-    termLog(`[clear-history] 匹配到的目录： ${JSON.stringify(matchedDirs)}`);
-    termLog(`[clear-history] 未匹配的目录： ${JSON.stringify(skippedDirs)}`);
-
-    return {
-      ok: true,
-      deleted: deletedCount,
-      errors: errorCount,
-      parentDir,
-      matchedDirs,
-      skippedDirs,
-    };
+    return { ok: true, deleted: deletedCount, errors: errorCount, archiveRoot };
   });
 
   // v1.5.0: 历史记录 —— 列出所有历史归档批次（含当前输出目录里的未完成批次）；v1.12.0 起展示为居中弹窗
   ipcMain.handle('list-history', () => {
-    const parentDir = dirname(OUTPUT_DIR);
     const list = [];
     try {
-      const entries = readdirSync(parentDir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        const isCurrent = entry.name === basename(OUTPUT_DIR);
-        // 目录里是否有真实数据（有才展示；只有 .run-meta.json 的空批次不展示）
-        const dirHasData = existsSync(resolve(parentDir, entry.name, '.extract-progress.json'))
-          || existsSync(resolve(parentDir, entry.name, 'zhipin-candidates.json'))
-          || existsSync(resolve(parentDir, entry.name, 'scored-candidates.json'))
-          || existsSync(resolve(parentDir, entry.name, 'candidates.xlsx'));
-        if (isCurrent) {
-          // 当前输出目录只在有数据时才展示（否则是首次使用前的空目录）
-          if (!dirHasData) continue;
-        } else if (!archiveDirNameMatches(entry.name)) {
-          continue;
-        } else if (!dirHasData) {
-          // 空归档批次（运行没产出任何数据）不展示，避免历史记录里混入空壳批次
-          continue;
-        }
-        const dir = resolve(parentDir, entry.name);
+      // 当前批次在输出目录根部，历史批次在 <输出目录>/archive/ 下
+      const dirsToScan = [
+        { dir: OUTPUT_DIR, name: basename(OUTPUT_DIR), isCurrent: true },
+        ...listArchiveDirs().map((a) => ({ dir: a.path, name: a.name, isCurrent: false })),
+      ];
+      for (const { dir, name, isCurrent } of dirsToScan) {
         const candidatesPath = resolve(dir, 'zhipin-candidates.json');
         const scoredPath = resolve(dir, 'scored-candidates.json');
         const progressPath = resolve(dir, '.extract-progress.json');
         const hasCandidates = existsSync(candidatesPath);
         const hasScored = existsSync(scoredPath);
         const hasProgress = existsSync(progressPath);
+        const hasExcel = existsSync(resolve(dir, 'candidates.xlsx'));
+        // 当前输出目录/空归档批次（运行没产出任何数据）不展示，避免历史记录里混入空壳批次
+        if (!(hasCandidates || hasScored || hasProgress || hasExcel)) continue;
         const info = {
-          name: entry.name,
+          name,
           path: dir,
           isCurrent,
           hasCandidates,
           hasScored,
           hasProgress,
-          hasExcel: existsSync(resolve(dir, 'candidates.xlsx')),
+          hasExcel,
           hasScorable: hasCandidates || hasScored || hasProgress, // 有简历数据就能评分（完整/进度/已评分均可），用已算好的存在性判断，避免再解析候选人大文件
           // 这一批此刻是否真的在跑（只有当前批次可能）。历史记录里「进行中」蓝胶囊只认这个标记，
           // 不靠文件状态猜：提取中进度文件在、提取收尾时进度文件已被删而评分还没落盘，
@@ -346,9 +297,9 @@ function registerIPC() {
         info.meta = { ...(meta || {}), source: resolveBatchSource(dir, meta) };
         // 显示时间：归档名带 YYYYMMDD-HHMM；当前目录用元数据的 startedAt
         // （没有元数据时退回批次里最新数据文件的修改时间，避免显示「时间未知」）
-        const stampMatch = entry.name.match(/(\d{8})-(\d{4})$/);
-        if (stampMatch) {
-          const [, ymd, hm] = stampMatch;
+        const stamp = parseArchiveStamp(name);
+        if (stamp) {
+          const { ymd, hm } = stamp;
           info.time = `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)} ${hm.slice(0, 2)}:${hm.slice(2, 4)}`;
         } else if (meta?.startedAt) {
           info.time = isoToDisplayTime(meta.startedAt);

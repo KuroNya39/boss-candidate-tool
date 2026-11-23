@@ -1,39 +1,40 @@
 // electron/archive.mjs — 历史归档目录的元数据读取与还原（叶模块，供评分/主流程/IPC 共用）。
 import { resolve, basename, dirname } from 'node:path';
-import { existsSync, readFileSync, readdirSync, renameSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, mkdirSync } from 'node:fs';
 import { termLog } from './util.mjs';
 import { OUTPUT_DIR } from './state.mjs';
+import { ARCHIVE_DIR_NAME, ARCHIVE_NAME_RE, archiveRootFor, archiveOldOutput, moveDirContents } from '../scripts/progress-store.mjs';
 
-// 历史归档目录名校验：必须形如 {输出目录名}-YYYYMMDD-HHMM，防止误删/误操作任意目录
+// 历史归档目录名校验：归档都放在 <输出目录>/archive/ 下，名字形如 YYYYMMDD-HHMM，
+// 防止误删/误操作任意目录。规则本身在 progress-store（子进程归档也用同一套）。
 export function archiveDirNameMatches(name) {
-  const baseName = basename(OUTPUT_DIR);
-  return new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-\\d{8}-\\d{4}$`).test(name);
+  return ARCHIVE_NAME_RE.test(name);
 }
 
-// 当前输出目录同级的归档目录名单（[{ name, path }]），按名字形如 {输出目录名}-YYYYMMDD-HHMM 认。
-// 「占用统计」这类只要名单的地方走这一处；归档命名规则改了也只改 archiveDirNameMatches。
+// 归档根目录里合法的批次目录名单（[{ name, path }]）。
+// 「占用统计」「历史记录」这类只要名单的地方走这一处；归档命名规则改了也只改这里。
 export function listArchiveDirs() {
-  const parentDir = dirname(OUTPUT_DIR);
+  const root = archiveRootFor(OUTPUT_DIR);
   let entries = [];
   try {
-    entries = readdirSync(parentDir, { withFileTypes: true });
+    entries = readdirSync(root, { withFileTypes: true });
   } catch {
     return [];
   }
   return entries
     .filter((entry) => entry.isDirectory() && archiveDirNameMatches(entry.name))
-    .map((entry) => ({ name: entry.name, path: resolve(parentDir, entry.name) }));
+    .map((entry) => ({ name: entry.name, path: resolve(root, entry.name) }));
 }
 
-// 路径校验：dirPath 是否指向「当前输出目录」或一个合法的历史归档目录（输出目录的同级、
-// 名字形如 output-YYYYMMDD-HHMM）。继续提取 / 重新评分 / 批次详情 / 删除批次都走这一条，
-// 免得每个 handler 各写一遍 basename + resolve(parent, name) 的比对。
+// 路径校验：dirPath 是否指向「当前输出目录」或一个合法的历史归档目录（<输出目录>/archive/ 下、
+// 名字形如 YYYYMMDD-HHMM）。继续提取 / 重新评分 / 批次详情 / 删除批次都走这一条，
+// 免得每个 handler 各写一遍目录比对。
 // allowCurrent=false 用于「必须拒绝当前目录」的操作（删除历史批次）。
 export function isHistoryDir(dirPath, { allowCurrent = true } = {}) {
   const resolved = resolve(dirPath);
   if (resolved === resolve(OUTPUT_DIR)) return allowCurrent;
-  const name = basename(dirPath);
-  return archiveDirNameMatches(name) && resolved === resolve(dirname(OUTPUT_DIR), name);
+  return resolve(dirname(resolved)) === archiveRootFor(OUTPUT_DIR)
+    && archiveDirNameMatches(basename(resolved));
 }
 
 // 读取某目录里记录的运行元数据（来源/岗位/数量），供继续提取还原环境
@@ -79,22 +80,20 @@ export function resolveBatchSource(dir, meta) {
   return readBatchSource(dir) || metaSrc || 'chat';
 }
 
-// 把一个历史归档目录还原为当前输出目录：先把当前输出目录挪开（若不为空），再改名还原。
+// 把一个历史归档目录还原为当前输出目录：当前批次先归档（放进 archive/），再把目标批次搬回来。
+// 归档目录就在输出目录内部，两边都只能逐个文件搬，不能整目录改名。
 // 返回 { ok } 或 { error }。
 export function restoreHistoryToOutput(dirPath) {
   try {
-    if (existsSync(OUTPUT_DIR)) {
-      const entries = readdirSync(OUTPUT_DIR);
-      if (entries.length > 0) {
-        const now = new Date();
-        const pad = (n) => String(n).padStart(2, '0');
-        const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
-        renameSync(OUTPUT_DIR, `${OUTPUT_DIR}-${stamp}`);
-        termLog(`[resume] 已把当前输出目录归档： ${OUTPUT_DIR}-${stamp}`);
-      }
-    }
-    renameSync(dirPath, OUTPUT_DIR);
-    termLog(`[resume] 已还原历史目录为输出目录： ${OUTPUT_DIR}`);
+    // 当前批次先归档：archiveOldOutput 自己判断有没有真实数据、跳过被锁文件，这里不再预读一遍目录
+    archiveOldOutput(OUTPUT_DIR, false);
+    mkdirSync(OUTPUT_DIR, { recursive: true });
+    moveDirContents(dirPath, OUTPUT_DIR, {
+      skip: (name) => name === ARCHIVE_DIR_NAME, // 归档批次里不该再有 archive，防一手
+      onSkip: (name) => termLog(`[resume] 输出目录已有同名项，跳过： ${name}`, 'stderr'),
+      strict: true, // 搬不干净不能假装成功
+    });
+    termLog(`[resume] 已还原历史目录为输出目录： ${dirPath} → ${OUTPUT_DIR}`);
     return { ok: true };
   } catch (err) {
     termLog(`[resume] 还原目录失败： ${err.message}`, 'stderr');
